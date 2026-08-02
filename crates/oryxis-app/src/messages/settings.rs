@@ -10,6 +10,11 @@ pub enum SettingsMessage {
     /// next non-Esc, non-pure-modifier `KeyPressed` becomes the new
     /// binding (see `shortcuts::handle_hotkey_capture`).
     StartEditingHotkey(crate::hotkeys::HotkeyAction, crate::hotkeys::HotkeySlot),
+    /// A bindable mouse button (middle / back / forward / extra) was
+    /// pressed anywhere in the window. Fired unconditionally by the
+    /// event subscription; `shortcuts::handle_mouse_button_press`
+    /// decides whether it records a binding or fires one.
+    MouseButtonPressed(iced::mouse::Button),
     /// Settings → Shortcuts: drop a single action's user override and
     /// fall back to the factory default.
     ResetHotkey(crate::hotkeys::HotkeyAction),

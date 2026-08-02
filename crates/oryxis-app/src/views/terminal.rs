@@ -422,6 +422,61 @@ impl Oryxis {
         })
     }
 
+    /// The user's MOUSE bindings for the terminal canvas (middle-click
+    /// paste out of the box).
+    ///
+    /// Same contract as `terminal_chord_resolver`: the widget gets a
+    /// matcher, not a table, so `HotkeyBinding::match_mouse` stays the
+    /// single implementation.
+    ///
+    /// Which pairs belong here is `HotkeyAction::mouse_binding_owner`,
+    /// shared with `shortcuts::dispatch_mouse_binding` so the two can't
+    /// both claim a press (it would fire twice) or both decline it.
+    /// Declining here leaves the press uncaptured, which is exactly
+    /// what lets the global handler pick it up.
+    pub(crate) fn terminal_mouse_resolver(&self) -> oryxis_terminal::widget::MouseResolver<Message> {
+        use crate::hotkeys::{HotkeyAction, HotkeyBinding, MouseButton};
+        use oryxis_terminal::widget::{MouseGesture, TerminalChordAction};
+        // Flattened at build time so the closure does one linear scan of
+        // (usually) a single entry per press instead of walking the whole
+        // action table.
+        let bound: Vec<(HotkeyBinding, HotkeyAction)> = HotkeyAction::all()
+            .iter()
+            .filter_map(|a| self.hotkey_bindings.get(a).map(|binds| (*a, binds)))
+            .flat_map(|(a, binds)| binds.mouse_chords().map(move |b| (*b, a)))
+            .collect();
+        Box::new(move |button, mods| {
+            let button = MouseButton::from_iced(button)?;
+            let action = bound
+                .iter()
+                .find(|(b, _)| b.match_mouse(button, mods))
+                .map(|(_, a)| *a)?;
+            if action.mouse_binding_owner(button) != crate::hotkeys::MouseBindingOwner::Widget {
+                return None;
+            }
+            // The split is `HotkeyAction::widget_dispatched`: those five
+            // need canvas state, everything else is the app's to run.
+            Some(match action {
+                HotkeyAction::TerminalCopy => MouseGesture::Widget(TerminalChordAction::Copy),
+                HotkeyAction::TerminalPasteSelection => {
+                    MouseGesture::Widget(TerminalChordAction::PasteSelection)
+                }
+                HotkeyAction::TerminalSelectAll => {
+                    MouseGesture::Widget(TerminalChordAction::SelectAll)
+                }
+                HotkeyAction::ScrollbackPageUp => {
+                    MouseGesture::Widget(TerminalChordAction::ScrollPageUp)
+                }
+                HotkeyAction::ScrollbackPageDown => {
+                    MouseGesture::Widget(TerminalChordAction::ScrollPageDown)
+                }
+                other => MouseGesture::Publish(Message::Tabs(
+                    crate::messages::TabsMessage::RunHotkeyAction(other),
+                )),
+            })
+        })
+    }
+
     fn render_pane_canvas<'a>(
         &'a self,
         pane: &'a crate::state::Pane,
@@ -440,7 +495,7 @@ impl Oryxis {
             .with_copy_on_select(self.setting_copy_on_select)
             .with_right_click_copy(self.setting_right_click_copy)
             .with_terminal_chords(self.terminal_chord_resolver())
-            .with_middle_click_paste(self.setting_middle_click_paste)
+            .with_mouse_bindings(self.terminal_mouse_resolver())
             .with_right_click_action(self.setting_terminal_right_click.to_widget())
             // The keypress half of the pair is queued on the input funnel
             // (`write_bytes_to_pane`), not here: see issue #111.

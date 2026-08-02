@@ -12,7 +12,7 @@ impl<Message> TerminalView<Message> {
             font: Font::MONOSPACE,
             copy_on_select: true,
             right_click_copy: false,
-            middle_click_paste: true,
+            mouse_bindings: None,
             right_click_action: RightClickAction::default(),
             reset_scroll_on_output: false,
             bold_is_bright: true,
@@ -93,7 +93,6 @@ impl<Message> TerminalView<Message> {
         self
     }
 
-    /// X11-style middle-click paste (independent of `copy_on_select`).
     /// Wire the user's chord bindings for copy / select-all /
     /// scrollback paging. See [`ChordResolver`].
     pub fn with_terminal_chords(mut self, resolver: ChordResolver) -> Self {
@@ -101,8 +100,10 @@ impl<Message> TerminalView<Message> {
         self
     }
 
-    pub fn with_middle_click_paste(mut self, on: bool) -> Self {
-        self.middle_click_paste = on;
+    /// Wire the user's MOUSE bindings (X11-style middle-click paste out
+    /// of the box). See [`MouseResolver`].
+    pub fn with_mouse_bindings(mut self, resolver: MouseResolver<Message>) -> Self {
+        self.mouse_bindings = Some(resolver);
         self
     }
 

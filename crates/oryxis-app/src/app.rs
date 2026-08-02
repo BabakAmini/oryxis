@@ -1048,11 +1048,6 @@ pub struct Oryxis {
     /// copies on right-click instead of on release. Ignored when
     /// `setting_copy_on_select` is off.
     pub(crate) setting_right_click_copy: bool,
-    /// X11-style middle-click paste in the terminal (xterm / PuTTY
-    /// tradition). Independent of `setting_copy_on_select`; the paste
-    /// still routes through the careful-paste / paste-guard checks.
-    /// Persisted as `middle_click_paste`; default on.
-    pub(crate) setting_middle_click_paste: bool,
     /// What a terminal right-click does (Menu / Paste / Extend, PuTTY's
     /// three schemes). Persisted as `terminal_right_click`; default
     /// Paste (the prior behavior). `setting_right_click_copy` applies

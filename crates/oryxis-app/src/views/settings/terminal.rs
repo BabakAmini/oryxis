@@ -220,11 +220,15 @@ impl Oryxis {
         // gesture, so it sits outside the copy-on-select bundle; the
         // paste still routes through the careful-paste / paste-guard
         // checks like every other paste path.
+        //
+        // State comes from the binding table, not a setting: the gesture
+        // IS a chord on `TerminalPasteSelection`, editable in Settings >
+        // Shortcuts like any other, and this toggle adds / removes it.
         toggles_col = toggles_col
             .push(Space::new().height(10))
             .push(self.nav_toggle_row(
                 crate::i18n::t("middle_click_paste"),
-                self.setting_middle_click_paste,
+                self.middle_click_pastes(),
                 Message::Settings(SettingsMessage::ToggleMiddleClickPaste),
             ));
         // Careful paste: the multi-line paste guard (line-count preview
@@ -347,24 +351,27 @@ impl Oryxis {
                 .push(self.default_download_dir_row()),
         );
 
-        // Text rendering toggles open the Appearance card (under the
-        // Appearance group header, not mixed with clipboard
-        // behaviour); the font sub-blocks follow in the same card.
-        let text_render_col = column![
+        // Settings > Terminal used to have one "Appearance" card holding
+        // everything that was not clipboard behaviour: the bell, OSC 52,
+        // OSC 9, smart tabs, the sidebar dock, command-history capture.
+        // None of that is appearance. Split into four cards, each named
+        // after what the settings inside it actually govern.
+
+        // Appearance: what the grid LOOKS like. Font blocks and the theme
+        // picker join this card below.
+        let appearance_col = column![
             self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
-            Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
-            self.command_history_dir_row(),
-            Space::new().height(10),
-            Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
-            Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::Settings(SettingsMessage::ToggleTerminalAutoTitle)),
-            Space::new().height(10),
+        ];
+
+        // Notifications: everything whose job is to GET YOUR ATTENTION.
+        // Smart tabs and its threshold live here rather than with the tab
+        // settings because the threshold is "tell me when a command has
+        // run this long", which is the same promise as the bell.
+        let notifications_col = column![
             self.nav_pick_row(
                 crate::i18n::t("terminal_bell"),
                 crate::util::BellMode::ALL
@@ -375,18 +382,6 @@ impl Oryxis {
                 |s: &String| s.clone(),
                 200.0,
                 |v| Message::Settings(SettingsMessage::BellModeChanged(v)),
-            ),
-            Space::new().height(10),
-            self.nav_pick_row(
-                crate::i18n::t("terminal_clipboard"),
-                crate::util::ClipboardAccess::ALL
-                    .iter()
-                    .map(|m| crate::i18n::t(m.label_key()).to_string())
-                    .collect::<Vec<_>>(),
-                crate::i18n::t(self.setting_clipboard_access.label_key()).to_string(),
-                |s: &String| s.clone(),
-                200.0,
-                |v| Message::Settings(SettingsMessage::ClipboardAccessChanged(v)),
             ),
             Space::new().height(10),
             self.nav_pick_row(
@@ -403,7 +398,35 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::Settings(SettingsMessage::SettingToggleSmartTabs)),
             self.smart_tabs_threshold_row(),
+        ];
+
+        // Integration: what the REMOTE END is allowed to drive, and what
+        // we record off the session. Every row here is a channel between
+        // the shell and the app rather than a preference about drawing.
+        let integration_col = column![
+            self.nav_pick_row(
+                crate::i18n::t("terminal_clipboard"),
+                crate::util::ClipboardAccess::ALL
+                    .iter()
+                    .map(|m| crate::i18n::t(m.label_key()).to_string())
+                    .collect::<Vec<_>>(),
+                crate::i18n::t(self.setting_clipboard_access.label_key()).to_string(),
+                |s: &String| s.clone(),
+                200.0,
+                |v| Message::Settings(SettingsMessage::ClipboardAccessChanged(v)),
+            ),
             Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::Settings(SettingsMessage::ToggleTerminalAutoTitle)),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
+            Space::new().height(10),
+            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
+            self.command_history_dir_row(),
+        ];
+
+        // Sidebar: where the Chat / Snippets / Files panel sits and how it
+        // opens.
+        let sidebar_col = column![
             self.nav_toggle_row(
                 crate::i18n::t("terminal_sidebar_left"),
                 self.setting_terminal_sidebar_left,
@@ -581,7 +604,7 @@ impl Oryxis {
         // sub-theme, and a grid that large reads better boxed
         // separately).
         let appearance_section = panel_section(
-            text_render_col
+            appearance_col
                 .push(Space::new().height(16))
                 .push(font_size_block)
                 .push(Space::new().height(16))
@@ -710,6 +733,7 @@ impl Oryxis {
                 140.0,
                 |v| Message::Settings(SettingsMessage::PaneGapChanged(v)),
             ),
+            Space::new().height(10),
             self.nav_toggle_row(
                 crate::i18n::t("pane_border_inactive"),
                 self.setting_pane_border_inactive,
@@ -734,6 +758,18 @@ impl Oryxis {
                     gh(crate::i18n::t("terminal_group_split_panes")),
                     Space::new().height(8),
                     split_panes_section,
+                    Space::new().height(18),
+                    gh(crate::i18n::t("terminal_group_notifications")),
+                    Space::new().height(8),
+                    panel_section(notifications_col),
+                    Space::new().height(18),
+                    gh(crate::i18n::t("terminal_group_integration")),
+                    Space::new().height(8),
+                    panel_section(integration_col),
+                    Space::new().height(18),
+                    gh(crate::i18n::t("terminal_group_sidebar")),
+                    Space::new().height(8),
+                    panel_section(sidebar_col),
                     Space::new().height(18),
                     gh(crate::i18n::t("local_terminals")),
                     Space::new().height(8),

@@ -126,6 +126,18 @@ impl Oryxis {
                 iced::event::Event::Mouse(iced::mouse::Event::ButtonPressed(
                     iced::mouse::Button::Right,
                 )) => Some(Message::NoOp),
+                // Bindable mouse buttons (middle / back / forward / any
+                // extra): the Shortcuts editor RECORDS one here, and a
+                // bound SIDE button FIRES from here, which is what makes
+                // it work window-wide instead of only over the canvas.
+                // Emitted unconditionally rather than gated on app state:
+                // this closure is built once and outlives every update,
+                // so any captured flag would go stale.
+                iced::event::Event::Mouse(iced::mouse::Event::ButtonPressed(button))
+                    if crate::hotkeys::MouseButton::from_iced(button).is_some() =>
+                {
+                    Some(Message::Settings(SettingsMessage::MouseButtonPressed(button)))
+                }
                 iced::event::Event::Window(iced::window::Event::Resized(size)) => {
                     Some(Message::Tabs(TabsMessage::WindowResized(size)))
                 }

@@ -105,11 +105,11 @@ impl Oryxis {
                 );
             }
             SettingsMessage::ToggleMiddleClickPaste => {
-                self.setting_middle_click_paste = !self.setting_middle_click_paste;
-                self.persist_setting(
-                    "middle_click_paste",
-                    if self.setting_middle_click_paste { "true" } else { "false" },
-                );
+                // Writes through the binding table, which owns the
+                // gesture; there is no `middle_click_paste` setting any
+                // more (see `set_middle_click_paste`).
+                let on = !self.middle_click_pastes();
+                return Ok(self.set_middle_click_paste(on));
             }
             SettingsMessage::SettingSftpDefaultEditorChanged(v) => {
                 self.setting_sftp_default_editor = v;

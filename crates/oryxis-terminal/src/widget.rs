@@ -394,6 +394,30 @@ pub enum TerminalChordAction {
 /// matching: a copy of it here would drift from the editor's.
 pub type ChordResolver = Box<dyn Fn(&keyboard::Key, &keyboard::Modifiers) -> Option<TerminalChordAction>>;
 
+/// What a bound mouse button does when it is pressed over the canvas.
+///
+/// The split mirrors the keyboard side: gestures that need canvas state
+/// (selection, scroll offset) are performed here, everything else is a
+/// message for the app, which is the only layer that reaches an SSH
+/// session.
+pub enum MouseGesture<Message> {
+    /// One of the widget's own gestures, run in place.
+    Widget(TerminalChordAction),
+    /// Hand this message to the app.
+    Publish(Message),
+}
+
+/// Resolves a mouse press to a [`MouseGesture`], or `None` when no
+/// binding claims that button with those modifiers.
+///
+/// Same contract as [`ChordResolver`]: the app owns the (user-editable)
+/// binding model and hands a matcher down, so there is exactly ONE
+/// implementation of binding matching. Left and Right are never
+/// resolved: they are the canvas's own select / right-click-scheme
+/// gestures, so the binding editor refuses them.
+pub type MouseResolver<Message> =
+    Box<dyn Fn(mouse::Button, &keyboard::Modifiers) -> Option<MouseGesture<Message>>>;
+
 pub struct TerminalView<Message = ()> {
     state: Arc<Mutex<TerminalState>>,
     /// User-bound chords for the gestures this widget performs. `None`
@@ -412,11 +436,10 @@ pub struct TerminalView<Message = ()> {
     /// selection copies it (the Windows console "QuickEdit" model), and a
     /// right-click with no selection still pastes.
     right_click_copy: bool,
-    /// X11-style middle-click paste (the xterm / PuTTY tradition). Its
-    /// own gesture, so it is NOT gated on `copy_on_select`; when the
-    /// remote app holds mouse tracking, the report path wins (Shift
-    /// bypasses, as everywhere).
-    middle_click_paste: bool,
+    /// User-bound mouse buttons (middle-click paste out of the box).
+    /// `None` = no mouse gestures at all, same fallback as `chords` for
+    /// callers that don't wire the binding table.
+    mouse_bindings: Option<MouseResolver<Message>>,
     /// What a right-click does (PuTTY's three schemes). The single
     /// authority for the gesture; see [`RightClickAction`].
     right_click_action: RightClickAction,

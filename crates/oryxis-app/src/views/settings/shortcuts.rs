@@ -98,7 +98,14 @@ impl Oryxis {
             // foreground, the readable pairing for the `button_bg`
             // surface this button already uses. Painting accent-on-bg
             // here washed the placeholder out against the dark button.
-            text(crate::i18n::t("hotkey_press_a_key"))
+            // Rows that take a mouse button say so up front: finding out
+            // by clicking and having nothing happen reads as broken.
+            let placeholder = if action.accepts_mouse() {
+                "hotkey_press_a_key_or_mouse"
+            } else {
+                "hotkey_press_a_key"
+            };
+            text(crate::i18n::t(placeholder))
                 .size(12)
                 .color(OryxisColors::t().button_text)
                 .into()
@@ -153,19 +160,20 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into()
         } else if empty_row {
-            // Nothing bound at all, gestures included (`empty_row` is
-            // false when a live mouse gesture badge precedes this chip):
-            // the add chip carries the unbound placeholder, so the row
-            // still reads as one affordance rather than a bare "+" next
-            // to nothing.
+            // Nothing bound at all: the add chip carries the unbound
+            // placeholder, so the row still reads as one affordance
+            // rather than a bare "+" next to nothing.
+            // Same contrast rule as the capture placeholder above: the
+            // chip surface is `button_bg` (an accent fill on most
+            // themes), so the muted foreground washed out on it.
             text(crate::i18n::t("hotkey_unbound"))
                 .size(11)
-                .color(OryxisColors::t().text_muted)
+                .color(OryxisColors::t().button_text)
                 .into()
         } else {
             text("+")
                 .size(13)
-                .color(OryxisColors::t().text_muted)
+                .color(OryxisColors::t().button_text)
                 .into()
         };
 
@@ -196,27 +204,6 @@ impl Oryxis {
         self.settings_nav_ring_at(idx, 6.0, btn.into())
     }
 
-    /// Name of the built-in MOUSE gesture that performs `action`, when it
-    /// has one AND that gesture is currently enabled. Lets a chord-less
-    /// row say what does drive the action instead of "(unbound)", which
-    /// reads as a broken feature.
-    ///
-    /// Gated on the live setting on purpose: a user who turned the
-    /// gesture off really has nothing bound, and the row should say so
-    /// rather than point at a disabled affordance.
-    fn action_live_gesture(&self, action: crate::hotkeys::HotkeyAction) -> Option<&'static str> {
-        match action {
-            // X11 PRIMARY paste. Middle-click is the convention's native
-            // gesture, which is why this action ships without a chord.
-            crate::hotkeys::HotkeyAction::TerminalPasteSelection
-                if self.setting_middle_click_paste =>
-            {
-                Some(crate::i18n::t("gesture_middle_click"))
-            }
-            _ => None,
-        }
-    }
-
     /// Single row in the Shortcuts editor list. Renders one chip per
     /// bound chord (click to re-record it, Delete while recording to
     /// drop it), a trailing add chip, and a reset button only when the
@@ -241,14 +228,11 @@ impl Oryxis {
             .filter(|(a, _)| *a == action)
             .map(|(_, s)| s);
 
-        let mut chips: Vec<Element<'_, Message>> = Vec::with_capacity(binds.len() + 2);
-        // A built-in MOUSE gesture renders first, as a key badge like the
-        // chord pills, so it reads at the same contrast on every theme.
-        // Not a chip: it is not recordable and not resettable, the
-        // gesture's own setting governs it, so it takes no click.
-        if let Some(gesture) = self.action_live_gesture(action) {
-            chips.push(key_badge_owned(gesture.to_string()));
-        }
+        // Mouse bindings are ordinary chords in this list (middle-click
+        // paste is one of them out of the box), so they render as
+        // editable chips like any other rather than as a read-only
+        // gesture badge.
+        let mut chips: Vec<Element<'_, Message>> = Vec::with_capacity(binds.len() + 1);
         chips.extend(binds.iter().enumerate().map(|(i, chord)| {
             let slot = HotkeySlot::Replace(i);
             self.hotkey_chip(action, slot, Some(*chord), editing == Some(slot), false)
@@ -258,13 +242,23 @@ impl Oryxis {
             HotkeySlot::Add,
             None,
             editing == Some(HotkeySlot::Add),
-            binds.is_empty() && self.action_live_gesture(action).is_none(),
+            binds.is_empty(),
         ));
 
+        // The chip run WRAPS inside its fixed column: an action can carry
+        // a gesture badge plus several chords, and a single line would
+        // squeeze the trailing add chip into an unreadable sliver (or
+        // push it out of the column entirely). The column keeps its fixed
+        // width so the label beside it never jitters as chords are added;
+        // the row simply grows taller. `spacing` / `align_y` must be set
+        // before `wrap()`, which consumes the `Row`.
         let pills_box = container(
             iced::widget::Row::with_children(chips)
                 .spacing(6)
-                .align_y(iced::Alignment::Center),
+                .align_y(iced::Alignment::Center)
+                .wrap()
+                .vertical_spacing(4)
+                .align_x(dir_align_x()),
         )
         .width(260)
         .align_x(dir_align_x());

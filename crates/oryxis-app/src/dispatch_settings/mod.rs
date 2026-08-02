@@ -543,6 +543,9 @@ impl Oryxis {
             SettingsMessage::StartEditingHotkey(action, slot) => {
                 self.editing_hotkey = Some((action, slot));
             }
+            SettingsMessage::MouseButtonPressed(button) => {
+                return self.handle_mouse_button_press(button);
+            }
             SettingsMessage::ResetHotkey(action) => {
                 let mut defaults = crate::hotkeys::default_bindings();
                 match defaults.remove(&action) {
