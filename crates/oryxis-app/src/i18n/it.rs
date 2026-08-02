@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Dividi affiancato",
         "split_stacked" => "Dividi impilato",
         "maximize_pane" => "Ingrandisci riquadro",
+        "pane_border_inactive" => "Contorno dei riquadri inattivi",
         "restore_panes" => "Ripristina riquadri",
         "hotkey_toggle_maximize_pane" => "Ingrandisci / ripristina riquadro",
         "close_pane" => "Chiudi riquadro",

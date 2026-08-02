@@ -181,6 +181,7 @@ pub enum SettingsMessage {
     /// Flip the careful-paste guard (warn before multi-line paste).
     ToggleCarefulPaste,
     ToggleBoldIsBright,
+    TogglePaneBorderInactive,
     /// Toggle showing the shell-set window title (OSC 0/2) in the tab strip.
     ToggleTerminalAutoTitle,
     /// Terminal bell behavior changed from the settings pick (localized

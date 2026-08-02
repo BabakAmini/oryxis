@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Dividir en paralelo",
         "split_stacked" => "Dividir apilado",
         "maximize_pane" => "Maximizar panel",
+        "pane_border_inactive" => "Contorno en paneles inactivos",
         "restore_panes" => "Restaurar paneles",
         "hotkey_toggle_maximize_pane" => "Maximizar / restaurar panel",
         "close_pane" => "Cerrar panel",

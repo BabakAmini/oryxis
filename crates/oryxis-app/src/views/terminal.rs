@@ -554,6 +554,9 @@ impl Oryxis {
         //
         // Non-interactive (a plain container over a Space), so it cannot
         // eat the press that moves focus to this pane.
+        // Off means the FOCUSED pane still draws (it is the only marker
+        // left once the panes sit flush); only the siblings go bare, so
+        // the ring is still built whenever the tab is split.
         let ring: Option<Element<'a, Message>> = multipane.then(|| {
             let participating = tab_broadcast && !pane.broadcast_opt_out;
             // Broadcast is the louder signal and wins: keystrokes going
@@ -563,8 +566,13 @@ impl Oryxis {
                 (OryxisColors::t().warning, 2.0)
             } else if is_focused {
                 (OryxisColors::t().accent, 2.0)
-            } else {
+            } else if self.setting_pane_border_inactive {
                 (OryxisColors::t().border, 1.0)
+            } else {
+                // Setting off: the focused pane still gets its accent
+                // (with the panes flush, nothing else says where the
+                // focused one ends), the rest go bare.
+                (Color::TRANSPARENT, 0.0)
             };
             container(Space::new())
                 .width(Length::Fill)

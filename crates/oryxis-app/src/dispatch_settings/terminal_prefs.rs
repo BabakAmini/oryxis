@@ -244,6 +244,13 @@ impl Oryxis {
                 crate::state::set_auto_title(on);
                 self.persist_setting("terminal_auto_title", if on { "true" } else { "false" });
             }
+            SettingsMessage::TogglePaneBorderInactive => {
+                self.setting_pane_border_inactive = !self.setting_pane_border_inactive;
+                self.persist_setting(
+                    "pane_border_inactive",
+                    if self.setting_pane_border_inactive { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleBoldIsBright => {
                 self.setting_bold_is_bright = !self.setting_bold_is_bright;
                 self.persist_setting(

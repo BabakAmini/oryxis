@@ -166,6 +166,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Розділити поряд",
         "split_stacked" => "Розділити одне під одним",
         "maximize_pane" => "Розгорнути панель",
+        "pane_border_inactive" => "Контур неактивних панелей",
         "restore_panes" => "Відновити панелі",
         "hotkey_toggle_maximize_pane" => "Розгорнути / відновити панель",
         "close_pane" => "Закрити панель",

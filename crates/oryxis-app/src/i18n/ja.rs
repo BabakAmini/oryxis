@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "左右に分割",
         "split_stacked" => "上下に分割",
         "maximize_pane" => "ペインを最大化",
+        "pane_border_inactive" => "非アクティブなペインを枠線で囲む",
         "restore_panes" => "ペインを元に戻す",
         "hotkey_toggle_maximize_pane" => "ペインの最大化 / 復元",
         "close_pane" => "ペインを閉じる",

@@ -166,6 +166,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Yan yana böl",
         "split_stacked" => "Üst üste böl",
         "maximize_pane" => "Bölmeyi büyüt",
+        "pane_border_inactive" => "Etkin olmayan bölmelerin çerçevesi",
         "restore_panes" => "Bölmeleri geri yükle",
         "hotkey_toggle_maximize_pane" => "Bölmeyi büyüt / geri yükle",
         "close_pane" => "Bölmeyi kapat",

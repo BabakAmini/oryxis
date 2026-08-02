@@ -166,6 +166,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "تقسيم جنبًا إلى جنب",
         "split_stacked" => "تقسيم مكدس",
         "maximize_pane" => "تكبير الجزء",
+        "pane_border_inactive" => "إطار للأجزاء غير النشطة",
         "restore_panes" => "استعادة الأجزاء",
         "hotkey_toggle_maximize_pane" => "تكبير / استعادة الجزء",
         "close_pane" => "إغلاق اللوحة",

@@ -166,6 +166,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Podziel obok siebie",
         "split_stacked" => "Podziel w pionie",
         "maximize_pane" => "Maksymalizuj panel",
+        "pane_border_inactive" => "Obramowanie nieaktywnych paneli",
         "restore_panes" => "Przywróć panele",
         "hotkey_toggle_maximize_pane" => "Maksymalizuj / przywróć panel",
         "close_pane" => "Zamknij panel",

@@ -169,6 +169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "अगल-बगल स्प्लिट करें",
         "split_stacked" => "ऊपर-नीचे स्प्लिट करें",
         "maximize_pane" => "पैनल बड़ा करें",
+        "pane_border_inactive" => "निष्क्रिय पैनल की रूपरेखा",
         "restore_panes" => "पैनल पुनर्स्थापित करें",
         "hotkey_toggle_maximize_pane" => "पैनल बड़ा करें / पुनर्स्थापित करें",
         "close_pane" => "पेन बंद करें",

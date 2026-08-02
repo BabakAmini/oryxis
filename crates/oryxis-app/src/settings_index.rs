@@ -105,6 +105,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Terminal, "scrollback_reset_keypress", "scrollback reset keypress jump bottom"),
     e(S::Terminal, "scrollback_reset_output", "scrollback reset output activity jump bottom"),
     e(S::Terminal, "bold_bright", "bold bright colors text intensity"),
+    e(S::Terminal, "pane_border_inactive", "pane border outline split inactive unfocused separator divider"),
     e(S::Terminal, "keyword_highlight", "keyword highlight color rules trigger"),
     e(S::Terminal, "command_history_capture", "command history capture record log"),
     e(S::Terminal, "cmd_history_file", "command history text file log append export"),

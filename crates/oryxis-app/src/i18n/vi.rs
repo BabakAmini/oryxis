@@ -166,6 +166,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Chia cạnh nhau",
         "split_stacked" => "Chia chồng lên nhau",
         "maximize_pane" => "Phóng to khung",
+        "pane_border_inactive" => "Viền cho khung không hoạt động",
         "restore_panes" => "Khôi phục các khung",
         "hotkey_toggle_maximize_pane" => "Phóng to / khôi phục khung",
         "close_pane" => "Đóng khung",

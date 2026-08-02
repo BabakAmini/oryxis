@@ -1106,6 +1106,10 @@ pub struct Oryxis {
     /// independently).
     pub(crate) sidebar_snippet_group: Option<String>,
     pub(crate) setting_bold_is_bright: bool,
+    /// Draw the thin separator outline on UNFOCUSED panes. The focused
+    /// pane's accent outline is not affected: with the panes flush there
+    /// would otherwise be nothing at all marking where one ends.
+    pub(crate) setting_pane_border_inactive: bool,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software
     /// render paths. When on, the terminal skips the per-frame keyword /

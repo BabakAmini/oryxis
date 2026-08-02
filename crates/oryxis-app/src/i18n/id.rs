@@ -166,6 +166,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Bagi berdampingan",
         "split_stacked" => "Bagi bertumpuk",
         "maximize_pane" => "Maksimalkan panel",
+        "pane_border_inactive" => "Garis tepi panel tidak aktif",
         "restore_panes" => "Pulihkan panel",
         "hotkey_toggle_maximize_pane" => "Maksimalkan / pulihkan panel",
         "close_pane" => "Tutup panel",

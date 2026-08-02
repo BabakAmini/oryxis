@@ -169,6 +169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Διαίρεση δίπλα-δίπλα",
         "split_stacked" => "Διαίρεση σε στοίβα",
         "maximize_pane" => "Μεγιστοποίηση τμήματος",
+        "pane_border_inactive" => "Περίγραμμα ανενεργών τμημάτων",
         "restore_panes" => "Επαναφορά τμημάτων",
         "hotkey_toggle_maximize_pane" => "Μεγιστοποίηση / επαναφορά τμήματος",
         "close_pane" => "Κλείσιμο τμήματος",

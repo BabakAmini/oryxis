@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Nebeneinander teilen",
         "split_stacked" => "Übereinander teilen",
         "maximize_pane" => "Bereich maximieren",
+        "pane_border_inactive" => "Umriss inaktiver Bereiche",
         "restore_panes" => "Bereiche wiederherstellen",
         "hotkey_toggle_maximize_pane" => "Bereich maximieren / wiederherstellen",
         "close_pane" => "Bereich schließen",

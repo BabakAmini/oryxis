@@ -343,6 +343,7 @@ impl Oryxis {
         // behaviour); the font sub-blocks follow in the same card.
         let text_render_col = column![
             self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
+            self.nav_toggle_row(crate::i18n::t("pane_border_inactive"), self.setting_pane_border_inactive, Message::Settings(SettingsMessage::TogglePaneBorderInactive)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(10),

@@ -169,6 +169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "פיצול זה לצד זה",
         "split_stacked" => "פיצול זה מעל זה",
         "maximize_pane" => "הגדל חלונית",
+        "pane_border_inactive" => "מסגרת לחלוניות לא פעילות",
         "restore_panes" => "שחזר חלוניות",
         "hotkey_toggle_maximize_pane" => "הגדל / שחזר חלונית",
         "close_pane" => "סגירת חלונית",

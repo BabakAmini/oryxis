@@ -169,6 +169,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "split_side_by_side" => "Split side by side",
         "split_stacked" => "Split stacked",
         "maximize_pane" => "Maximize pane",
+        "pane_border_inactive" => "Outline inactive panes",
         "restore_panes" => "Restore panes",
         "hotkey_toggle_maximize_pane" => "Maximize / restore pane",
         "close_pane" => "Close pane",

@@ -169,6 +169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "Rozdělit vedle sebe",
         "split_stacked" => "Rozdělit nad sebe",
         "maximize_pane" => "Maximalizovat panel",
+        "pane_border_inactive" => "Obrys neaktivních panelů",
         "restore_panes" => "Obnovit panely",
         "hotkey_toggle_maximize_pane" => "Maximalizovat / obnovit panel",
         "close_pane" => "Zavřít panel",

@@ -393,6 +393,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("bold_is_bright") {
                 self.setting_bold_is_bright = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("pane_border_inactive") {
+                self.setting_pane_border_inactive = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("keyword_highlight") {
                 self.setting_keyword_highlight = v == "true";
             }

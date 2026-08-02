@@ -548,6 +548,7 @@ impl Oryxis {
                 setting_scrollback_reset_keypress: true,
                 setting_scrollback_reset_output: false,
                 setting_bold_is_bright: true,
+                setting_pane_border_inactive: true,
                 setting_keyword_highlight: true,
                 setting_command_history: true,
                 setting_command_history_file: false,

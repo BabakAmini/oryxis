@@ -165,6 +165,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "并排拆分",
         "split_stacked" => "上下拆分",
         "maximize_pane" => "最大化窗格",
+        "pane_border_inactive" => "为非活动窗格描边",
         "restore_panes" => "还原窗格",
         "hotkey_toggle_maximize_pane" => "最大化 / 还原窗格",
         "close_pane" => "关闭窗格",

@@ -169,6 +169,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "split_side_by_side" => "แบ่งซ้ายขวา",
         "split_stacked" => "แบ่งบนล่าง",
         "maximize_pane" => "ขยายบานหน้าต่าง",
+        "pane_border_inactive" => "เส้นขอบบานหน้าต่างที่ไม่ได้ใช้งาน",
         "restore_panes" => "คืนค่าบานหน้าต่าง",
         "hotkey_toggle_maximize_pane" => "ขยาย / คืนค่าบานหน้าต่าง",
         "close_pane" => "ปิดเพน",
