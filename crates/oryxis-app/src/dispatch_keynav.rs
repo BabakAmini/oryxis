@@ -106,6 +106,12 @@ impl Oryxis {
             Named::ContextMenu => self.keynav_open_context_menu(),
             Named::F10 if modifiers.shift() => self.keynav_open_context_menu(),
             Named::Enter => self.keynav_activate(),
+            // Delete removes the ringed item, always through the same
+            // confirmation its menu entry uses. Before this the vault had
+            // no keyboard delete at ALL (the key was only bound in the
+            // terminal sidebar), so the only path was Enter into an editor
+            // and out through its Delete row.
+            Named::Delete => self.keynav_delete(),
             // Space is delivered as a named key by winit (see
             // `util.rs` PTY routing); same rule as the Character
             // guard above.
@@ -505,6 +511,86 @@ impl Oryxis {
     /// anchors at the last mouse position, the only anchor iced gives
     /// us without widget bounds; the menu itself is fully keyboard-
     /// navigable once open.
+    /// Delete the ringed content item, via the same confirmation its
+    /// context menu uses.
+    ///
+    /// Content zone only: the sub-nav, toolbar and settings rows have
+    /// nothing to delete, and returning `None` there leaves the key free
+    /// rather than silently doing nothing.
+    fn keynav_delete(&mut self) -> Option<Task<Message>> {
+        let (zone, item) = self.keynav.focus?;
+        if zone != FocusZone::Content {
+            return None;
+        }
+        let msg = match item {
+            NavItem::Dash(DashNavItem::Host(i)) => {
+                Message::Editor(EditorMessage::RequestDeleteConnection(i))
+            }
+            // Folders ask their own richer question (keep the hosts, or
+            // delete them too), so they route to that dialog instead of
+            // the generic confirm.
+            NavItem::Dash(DashNavItem::Group(gid)) => {
+                Message::Tabs(TabsMessage::StartDeleteFolder(gid))
+            }
+            NavItem::Dash(DashNavItem::SessionGroup(i)) => {
+                Message::SessionGroup(SessionGroupMessage::RequestDeleteSessionGroup(i))
+            }
+            NavItem::Key(i) => Message::Keys(KeysMessage::RequestDeleteKey(i)),
+            NavItem::Identity(i) => Message::Keys(KeysMessage::RequestDeleteIdentity(i)),
+            NavItem::Snippet(i) => Message::Snippet(SnippetMessage::RequestDeleteSnippet(i)),
+            NavItem::PortForward(i) => {
+                Message::PortForward(PortForwardMessage::RequestDeletePortForwardRule(i))
+            }
+            NavItem::KnownHost(i) => {
+                Message::KnownHost(KnownHostMessage::RequestDeleteKnownHost(i))
+            }
+            NavItem::HistoryLog(id) => {
+                // The ring carries the log's id (stable across paging);
+                // the delete message wants its index in the loaded list.
+                let i = self.session_logs.iter().position(|l| l.id == id)?;
+                Message::History(HistoryMessage::RequestDeleteSessionLog(i))
+            }
+            // Cloud accounts and proxy identities delete OUTRIGHT today,
+            // with no confirmation anywhere: their menu row goes straight
+            // to the vault. Binding a key to that would hand the user a
+            // one-keystroke unrecoverable delete, so they get the same
+            // confirm as everything else, which also closes the gap for
+            // the mouse.
+            NavItem::CloudAccount(id) => {
+                let name = self
+                    .cloud_profiles
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.label.clone())
+                    .unwrap_or_default();
+                self.confirm_remove(name, Message::Cloud(CloudMessage::DeleteCloudProfile(id)));
+                return Some(Task::none());
+            }
+            NavItem::Proxy(id) => {
+                let name = self
+                    .proxy_identities
+                    .iter()
+                    .find(|p| p.id == id)
+                    .map(|p| p.label.clone())
+                    .unwrap_or_default();
+                self.confirm_remove(
+                    name,
+                    Message::ProxyIdentity(ProxyIdentityMessage::DeleteProxyIdentity(id)),
+                );
+                return Some(Task::none());
+            }
+            // Nothing to delete: snippet folders are derived from tags,
+            // and the rest are navigation or generic action rows.
+            NavItem::SnippetGroup(_)
+            | NavItem::ContentAction(_)
+            | NavItem::SubNav(_)
+            | NavItem::Toolbar(_)
+            | NavItem::SettingsSection(_)
+            | NavItem::SettingsRow(_) => return None,
+        };
+        Some(self.update(msg))
+    }
+
     fn keynav_open_context_menu(&mut self) -> Option<Task<Message>> {
         let (zone, item) = self.keynav.focus?;
         if zone != FocusZone::Content {
