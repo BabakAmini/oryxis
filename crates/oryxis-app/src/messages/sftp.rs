@@ -216,6 +216,15 @@ pub enum SftpMessage {
         String,
         crate::state::SftpEditOpener,
     ),
+    /// "Other application..." on a remote row (issue #114): raise the OS
+    /// file picker, then run `SftpStartEditWith` with the chosen
+    /// executable as a one-time opener. The counterpart to the configured
+    /// editor, and the only "open with" that works on Linux, where the
+    /// OS application picker has no stable cross-desktop CLI.
+    SftpPickEditorFor(crate::state::SftpPaneSide, String),
+    /// Expand / collapse the row menu's "Open with" family. Deliberately
+    /// does NOT close the menu, like the Columns toggles.
+    SftpToggleOpenGroup,
     /// The temp copy is written and the opener spawned: register the
     /// background watch.
     SftpEditWatchReady(crate::state::EditSession),

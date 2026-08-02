@@ -136,6 +136,7 @@ impl Oryxis {
                     self.sftp.selection_anchor = Some(target);
                 }
                 self.sftp.row_menu = Some(crate::state::SftpRowMenu {
+                    open_group: false,
                     side,
                     path,
                     is_dir,
@@ -154,6 +155,7 @@ impl Oryxis {
                     pane.local_path.to_string_lossy().into_owned()
                 };
                 self.sftp.row_menu = Some(crate::state::SftpRowMenu {
+                    open_group: false,
                     side,
                     path: dir,
                     is_dir: true,

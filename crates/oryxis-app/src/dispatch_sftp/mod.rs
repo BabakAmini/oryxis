@@ -186,6 +186,8 @@ impl Oryxis {
             | SftpMessage::SftpRevealInExplorer(..)
             | SftpMessage::SftpEditWatchTick
             | SftpMessage::SftpStartEditWith(..)
+            | SftpMessage::SftpPickEditorFor(..)
+            | SftpMessage::SftpToggleOpenGroup
             | SftpMessage::SftpEditWatchReady(..)
             | SftpMessage::SftpEditPromptChoice(..)
             | SftpMessage::SftpEditReopenChoice(..)

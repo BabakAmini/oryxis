@@ -360,44 +360,12 @@ pub(crate) fn row_context_menu_box<'a>(
                 secondary,
             ));
         }
-        // Open / Edit for a single remote file, plus the "Open with"
-        // family (issue #84): the OS association, the configured editor or
-        // the OS picker, all watched in the background with a per-save
-        // confirm dialog.
         if !multi && !menu.is_dir {
-            // One entry, not "Edit": a remote file may well be an image or
-            // a PDF, where the local application opens rather than edits it.
-            // Same background watch either way, so a save that never comes
-            // costs nothing.
-            items = items.push(slot(
-                iced_fonts::lucide::external_link(),
-                crate::i18n::t("sftp_open_edit").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone())),
-                secondary,
-            ));
-            items = items.push(slot(
-                iced_fonts::lucide::pen_line(),
-                crate::i18n::t("sftp_open_with_editor").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEditWith(
-                    menu.side,
-                    menu.path.clone(),
-                    crate::state::SftpEditOpener::ConfiguredEditor,
-                )),
-                secondary,
-            ));
-            // The OS application picker has no stable cross-desktop CLI
-            // on Linux; the entry only shows where it actually works.
-            if cfg!(any(target_os = "windows", target_os = "macos")) {
-                items = items.push(slot(
-                    iced_fonts::lucide::layout_grid(),
-                    crate::i18n::t("sftp_open_with").to_string(),
-                    Message::Sftp(SftpMessage::SftpStartEditWith(
-                        menu.side,
-                        menu.path.clone(),
-                        crate::state::SftpEditOpener::AskOs,
-                    )),
-                    secondary,
-                ));
+            for (msg, it) in open_family_items(menu, secondary) {
+                items = items.push(match msg {
+                    Some(m) => sftp_menu_slot(app, m, it),
+                    None => it,
+                });
             }
         }
     } else if source_is_remote && other_is_remote {
@@ -442,44 +410,12 @@ pub(crate) fn row_context_menu_box<'a>(
                 accent,
             ));
         }
-        // Open / Edit for a single remote file, plus the "Open with"
-        // family (issue #84): the OS association, the configured editor or
-        // the OS picker, all watched in the background with a per-save
-        // confirm dialog.
         if !multi && !menu.is_dir {
-            // One entry, not "Edit": a remote file may well be an image or
-            // a PDF, where the local application opens rather than edits it.
-            // Same background watch either way, so a save that never comes
-            // costs nothing.
-            items = items.push(slot(
-                iced_fonts::lucide::external_link(),
-                crate::i18n::t("sftp_open_edit").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone())),
-                secondary,
-            ));
-            items = items.push(slot(
-                iced_fonts::lucide::pen_line(),
-                crate::i18n::t("sftp_open_with_editor").to_string(),
-                Message::Sftp(SftpMessage::SftpStartEditWith(
-                    menu.side,
-                    menu.path.clone(),
-                    crate::state::SftpEditOpener::ConfiguredEditor,
-                )),
-                secondary,
-            ));
-            // The OS application picker has no stable cross-desktop CLI
-            // on Linux; the entry only shows where it actually works.
-            if cfg!(any(target_os = "windows", target_os = "macos")) {
-                items = items.push(slot(
-                    iced_fonts::lucide::layout_grid(),
-                    crate::i18n::t("sftp_open_with").to_string(),
-                    Message::Sftp(SftpMessage::SftpStartEditWith(
-                        menu.side,
-                        menu.path.clone(),
-                        crate::state::SftpEditOpener::AskOs,
-                    )),
-                    secondary,
-                ));
+            for (msg, it) in open_family_items(menu, secondary) {
+                items = items.push(match msg {
+                    Some(m) => sftp_menu_slot(app, m, it),
+                    None => it,
+                });
             }
         }
     }
@@ -700,6 +636,134 @@ pub(crate) fn initial_path_items<'a>(
         out.insert(0, (None, menu_separator()));
     }
     out
+}
+
+/// The Open / Edit family for a single remote file (issues #84, #114).
+///
+/// "Open / Edit" (the OS file association) stays a top-level, one-click
+/// row because it is the common case. Everything that picks a specific
+/// application hides behind an expandable "Open with" row, so the menu
+/// keeps its length: the group's own row toggles `open_group` WITHOUT
+/// closing the menu, the same trick the Columns toggles use.
+///
+/// Every entry downloads a temp copy, spawns the application and
+/// registers the background watch that confirms each save.
+fn open_family_items<'a>(
+    menu: &crate::state::SftpRowMenu,
+    tint: Color,
+) -> Vec<(Option<Message>, Element<'a, Message>)> {
+    // One entry, not "Edit": a remote file may well be an image or a PDF,
+    // where the local application opens rather than edits it. Same
+    // background watch either way, so a save that never comes costs
+    // nothing.
+    let open = Message::Sftp(SftpMessage::SftpStartEdit(menu.side, menu.path.clone()));
+    let toggle = Message::Sftp(SftpMessage::SftpToggleOpenGroup);
+    let mut items: Vec<(Option<Message>, Element<'a, Message>)> = vec![
+        (
+            Some(open.clone()),
+            menu_item_owned_tinted(
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("sftp_open_edit").to_string(),
+                open,
+                tint,
+            ),
+        ),
+        (
+            Some(toggle.clone()),
+            menu_item_owned_tinted(
+                if menu.open_group {
+                    iced_fonts::lucide::chevron_down()
+                } else {
+                    iced_fonts::lucide::chevron_right()
+                },
+                crate::i18n::t("sftp_open_with_group").to_string(),
+                toggle,
+                tint,
+            ),
+        ),
+    ];
+    if !menu.open_group {
+        return items;
+    }
+    let with = |opener: crate::state::SftpEditOpener| {
+        Message::Sftp(SftpMessage::SftpStartEditWith(
+            menu.side,
+            menu.path.clone(),
+            opener,
+        ))
+    };
+    let mut sub: Vec<(Message, iced::widget::Text<'a>, String)> = vec![
+        (
+            with(crate::state::SftpEditOpener::ConfiguredEditor),
+            iced_fonts::lucide::pen_line(),
+            crate::i18n::t("sftp_open_with_editor").to_string(),
+        ),
+        (
+            Message::Sftp(SftpMessage::SftpPickEditorFor(menu.side, menu.path.clone())),
+            iced_fonts::lucide::app_window(),
+            crate::i18n::t("sftp_open_with_other").to_string(),
+        ),
+    ];
+    // The OS application picker has no stable cross-desktop CLI on Linux;
+    // the entry only shows where it actually works. "Other application..."
+    // above is the cross-platform stand-in.
+    if cfg!(any(target_os = "windows", target_os = "macos")) {
+        sub.push((
+            with(crate::state::SftpEditOpener::AskOs),
+            iced_fonts::lucide::layout_grid(),
+            crate::i18n::t("sftp_open_with").to_string(),
+        ));
+    }
+    // Setting the default from here is the point of the group: the
+    // reporter's ask was to pick the editor where it is used, not only in
+    // Settings > SFTP. Same message the settings row's Browse fires.
+    sub.push((
+        Message::Settings(crate::app::SettingsMessage::SettingSftpDefaultEditorBrowse),
+        iced_fonts::lucide::settings(),
+        crate::i18n::t("sftp_set_default_editor").to_string(),
+    ));
+    for (msg, icon, label) in sub {
+        items.push((
+            Some(msg.clone()),
+            menu_sub_item(icon, label, msg, tint),
+        ));
+    }
+    items
+}
+
+/// A row nested under an expanded menu group: same shape as
+/// `menu_item_owned_tinted`, indented so the grouping reads without a
+/// second card.
+fn menu_sub_item<'a>(
+    icon: iced::widget::Text<'a>,
+    label: String,
+    msg: Message,
+    tint: Color,
+) -> Element<'a, Message> {
+    button(
+        row![
+            Space::new().width(14),
+            icon.size(12).color(tint),
+            Space::new().width(10),
+            text(label).size(12).color(OryxisColors::t().text_primary),
+        ]
+        .align_y(iced::Alignment::Center),
+    )
+    .on_press(msg)
+    .padding(Padding { top: 6.0, right: 14.0, bottom: 6.0, left: 10.0 })
+    .width(Length::Fixed(220.0))
+    .style(|_, status| {
+        let bg = match status {
+            BtnStatus::Hovered => OryxisColors::t().bg_hover,
+            _ => Color::TRANSPARENT,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
 }
 
 pub(crate) fn dir_action_items<'a>(

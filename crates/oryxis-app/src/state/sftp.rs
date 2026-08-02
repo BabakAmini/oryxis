@@ -846,10 +846,15 @@ pub(crate) enum SftpEditReopenChoice {
 /// How "Open with..." resolves the local application for a remote file
 /// (issue #84). `OsDefault` is the file-association open the classic
 /// edit flow already used.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum SftpEditOpener {
     /// The single configured editor from Settings > SFTP.
     ConfiguredEditor,
+    /// One specific application, chosen for this open only (issue #114).
+    /// It carries the path rather than re-asking, so reopening the same
+    /// file lands back in the application that already holds it instead
+    /// of raising the file picker a second time.
+    Editor(String),
     /// The OS "open with" application picker (Windows / macOS only).
     AskOs,
     /// The OS file association (`open::that`).
@@ -1069,6 +1074,11 @@ pub(crate) struct SftpRowMenu {
     /// the pane (not a row). The view then shows only directory-level
     /// actions and `path` holds the pane's current directory.
     pub is_background: bool,
+    /// The "Open with" family is expanded (issue #114). Collapsed by
+    /// default so the common one-click "Open / Edit" stays at the top of
+    /// a menu that is already long; opening the group keeps the menu on
+    /// screen, like the Columns toggles do.
+    pub open_group: bool,
     pub x: f32,
     pub y: f32,
 }

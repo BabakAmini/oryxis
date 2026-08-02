@@ -329,6 +329,42 @@ impl Oryxis {
                 self.sftp.close_menus();
                 return Ok(self.start_edit_watch(side, remote_path, opener, None, false));
             }
+            SftpMessage::SftpToggleOpenGroup => {
+                if let Some(menu) = self.sftp.row_menu.as_mut() {
+                    menu.open_group = !menu.open_group;
+                }
+            }
+            SftpMessage::SftpPickEditorFor(side, remote_path) => {
+                self.sftp.close_menus();
+                // Seeded at the configured editor's folder when there is
+                // one, so "the other one next to it" is one click away.
+                let start = std::path::PathBuf::from(self.setting_sftp_default_editor.trim())
+                    .parent()
+                    .filter(|p| !p.as_os_str().is_empty())
+                    .map(|p| p.to_path_buf());
+                return Ok(Task::perform(
+                    async move {
+                        let mut dialog = rfd::AsyncFileDialog::new()
+                            .set_title(crate::i18n::t("sftp_open_with_other"));
+                        if let Some(dir) = start {
+                            dialog = dialog.set_directory(dir);
+                        }
+                        dialog
+                            .pick_file()
+                            .await
+                            .map(|f| f.path().to_string_lossy().into_owned())
+                    },
+                    move |app| match app {
+                        Some(app) => Message::Sftp(SftpMessage::SftpStartEditWith(
+                            side,
+                            remote_path.clone(),
+                            crate::state::SftpEditOpener::Editor(app),
+                        )),
+                        // Dismissed: nothing was downloaded, nothing to undo.
+                        None => Message::NoOp,
+                    },
+                ));
+            }
             SftpMessage::SftpEditWatchReady(session) => {
                 // A second "Open with" of the same remote file REPLACES the
                 // old watch, across every surface: two live watches for one
@@ -420,10 +456,15 @@ impl Oryxis {
                         // Launch the same application on the copy that is
                         // already on disk. The watch (and any save waiting
                         // for an answer) is left exactly as it was.
-                        let editor = match prompt.watch_opener {
+                        let editor = match &prompt.watch_opener {
                             crate::state::SftpEditOpener::ConfiguredEditor => {
                                 Some(self.setting_sftp_default_editor.trim().to_string())
                             }
+                            // The application the watch was launched with,
+                            // replayed verbatim: reopening must land back
+                            // in the app that already holds the file, not
+                            // raise the picker again.
+                            crate::state::SftpEditOpener::Editor(path) => Some(path.clone()),
                             _ => None,
                         };
                         let temp = prompt.temp_path.clone();
@@ -516,9 +557,21 @@ impl Oryxis {
     ) -> Task<Message> {
         // The configured editor resolves NOW so an unset setting fails with
         // guidance instead of a broken spawn later.
-        let editor = match opener {
+        let editor = match &opener {
             crate::state::SftpEditOpener::ConfiguredEditor => {
                 let e = self.setting_sftp_default_editor.trim().to_string();
+                if e.is_empty() {
+                    return self.show_toast_secs(
+                        crate::i18n::t("sftp_no_editor_configured").to_string(),
+                        5,
+                    );
+                }
+                Some(e)
+            }
+            // Already chosen by hand for this open; only an empty pick
+            // (the picker was dismissed) is worth refusing.
+            crate::state::SftpEditOpener::Editor(path) => {
+                let e = path.trim().to_string();
                 if e.is_empty() {
                     return self.show_toast_secs(
                         crate::i18n::t("sftp_no_editor_configured").to_string(),
@@ -556,7 +609,7 @@ impl Oryxis {
                 .zip(w.initial_mtime)
                 .is_some_and(|(now, base)| now > base);
             let (temp_path, label, watch_opener) =
-                (w.temp_path.clone(), w.label.clone(), w.opener);
+                (w.temp_path.clone(), w.label.clone(), w.opener.clone());
             let pending_save = w.dirty || saved_since_download;
             if temp_path.exists() {
                 self.sftp_edit_reopen = Some(crate::state::EditReopenPrompt {
@@ -598,7 +651,7 @@ impl Oryxis {
                     )
                     .await;
                 }
-                spawn_edit_opener(&temp_path, opener, editor.as_deref())?;
+                spawn_edit_opener(&temp_path, opener.clone(), editor.as_deref())?;
                 let initial_mtime = tokio::fs::metadata(&temp_path)
                     .await
                     .ok()
@@ -777,7 +830,10 @@ fn spawn_edit_opener(
     match opener {
         crate::state::SftpEditOpener::OsDefault => open::that(temp_path)
             .map_err(|e| format!("open editor: {e} (temp at {})", temp_path.display())),
-        crate::state::SftpEditOpener::ConfiguredEditor => {
+        // Both spell "run this command line on the temp file"; they only
+        // differ in where the caller read the command from.
+        crate::state::SftpEditOpener::ConfiguredEditor
+        | crate::state::SftpEditOpener::Editor(_) => {
             let editor = editor.ok_or("no editor configured")?;
             let parts = split_command_line(editor);
             let (program, args) = parts.split_first().ok_or("no editor configured")?;

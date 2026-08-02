@@ -523,6 +523,7 @@ impl Oryxis {
                 path,
                 is_dir,
                 is_background: false,
+                open_group: false,
                 x,
                 y,
             });
@@ -540,6 +541,7 @@ impl Oryxis {
                 path: dir,
                 is_dir: true,
                 is_background: true,
+                open_group: false,
                 x,
                 y,
             });
