@@ -225,7 +225,9 @@ pub(crate) fn sftp_session_tab<'a>(
 pub(crate) fn settings_tab<'a>(
     label: &'a str,
     is_active: bool,
+    is_hovered: bool,
     width: f32,
+    close_on_right: bool,
     solid_fill: bool,
 ) -> Element<'a, Message> {
     let accent = crate::theme::readable_accent_on(
@@ -242,14 +244,53 @@ pub(crate) fn settings_tab<'a>(
     } else {
         Background::Color(Color::TRANSPARENT)
     };
-    let badge = container(iced_fonts::lucide::settings().size(12).color(Color::WHITE))
-        .center_x(Length::Fixed(TAB_ICON_SLOT))
-        .center_y(Length::Fixed(TAB_ICON_SLOT))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(accent)),
-            border: Border { radius: Radius::from(4.0), ..Default::default() },
-            ..Default::default()
-        });
+    let badge = || {
+        container(iced_fonts::lucide::settings().size(12).color(Color::WHITE))
+            .center_x(Length::Fixed(TAB_ICON_SLOT))
+            .center_y(Length::Fixed(TAB_ICON_SLOT))
+            .style(move |_| container::Style {
+                background: Some(Background::Color(accent)),
+                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                ..Default::default()
+            })
+            .into()
+    };
+    // Same close affordance as every other tab: a button (so hover and
+    // press tint toward the error colour), shown only when the tab is
+    // active or hovered, and placed by the user's close-button-side
+    // setting rather than pinned to the right.
+    let close_btn = || -> Element<'a, Message> {
+        button(
+            container(iced_fonts::lucide::x().size(11).color(if is_active {
+                OryxisColors::t().text_primary
+            } else {
+                OryxisColors::t().text_secondary
+            }))
+            .center_x(Length::Fixed(TAB_ICON_SLOT))
+            .center_y(Length::Fixed(TAB_ICON_SLOT)),
+        )
+        .padding(0)
+        .style(move |_, status| {
+            let rest = if is_active {
+                Color::TRANSPARENT
+            } else {
+                OryxisColors::t().bg_hover
+            };
+            let bg = match status {
+                BtnStatus::Hovered => Color { a: 0.18, ..OryxisColors::t().error },
+                BtnStatus::Pressed => Color { a: 0.34, ..OryxisColors::t().error },
+                _ => rest,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(4.0), ..Default::default() },
+                ..Default::default()
+            }
+        })
+        .on_press(Message::Tabs(TabsMessage::CloseSettingsTab))
+        .into()
+    };
+    let show_close = is_active || is_hovered;
     // `truncate_label` already reserves the badge + gaps; only the
     // trailing X slot is on top of that. Subtracting the badge again here
     // is what truncated "Settings" to "Sett…" on a min-width chip, so the
@@ -262,40 +303,28 @@ pub(crate) fn settings_tab<'a>(
         .font(SYSTEM_UI_SEMIBOLD)
         .color(fg)
         .width(Length::Fill);
-    let close: Element<'_, Message> = MouseArea::new(
-        container(
-            iced_fonts::lucide::x().size(11).color(if is_active {
-                OryxisColors::t().text_primary
-            } else {
-                OryxisColors::t().text_secondary
-            }),
-        )
-        .center_x(Length::Fixed(TAB_ICON_SLOT))
-        .center_y(Length::Fixed(TAB_ICON_SLOT))
-        .style(move |_| container::Style {
-            background: Some(Background::Color(if is_active {
-                Color::TRANSPARENT
-            } else {
-                OryxisColors::t().bg_hover
-            })),
-            border: Border { radius: Radius::from(4.0), ..Default::default() },
-            ..Default::default()
-        }),
-    )
-    .on_press(Message::Tabs(TabsMessage::CloseSettingsTab))
-    .into();
-    let inner_row = crate::widgets::dir_row(vec![
-        badge.into(),
+    let mut items: Vec<Element<'a, Message>> = vec![
+        // Leading slot follows the session tabs: the X REPLACES the badge
+        // on hover unless close-on-right is set, in which case the badge
+        // stays put and the X gets its own trailing slot.
+        if close_on_right || !show_close { badge() } else { close_btn() },
         Space::new().width(5).into(),
         label_text.into(),
-        Space::new().width(4).into(),
-        close,
-    ])
-    .align_y(iced::Alignment::Center);
-    button(
+    ];
+    if close_on_right {
+        // Reserved even when hidden, so the label doesn't jump on hover.
+        items.push(Space::new().width(4).into());
+        items.push(if show_close {
+            close_btn()
+        } else {
+            Space::new().width(TAB_ICON_SLOT).height(TAB_ICON_SLOT).into()
+        });
+    }
+    let inner_row = crate::widgets::dir_row(items).align_y(iced::Alignment::Center);
+    let tab_btn = button(
         container(inner_row)
             .center_y(Length::Fixed(TAB_HEIGHT))
-            .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 6.0 }),
+            .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 2.0 }),
     )
     .width(Length::Fixed(width))
     .on_press(Message::Navigation(NavigationMessage::ChangeView(View::Settings)))
@@ -311,8 +340,14 @@ pub(crate) fn settings_tab<'a>(
             border: Border { radius: Radius::from(6.0), ..Default::default() },
             ..Default::default()
         }
-    })
-    .into()
+    });
+    // The hover flag is also what arms a reorder drag (the press handler
+    // reads it), so this MouseArea is what makes the tab draggable, not
+    // just what reveals the X.
+    MouseArea::new(tab_btn)
+        .on_enter(Message::Tabs(TabsMessage::SettingsTabHovered))
+        .on_exit(Message::Tabs(TabsMessage::SettingsTabUnhovered))
+        .into()
 }
 
 /// Compact (Chrome-style) pinned SFTP tab: icon-only folder chip at a fixed

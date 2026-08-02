@@ -124,6 +124,12 @@ impl Oryxis {
                     }
                 }
             }
+            TabsMessage::SettingsTabHovered => {
+                self.hovered_settings_tab = true;
+            }
+            TabsMessage::SettingsTabUnhovered => {
+                self.hovered_settings_tab = false;
+            }
             TabsMessage::CloseSettingsTab => {
                 return self.close_settings_tab();
             }

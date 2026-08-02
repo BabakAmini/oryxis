@@ -290,6 +290,7 @@ impl Oryxis {
                 if !in_tab_strip {
                     self.hovered_tab = None;
                     self.hovered_sftp_tab = None;
+                    self.hovered_settings_tab = false;
                 }
                 if let Some(idx) = self.hovered_tab.filter(|_| in_tab_strip)
                     && let Some(tab) = self.tabs.get(idx)
@@ -305,6 +306,15 @@ impl Oryxis {
                     // SFTP tabs arm the same unified reorder drag.
                     self.tab_drag = Some(crate::state::TabDrag {
                         from_id: tab.id,
+                        start: self.mouse_position,
+                        active: false,
+                    });
+                } else if self.hovered_settings_tab && in_tab_strip {
+                    // So does the Settings tab, under its synthetic id
+                    // (issue #120): the reorder machinery is uuid-keyed
+                    // and `TabRef::strip_id` answers with the same value.
+                    self.tab_drag = Some(crate::state::TabDrag {
+                        from_id: crate::state::SETTINGS_TAB_ID,
                         start: self.mouse_position,
                         active: false,
                     });

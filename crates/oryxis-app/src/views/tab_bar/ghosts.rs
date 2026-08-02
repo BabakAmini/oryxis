@@ -138,3 +138,49 @@ pub(crate) fn sftp_drag_ghost<'a>(
         })
         .into()
 }
+
+/// Floating drag ghost for the Settings tab (issue #120). Its own
+/// function rather than a call into `drag_ghost`: that one derives an OS
+/// badge from a host label, and Settings has no host, so it would render
+/// a generic server glyph for a gear.
+pub(crate) fn settings_drag_ghost<'a>(label: &'a str, width: f32) -> Element<'a, Message> {
+    let accent = crate::theme::readable_accent_on(
+        OryxisColors::t().accent,
+        OryxisColors::t().bg_hover,
+    );
+    let badge = container(iced_fonts::lucide::settings().size(12).color(Color::WHITE))
+        .center_x(Length::Fixed(TAB_ICON_SLOT))
+        .center_y(Length::Fixed(TAB_ICON_SLOT))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(accent)),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        });
+    let content = crate::widgets::dir_row(vec![
+        badge.into(),
+        Space::new().width(5).into(),
+        text(truncate_label(label, width))
+            .size(12)
+            .line_height(1.0)
+            .wrapping(iced::widget::text::Wrapping::None)
+            .font(SYSTEM_UI_SEMIBOLD)
+            .color(OryxisColors::t().text_primary)
+            .into(),
+    ])
+    .align_y(iced::Alignment::Center);
+    container(content)
+        .center_y(Length::Fixed(TAB_HEIGHT))
+        .padding(Padding { top: 0.0, right: 6.0, bottom: 0.0, left: 4.0 })
+        .width(Length::Fixed(width))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(Color { a: 0.96, ..OryxisColors::t().bg_hover })),
+            border: Border { radius: Radius::from(6.0), color: accent, width: 1.5 },
+            shadow: iced::Shadow {
+                color: Color::from_rgba(0.0, 0.0, 0.0, 0.35),
+                offset: iced::Vector::new(0.0, 2.0),
+                blur_radius: 6.0,
+            },
+            ..Default::default()
+        })
+        .into()
+}

@@ -149,6 +149,11 @@ pub enum TabsMessage {
     /// size so the SSM idle timer resets and a long alt-tab away doesn't
     /// drop the session.
     SsmKeepaliveTick,
+    /// Cursor entered / left the Settings tab. Drives the hover-revealed
+    /// close X, and the flag the press handler reads to arm a reorder
+    /// drag, exactly like `TabHovered` does for a session tab.
+    SettingsTabHovered,
+    SettingsTabUnhovered,
     /// Close the Settings tab (issue #120). Selecting it goes through
     /// `NavigationMessage::ChangeView(View::Settings)` instead, so there
     /// is no matching Select variant.

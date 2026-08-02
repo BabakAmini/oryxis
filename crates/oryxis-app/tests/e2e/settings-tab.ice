@@ -30,9 +30,11 @@ settle
 click "Settings"
 settle
 expect "Interface"
-# The chip's X. Closing it drops the tab AND leaves Settings, because a
-# close that left you staring at the screen you just closed would be a
+# The chip's X. It sits in the LEADING slot (the badge's place) under the
+# default close-button-side, exactly like a session tab, and shows because
+# the tab is active. Closing it drops the tab AND leaves Settings, because
+# a close that left you staring at the screen you just closed would be a
 # dead end.
-click (255, 20)
+click (96, 20)
 settle
 expect "Create host"

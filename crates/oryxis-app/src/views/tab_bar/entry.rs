@@ -126,7 +126,14 @@ impl Oryxis {
             if is_dragging {
                 return Space::new().width(width).height(TAB_HEIGHT).into();
             }
-            return settings_tab(label, is_active, width, ctx.solid_fill);
+            return settings_tab(
+                label,
+                is_active,
+                self.hovered_settings_tab,
+                width,
+                ctx.close_on_right,
+                ctx.solid_fill,
+            );
         }
         let idx = match entry {
             StripEntry::Terminal(i) | StripEntry::Sftp(i) => i,
@@ -541,6 +548,15 @@ impl Oryxis {
                     self.setting_tab_accent_text,
                 ),
                 ghost_w,
+            ))
+        } else if drag.from_id == crate::state::SETTINGS_TAB_ID {
+            // Its own ghost rather than `drag_ghost`: that one derives an
+            // OS badge from a host label, and Settings has no host. The
+            // gear + app accent is the same vocabulary as the chip being
+            // dragged.
+            Some((
+                settings_drag_ghost(crate::i18n::t("settings"), drag_uniform_w),
+                drag_uniform_w,
             ))
         } else {
             None

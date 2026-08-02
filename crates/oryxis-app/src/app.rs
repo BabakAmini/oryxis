@@ -1020,6 +1020,11 @@ pub struct Oryxis {
     /// instead of a hunt through the menus. Transient by design: never
     /// persisted, so a restart opens on real work.
     pub(crate) settings_tab_open: bool,
+    /// The cursor is over the Settings tab. Mirrors `hovered_tab` /
+    /// `hovered_sftp_tab` for the single-instance chip, which is what
+    /// gives it the same hover-revealed close X and the same
+    /// press-to-reorder arming as every other tab.
+    pub(crate) hovered_settings_tab: bool,
     /// Last scroll offset of each section, so returning to Settings lands
     /// where you left instead of at the top. Keyed by section because the
     /// sections are separate scrollables; the value is a relative offset
