@@ -357,90 +357,6 @@ impl HotkeyAction {
         )
     }
 
-    /// Whether a MOUSE button may be bound to this action.
-    ///
-    /// Only inside the terminal canvas is a click unambiguously the
-    /// user's own gesture rather than a widget's: everywhere else a
-    /// press belongs to whatever it landed on (a button, a row, a
-    /// scrollbar). So mouse bindings are read by the terminal widget
-    /// only, and an action that never fires there could never fire
-    /// from one. `terminal_only` IS that set, which is why this
-    /// derives from it instead of listing actions twice.
-    pub fn accepts_mouse(self) -> bool {
-        // A family action edits its modifiers only, so there is no
-        // primary slot for a button to occupy. None are terminal-only
-        // today; the guard keeps that from becoming a silent trap.
-        self.terminal_only() && self.primary_editable()
-    }
-}
-
-/// A mouse button that can stand in for the primary key of a binding.
-///
-/// Left and Right are deliberately NOT in this set. Both are the
-/// terminal canvas's own gestures (select / the PuTTY right-click
-/// scheme), and binding either would take a gesture away from the
-/// terminal with no way back. Everything else is fair game: none of
-/// these buttons produce text, so a bare mouse binding is a chord on
-/// its own, no modifier required.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum MouseButton {
-    Middle,
-    Back,
-    Forward,
-    /// Any further button the OS reports by index (thumb buttons past
-    /// Back / Forward, tilt-wheel clicks, ...).
-    Other(u16),
-}
-
-impl MouseButton {
-    /// The bindable subset of iced's button set. `None` for Left and
-    /// Right, the two the terminal keeps for itself.
-    pub fn from_iced(button: iced::mouse::Button) -> Option<Self> {
-        match button {
-            iced::mouse::Button::Middle => Some(Self::Middle),
-            iced::mouse::Button::Back => Some(Self::Back),
-            iced::mouse::Button::Forward => Some(Self::Forward),
-            iced::mouse::Button::Other(n) => Some(Self::Other(n)),
-            iced::mouse::Button::Left | iced::mouse::Button::Right => None,
-        }
-    }
-
-    /// Settings-table token. The `mouse_` prefix is what keeps these
-    /// clear of every other primary: no `Named` name, punctuation token
-    /// or single alphanumeric char can collide with it, so `parse` can
-    /// try mouse buttons first without shadowing anything.
-    pub fn token(self) -> String {
-        match self {
-            Self::Middle => "mouse_middle".into(),
-            Self::Back => "mouse_back".into(),
-            Self::Forward => "mouse_forward".into(),
-            Self::Other(n) => format!("mouse_{n}"),
-        }
-    }
-
-    /// Reverse of [`MouseButton::token`].
-    pub fn parse_token(s: &str) -> Option<Self> {
-        match s {
-            "mouse_middle" => Some(Self::Middle),
-            "mouse_back" => Some(Self::Back),
-            "mouse_forward" => Some(Self::Forward),
-            other => other
-                .strip_prefix("mouse_")
-                .and_then(|n| n.parse::<u16>().ok())
-                .map(Self::Other),
-        }
-    }
-
-    /// User-facing badge label, translated. Deliberately short: it
-    /// shares a chip with the modifier badges.
-    pub fn label(self) -> String {
-        match self {
-            Self::Middle => crate::i18n::t("mouse_btn_middle").to_string(),
-            Self::Back => crate::i18n::t("mouse_btn_back").to_string(),
-            Self::Forward => crate::i18n::t("mouse_btn_forward").to_string(),
-            Self::Other(n) => crate::i18n::t("mouse_btn_other").replace("{n}", &n.to_string()),
-        }
-    }
 }
 
 /// The non-modifier half of a binding.
@@ -462,11 +378,6 @@ pub enum PrimaryKey {
     Digit1to9,
     /// Family: ArrowLeft or ArrowRight. Suffix isn't editable.
     ArrowLeftRight,
-    /// A mouse button, optionally with modifiers. Only fires inside the
-    /// terminal canvas (that is the one surface where a click can't
-    /// belong to a widget), so only `HotkeyAction::accepts_mouse`
-    /// actions may hold one.
-    Mouse(MouseButton),
 }
 
 /// What `HotkeyBinding::match_event` returns: `None` if the event
@@ -543,25 +454,7 @@ impl HotkeyBinding {
                 Key::Named(Named::ArrowRight) => Some(FamilyMatch::ArrowRight),
                 _ => None,
             },
-            // No keystroke can ever produce a mouse binding.
-            PrimaryKey::Mouse(_) => None,
         }
-    }
-
-    /// Mouse twin of [`HotkeyBinding::match_event`]. Modifier match is
-    /// exact for the same reason: `Ctrl+Middle` and a bare middle click
-    /// are different bindings, so one must not fire for the other.
-    pub fn match_mouse(&self, button: MouseButton, modifiers: &Modifiers) -> bool {
-        self.primary == PrimaryKey::Mouse(button)
-            && modifiers.control() == self.ctrl
-            && modifiers.shift() == self.shift
-            && modifiers.alt() == self.alt
-            && modifiers.logo() == self.logo
-    }
-
-    /// Whether the primary is a mouse button.
-    pub fn is_mouse(&self) -> bool {
-        matches!(self.primary, PrimaryKey::Mouse(_))
     }
 
     /// Whether the binding is valid for the editor: it must carry at
@@ -575,12 +468,6 @@ impl HotkeyBinding {
     /// spells those chords, and neither steals a keystroke the user
     /// could have typed.
     pub fn is_safe(&self) -> bool {
-        // A mouse button never types anything, and the bindable set
-        // already excludes the two buttons the terminal owns, so a bare
-        // mouse binding steals nothing.
-        if self.is_mouse() {
-            return true;
-        }
         if self.ctrl || self.alt || self.logo {
             return true;
         }
@@ -709,7 +596,6 @@ impl HotkeyBinding {
             PrimaryKey::Punct(p) => out.push_str(p),
             PrimaryKey::Digit1to9 => out.push_str("digit"),
             PrimaryKey::ArrowLeftRight => out.push_str("arrows"),
-            PrimaryKey::Mouse(b) => out.push_str(&b.token()),
         }
         out
     }
@@ -753,12 +639,7 @@ impl HotkeyBinding {
                 }
             }
             other => {
-                // Mouse tokens first: they are `mouse_`-prefixed, so
-                // they can't shadow a named key or a single char, and
-                // checking them here keeps the fallback chain honest.
-                if let Some(button) = MouseButton::parse_token(other) {
-                    PrimaryKey::Mouse(button)
-                } else if let Some(named) = str_to_named(other) {
+                if let Some(named) = str_to_named(other) {
                     PrimaryKey::Named(named)
                 } else if other.len() == 1
                     && other
@@ -810,7 +691,6 @@ impl HotkeyBinding {
             PrimaryKey::Punct(p) => p.to_string(),
             PrimaryKey::Digit1to9 => "1...9".into(),
             PrimaryKey::ArrowLeftRight => "←/→".into(),
-            PrimaryKey::Mouse(b) => b.label(),
         };
         out.push(primary);
         out
@@ -975,23 +855,6 @@ pub fn binding_from_event(
     }
 }
 
-/// Mouse twin of [`binding_from_event`]: turns a captured button press
-/// into a binding, or `None` when the button isn't bindable (Left and
-/// Right, which the terminal canvas keeps).
-///
-/// No `is_safe` check is needed: every button that survives
-/// `MouseButton::from_iced` is safe by construction (see
-/// [`HotkeyBinding::is_safe`]).
-pub fn binding_from_mouse(button: iced::mouse::Button, modifiers: &Modifiers) -> Option<HotkeyBinding> {
-    Some(HotkeyBinding {
-        ctrl: modifiers.control(),
-        shift: modifiers.shift(),
-        alt: modifiers.alt(),
-        logo: modifiers.logo(),
-        primary: PrimaryKey::Mouse(MouseButton::from_iced(button)?),
-    })
-}
-
 /// Settings-table token for "the user deliberately unbound this
 /// action", as opposed to `""`, which means "no override, use the
 /// factory chords". Not a parseable chord (`HotkeyBinding::parse`
@@ -1114,17 +977,6 @@ impl HotkeyBindings {
     /// one can match and the order only decides which is checked first.
     pub fn match_event(&self, key: &Key, modifiers: &Modifiers) -> Option<FamilyMatch> {
         self.match_event_where(key, modifiers, |_| true)
-    }
-
-    /// Whether any chord in this list is the given mouse button with
-    /// exactly these modifiers.
-    pub fn match_mouse(&self, button: MouseButton, modifiers: &Modifiers) -> bool {
-        self.0.iter().any(|b| b.match_mouse(button, modifiers))
-    }
-
-    /// The mouse chords in this list, in display order.
-    pub fn mouse_chords(&self) -> impl Iterator<Item = &HotkeyBinding> {
-        self.0.iter().filter(|b| b.is_mouse())
     }
 
     /// `match_event`, restricted to the chords `accept` keeps.
@@ -1399,22 +1251,9 @@ pub fn default_bindings() -> HotkeyMap {
     // to a clipboard paste when the pane never had a selection or under
     // copy_on_select (the PuTTY single-buffer model), so the chord
     // still always pastes something, matching what it did while it was
-    // a plain paste chord.
-    //
-    // The middle mouse button is the SECOND factory input, and it is an
-    // ordinary chord in this list rather than a separate setting: the
-    // binding table is the single authority for the gesture, so
-    // rebinding it (or moving it onto a thumb button) is the same edit
-    // as any other. Settings > Terminal's "middle-click paste" toggle is
-    // a shortcut for adding / removing exactly this chord.
-    put_many(
-        &mut m,
-        TerminalPasteSelection,
-        &[
-            (false, true, false, false, Named(keyboard::key::Named::Insert)),
-            (false, false, false, false, Mouse(MouseButton::Middle)),
-        ],
-    );
+    // a plain paste chord. Its second factory input is the middle
+    // mouse button, which lives outside this table.
+    put(&mut m, TerminalPasteSelection, false, true, false, false, Named(keyboard::key::Named::Insert));
     // Scrollback paging. Shift+PageUp/PageDown on every platform: it is
     // universal across terminals and macOS has no competing idiom. The
     // widget yields these to the PTY on the alternate screen, where

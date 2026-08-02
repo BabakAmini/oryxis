@@ -422,10 +422,6 @@ impl Oryxis {
         })
     }
 
-    /// The user's MOUSE bindings for the terminal canvas (middle-click
-    /// paste out of the box).
-    ///
-
     fn render_pane_canvas<'a>(
         &'a self,
         pane: &'a crate::state::Pane,
