@@ -88,6 +88,16 @@ fn pf_agent_changed(prev: Option<&PfAgentWatch>, now: &PfAgentWatch) -> bool {
     prev.is_some_and(|p| p != now)
 }
 
+/// Why a forward is being queued for another attempt. The two cases have
+/// different answers because one of them the user is watching.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PfRetryCause {
+    /// It was running and the connection died.
+    Dropped,
+    /// The connect attempt itself failed.
+    StartFailed,
+}
+
 impl Oryxis {
     pub(crate) fn handle_port_forwards(
         &mut self,
@@ -246,7 +256,7 @@ impl Oryxis {
                         // so a transient failure (SSH key not loaded yet,
                         // network down) self-heals instead of staying dead.
                         let already_retrying = self.port_forward_retry.contains_key(&id);
-                        self.pf_mark_retry_pending(id);
+                        self.pf_mark_retry_pending(id, PfRetryCause::StartFailed);
                         // Stay silent on background retries: the amber
                         // "Retrying…" chip already carries the signal, and the
                         // single shared error field would otherwise clobber
@@ -271,7 +281,7 @@ impl Oryxis {
                     // An auto_start forward that dropped should climb back
                     // up on its own (network loss / server closed the
                     // connection); a manual one just goes off.
-                    self.pf_mark_retry_pending(id);
+                    self.pf_mark_retry_pending(id, PfRetryCause::Dropped);
                     tracing::info!("port forward {id} connection dropped, toggled off");
                 }
             }
@@ -526,12 +536,27 @@ impl Oryxis {
     /// re-attempt. No-op for a rule that isn't `auto_start` (nothing opted
     /// it into self-healing) or that already has a pending retry (`or_insert`
     /// so a repeated failure never resets a backoff that's already climbing).
-    fn pf_mark_retry_pending(&mut self, id: Uuid) {
+    fn pf_mark_retry_pending(&mut self, id: Uuid, cause: PfRetryCause) {
         let is_auto = self
             .port_forward_rules
             .iter()
             .any(|r| r.id == id && r.auto_start);
-        if !is_auto {
+        let allowed = match cause {
+            // A forward that was UP and fell over is the same event as a
+            // host disconnecting, so it answers to the same setting the
+            // user already set for that ("Auto-reconnect on disconnect",
+            // on by default). Gating this on `auto_start` was wrong:
+            // auto_start says "bring it up at launch", which is a
+            // different question from "keep it up", and it left a manually
+            // started forward silently dead after a network blip while
+            // every terminal tab climbed back on its own.
+            PfRetryCause::Dropped => self.setting_auto_reconnect || is_auto,
+            // A start the user just watched fail shows its error instead
+            // of looping behind their back. Only an auto_start rule, whose
+            // attempt nobody is watching, retries from here.
+            PfRetryCause::StartFailed => is_auto,
+        };
+        if !allowed {
             return;
         }
         self.port_forward_retry.entry(id).or_insert_with(|| PfRetry {
