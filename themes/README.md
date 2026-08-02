@@ -68,6 +68,12 @@ A UI theme is the Oryxis envelope, again straight from Export:
 whenever the palette is a port of someone else's design. `author` is how
 you want to be credited, not necessarily a GitHub handle.
 
+For a theme you designed yourself, `license` is your call: put an SPDX
+id (`MIT`, `CC0-1.0`, ...) if you have a preference, or `Unspecified` if
+you would rather not decide yet. `Unspecified` is honest and it lists;
+what it does not do is tell anyone what they may do with your palette
+elsewhere, so an id is friendlier to whoever finds it later.
+
 Oryxis ignores the three attribution keys when importing, so a file from
 this directory pastes straight into Settings > Import unchanged.
 

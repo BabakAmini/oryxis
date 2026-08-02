@@ -1,0 +1,30 @@
+{
+  "oryxis_ui_theme": 1,
+  "name": "True Black OLED",
+  "author": "AC-Lover",
+  "source": "https://github.com/wilsonglasser/oryxis/discussions/68",
+  "license": "Unspecified",
+  "colors": {
+    "bg_primary": "#000000",
+    "bg_sidebar": "#000000",
+    "bg_surface": "#0a0a0a",
+    "bg_hover": "#161616",
+    "bg_selected": "#1f1f1f",
+    "text_primary": "#ffffff",
+    "text_secondary": "#8a8a8a",
+    "text_muted": "#5c5c5c",
+    "accent": "#00e5ff",
+    "accent_hover": "#33ebff",
+    "success": "#00e676",
+    "warning": "#ffc400",
+    "error": "#ff5252",
+    "terminal_bg": "#000000",
+    "terminal_fg": "#ececec",
+    "terminal_cursor": "#ffffff",
+    "border": "#1a1a1a",
+    "border_focus": "#00e5ff",
+    "button_bg": "#0088ff",
+    "button_bg_hover": "#33a1ff",
+    "button_text": "#ffffff"
+  }
+}
