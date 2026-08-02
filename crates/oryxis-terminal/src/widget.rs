@@ -524,6 +524,19 @@ pub struct TerminalView<Message = ()> {
     /// doesn't inject a stray report into that shell. Defaults to `true`
     /// so the single-pane path is unchanged.
     focused: bool,
+    /// Per-edge strip, in pixels, that this pane hands back to whatever
+    /// contains it: `(top, right, bottom, left)`.
+    ///
+    /// A `pane_grid` divider is grabbable within `spacing + leeway` of the
+    /// split line, but the canvas fills its pane and gets the press first
+    /// (the grid forwards to its child unconditionally), so outside the
+    /// spacing itself a drag on the divider also starts a text selection.
+    /// With no spacing at all the divider would be unreachable. Declining
+    /// presses in these strips is what lets the panes sit flush and still
+    /// be resizable: the host sets a non-zero margin only on edges that
+    /// actually border another pane, so the outermost edges keep their
+    /// full selectable area.
+    resize_margins: (f32, f32, f32, f32),
     /// When true, paint a brief translucent overlay over the whole pane this
     /// frame, the visual bell (bell mode = Flash). Driven by `Pane.bell_flash`,
     /// which a short timer clears.

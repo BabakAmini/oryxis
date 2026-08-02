@@ -337,6 +337,21 @@ where
         let hover_changed = widget_state.hover != new_hover;
         widget_state.hover = new_hover;
 
+        // Presses inside a resize strip belong to whatever contains this
+        // pane, not to the terminal: they are how a `pane_grid` divider is
+        // grabbed. Declining here (rather than handling and forwarding) is
+        // what stops the drag from also painting a text selection, and it
+        // is why the panes can sit flush with no gutter and still be
+        // resizable. Only edges that border a sibling carry a margin, so
+        // selecting from column 0 at the grid's outer edge still works.
+        if matches!(
+            event,
+            iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+        ) && self.cursor_in_resize_margin(bounds, cursor)
+        {
+            return None;
+        }
+
         // A pane that no longer has focus drops its highlight. The
         // selection lives in this widget's own tree state, so nothing
         // outside can reach it, and without this every pane you ever
@@ -1368,6 +1383,23 @@ where
         None
     }
 
+    /// Whether the cursor sits in one of the strips this pane hands back
+    /// to its container (see `resize_margins`).
+    pub(super) fn cursor_in_resize_margin(
+        &self,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> bool {
+        let (top, right, bottom, left) = self.resize_margins;
+        let Some(p) = cursor.position_in(bounds) else {
+            return false;
+        };
+        (top > 0.0 && p.y <= top)
+            || (bottom > 0.0 && p.y >= bounds.height - bottom)
+            || (left > 0.0 && p.x <= left)
+            || (right > 0.0 && p.x >= bounds.width - right)
+    }
+
     pub(super) fn mouse_interaction_impl(
         &self,
         state: &TerminalWidgetState,
@@ -1375,6 +1407,12 @@ where
         cursor: mouse::Cursor,
     ) -> mouse::Interaction {
         if !cursor.is_over(bounds) {
+            return mouse::Interaction::default();
+        }
+        // Same handover for the cursor shape: staying neutral in the strip
+        // lets the container's own resize cursor show through, which is
+        // the only hint that the seam between two panes can be dragged.
+        if self.cursor_in_resize_margin(bounds, cursor) {
             return mouse::Interaction::default();
         }
         // Pointer over the perf HUD panel: it's clickable (toggles the

@@ -36,6 +36,7 @@ impl<Message> TerminalView<Message> {
             on_link_click_hint: None,
             on_link_opened: None,
             focused: true,
+            resize_margins: (0.0, 0.0, 0.0, 0.0),
             bell_flash: false,
             fixed_grid: false,
         }
@@ -45,6 +46,15 @@ impl<Message> TerminalView<Message> {
     /// mouse-tracking reports (see the `focused` field).
     pub fn focused(mut self, focused: bool) -> Self {
         self.focused = focused;
+        self
+    }
+
+    /// Per-edge strip this pane hands back to its container, in pixels:
+    /// `(top, right, bottom, left)`. See `resize_margins` on the widget.
+    /// Only set a non-zero value on an edge that borders a sibling pane;
+    /// on an outer edge it would just eat selectable area.
+    pub fn with_resize_margins(mut self, margins: (f32, f32, f32, f32)) -> Self {
+        self.resize_margins = margins;
         self
     }
 

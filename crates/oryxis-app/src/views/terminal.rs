@@ -69,6 +69,39 @@ impl Oryxis {
                 // wires click-to-focus + drag-to-resize.
                 let focused = tab.focused;
                 let multipane = tab.pane_grid.panes.len() > 1;
+                // Which edges of each pane border a sibling. The panes sit
+                // flush (no gutter), so the only way to grab a divider is
+                // for the pane to hand that strip back to the grid; doing
+                // it only on shared edges keeps the grid's outer border
+                // fully selectable. Relative coordinates are enough, so
+                // the regions are laid out at an arbitrary size.
+                let neighbours: std::collections::HashMap<_, _> = if multipane {
+                    const UNIT: f32 = 1000.0;
+                    let regions = tab.pane_grid.layout().pane_regions(
+                        0.0,
+                        0.0,
+                        iced::Size::new(UNIT, UNIT),
+                    );
+                    regions
+                        .iter()
+                        .map(|(handle, r)| {
+                            const EPS: f32 = 0.5;
+                            const GRAB: f32 = 4.0;
+                            let edge = |touching: bool| if touching { 0.0 } else { GRAB };
+                            (
+                                *handle,
+                                (
+                                    edge(r.y <= EPS),
+                                    edge(r.x + r.width >= UNIT - EPS),
+                                    edge(r.y + r.height >= UNIT - EPS),
+                                    edge(r.x <= EPS),
+                                ),
+                            )
+                        })
+                        .collect()
+                } else {
+                    std::collections::HashMap::new()
+                };
                 // Broadcast input (C2): while armed, every participating pane
                 // wears a 2px warning-tinted border so it is unmistakable that
                 // keystrokes fan out to all of them at once.
@@ -88,28 +121,21 @@ impl Oryxis {
                             is_focused,
                             broadcast,
                             multipane,
+                            neighbours.get(&pane).copied().unwrap_or((0.0, 0.0, 0.0, 0.0)),
                         ))
                         .width(Length::Fill)
                         .height(Length::Fill),
                     )
                 })
                 .on_click(|v| Message::Terminal(TerminalMessage::FocusPane(v)))
-                // Make the GUTTER the handle (#113). The grab band is
-                // `spacing + leeway` wide, but only the spacing itself
-                // belongs to no pane: anywhere else, the pane's canvas
-                // gets the press first (`pane_grid::Content::update`
-                // forwards unconditionally) and starts a text selection,
-                // so the divider does move but a selection block lights
-                // up under the cursor and the drag reads as a misfire.
-                // That is the "stacked panes cannot be resized" report:
-                // the old 4 px gutter with 8 px of leeway meant two
-                // thirds of the target misbehaved.
-                //
-                // 8 px of gutter with 2 px of leeway is the same order of
-                // target, all of it clean, and it reads as a divider now
-                // that each pane also carries an outline.
-                .on_resize(2, |v| Message::Terminal(TerminalMessage::ResizePane(v)))
-                .spacing(if multipane { 8 } else { 0 })
+                // The panes sit FLUSH: no gutter at all (owner call). The
+                // divider stays grabbable because each pane declines
+                // presses in a 4 px strip along the edges it shares with a
+                // sibling (`with_resize_margins`), so the grid gets them
+                // and no text selection starts. The leeway is back at 8
+                // now that nothing competes for those pixels.
+                .on_resize(8, |v| Message::Terminal(TerminalMessage::ResizePane(v)))
+                .spacing(0)
                 .width(Length::Fill)
                 .height(Length::Fill);
 
@@ -398,6 +424,9 @@ impl Oryxis {
         is_focused: bool,
         tab_broadcast: bool,
         multipane: bool,
+        // `(top, right, bottom, left)` strips handed back to the grid so
+        // its dividers stay grabbable with the panes flush.
+        resize_margins: (f32, f32, f32, f32),
     ) -> Element<'a, Message> {
         let mut term_view = TerminalView::new(Arc::clone(&pane.terminal))
             .focused(is_focused)
@@ -424,6 +453,7 @@ impl Oryxis {
             // even when the remote turns on mouse tracking.
             .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)
             .with_word_delimiters(&self.setting_word_delimiters)
+            .with_resize_margins(resize_margins)
             .on_font_size_increase(Message::Settings(SettingsMessage::TerminalFontSizeIncrease))
             .on_font_size_decrease(Message::Settings(SettingsMessage::TerminalFontSizeDecrease))
             .on_paste_request(Message::Terminal(TerminalMessage::TerminalPasteFromClipboard))
