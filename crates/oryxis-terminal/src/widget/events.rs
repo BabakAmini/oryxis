@@ -337,6 +337,26 @@ where
         let hover_changed = widget_state.hover != new_hover;
         widget_state.hover = new_hover;
 
+        // A pane that no longer has focus drops its highlight. The
+        // selection lives in this widget's own tree state, so nothing
+        // outside can reach it, and without this every pane you ever
+        // selected in keeps its block lit: split a tab three ways and you
+        // are looking at three highlights with no way to tell which one
+        // the next copy would take (field report).
+        //
+        // Only the HIGHLIGHT goes. `primary_selection` is deliberately
+        // kept, so middle-click paste and the paste-selection action
+        // still hand back the last thing selected, in whichever pane it
+        // was selected; copy-on-select has already copied by now anyway.
+        // Events are broadcast to every widget, so the click that moves
+        // focus is itself what clears the pane being left, and the same
+        // holds when the whole tab changes.
+        if !self.focused && (widget_state.selection.is_some() || widget_state.selecting) {
+            widget_state.selection = None;
+            widget_state.selecting = false;
+            return Some(CanvasAction::request_redraw());
+        }
+
         // A left press on the perf HUD toggles its compact <-> full-name
         // metric labels, the canvas overlay's stand-in for tooltips
         // (issue #69). Checked before mouse reporting and selection: the
