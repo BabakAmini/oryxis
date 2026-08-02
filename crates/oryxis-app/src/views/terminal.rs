@@ -94,8 +94,22 @@ impl Oryxis {
                     )
                 })
                 .on_click(|v| Message::Terminal(TerminalMessage::FocusPane(v)))
-                .on_resize(8, |v| Message::Terminal(TerminalMessage::ResizePane(v)))
-                .spacing(if multipane { 4 } else { 0 })
+                // Make the GUTTER the handle (#113). The grab band is
+                // `spacing + leeway` wide, but only the spacing itself
+                // belongs to no pane: anywhere else, the pane's canvas
+                // gets the press first (`pane_grid::Content::update`
+                // forwards unconditionally) and starts a text selection,
+                // so the divider does move but a selection block lights
+                // up under the cursor and the drag reads as a misfire.
+                // That is the "stacked panes cannot be resized" report:
+                // the old 4 px gutter with 8 px of leeway meant two
+                // thirds of the target misbehaved.
+                //
+                // 8 px of gutter with 2 px of leeway is the same order of
+                // target, all of it clean, and it reads as a divider now
+                // that each pane also carries an outline.
+                .on_resize(2, |v| Message::Terminal(TerminalMessage::ResizePane(v)))
+                .spacing(if multipane { 8 } else { 0 })
                 .width(Length::Fill)
                 .height(Length::Fill);
 
