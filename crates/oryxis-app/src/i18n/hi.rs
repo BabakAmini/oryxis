@@ -1179,6 +1179,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "आइकॉन और रंग",
         "add_key_btn" => "+ कुंजी",
         "port_forwarding" => "पोर्ट फ़ॉरवर्डिंग",
+        "host_port_forward_desc" => "ये इस होस्ट के सत्र के साथ शुरू होते हैं और उसी के साथ बंद होते हैं। केवल लोकल (-L); -R / -D, बाइंड पता या स्वतः प्रारंभ के लिए Port Forwarding का उपयोग करें।",
+        "host_standalone_forwards" => "इस होस्ट से होकर जाने वाले स्वतंत्र फ़ॉरवर्ड",
+        "host_manage_forwards" => "Port Forwarding में प्रबंधित करें",
 
         "add_btn" => "जोड़ें",
         "search_keys_identities" => "कुंजियां और पहचान खोजें...",

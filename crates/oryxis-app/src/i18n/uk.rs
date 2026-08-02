@@ -1173,6 +1173,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Значок і колір",
         "add_key_btn" => "+ Ключ",
         "port_forwarding" => "Прокидання портів",
+        "host_port_forward_desc" => "Запускаються разом із сеансом цього хоста і завершуються з ним. Лише локальні (-L); для -R / -D, адреси прив'язки чи автозапуску використовуйте Port Forwarding.",
+        "host_standalone_forwards" => "Окремі перенаправлення через цей хост",
+        "host_manage_forwards" => "Керувати в Port Forwarding",
 
         "add_btn" => "ДОДАТИ",
         "search_keys_identities" => "Пошук ключів та ідентичностей...",

@@ -1173,6 +1173,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Ikon & warna",
         "add_key_btn" => "+ Kunci",
         "port_forwarding" => "Port Forwarding",
+        "host_port_forward_desc" => "Ini dimulai bersama sesi host ini dan berhenti bersamanya. Hanya lokal (-L); untuk -R / -D, alamat bind, atau mulai otomatis, gunakan Port Forwarding.",
+        "host_standalone_forwards" => "Penerusan mandiri melalui host ini",
+        "host_manage_forwards" => "Kelola di Port Forwarding",
 
         "add_btn" => "TAMBAH",
         "search_keys_identities" => "Cari kunci & identitas...",

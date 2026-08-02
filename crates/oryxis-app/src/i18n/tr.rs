@@ -1173,6 +1173,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Simge ve renk",
         "add_key_btn" => "+ Anahtar",
         "port_forwarding" => "Port Yönlendirme",
+        "host_port_forward_desc" => "Bu sunucunun oturumuyla başlar ve onunla durur. Yalnızca yerel (-L); -R / -D, bağlanma adresi veya otomatik başlatma için Port Forwarding kullanın.",
+        "host_standalone_forwards" => "Bu sunucu üzerinden bağımsız yönlendirmeler",
+        "host_manage_forwards" => "Port Forwarding'de yönet",
 
         "add_btn" => "EKLE",
         "search_keys_identities" => "Anahtar ve kimlikleri ara...",

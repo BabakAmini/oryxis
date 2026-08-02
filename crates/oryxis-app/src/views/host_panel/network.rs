@@ -96,6 +96,19 @@ impl Oryxis {
                 ),
             ]).align_y(iced::Alignment::Center),
         ];
+        // Say what these ARE. There are two port-forward systems in the
+        // app and nothing said so, which is how you end up with a rule
+        // you cannot find (owner, 2026-08-02): the ones typed here ride
+        // this host's shell session and die with it, and they are local
+        // (-L) only. The standalone rules on the Port Forwarding screen
+        // are the ones with -R / -D, a bind address and auto-start, and
+        // they open a session of their own.
+        pf_items = pf_items.push(Space::new().height(4));
+        pf_items = pf_items.push(
+            text(t("host_port_forward_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        );
 
         for (i, pf) in self.editor_form.port_forwards.iter().enumerate() {
             let idx = i;
@@ -141,6 +154,72 @@ impl Oryxis {
                     ),
                 ]).align_y(iced::Alignment::Center).spacing(4),
             );
+        }
+        // Standalone rules that travel through THIS host, listed
+        // read-only. It answers "where do I use the ones I created?"
+        // where the user goes looking, and it is the only place the two
+        // systems are visible side by side. Editing them stays on their
+        // own screen, one click away.
+        if let Some(id) = self.editor_form.editing_id {
+            let mine: Vec<&oryxis_core::models::port_forward_rule::PortForwardRule> = self
+                .port_forward_rules
+                .iter()
+                .filter(|r| r.host_id == id)
+                .collect();
+            if !mine.is_empty() {
+                pf_items = pf_items.push(Space::new().height(12));
+                pf_items = pf_items.push(
+                    text(t("host_standalone_forwards"))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                );
+                for rule in mine {
+                    let live = self.active_forwards.contains_key(&rule.id);
+                    pf_items = pf_items.push(Space::new().height(4));
+                    pf_items = pf_items.push(
+                        dir_row(vec![
+                            text(if live { "\u{25CF}" } else { "\u{25CB}" })
+                                .size(9)
+                                .color(if live {
+                                    OryxisColors::t().success
+                                } else {
+                                    OryxisColors::t().text_muted
+                                })
+                                .into(),
+                            Space::new().width(6).into(),
+                            text(rule.label.clone())
+                                .size(11)
+                                .color(OryxisColors::t().text_secondary)
+                                .into(),
+                            Space::new().width(8).into(),
+                            text(crate::views::port_forwards::forward_summary(rule))
+                                .size(10)
+                                .font(iced::Font::MONOSPACE)
+                                .color(OryxisColors::t().text_muted)
+                                .into(),
+                        ])
+                        .align_y(iced::Alignment::Center),
+                    );
+                }
+                pf_items = pf_items.push(Space::new().height(6));
+                pf_items = pf_items.push(self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::Navigation(
+                        crate::app::NavigationMessage::ChangeView(
+                            crate::state::View::PortForwarding,
+                        ),
+                    )),
+                    4.0,
+                    crate::widgets::styled_button_opt(
+                        crate::i18n::t("host_manage_forwards"),
+                        Some(Message::Navigation(
+                            crate::app::NavigationMessage::ChangeView(
+                                crate::state::View::PortForwarding,
+                            ),
+                        )),
+                        OryxisColors::t().accent,
+                    ),
+                ));
+            }
         }
         pf_items.into()
         } else {

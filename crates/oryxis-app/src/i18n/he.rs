@@ -1179,6 +1179,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "אייקון וצבע",
         "add_key_btn" => "+ מפתח",
         "port_forwarding" => "העברת פורטים",
+        "host_port_forward_desc" => "הן עולות עם ההפעלה של מארח זה ונעצרות איתה. מקומי (-L) בלבד; עבור ‎-R / -D‎, כתובת האזנה או הפעלה אוטומטית השתמשו בהעברת פורטים.",
+        "host_standalone_forwards" => "העברות עצמאיות דרך מארח זה",
+        "host_manage_forwards" => "ניהול בהעברת פורטים",
 
         "add_btn" => "הוספה",
         "search_keys_identities" => "חיפוש מפתחות וזהויות...",

@@ -1180,6 +1180,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "ไอคอนและสี",
         "add_key_btn" => "+ คีย์",
         "port_forwarding" => "การส่งต่อพอร์ต",
+        "host_port_forward_desc" => "รายการเหล่านี้เริ่มพร้อมเซสชันของโฮสต์นี้และหยุดไปพร้อมกัน รองรับเฉพาะ -L หากต้องการ -R / -D ที่อยู่ bind หรือเริ่มอัตโนมัติ ให้ใช้ Port Forwarding",
+        "host_standalone_forwards" => "การส่งต่อแบบแยกผ่านโฮสต์นี้",
+        "host_manage_forwards" => "จัดการใน Port Forwarding",
 
         "add_btn" => "เพิ่ม",
         "search_keys_identities" => "ค้นหาคีย์และ identity...",

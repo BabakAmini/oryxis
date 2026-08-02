@@ -1173,6 +1173,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Biểu tượng & màu",
         "add_key_btn" => "+ Khóa",
         "port_forwarding" => "Chuyển tiếp cổng",
+        "host_port_forward_desc" => "Chúng khởi động cùng phiên của máy chủ này và dừng theo. Chỉ cục bộ (-L); cần -R / -D, địa chỉ bind hoặc tự khởi động thì dùng Port Forwarding.",
+        "host_standalone_forwards" => "Chuyển tiếp độc lập qua máy chủ này",
+        "host_manage_forwards" => "Quản lý trong Port Forwarding",
 
         "add_btn" => "THÊM",
         "search_keys_identities" => "Tìm khóa & danh tính...",

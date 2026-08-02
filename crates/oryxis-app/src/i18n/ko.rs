@@ -1173,6 +1173,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "아이콘 및 색상",
         "add_key_btn" => "+ 키",
         "port_forwarding" => "포트 포워딩",
+        "host_port_forward_desc" => "이 호스트의 세션과 함께 시작하고 함께 종료됩니다. 로컬(-L) 전용이며, -R / -D나 바인드 주소, 자동 시작이 필요하면 포트 포워딩을 사용하세요.",
+        "host_standalone_forwards" => "이 호스트를 경유하는 독립 포워드",
+        "host_manage_forwards" => "포트 포워딩에서 관리",
 
         "add_btn" => "추가",
         "search_keys_identities" => "키 및 ID 검색...",

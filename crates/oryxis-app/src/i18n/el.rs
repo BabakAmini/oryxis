@@ -1179,6 +1179,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Εικονίδιο & χρώμα",
         "add_key_btn" => "+ Κλειδί",
         "port_forwarding" => "Προώθηση θυρών",
+        "host_port_forward_desc" => "Ξεκινούν με τη συνεδρία αυτού του κόμβου και σταματούν μαζί της. Μόνο τοπικά (-L)· για -R / -D, διεύθυνση δέσμευσης ή αυτόματη εκκίνηση χρησιμοποιήστε το Port Forwarding.",
+        "host_standalone_forwards" => "Αυτόνομες προωθήσεις μέσω αυτού του κόμβου",
+        "host_manage_forwards" => "Διαχείριση στο Port Forwarding",
 
         "add_btn" => "ΠΡΟΣΘΗΚΗ",
         "search_keys_identities" => "Αναζήτηση κλειδιών & ταυτοτήτων...",

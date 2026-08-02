@@ -1180,6 +1180,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "group_icon_color" => "Icon & color",
         "add_key_btn" => "+ Key",
         "port_forwarding" => "Port Forwarding",
+        "host_port_forward_desc" => "These start with this host's session and stop with it. Local (-L) only; for -R / -D, a bind address or auto-start, use Port Forwarding.",
+        "host_standalone_forwards" => "Standalone forwards through this host",
+        "host_manage_forwards" => "Manage in Port Forwarding",
 
         "add_btn" => "ADD",
         "search_keys_identities" => "Search keys & identities...",

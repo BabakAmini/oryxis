@@ -1179,6 +1179,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Ikona a barva",
         "add_key_btn" => "+ Klíč",
         "port_forwarding" => "Přesměrování portů",
+        "host_port_forward_desc" => "Spouštějí se se sezením tohoto hostitele a s ním i končí. Pouze místní (-L); pro -R / -D, adresu naslouchání nebo automatický start použijte Port Forwarding.",
+        "host_standalone_forwards" => "Samostatná přesměrování přes tohoto hostitele",
+        "host_manage_forwards" => "Spravovat v Port Forwarding",
 
         "add_btn" => "PŘIDAT",
         "search_keys_identities" => "Hledat klíče a identity...",

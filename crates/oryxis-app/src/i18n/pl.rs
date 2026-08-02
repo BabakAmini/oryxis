@@ -1179,6 +1179,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "group_icon_color" => "Ikona i kolor",
         "add_key_btn" => "+ Klucz",
         "port_forwarding" => "Przekierowanie portów",
+        "host_port_forward_desc" => "Uruchamiają się z sesją tego hosta i kończą razem z nią. Tylko lokalne (-L); dla -R / -D, adresu nasłuchu lub autostartu użyj Port Forwarding.",
+        "host_standalone_forwards" => "Niezależne przekierowania przez tego hosta",
+        "host_manage_forwards" => "Zarządzaj w Port Forwarding",
 
         "add_btn" => "DODAJ",
         "search_keys_identities" => "Szukaj kluczy i tożsamości...",
