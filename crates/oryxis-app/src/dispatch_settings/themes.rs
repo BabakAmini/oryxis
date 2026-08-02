@@ -605,6 +605,24 @@ impl Oryxis {
                     self.close_modal(crate::state::Modal::ThemeEditor);
                 }
             }
+            SettingsMessage::ThemeDeleteRequested(idx) => {
+                if let Some(theme) = self.custom_terminal_themes.get(idx) {
+                    let name = theme.name.clone();
+                    self.confirm_remove(
+                        name,
+                        Message::Settings(SettingsMessage::ThemeDelete(idx)),
+                    );
+                }
+            }
+            SettingsMessage::UiThemeDeleteRequested(idx) => {
+                if let Some(theme) = self.custom_ui_themes.get(idx) {
+                    let name = theme.name.clone();
+                    self.confirm_remove(
+                        name,
+                        Message::Settings(SettingsMessage::UiThemeDelete(idx)),
+                    );
+                }
+            }
             SettingsMessage::ThemeDelete(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx)
                     && let Some(vault) = &self.vault

@@ -440,7 +440,7 @@ impl Oryxis {
                     Space::new().width(4).into(),
                     ui_icon_btn(
                         iced_fonts::lucide::trash(),
-                        Message::Settings(SettingsMessage::UiThemeDelete(idx)),
+                        Message::Settings(SettingsMessage::UiThemeDeleteRequested(idx)),
                         t("delete"),
                     ),
                 ])

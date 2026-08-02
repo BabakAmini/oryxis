@@ -342,7 +342,7 @@ impl Oryxis {
                     Space::new().width(4).into(),
                     theme_icon_btn(
                         iced_fonts::lucide::trash(),
-                        Message::Settings(SettingsMessage::ThemeDelete(idx)),
+                        Message::Settings(SettingsMessage::ThemeDeleteRequested(idx)),
                         t("delete"),
                     ),
                 ])

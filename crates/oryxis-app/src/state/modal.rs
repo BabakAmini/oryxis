@@ -184,8 +184,10 @@ impl Modal {
         Modal::SessionGroupPanel,
         Modal::ThemeEditor,
         Modal::UiThemeEditor,
-        Modal::TerminalThemeGallery,
+        // Import sits ON TOP of the gallery it is opened from (`layer_modals`),
+        // so Esc has to answer it first.
         Modal::ThemeImport,
+        Modal::TerminalThemeGallery,
         Modal::UiThemeImport,
         Modal::ShareDialog,
         Modal::CloudImportConfirm,

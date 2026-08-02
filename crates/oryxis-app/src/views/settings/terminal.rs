@@ -231,7 +231,14 @@ impl Oryxis {
                 Space::new().height(6),
                 text(t("terminal_theme_desc")).size(12).color(OryxisColors::t().text_muted),
                 Space::new().height(16),
-                scrollable(theme_grid).height(Length::Fixed(460.0)),
+                // The scrollbar is drawn INSIDE the viewport, so a grid
+                // that fills the full width gets a bar painted over its
+                // right-hand cards. The padding is the bar's own gutter.
+                scrollable(
+                    container(theme_grid)
+                        .padding(Padding { top: 0.0, right: 14.0, bottom: 0.0, left: 0.0 }),
+                )
+                .height(Length::Fixed(460.0)),
                 Space::new().height(12),
                 footer,
             ],

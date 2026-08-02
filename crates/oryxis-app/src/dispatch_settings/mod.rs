@@ -129,6 +129,8 @@ impl Oryxis {
             | SettingsMessage::ThemeEditorColorChanged(..)
             | SettingsMessage::ThemeEditorSave
             | SettingsMessage::ThemeDelete(..)
+            | SettingsMessage::ThemeDeleteRequested(..)
+            | SettingsMessage::UiThemeDeleteRequested(..)
             | SettingsMessage::ThemeImportOpen
             | SettingsMessage::ThemeImportClose
             | SettingsMessage::ThemeImportContentAction(..)

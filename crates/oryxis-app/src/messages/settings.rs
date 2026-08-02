@@ -136,6 +136,13 @@ pub enum SettingsMessage {
     HintModeChanged(String),
     /// Flip the reveal/eye state of a secret input field.
     ToggleSecretVisibility(crate::state::SecretField),
+    /// Trash on a custom theme card: RAISES THE CONFIRM, it does not
+    /// delete. A theme can be a long edit or an import that no longer
+    /// exists anywhere else, and the trash sits in the same hover cluster
+    /// as clone and edit. `ThemeDelete` / `UiThemeDelete` are only ever
+    /// reached by confirming.
+    ThemeDeleteRequested(usize),
+    UiThemeDeleteRequested(usize),
     ChangeSettingsSection(SettingsSection),
     /// The open section's scrollable moved; carries the relative y offset
     /// (0.0..=1.0). Recorded per section so returning to Settings lands

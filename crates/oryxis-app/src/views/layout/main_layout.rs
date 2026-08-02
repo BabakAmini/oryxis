@@ -636,6 +636,25 @@ impl Oryxis {
             );
         }
 
+        // Import-a-scheme modal (Settings -> Terminal "Import" card).
+        // AHEAD of the gallery below, because the gallery is where the
+        // Import card now lives: this chain returns on the first match,
+        // so with the gallery first the import modal opened into a state
+        // nothing rendered (field report: "Import stopped working").
+        // `ESC_ORDER` carries the same order so Esc answers what is
+        // actually on screen.
+        if self.show_theme_import {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.view_theme_import_modal(),
+                    Some(Message::Settings(SettingsMessage::ThemeImportClose)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Global terminal-theme gallery (Settings -> Terminal). The grid
         // it holds used to sit inline and dominate the page.
         if self.show_terminal_theme_gallery {
@@ -644,19 +663,6 @@ impl Oryxis {
                     base,
                     self.terminal_theme_gallery(),
                     Some(Message::Settings(SettingsMessage::CloseTerminalThemeGallery)),
-                    0.0,
-                ),
-                resize_overlay,
-            );
-        }
-
-        // Import-a-scheme modal (Settings -> Terminal "Import" card).
-        if self.show_theme_import {
-            return wrap_with_resize(
-                crate::widgets::modal_overlay(
-                    base,
-                    self.view_theme_import_modal(),
-                    Some(Message::Settings(SettingsMessage::ThemeImportClose)),
                     0.0,
                 ),
                 resize_overlay,
