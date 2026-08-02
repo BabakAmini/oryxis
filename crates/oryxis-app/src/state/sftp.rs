@@ -61,6 +61,20 @@ pub(crate) struct PaneState {
     /// Per-pane and in-memory only: paths are host-scoped and remounting
     /// the pane on another host must not offer the previous host's tree.
     pub path_history: Vec<String>,
+    /// Back / forward stacks for the side mouse buttons.
+    ///
+    /// Deliberately NOT the `path_history` above: that is a RECENCY list
+    /// (a revisit moves the entry to the top), so stepping back would
+    /// reorder it and the next step would bounce between two folders. A
+    /// stack answers "where was I before", which is the question the
+    /// buttons ask.
+    pub nav_back: Vec<String>,
+    pub nav_fwd: Vec<String>,
+    /// Set while a back / forward step is in flight, so its arrival is not
+    /// recorded as a fresh navigation. Without it, going back would push
+    /// the folder just left onto the back stack and the pair would cancel
+    /// each other out.
+    pub nav_replay: bool,
     /// Whether this pane's path-history dropdown is open.
     pub path_history_open: bool,
     /// Actions popover anchored to this pane's header.
@@ -115,6 +129,42 @@ pub(crate) struct PaneState {
 }
 
 impl PaneState {
+    /// Record leaving `previous` for a new directory. Clears the forward
+    /// stack, because branching off mid-history is a new future.
+    pub fn push_nav(&mut self, previous: String) {
+        const NAV_CAP: usize = 100;
+        // A back / forward step consumes the flag instead of recording:
+        // its arrival is the history being replayed, not a new visit.
+        if std::mem::take(&mut self.nav_replay) {
+            return;
+        }
+        if previous.is_empty() {
+            return;
+        }
+        self.nav_back.push(previous);
+        self.nav_fwd.clear();
+        if self.nav_back.len() > NAV_CAP {
+            self.nav_back.remove(0);
+        }
+    }
+
+    /// Pop the previous directory, remembering `current` so Forward can
+    /// come back to it. `None` when there is nowhere to go.
+    pub fn nav_go_back(&mut self, current: String) -> Option<String> {
+        let target = self.nav_back.pop()?;
+        self.nav_fwd.push(current);
+        self.nav_replay = true;
+        Some(target)
+    }
+
+    /// The mirror of [`Self::nav_go_back`].
+    pub fn nav_go_forward(&mut self, current: String) -> Option<String> {
+        let target = self.nav_fwd.pop()?;
+        self.nav_back.push(current);
+        self.nav_replay = true;
+        Some(target)
+    }
+
     /// Stamp a fresh mount generation. Called (via
     /// `spawn_archive_probe`) right after `SftpMessage::HostMounted` reset the
     /// pane for a new host: every archive completion still in flight

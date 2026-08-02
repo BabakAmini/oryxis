@@ -790,8 +790,12 @@ impl Oryxis {
                 // `files.path`, so an equality guard would skip exactly
                 // the visits that matter (the dedupe makes re-recording
                 // the current directory a no-op).
+                let previous = std::mem::take(&mut pane.files.path);
                 pane.files.push_path_history(path.clone());
                 pane.files.path = path.clone();
+                if previous != path {
+                    pane.files.push_nav(previous);
+                }
                 pane.files.entries = entries;
                 // Mount is where the stored, host-keyed history comes back
                 // (the per-pane list is wiped on disconnect on purpose),
@@ -816,8 +820,12 @@ impl Oryxis {
                 pane.files.error = None;
                 // Unconditional for the same optimistic-path reason as
                 // the Mounted arm above.
+                let previous = std::mem::take(&mut pane.files.path);
                 pane.files.push_path_history(path.clone());
                 pane.files.path = path.clone();
+                if previous != path {
+                    pane.files.push_nav(previous);
+                }
                 pane.files.entries = entries;
                 self.record_files_recent(pane_id, &path);
                 // The shell may have moved again while this listing was
@@ -844,7 +852,7 @@ impl Oryxis {
 
     /// The active tab's focused pane, mutably. `None` outside a
     /// terminal tab.
-    fn active_pane_mut(&mut self) -> Option<&mut crate::state::Pane> {
+    pub(crate) fn active_pane_mut(&mut self) -> Option<&mut crate::state::Pane> {
         let idx = self.active_tab?;
         Some(self.tabs.get_mut(idx)?.active_mut())
     }

@@ -948,6 +948,18 @@ impl Oryxis {
         if self.editing_hotkey.is_some() {
             return self.handle_hotkey_mouse_capture(button);
         }
+        // Directory back / forward first, when a file surface is what the
+        // buttons are over. These are what the OS itself calls them
+        // (Windows sends APPCOMMAND_BROWSER_BACKWARD / FORWARD for
+        // XBUTTON1 / XBUTTON2), so every browser and file manager answers
+        // them this way and a user's hand already expects it.
+        //
+        // It runs before the bindable actions rather than after because
+        // those are terminal-only (`accepts_mouse` requires
+        // `terminal_only`), so nothing bindable is being shadowed here.
+        if let Some(task) = self.file_surface_nav(button) {
+            return task;
+        }
         self.dispatch_mouse_binding(button)
     }
 
@@ -965,6 +977,62 @@ impl Oryxis {
     /// reasons: a terminal action outside a terminal tab (and a vault
     /// one outside the vault) is skipped rather than dispatched into a
     /// no-op.
+    /// Walk the visited directories of whichever file surface is on
+    /// screen. `None` when neither is, so the press falls through to the
+    /// bindable actions.
+    ///
+    /// "Up one level" deliberately does NOT live on these buttons, even
+    /// though some clients put it there: after a jump through the path bar
+    /// or the recents dropdown, back and up point at different places, and
+    /// a button labelled back must go back. Up stays on the `..` row.
+    fn file_surface_nav(&mut self, button: iced::mouse::Button) -> Option<Task<Message>> {
+        let back = match button {
+            iced::mouse::Button::Back => true,
+            iced::mouse::Button::Forward => false,
+            _ => return None,
+        };
+        // The SFTP surface (standalone tab or a hybrid tab in Files mode)
+        // owns the buttons whenever it is up; otherwise the terminal
+        // sidebar's Files tab does, and only while it is the visible tab.
+        if self.sftp_surface_visible() {
+            let side = self.sftp.focused_side;
+            let pane = self.sftp.pane(side);
+            let current = if pane.is_remote {
+                pane.remote_path.clone()
+            } else {
+                pane.local_path.display().to_string()
+            };
+            let pane = self.sftp.pane_mut(side);
+            let target = if back {
+                pane.nav_go_back(current)
+            } else {
+                pane.nav_go_forward(current)
+            }?;
+            let is_remote = self.sftp.pane(side).is_remote;
+            return Some(Task::done(if is_remote {
+                Message::Sftp(SftpMessage::SftpNavigateRemote(side, target))
+            } else {
+                Message::Sftp(SftpMessage::SftpNavigateLocal(
+                    side,
+                    std::path::PathBuf::from(target),
+                ))
+            }));
+        }
+        if self.effective_sidebar_tab() != Some(crate::state::TerminalSidebarTab::Files) {
+            return None;
+        }
+        let pane = self.active_pane_mut()?;
+        let current = pane.files.path.clone();
+        let target = if back {
+            pane.files.nav_go_back(current)
+        } else {
+            pane.files.nav_go_forward(current)
+        }?;
+        Some(Task::done(Message::SidebarFiles(
+            crate::app::SidebarFilesMessage::SidebarFilesNavigate(target),
+        )))
+    }
+
     fn dispatch_mouse_binding(&mut self, button: iced::mouse::Button) -> Task<Message> {
         let Some(button) = crate::hotkeys::MouseButton::from_iced(button) else {
             return Task::none();

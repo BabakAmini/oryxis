@@ -193,6 +193,11 @@ pub(crate) struct PaneFiles {
     /// sibling). Feeds the path combo-box dropdown. In-memory and
     /// host-scoped: `reset_for_disconnect` clears it.
     pub path_history: Vec<String>,
+    /// Back / forward stacks; see `PaneState`'s for why they are not the
+    /// recency list.
+    pub nav_back: Vec<String>,
+    pub nav_fwd: Vec<String>,
+    pub nav_replay: bool,
     /// Whether the path combo-box dropdown is open.
     pub path_history_open: bool,
 }
@@ -231,6 +236,42 @@ impl PaneFiles {
     /// Record an adopted directory in the combo-box history: most
     /// recent first, a revisit moves the entry to the top, capped so
     /// the dropdown stays scannable (issue #85, the SFTP pane's rule).
+    /// Record leaving `previous` for a new directory. Clears the forward
+    /// stack, because branching off mid-history is a new future.
+    pub fn push_nav(&mut self, previous: String) {
+        const NAV_CAP: usize = 100;
+        // A back / forward step consumes the flag instead of recording:
+        // its arrival is the history being replayed, not a new visit.
+        if std::mem::take(&mut self.nav_replay) {
+            return;
+        }
+        if previous.is_empty() {
+            return;
+        }
+        self.nav_back.push(previous);
+        self.nav_fwd.clear();
+        if self.nav_back.len() > NAV_CAP {
+            self.nav_back.remove(0);
+        }
+    }
+
+    /// Pop the previous directory, remembering `current` so Forward can
+    /// come back to it. `None` when there is nowhere to go.
+    pub fn nav_go_back(&mut self, current: String) -> Option<String> {
+        let target = self.nav_back.pop()?;
+        self.nav_fwd.push(current);
+        self.nav_replay = true;
+        Some(target)
+    }
+
+    /// The mirror of [`Self::nav_go_back`].
+    pub fn nav_go_forward(&mut self, current: String) -> Option<String> {
+        let target = self.nav_fwd.pop()?;
+        self.nav_back.push(current);
+        self.nav_replay = true;
+        Some(target)
+    }
+
     pub fn push_path_history(&mut self, path: String) {
         const PATH_HISTORY_CAP: usize = 20;
         if path.is_empty() {

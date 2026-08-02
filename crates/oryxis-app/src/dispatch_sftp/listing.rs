@@ -101,10 +101,12 @@ impl Oryxis {
                 // zeroing list_scroll_y there would desync our tracked
                 // offset from the widget and break edge-based scrolling.
                 let changed_dir = pane.remote_path != path;
+                let previous = pane.remote_path.clone();
                 pane.remote_path = path;
                 if changed_dir {
                     let visited = pane.remote_path.clone();
                     push_path_history(pane, visited);
+                    pane.push_nav(previous);
                 }
                 pane.remote_entries = entries;
                 pane.remote_loading = false;
@@ -200,10 +202,12 @@ impl Oryxis {
                     // SftpRemoteLoaded): a same-path navigate keeps the
                     // scrollable id and its preserved scroll position.
                     let changed_dir = pane.local_path != path;
+                    let previous = pane.local_path.display().to_string();
                     pane.local_path = path.clone();
                     if changed_dir {
                         let visited = pane.local_path.display().to_string();
                         push_path_history(pane, visited);
+                        pane.push_nav(previous);
                     }
                     pane.local_entries.clear();
                     pane.error = None;
@@ -244,10 +248,12 @@ impl Oryxis {
                         if pane.local_path != path {
                             // Typed/pasted path commit: adopt it now that
                             // it's proven listable.
+                            let previous = pane.local_path.display().to_string();
                             pane.local_path = path;
                             pane.list_scroll_y = 0.0;
                             let visited = pane.local_path.display().to_string();
                             push_path_history(pane, visited);
+                            pane.push_nav(previous);
                         }
                         pane.local_entries = entries;
                         pane.error = None;
