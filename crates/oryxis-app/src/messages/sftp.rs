@@ -189,7 +189,11 @@ pub enum SftpMessage {
         Result<Vec<crate::state::LocalEntry>, String>,
     ),
     SftpRowEnter(crate::state::SftpPaneSide, String, bool),
-    SftpRowExit,
+    /// Carries the row being LEFT. The hovered row is cleared only when
+    /// it matches: iced publishes enter / exit in tree order, so moving up
+    /// the list delivers the new row's `enter` BEFORE the old row's
+    /// `exit`, and an unconditional clear threw the fresh value away.
+    SftpRowExit(crate::state::SftpPaneSide, String),
     SftpMouseLeftPressed,
     SftpSelectRow(crate::state::SftpPaneSide, String, bool),
     /// "Open / Edit" on a remote row: download a temp copy, hand it to the

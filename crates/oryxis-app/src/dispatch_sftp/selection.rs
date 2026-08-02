@@ -217,8 +217,24 @@ impl Oryxis {
                     drag.active = true;
                 }
             }
-            SftpMessage::SftpRowExit => {
-                self.sftp.hovered_row = None;
+            SftpMessage::SftpRowExit(side, path) => {
+                // Only if this row is still the one recorded. Moving the
+                // pointer between rows delivers `enter` for the new row and
+                // `exit` for the old one in TREE order, not in the order
+                // they happened, so walking UP the list used to publish
+                // enter(above) then exit(below) and the unconditional clear
+                // wiped the row that had just been entered. `hovered_row`
+                // is what the left-press reads to arm a drag, so that lost
+                // value is a drag that never starts: the reported "works
+                // maybe one time in ten" when grabbing a row.
+                if self
+                    .sftp
+                    .hovered_row
+                    .as_ref()
+                    .is_some_and(|(s, p, _)| *s == side && *p == path)
+                {
+                    self.sftp.hovered_row = None;
+                }
             }
             SftpMessage::SftpNameHovered(side, path) => {
                 // Same menu guard as SftpRowEnter: the gaps between the open

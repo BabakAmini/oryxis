@@ -397,8 +397,8 @@ pub(crate) fn file_row_local<'a>(
     // a file is a valid drag *source* (just not a drop *target*).
     MouseArea::new(btn)
         .on_right_press(Message::Sftp(SftpMessage::SftpRowRightClick(side, path_str, is_dir)))
-        .on_enter(Message::Sftp(SftpMessage::SftpRowEnter(side, path_for_enter, is_dir)))
-        .on_exit(Message::Sftp(SftpMessage::SftpRowExit))
+        .on_enter(Message::Sftp(SftpMessage::SftpRowEnter(side, path_for_enter.clone(), is_dir)))
+        .on_exit(Message::Sftp(SftpMessage::SftpRowExit(side, path_for_enter)))
         .into()
 }
 
@@ -499,8 +499,8 @@ pub(crate) fn file_row_remote<'a>(
     // handler, and the cross-pane folder drop highlight.
     MouseArea::new(btn)
         .on_right_press(Message::Sftp(SftpMessage::SftpRowRightClick(side, full_path.clone(), is_dir)))
-        .on_enter(Message::Sftp(SftpMessage::SftpRowEnter(side, full_path, is_dir)))
-        .on_exit(Message::Sftp(SftpMessage::SftpRowExit))
+        .on_enter(Message::Sftp(SftpMessage::SftpRowEnter(side, full_path.clone(), is_dir)))
+        .on_exit(Message::Sftp(SftpMessage::SftpRowExit(side, full_path)))
         .into()
 }
 

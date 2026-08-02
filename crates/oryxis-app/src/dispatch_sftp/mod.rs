@@ -293,7 +293,7 @@ impl Oryxis {
             | SftpMessage::SftpCopySelectionPaths(..)
             | SftpMessage::SftpTypeAheadFire(..)
             | SftpMessage::SftpRowEnter(..)
-            | SftpMessage::SftpRowExit
+            | SftpMessage::SftpRowExit(..)
             | SftpMessage::SftpNameHovered(..)
             | SftpMessage::SftpNameUnhovered
             | SftpMessage::SftpSlowRenameFire(..)
