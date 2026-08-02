@@ -422,6 +422,10 @@ impl Oryxis {
         })
     }
 
+    /// The user's MOUSE bindings for the terminal canvas (middle-click
+    /// paste out of the box).
+    ///
+
     fn render_pane_canvas<'a>(
         &'a self,
         pane: &'a crate::state::Pane,
@@ -439,8 +443,8 @@ impl Oryxis {
             .with_font_name(&self.terminal_font_name)
             .with_copy_on_select(self.setting_copy_on_select)
             .with_right_click_copy(self.setting_right_click_copy)
-            .with_middle_click_paste(self.setting_middle_click_paste)
             .with_terminal_chords(self.terminal_chord_resolver())
+            .with_middle_click_paste(self.setting_middle_click_paste)
             .with_right_click_action(self.setting_terminal_right_click.to_widget())
             // The keypress half of the pair is queued on the input funnel
             // (`write_bytes_to_pane`), not here: see issue #111.
@@ -722,36 +726,66 @@ impl Oryxis {
             Some(_) if !pane.search_query.is_empty() => t("terminal_search_no_matches").to_string(),
             _ => String::new(),
         };
+        // Fit the bar to the pane it floats in. It used to be all fixed
+        // widths, so a narrow pane clipped it from the trailing edge and
+        // took the step arrows and the CLOSE button with it, leaving the
+        // search stuck open with no way out but the hotkey (field report).
+        //
+        // The pane's real width comes from the same `bounds` cell the
+        // OS-drop router reads, so this needs no layout guessing. Order of
+        // sacrifice, least useful first: the match counter, then the step
+        // arrows, then the input shrinks to a stub. Close is never dropped
+        // -- it is the way out.
+        const BTN: f32 = 32.0;
+        const COUNTER_W: f32 = 70.0;
+        const CHROME: f32 = 44.0; // overlay padding + container padding + gaps
+        let pane_w = pane.bounds.get().width;
+        // A pane that has never drawn reports 0; assume there is room
+        // rather than rendering a stub on the first frame.
+        let budget = if pane_w > 0.0 { pane_w - CHROME } else { f32::MAX };
+        let show_steps = budget >= 80.0 + COUNTER_W + BTN * 3.0;
+        let show_counter = budget >= 120.0 + COUNTER_W + BTN * 3.0;
+        let buttons_w = if show_steps { BTN * 3.0 } else { BTN };
+        let input_w = (budget - buttons_w - if show_counter { COUNTER_W } else { 0.0 })
+            .clamp(60.0, 200.0);
         let input = text_input(t("terminal_search_placeholder"), &pane.search_query)
             .id(iced::widget::Id::new("terminal-buffer-search"))
             .on_input(|v| Message::Terminal(TerminalMessage::TerminalSearchInput(v)))
-            .width(Length::Fixed(200.0))
+            .width(Length::Fixed(input_w))
             .padding(6);
-        let counter = text(count_label)
-            .size(12)
-            .color(colors.text_muted)
-            .width(Length::Fixed(70.0));
-        let controls = dir_row(vec![
-            input.into(),
-            container(counter).center_y(Length::Fixed(28.0)).into(),
-            icon_tooltip(
+        let mut items: Vec<Element<'_, Message>> = vec![input.into()];
+        if show_counter {
+            items.push(
+                container(
+                    text(count_label)
+                        .size(12)
+                        .color(colors.text_muted)
+                        .width(Length::Fixed(COUNTER_W)),
+                )
+                .center_y(Length::Fixed(28.0))
+                .into(),
+            );
+        }
+        if show_steps {
+            items.push(icon_tooltip(
                 chat_header_btn(iced_fonts::lucide::chevron_up(), Message::Terminal(TerminalMessage::TerminalSearchStep(false))),
                 t("terminal_search_prev"),
-            ),
-            icon_tooltip(
+            ));
+            items.push(icon_tooltip(
                 chat_header_btn(
                     iced_fonts::lucide::chevron_down(),
                     Message::Terminal(TerminalMessage::TerminalSearchStep(true)),
                 ),
                 t("terminal_search_next"),
-            ),
-            icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::x(), Message::Terminal(TerminalMessage::TerminalSearchClose)),
-                t("terminal_search_close"),
-            ),
-        ])
-        .spacing(4)
-        .align_y(iced::Alignment::Center);
+            ));
+        }
+        items.push(icon_tooltip(
+            chat_header_btn(iced_fonts::lucide::x(), Message::Terminal(TerminalMessage::TerminalSearchClose)),
+            t("terminal_search_close"),
+        ));
+        let controls = dir_row(items)
+            .spacing(4)
+            .align_y(iced::Alignment::Center);
         container(controls)
             .padding(6)
             .style(move |_| container::Style {
