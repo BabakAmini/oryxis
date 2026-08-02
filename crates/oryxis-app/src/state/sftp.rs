@@ -246,6 +246,15 @@ impl std::fmt::Debug for ZipIndexedPayload {
 /// always a remote host. When both panes are remote, a transfer between
 /// them uses the server-to-server relay primitive instead of
 /// upload/download.
+/// One rendered SFTP row's identity plus the cell its drawn rect lands in.
+#[derive(Debug, Clone)]
+pub(crate) struct SftpRowHit {
+    pub side: SftpPaneSide,
+    pub path: String,
+    pub is_dir: bool,
+    pub bounds: crate::widgets::BoundsCell,
+}
+
 pub(crate) struct SftpState {
     /// Left pane, Local by default.
     pub left: PaneState,
@@ -284,6 +293,16 @@ pub(crate) struct SftpState {
     /// consumed by both the OS drop target picker and the internal
     /// drag-drop release handler.
     pub hovered_row: Option<(SftpPaneSide, String, bool)>,
+    /// Every rendered row's rect, recorded during `view()` and filled by a
+    /// `bounds_reporter` on each draw.
+    ///
+    /// Hit-testing a press against these is what makes grabbing a row
+    /// deterministic. `hovered_row` cannot do that job: it is hover state
+    /// maintained by MouseArea enter / exit, so a truncated name's tooltip
+    /// overlay drops it and iced publishing transitions in tree order
+    /// reorders it. Geometry has neither problem, and it is the approach
+    /// the OS-drop router and the tab-to-pane drop already use.
+    pub row_hits: std::cell::RefCell<Vec<SftpRowHit>>,
     /// In-progress internal drag (file/folder being dragged from one
     /// pane to the other). Spans the press → drop window.
     pub drag: Option<SftpInternalDrag>,
@@ -454,6 +473,7 @@ impl Default for SftpState {
             drop_active: false,
             pending_drops: Vec::new(),
             hovered_row: None,
+            row_hits: std::cell::RefCell::new(Vec::new()),
             drag: None,
             transfer: None,
             upload_dest_override: None,

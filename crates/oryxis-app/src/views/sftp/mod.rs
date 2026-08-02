@@ -340,9 +340,32 @@ impl Oryxis {
     /// the remote SFTP browser. The header always renders the
     /// host-picker chip; for a Local pane it reads "Local", for a remote
     /// pane it reads the mounted host label.
+    /// Record a row's identity and wrap it so its drawn rect lands in a
+    /// cell the press handler can hit-test. Rows are recorded in render
+    /// order, which is the order they appear on screen.
+    fn record_sftp_row_hit<'a>(
+        &self,
+        side: SftpPaneSide,
+        path: &str,
+        is_dir: bool,
+        row: Element<'a, Message>,
+    ) -> Element<'a, Message> {
+        let cell = crate::widgets::new_bounds_cell();
+        self.sftp.row_hits.borrow_mut().push(crate::state::SftpRowHit {
+            side,
+            path: path.to_string(),
+            is_dir,
+            bounds: cell.clone(),
+        });
+        crate::widgets::bounds_reporter(row, cell)
+    }
+
     fn view_sftp_pane(&self, side: SftpPaneSide) -> Element<'_, Message> {
         let pane = self.sftp.pane(side);
         let is_remote = pane.is_remote;
+        // Drop this side's row rects; they are re-recorded below in render
+        // order. The other pane's stay, since it is not being rebuilt here.
+        self.sftp.row_hits.borrow_mut().retain(|h| h.side != side);
         // Resolve the column layout from this pane's on-screen width (the
         // content area split by the divider ratio). When the visible columns
         // overflow, the layout switches the rows to a fixed width and the list
@@ -742,7 +765,7 @@ impl Oryxis {
                     } else {
                         row_el
                     };
-                    col = col.push(row_el);
+                    col = col.push(self.record_sftp_row_hit(side, &path_str, entry.is_dir, row_el));
                 }
             }
             sftp_list_scrollable(
@@ -898,6 +921,9 @@ impl Oryxis {
                 } else {
                     format!("{}/{}", parent, entry.name)
                 };
+                // `full` is moved into the row builder below; keep a copy for
+                // the hit record.
+                let full_for_hit = full.clone();
                 let rename_input = rename
                     .filter(|r| r.original_path == full)
                     .map(|r| r.input.as_str());
@@ -934,7 +960,7 @@ impl Oryxis {
                 } else {
                     row_el
                 };
-                col = col.push(row_el);
+                col = col.push(self.record_sftp_row_hit(side, &full_for_hit, entry.is_dir, row_el));
             }
             sftp_list_scrollable(
                 col,

@@ -353,7 +353,31 @@ impl Oryxis {
                         return Ok(self.commit_rename());
                     }
                 }
-                if let Some((side, path, is_dir)) = self.sftp.hovered_row.clone() {
+                // Which row the press landed on, by GEOMETRY. `hovered_row`
+                // is only the fallback now: it is hover state, so a
+                // truncated name's tooltip overlay drops it (the reason an
+                // arm was once bolted onto the row button's on_press, which
+                // fires on RELEASE and so can never help a drag), and iced
+                // publishes enter / exit in tree order, which reorders it.
+                // The rects come from the same `bounds_reporter` cells the
+                // OS-drop router hit-tests, so this answer does not depend
+                // on hover at all.
+                let hit = self
+                    .sftp
+                    .row_hits
+                    .borrow()
+                    .iter()
+                    .find(|h| {
+                        let r = h.bounds.get();
+                        r.width > 0.0
+                            && r.height > 0.0
+                            && self.mouse_position.x >= r.x
+                            && self.mouse_position.x <= r.x + r.width
+                            && self.mouse_position.y >= r.y
+                            && self.mouse_position.y <= r.y + r.height
+                    })
+                    .map(|h| (h.side, h.path.clone(), h.is_dir));
+                if let Some((side, path, is_dir)) = hit.or_else(|| self.sftp.hovered_row.clone()) {
                     self.arm_sftp_row_drag(side, path, is_dir);
                 }
             }
