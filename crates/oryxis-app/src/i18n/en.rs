@@ -168,6 +168,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "theme_error_save_failed" => "Failed to save the theme.",
         "split_side_by_side" => "Split side by side",
         "split_stacked" => "Split stacked",
+        "maximize_pane" => "Maximize pane",
+        "restore_panes" => "Restore panes",
+        "hotkey_toggle_maximize_pane" => "Maximize / restore pane",
         "close_pane" => "Close pane",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Save as group",

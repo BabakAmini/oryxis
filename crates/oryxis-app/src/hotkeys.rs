@@ -52,6 +52,10 @@ pub enum HotkeyAction {
     FocusPaneRight,
     FocusPaneUp,
     FocusPaneDown,
+    /// Expand the focused pane to the whole tab, and back. The layout is
+    /// untouched while zoomed, so restoring puts every pane back exactly
+    /// where it was.
+    ToggleMaximizePane,
     /// Ring the terminal-sidebar list rows (Snippets / History):
     /// opens the sidebar when closed, cycles the two list tabs on
     /// repeat. Terminal-only, like the split-pane family.
@@ -159,6 +163,7 @@ impl HotkeyAction {
             FocusPaneRight,
             FocusPaneUp,
             FocusPaneDown,
+            ToggleMaximizePane,
             FocusSidebarList,
             ToggleSidebar,
             ToggleTabFiles,
@@ -204,6 +209,7 @@ impl HotkeyAction {
             FocusPaneRight => "focus_pane_right",
             FocusPaneUp => "focus_pane_up",
             FocusPaneDown => "focus_pane_down",
+            ToggleMaximizePane => "toggle_maximize_pane",
             FocusSidebarList => "focus_sidebar_list",
             ToggleSidebar => "toggle_sidebar",
             ToggleTabFiles => "toggle_tab_files",
@@ -254,6 +260,7 @@ impl HotkeyAction {
             FocusPaneRight => "hotkey_focus_pane_right",
             FocusPaneUp => "hotkey_focus_pane_up",
             FocusPaneDown => "hotkey_focus_pane_down",
+            ToggleMaximizePane => "hotkey_toggle_maximize_pane",
             FocusSidebarList => "hotkey_focus_sidebar_list",
             ToggleSidebar => "hotkey_toggle_sidebar",
             ToggleTabFiles => "hotkey_toggle_tab_files",
@@ -295,6 +302,7 @@ impl HotkeyAction {
                 | FocusPaneRight
                 | FocusPaneUp
                 | FocusPaneDown
+                | ToggleMaximizePane
                 | FocusSidebarList
                 | ToggleSidebar
                 | ToggleTabFiles
@@ -1181,6 +1189,10 @@ pub fn default_bindings() -> HotkeyMap {
     put(&mut m, FocusPaneRight, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowRight));
     put(&mut m, FocusPaneUp, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowUp));
     put(&mut m, FocusPaneDown, primary_ctrl, true, false, primary_logo, Named(keyboard::key::Named::ArrowDown));
+    // Ctrl+Shift+Z (Cmd+Shift+Z on macOS): Z for zoom, the tmux
+    // `prefix z` convention for exactly this toggle. Shift lifts it out
+    // of the terminal control-sequence gate.
+    put(&mut m, ToggleMaximizePane, primary_ctrl, true, false, primary_logo, Char('z'));
     // Ctrl+Shift+H (Cmd+Shift+H on macOS): Shift lifts it out of the
     // terminal control-sequence gate (plain Ctrl+H is backspace on the
     // PTY), H for the History/lists sidebar. Rebindable like the rest.

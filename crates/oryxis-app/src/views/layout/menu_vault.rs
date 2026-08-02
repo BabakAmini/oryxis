@@ -144,6 +144,27 @@ impl Oryxis {
             self.menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitTabPane(idx, iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate_tab"), Message::Tabs(TabsMessage::DuplicateTab(idx)), OryxisColors::t().text_secondary),
         ];
+        // Zoom the focused pane to the whole tab (#113). Only on split
+        // tabs: a lone pane already fills it. The label flips to Restore
+        // while zoomed, which is also the only on-screen affordance
+        // telling you the tab is in that state.
+        if self.tabs.get(idx).is_some_and(|t| t.pane_grid.panes.len() >= 2) {
+            let zoomed = self
+                .tabs
+                .get(idx)
+                .is_some_and(|t| t.pane_grid.maximized().is_some());
+            let (glyph, key) = if zoomed {
+                (iced_fonts::lucide::minimize(), "restore_panes")
+            } else {
+                (iced_fonts::lucide::maximize(), "maximize_pane")
+            };
+            items = items.push(self.menu_item(
+                glyph,
+                crate::i18n::t(key),
+                Message::Terminal(TerminalMessage::ToggleMaximizePane(Some(idx))),
+                OryxisColors::t().text_secondary,
+            ));
+        }
         // Broadcast input across the tab's panes (C2): a check glyph +
         // warning tint mark the armed state, matching the pane borders and
         // status segment. Only offered on split tabs (broadcast is inert on

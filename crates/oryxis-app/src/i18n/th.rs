@@ -168,6 +168,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "บันทึกธีมไม่สำเร็จ",
         "split_side_by_side" => "แบ่งซ้ายขวา",
         "split_stacked" => "แบ่งบนล่าง",
+        "maximize_pane" => "ขยายบานหน้าต่าง",
+        "restore_panes" => "คืนค่าบานหน้าต่าง",
+        "hotkey_toggle_maximize_pane" => "ขยาย / คืนค่าบานหน้าต่าง",
         "close_pane" => "ปิดเพน",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "บันทึกเป็นกลุ่ม",

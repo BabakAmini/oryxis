@@ -164,6 +164,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "Импортированная тема",
         "split_side_by_side" => "Разделить рядом",
         "split_stacked" => "Разделить стопкой",
+        "maximize_pane" => "Развернуть панель",
+        "restore_panes" => "Восстановить панели",
+        "hotkey_toggle_maximize_pane" => "Развернуть / восстановить панель",
         "close_pane" => "Закрыть панель",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Сохранить как группу",

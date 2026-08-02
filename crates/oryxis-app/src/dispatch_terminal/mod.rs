@@ -306,9 +306,23 @@ impl Oryxis {
             TerminalMessage::FocusPaneDir(dir) => {
                 if let Some(tab_idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(tab_idx)
-                    && let Some(adj) = tab.pane_grid.adjacent(tab.focused, dir)
                 {
-                    tab.focused = adj;
+                    tab.focus_adjacent(dir);
+                }
+            }
+            TerminalMessage::ToggleMaximizePane(target) => {
+                // Dismiss the tab context menu when its row fired this.
+                self.overlay = None;
+                let Some(tab_idx) = target.or(self.active_tab) else {
+                    return Task::none();
+                };
+                if target.is_some() {
+                    self.active_tab = Some(tab_idx);
+                    self.active_view = crate::state::View::Terminal;
+                    self.remember_terminal_tab_focus(tab_idx);
+                }
+                if let Some(tab) = self.tabs.get_mut(tab_idx) {
+                    tab.toggle_maximize();
                 }
             }
             TerminalMessage::TerminalBellFlashEnd(pane_id) => {

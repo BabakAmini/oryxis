@@ -168,6 +168,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Uložení motivu selhalo.",
         "split_side_by_side" => "Rozdělit vedle sebe",
         "split_stacked" => "Rozdělit nad sebe",
+        "maximize_pane" => "Maximalizovat panel",
+        "restore_panes" => "Obnovit panely",
+        "hotkey_toggle_maximize_pane" => "Maximalizovat / obnovit panel",
         "close_pane" => "Zavřít panel",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Uložit jako skupinu",

@@ -164,6 +164,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "导入的主题",
         "split_side_by_side" => "并排拆分",
         "split_stacked" => "上下拆分",
+        "maximize_pane" => "最大化窗格",
+        "restore_panes" => "还原窗格",
+        "hotkey_toggle_maximize_pane" => "最大化 / 还原窗格",
         "close_pane" => "关闭窗格",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "保存为组",

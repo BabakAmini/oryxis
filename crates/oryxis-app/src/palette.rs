@@ -93,7 +93,8 @@ fn hotkey_category(action: HotkeyAction) -> PaletteCategory {
         OpenPortForwards | FocusViewSearch | NewHost | ShowQuickConnect | NewKey | NewIdentity
         | VaultSectionPrev | VaultSectionNext | VaultSectionSlot => PaletteCategory::Vault,
         FontZoomIn | FontZoomOut | FontZoomReset | SplitPaneVertical | SplitPaneHorizontal
-        | FocusPaneLeft | FocusPaneRight | FocusPaneUp | FocusPaneDown | FocusSidebarList
+        | FocusPaneLeft | FocusPaneRight | FocusPaneUp | FocusPaneDown | ToggleMaximizePane
+        | FocusSidebarList
         | ToggleSidebar | ToggleTabFiles | ToggleBroadcastInput | TerminalCopy
         | TerminalPaste | TerminalPasteSelection | TerminalSelectAll | ScrollbackPageUp
         | ScrollbackPageDown => {

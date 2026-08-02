@@ -164,6 +164,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_imported_default" => "Tema importato",
         "split_side_by_side" => "Dividi affiancato",
         "split_stacked" => "Dividi impilato",
+        "maximize_pane" => "Ingrandisci riquadro",
+        "restore_panes" => "Ripristina riquadri",
+        "hotkey_toggle_maximize_pane" => "Ingrandisci / ripristina riquadro",
         "close_pane" => "Chiudi riquadro",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "Salva come gruppo",

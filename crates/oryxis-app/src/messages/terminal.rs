@@ -58,6 +58,9 @@ pub enum TerminalMessage {
     ClosePane(Option<Uuid>),
     /// Move focus to the adjacent pane in a direction (keyboard nav).
     FocusPaneDir(iced::widget::pane_grid::Direction),
+    /// Expand the focused pane to the whole tab, and back. `None` targets
+    /// the active tab (hotkey); `Some(idx)` a specific one (tab menu).
+    ToggleMaximizePane(Option<usize>),
     /// Periodic flush of buffered session-log output to the vault.
     SessionLogFlushTick,
     /// Emitted by the terminal widget when the user right-clicks. The

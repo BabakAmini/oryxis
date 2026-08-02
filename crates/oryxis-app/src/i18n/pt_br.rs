@@ -164,6 +164,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "Falha ao salvar o tema.",
         "split_side_by_side" => "Dividir lado a lado",
         "split_stacked" => "Dividir empilhado",
+        "maximize_pane" => "Maximizar painel",
+        "restore_panes" => "Restaurar painéis",
+        "hotkey_toggle_maximize_pane" => "Maximizar / restaurar painel",
         "close_pane" => "Fechar painel",
         // Grupos de sessão (arranjos de painéis salvos)
         "save_session_group" => "Salvar como grupo",

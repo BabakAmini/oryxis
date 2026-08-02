@@ -1007,6 +1007,41 @@ impl TerminalTab {
         }
     }
 
+    /// Move focus to the adjacent pane in `dir`, carrying the zoom with
+    /// it. Returns whether focus moved.
+    ///
+    /// The zoom is the reason this is a method rather than three lines in
+    /// the dispatcher: while a pane is maximized the grid renders only
+    /// that one, so moving focus without moving the zoom would put the
+    /// caret on a pane nobody can see. Carrying it means the directional
+    /// keys stay the way to walk the panes whether or not one is zoomed,
+    /// which is what makes a separate pane list unnecessary (#113). The
+    /// harness cannot reach arrow chords (its grammar takes a single
+    /// character after the modifiers), so this is covered by the tests
+    /// below rather than by an `.ice`.
+    pub fn focus_adjacent(&mut self, dir: pane_grid::Direction) -> bool {
+        let Some(adj) = self.pane_grid.adjacent(self.focused, dir) else {
+            return false;
+        };
+        self.focused = adj;
+        if self.pane_grid.maximized().is_some() {
+            self.pane_grid.maximize(adj);
+        }
+        true
+    }
+
+    /// Zoom the focused pane to the whole tab, or restore the split.
+    ///
+    /// A lone pane already fills the tab, so zooming it would change
+    /// nothing except hide the affordance that undoes it.
+    pub fn toggle_maximize(&mut self) {
+        if self.pane_grid.maximized().is_some() {
+            self.pane_grid.restore();
+        } else if self.pane_grid.panes.len() > 1 {
+            self.pane_grid.maximize(self.focused);
+        }
+    }
+
     /// Currently focused pane. Falls back to the first pane if `focused`
     /// is stale (e.g. just after a close), so this never panics.
     pub fn active(&self) -> &Pane {
@@ -1157,6 +1192,66 @@ mod terminal_tab_tests {
             .expect("split");
         tab.focused = handle;
         handle
+    }
+
+    /// Zooming a lone pane is refused: it already fills the tab, so the
+    /// only thing it would change is hiding the way back.
+    #[test]
+    fn a_single_pane_tab_does_not_zoom() {
+        let mut tab = TerminalTab::new_single("a".into(), dummy_terminal());
+        tab.toggle_maximize();
+        assert!(tab.pane_grid.maximized().is_none());
+    }
+
+    /// The toggle is a real toggle, and restoring puts the split back
+    /// untouched: `maximize` only changes what is DRAWN, never the layout.
+    #[test]
+    fn zoom_toggles_and_restores_the_same_layout() {
+        let mut tab = TerminalTab::new_single("a".into(), dummy_terminal());
+        let second = split(&mut tab, pane_grid::Axis::Vertical);
+        tab.toggle_maximize();
+        assert_eq!(tab.pane_grid.maximized(), Some(second));
+        tab.toggle_maximize();
+        assert!(tab.pane_grid.maximized().is_none());
+        assert_eq!(tab.pane_grid.panes.len(), 2, "both panes survive the round trip");
+    }
+
+    /// The zoom follows the focus. Without this, walking the panes while
+    /// one is zoomed would move the caret to a pane the grid is not
+    /// drawing, and the user would be typing into something invisible.
+    #[test]
+    fn zoom_follows_focus_across_panes() {
+        let mut tab = TerminalTab::new_single("a".into(), dummy_terminal());
+        let second = split(&mut tab, pane_grid::Axis::Vertical);
+        tab.toggle_maximize();
+        assert_eq!(tab.pane_grid.maximized(), Some(second));
+
+        assert!(tab.focus_adjacent(pane_grid::Direction::Left));
+        assert_ne!(tab.focused, second, "focus moved to the other pane");
+        assert_eq!(
+            tab.pane_grid.maximized(),
+            Some(tab.focused),
+            "the zoom must land on whichever pane now has focus"
+        );
+    }
+
+    /// And with nothing zoomed, moving focus must not start a zoom.
+    #[test]
+    fn moving_focus_alone_never_zooms() {
+        let mut tab = TerminalTab::new_single("a".into(), dummy_terminal());
+        let _ = split(&mut tab, pane_grid::Axis::Vertical);
+        assert!(tab.focus_adjacent(pane_grid::Direction::Left));
+        assert!(tab.pane_grid.maximized().is_none());
+    }
+
+    /// A direction with no neighbour reports that nothing moved, so the
+    /// caller can tell a no-op from a walk.
+    #[test]
+    fn focus_does_not_move_past_the_edge() {
+        let mut tab = TerminalTab::new_single("a".into(), dummy_terminal());
+        let second = split(&mut tab, pane_grid::Axis::Vertical);
+        assert!(!tab.focus_adjacent(pane_grid::Direction::Right));
+        assert_eq!(tab.focused, second);
     }
 
     /// Split a tab named after its first pane, add a second pane for a

@@ -1163,6 +1163,11 @@ impl Oryxis {
                 Some(idx) => Task::done(Message::Tabs(TabsMessage::ToggleTabFilesMode(idx))),
                 None => Task::none(),
             },
+            // Zoom the focused pane to the whole tab, and back. The
+            // handler no-ops on a single-pane tab (already full size).
+            ToggleMaximizePane => {
+                Task::done(Message::Terminal(TerminalMessage::ToggleMaximizePane(None)))
+            }
             // Broadcast input: arm / disarm fan-out across the focused
             // tab's panes.
             ToggleBroadcastInput => match self.active_tab {

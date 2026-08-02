@@ -165,6 +165,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "theme_error_save_failed" => "테마 저장에 실패했습니다.",
         "split_side_by_side" => "좌우로 분할",
         "split_stacked" => "위아래로 분할",
+        "maximize_pane" => "창 최대화",
+        "restore_panes" => "창 복원",
+        "hotkey_toggle_maximize_pane" => "창 최대화 / 복원",
         "close_pane" => "분할 창 닫기",
         // Session groups (saved split-panel arrangements)
         "save_session_group" => "그룹으로 저장",
