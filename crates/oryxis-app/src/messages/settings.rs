@@ -166,6 +166,7 @@ pub enum SettingsMessage {
     /// Settings > Connection: seconds between host-monitor probes.
     SettingMonitorIntervalChanged(String),
     ToggleSftpForceOsc7,
+    ToggleSftpAskDownloadDir,
     /// Settings > SFTP: the single external editor used by the remote
     /// "Open with default text editor" action (issue #84).
     SettingSftpDefaultEditorChanged(String),

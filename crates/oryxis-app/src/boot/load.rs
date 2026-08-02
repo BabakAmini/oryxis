@@ -1017,6 +1017,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sftp_force_osc7") {
                 self.setting_sftp_force_osc7 = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("sftp_ask_download_dir") {
+                self.setting_sftp_ask_download_dir = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_default_editor") {
                 self.setting_sftp_default_editor = v;
             }

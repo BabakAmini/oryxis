@@ -154,6 +154,13 @@ impl Oryxis {
                     if self.setting_sftp_edit_autosave { "true" } else { "false" },
                 );
             }
+            SettingsMessage::ToggleSftpAskDownloadDir => {
+                self.setting_sftp_ask_download_dir = !self.setting_sftp_ask_download_dir;
+                self.persist_setting(
+                    "sftp_ask_download_dir",
+                    if self.setting_sftp_ask_download_dir { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleSftpForceOsc7 => {
                 self.setting_sftp_force_osc7 = !self.setting_sftp_force_osc7;
                 self.persist_setting(

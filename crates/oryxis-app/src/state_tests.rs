@@ -2,6 +2,36 @@
 //! stay in the same module and can reach private items directly.
 
 use super::PermBits;
+use super::{OverwriteDirection, OverwritePrompt};
+
+/// The conflict modal's labels are fixed ("Local · Remote") while the
+/// prompt's `src_size` follows the transfer, so the mapping has to flip
+/// with the direction. Getting it backwards on a download would show the
+/// remote file's size as the local one, inverting the only comparison
+/// the user has to make before answering (issue #114).
+#[test]
+fn overwrite_sizes_follow_the_transfer_direction() {
+    let prompt = |direction| OverwritePrompt {
+        src: "/src/file.bin".into(),
+        dst_dir: "/dst".into(),
+        basename: "file.bin".into(),
+        src_size: 100,
+        dst_size: 900,
+        direction,
+        multi: false,
+        apply_to_all: false,
+    };
+    // Uploading: the source IS the local file.
+    assert_eq!(
+        prompt(OverwriteDirection::Upload).local_remote_sizes(),
+        (100, 900)
+    );
+    // Downloading: the source is the remote file, so the two swap.
+    assert_eq!(
+        prompt(OverwriteDirection::Download).local_remote_sizes(),
+        (900, 100)
+    );
+}
 
 #[test]
 fn from_to_mode_round_trip_preserves_low_9_bits() {

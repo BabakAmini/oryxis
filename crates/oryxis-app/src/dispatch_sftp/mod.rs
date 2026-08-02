@@ -143,6 +143,8 @@ impl Oryxis {
             | SftpMessage::SftpTransferTick
             | SftpMessage::SftpUpload(..)
             | SftpMessage::SftpDownload(..)
+            | SftpMessage::SftpDownloadTo(..)
+            | SftpMessage::SftpDownloadDestPicked(..)
             | SftpMessage::SftpDuplicate(..)
             | SftpMessage::SftpFileHovered
             | SftpMessage::SftpFilesHoveredLeft

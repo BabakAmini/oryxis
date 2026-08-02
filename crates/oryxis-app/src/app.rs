@@ -1459,6 +1459,12 @@ pub struct Oryxis {
     /// echoes one setup line); the title fallback covers the common
     /// case without it.
     pub(crate) setting_sftp_force_osc7: bool,
+    /// Ask for the destination folder on every download instead of using
+    /// the local pane's current directory. Off by default: in the
+    /// dual-pane surface the destination is already on screen, so asking
+    /// every time would be noise for most users. The row menu's "Download
+    /// to..." asks regardless.
+    pub(crate) setting_sftp_ask_download_dir: bool,
     /// TCP connect + SSH transport handshake timeout, in seconds.
     pub(crate) setting_sftp_connect_timeout: String,
     /// Authentication phase timeout, in seconds.

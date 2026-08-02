@@ -183,8 +183,29 @@ impl Oryxis {
                     .size(11)
                     .color(OryxisColors::t().text_muted),
             ]);
+            // Download destination (issue #114): the panes' own directory
+            // is the default, this makes every download stop to ask. The
+            // row menu's "Download to..." asks regardless, so the setting
+            // is only about the plain action.
+            let download_section = panel_section(column![
+                text(t("setting_sftp_ask_download_dir"))
+                    .size(13)
+                    .color(OryxisColors::t().text_primary),
+                Space::new().height(4),
+                text(t("setting_sftp_ask_download_dir_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(8),
+                self.nav_toggle_row(
+                    t("setting_sftp_ask_download_dir_toggle"),
+                    self.setting_sftp_ask_download_dir,
+                    Message::Settings(SettingsMessage::ToggleSftpAskDownloadDir),
+                ),
+            ]);
             content_col = content_col
                 .push(osc7_section)
+                .push(Space::new().height(12))
+                .push(download_section)
                 .push(Space::new().height(12))
                 .push(editor_section)
                 .push(Space::new().height(12))

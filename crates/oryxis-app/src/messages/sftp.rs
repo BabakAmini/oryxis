@@ -287,6 +287,13 @@ pub enum SftpMessage {
     SftpTransferTick,
     SftpUpload(std::path::PathBuf),
     SftpDownload(String),
+    /// Pick the destination folder for `then` (any of the three download
+    /// entry points), then run it. The picked folder rides in
+    /// `download_dest_override`, which those handlers already consume, so
+    /// the inner action needs no destination-aware variant of its own.
+    SftpDownloadTo(Box<SftpMessage>),
+    /// The folder picker answered; `None` means the user cancelled.
+    SftpDownloadDestPicked(Option<std::path::PathBuf>, Box<SftpMessage>),
     SftpDuplicate(crate::state::SftpPaneSide, String),
     SftpFileHovered,
     SftpFilesHoveredLeft,

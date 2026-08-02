@@ -754,9 +754,10 @@ pub(crate) fn overwrite_modal<'a>(
         t("size_both_identical")
             .replacen("{size}", &format_size(prompt.src_size), 1)
     } else {
+        let (local, remote) = prompt.local_remote_sizes();
         t("size_local_remote")
-            .replacen("{local}", &format_size(prompt.src_size), 1)
-            .replacen("{remote}", &format_size(prompt.dst_size), 1)
+            .replacen("{local}", &format_size(local), 1)
+            .replacen("{remote}", &format_size(remote), 1)
     };
 
     let mut content = column![

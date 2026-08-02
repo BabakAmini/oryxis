@@ -700,13 +700,32 @@ pub(crate) struct PropertiesView {
     pub error: Option<String>,
 }
 
+/// Which way the conflicting transfer runs. The modal reads it to map the
+/// two sizes onto its "Local · Remote" labels, and the resolve handler to
+/// pick which side it writes to (an SFTP upload or a local download).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OverwriteDirection {
+    /// `src` is a local path, `dst_dir` a remote POSIX directory.
+    Upload,
+    /// `src` is a remote POSIX path, `dst_dir` a local directory.
+    Download,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct OverwritePrompt {
-    pub src: std::path::PathBuf,
+    /// Source path, as a string on both sides: an upload's local path and
+    /// a download's remote POSIX path never survive a round trip through
+    /// `PathBuf` on every platform, and `TransferItem` already stores
+    /// both directions this way.
+    pub src: String,
     pub dst_dir: String,
     pub basename: String,
+    /// Size of the source file: local for an upload, remote for a
+    /// download. The modal labels it by `direction`, not by field name.
     pub src_size: u64,
+    /// Size of the file already sitting at the destination.
     pub dst_size: u64,
+    pub direction: OverwriteDirection,
     /// True when the prompt is part of a multi-file transfer, surfaces
     /// the "apply to remaining" checkbox so the user doesn't have to
     /// re-answer for every collision.
@@ -715,6 +734,20 @@ pub(crate) struct OverwritePrompt {
     /// the modal is open. Read on resolve; persisted as
     /// `TransferState.overwrite_default` if true.
     pub apply_to_all: bool,
+}
+
+impl OverwritePrompt {
+    /// The two sizes mapped onto the conflict modal's fixed
+    /// "Local · Remote" labels. `src_size` is the file being transferred,
+    /// so which side it sits on flips with the direction: a download's
+    /// source is the REMOTE file, and reporting it as the local one would
+    /// invert the only number the user has to decide on.
+    pub fn local_remote_sizes(&self) -> (u64, u64) {
+        match self.direction {
+            OverwriteDirection::Upload => (self.src_size, self.dst_size),
+            OverwriteDirection::Download => (self.dst_size, self.src_size),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -340,6 +340,26 @@ pub(crate) fn row_context_menu_box<'a>(
                 ));
             }
         }
+        // Same transfer, destination picked by hand. Deliberately outside
+        // the `cross_pane_ready` gate: this one brings its own
+        // destination, so it works even when the other pane is not a
+        // usable one. The `sftp_ask_download_dir` setting makes the entry
+        // above ask too; this is how you ask just this once.
+        {
+            let pick_msg = if multi {
+                SftpMessage::SftpDownloadSelection
+            } else if menu.is_dir {
+                SftpMessage::SftpDownloadFolder(menu.path.clone())
+            } else {
+                SftpMessage::SftpDownload(menu.path.clone())
+            };
+            items = items.push(slot(
+                iced_fonts::lucide::folder_down(),
+                t("sftp_download_to").to_string(),
+                Message::Sftp(SftpMessage::SftpDownloadTo(Box::new(pick_msg))),
+                secondary,
+            ));
+        }
         // Open / Edit for a single remote file, plus the "Open with"
         // family (issue #84): the OS association, the configured editor or
         // the OS picker, all watched in the background with a per-save

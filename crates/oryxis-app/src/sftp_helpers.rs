@@ -18,11 +18,11 @@ pub(crate) enum UploadOutcome {
     Conflict(crate::state::OverwritePrompt),
 }
 
-/// Outcome of stepping through one upload-queue item: either it
-/// completed (file written or dir created), or the destination already
-/// exists and the user has to pick what to do next via the overwrite
-/// modal.
-pub(crate) enum UploadStepOutcome {
+/// Outcome of stepping through one queue item, in either direction:
+/// either it completed (file written or dir created), or the destination
+/// already exists and the user has to pick what to do next via the
+/// overwrite modal.
+pub(crate) enum TransferStepOutcome {
     Done,
     Conflict {
         prompt: crate::state::OverwritePrompt,
@@ -455,7 +455,7 @@ pub(crate) async fn do_upload_item(
     overwrite_default: Option<crate::state::OverwriteAction>,
     multi: bool,
     progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
-) -> Result<UploadStepOutcome, String> {
+) -> Result<TransferStepOutcome, String> {
     if item.is_dir {
         // A pre-existing directory is fine (batch uploads merge into it,
         // confirmed by the list_dir probe); anything else (permission
@@ -468,7 +468,7 @@ pub(crate) async fn do_upload_item(
         {
             return Err(e.to_string());
         }
-        return Ok(UploadStepOutcome::Done);
+        return Ok(TransferStepOutcome::Done);
     }
     let parent = parent_path(&item.dst);
     let basename = item
@@ -485,28 +485,29 @@ pub(crate) async fn do_upload_item(
     if let Some(existing) = conflict {
         if let Some(action) = overwrite_default {
             apply_overwrite_for_item(client.clone(), item.clone(), action).await?;
-            return Ok(UploadStepOutcome::Done);
+            return Ok(TransferStepOutcome::Done);
         }
         let src_size = tokio::fs::metadata(&item.src)
             .await
             .map(|m| m.len())
             .unwrap_or(0);
         let prompt = crate::state::OverwritePrompt {
-            src: std::path::PathBuf::from(&item.src),
+            src: item.src.clone(),
             dst_dir: parent,
             basename,
             src_size,
             dst_size: existing.size,
+            direction: crate::state::OverwriteDirection::Upload,
             multi,
             apply_to_all: false,
         };
-        return Ok(UploadStepOutcome::Conflict { prompt, item });
+        return Ok(TransferStepOutcome::Conflict { prompt, item });
     }
     client
         .upload_from_progress(std::path::Path::new(&item.src), &item.dst, progress)
         .await
         .map_err(|e| e.to_string())?;
-    Ok(UploadStepOutcome::Done)
+    Ok(TransferStepOutcome::Done)
 }
 
 /// Apply a chosen overwrite action to a single transfer item. Callable
@@ -570,20 +571,110 @@ pub(crate) async fn apply_overwrite_for_item(
     }
 }
 
+/// Apply a single download-queue item with conflict awareness, the mirror
+/// of `do_upload_item`. Files existence-check the local destination; if a
+/// conflict comes up and there's a sticky default action, apply it,
+/// otherwise return a Conflict outcome for the caller to surface in the
+/// modal. The check is a local `metadata` call, so unlike the upload side
+/// it costs no SFTP round trip.
 pub(crate) async fn do_download_item(
     client: oryxis_ssh::SftpClient,
     item: crate::state::TransferItem,
+    overwrite_default: Option<crate::state::OverwriteAction>,
+    multi: bool,
     progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
-) -> Result<(), String> {
+) -> Result<TransferStepOutcome, String> {
     if item.is_dir {
+        // An existing directory is not a conflict: a batch download merges
+        // into it, exactly like the upload side treats a pre-existing
+        // remote directory.
         tokio::fs::create_dir_all(&item.dst)
             .await
-            .map_err(|e| format!("mkdir {}: {e}", item.dst))
-    } else {
-        client
-            .download_to_progress(&item.src, std::path::Path::new(&item.dst), item.size, progress)
+            .map_err(|e| format!("mkdir {}: {e}", item.dst))?;
+        return Ok(TransferStepOutcome::Done);
+    }
+    let dst = std::path::PathBuf::from(&item.dst);
+    if let Ok(existing) = tokio::fs::metadata(&dst).await {
+        if let Some(action) = overwrite_default {
+            apply_overwrite_for_download_item(client.clone(), item.clone(), action).await?;
+            return Ok(TransferStepOutcome::Done);
+        }
+        let parent = dst
+            .parent()
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let basename = dst
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| item.dst.clone());
+        let prompt = crate::state::OverwritePrompt {
+            src: item.src.clone(),
+            dst_dir: parent,
+            basename,
+            // The walk already carries the remote size; only fall back to
+            // a `stat` round trip when it doesn't (a single-file item).
+            src_size: match item.size {
+                Some(size) => size,
+                None => client.stat(&item.src).await.map(|s| s.size).unwrap_or(0),
+            },
+            dst_size: existing.len(),
+            direction: crate::state::OverwriteDirection::Download,
+            multi,
+            apply_to_all: false,
+        };
+        return Ok(TransferStepOutcome::Conflict { prompt, item });
+    }
+    client
+        .download_to_progress(&item.src, &dst, item.size, progress)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(TransferStepOutcome::Done)
+}
+
+/// Apply a chosen overwrite action to a single DOWNLOAD item, the mirror
+/// of `apply_overwrite_for_item`. Callable both inside the queue runner
+/// (sticky default) and from the resolve handler (manual answer).
+pub(crate) async fn apply_overwrite_for_download_item(
+    client: oryxis_ssh::SftpClient,
+    item: crate::state::TransferItem,
+    action: crate::state::OverwriteAction,
+) -> Result<(), String> {
+    let dst = std::path::PathBuf::from(&item.dst);
+    match action {
+        crate::state::OverwriteAction::Cancel => Ok(()),
+        crate::state::OverwriteAction::Replace => client
+            .download_to(&item.src, &dst, item.size)
             .await
-            .map_err(|e| e.to_string())
+            .map_err(|e| e.to_string()),
+        crate::state::OverwriteAction::ReplaceIfDifferent => {
+            let local_size = tokio::fs::metadata(&dst).await.map(|m| m.len()).unwrap_or(0);
+            let remote_size = match item.size {
+                Some(size) => size,
+                None => client.stat(&item.src).await.map_err(|e| e.to_string())?.size,
+            };
+            if local_size == remote_size {
+                return Ok(());
+            }
+            client
+                .download_to(&item.src, &dst, item.size)
+                .await
+                .map_err(|e| e.to_string())
+        }
+        crate::state::OverwriteAction::Duplicate => {
+            let parent = dst
+                .parent()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let basename = dst
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| item.dst.clone());
+            let target = parent.join(unique_name_in_local_dir(&parent, &basename));
+            client
+                .download_to(&item.src, &target, item.size)
+                .await
+                .map_err(|e| e.to_string())
+        }
     }
 }
 
@@ -940,6 +1031,52 @@ mod tests {
                 parent
             );
         }
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The download side's Duplicate answer ("rename") leans entirely on
+    /// this: it must never hand back a name that is already taken, or
+    /// the "don't overwrite" answer would overwrite (issue #114).
+    #[test]
+    fn local_unique_name_never_collides() {
+        let root = std::env::temp_dir().join(format!(
+            "oryxis-unique-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+
+        // Empty directory: the name is free, so it comes back verbatim.
+        assert_eq!(unique_name_in_local_dir(&root, "notes.txt"), "notes.txt");
+
+        // Taken once, then the alternative is taken too: each round has
+        // to move past everything already on disk.
+        let mut seen: Vec<String> = Vec::new();
+        for _ in 0..3 {
+            let name = unique_name_in_local_dir(&root, "notes.txt");
+            assert!(
+                !root.join(&name).exists(),
+                "{name} already exists in the destination"
+            );
+            assert!(!seen.contains(&name), "{name} handed out twice");
+            std::fs::write(root.join(&name), b"x").unwrap();
+            seen.push(name);
+        }
+        // Extension preserved, so the renamed copy still opens.
+        for name in &seen[1..] {
+            assert!(name.ends_with(".txt"), "{name} lost its extension");
+        }
+
+        // A dotfile has no extension to preserve; the suffix goes at the
+        // end and must still avoid the original.
+        std::fs::write(root.join(".bashrc"), b"x").unwrap();
+        let dot = unique_name_in_local_dir(&root, ".bashrc");
+        assert_ne!(dot, ".bashrc");
+        assert!(!root.join(&dot).exists());
 
         let _ = std::fs::remove_dir_all(&root);
     }
