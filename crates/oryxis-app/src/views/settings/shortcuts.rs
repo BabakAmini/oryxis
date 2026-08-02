@@ -158,14 +158,17 @@ impl Oryxis {
             // the add chip carries the unbound placeholder, so the row
             // still reads as one affordance rather than a bare "+" next
             // to nothing.
+            // Same contrast rule as the capture placeholder above: the
+            // chip surface is `button_bg` (an accent fill on most
+            // themes), so the muted foreground washed out on it.
             text(crate::i18n::t("hotkey_unbound"))
                 .size(11)
-                .color(OryxisColors::t().text_muted)
+                .color(OryxisColors::t().button_text)
                 .into()
         } else {
             text("+")
                 .size(13)
-                .color(OryxisColors::t().text_muted)
+                .color(OryxisColors::t().button_text)
                 .into()
         };
 
@@ -261,10 +264,20 @@ impl Oryxis {
             binds.is_empty() && self.action_live_gesture(action).is_none(),
         ));
 
+        // The chip run WRAPS inside its fixed column: an action can carry
+        // a gesture badge plus several chords, and a single line would
+        // squeeze the trailing add chip into an unreadable sliver (or
+        // push it out of the column entirely). The column keeps its fixed
+        // width so the label beside it never jitters as chords are added;
+        // the row simply grows taller. `spacing` / `align_y` must be set
+        // before `wrap()`, which consumes the `Row`.
         let pills_box = container(
             iced::widget::Row::with_children(chips)
                 .spacing(6)
-                .align_y(iced::Alignment::Center),
+                .align_y(iced::Alignment::Center)
+                .wrap()
+                .vertical_spacing(4)
+                .align_x(dir_align_x()),
         )
         .width(260)
         .align_x(dir_align_x());

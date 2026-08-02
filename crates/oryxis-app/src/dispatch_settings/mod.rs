@@ -237,6 +237,7 @@ impl Oryxis {
             | SettingsMessage::ToggleCarefulPaste
             | SettingsMessage::ToggleBoldIsBright
             | SettingsMessage::TogglePaneBorderInactive
+            | SettingsMessage::PaneGapChanged(..)
             | SettingsMessage::ToggleTerminalAutoTitle
             | SettingsMessage::BellModeChanged(..)
             | SettingsMessage::ClipboardAccessChanged(..)

@@ -1110,6 +1110,10 @@ pub struct Oryxis {
     /// pane's accent outline is not affected: with the panes flush there
     /// would otherwise be nothing at all marking where one ends.
     pub(crate) setting_pane_border_inactive: bool,
+    /// Gutter between split panes, in pixels, as a string ("0" = flush).
+    /// Flush is the default: the seam is grabbable either way, because a
+    /// pane hands a strip back to the grid on the edges it shares.
+    pub(crate) setting_pane_gap: String,
     pub(crate) setting_keyword_highlight: bool,
     /// Performance mode: trade visual niceties for CPU on weak / software
     /// render paths. When on, the terminal skips the per-frame keyword /

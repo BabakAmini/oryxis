@@ -302,7 +302,7 @@ impl Oryxis {
             ZmodemMessage::PickZmodemDownloadDir => Task::perform(
                 tokio::task::spawn_blocking(|| {
                     rfd::FileDialog::new()
-                        .set_title(crate::i18n::t("zmodem_download_dir"))
+                        .set_title(crate::i18n::t("default_download_dir"))
                         .pick_folder()
                         .map(|p| p.display().to_string())
                 }),

@@ -75,7 +75,11 @@ impl Oryxis {
                 // it only on shared edges keeps the grid's outer border
                 // fully selectable. Relative coordinates are enough, so
                 // the regions are laid out at an arbitrary size.
-                let neighbours: std::collections::HashMap<_, _> = if multipane {
+                // A visible gutter belongs to no pane, so it IS the handle
+                // and the panes keep all their pixels. Only when the panes
+                // sit flush does each one have to hand a strip back.
+                let gap = self.setting_pane_gap.parse::<f32>().unwrap_or(0.0).clamp(0.0, 24.0);
+                let neighbours: std::collections::HashMap<_, _> = if multipane && gap <= 0.0 {
                     const UNIT: f32 = 1000.0;
                     let regions = tab.pane_grid.layout().pane_regions(
                         0.0,
@@ -135,7 +139,7 @@ impl Oryxis {
                 // and no text selection starts. The leeway is back at 8
                 // now that nothing competes for those pixels.
                 .on_resize(8, |v| Message::Terminal(TerminalMessage::ResizePane(v)))
-                .spacing(0)
+                .spacing(if multipane { gap } else { 0.0 })
                 .width(Length::Fill)
                 .height(Length::Fill);
 

@@ -182,6 +182,7 @@ pub enum SettingsMessage {
     ToggleCarefulPaste,
     ToggleBoldIsBright,
     TogglePaneBorderInactive,
+    PaneGapChanged(String),
     /// Toggle showing the shell-set window title (OSC 0/2) in the tab strip.
     ToggleTerminalAutoTitle,
     /// Terminal bell behavior changed from the settings pick (localized

@@ -251,6 +251,10 @@ impl Oryxis {
                     if self.setting_pane_border_inactive { "true" } else { "false" },
                 );
             }
+            SettingsMessage::PaneGapChanged(v) => {
+                self.setting_pane_gap = v.clone();
+                self.persist_setting("pane_gap", &v);
+            }
             SettingsMessage::ToggleBoldIsBright => {
                 self.setting_bold_is_bright = !self.setting_bold_is_bright;
                 self.persist_setting(

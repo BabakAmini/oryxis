@@ -396,6 +396,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("pane_border_inactive") {
                 self.setting_pane_border_inactive = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("pane_gap") {
+                self.setting_pane_gap = v;
+            }
             if let Ok(Some(v)) = vault.get_setting("keyword_highlight") {
                 self.setting_keyword_highlight = v == "true";
             }

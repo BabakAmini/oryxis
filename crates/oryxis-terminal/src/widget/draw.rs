@@ -75,7 +75,10 @@ where
             epoch: content_epoch,
             scroll_offset: widget_state.scroll_offset.get(),
             selection: widget_state.selection,
-            ghost: if widget_state.selection.is_none() {
+            // Unfocused panes hide the ghost (see the draw site below), so
+            // the cache key has to agree or a pane keeps the cached image
+            // that still has the band in it.
+            ghost: if widget_state.selection.is_none() && self.focused {
                 widget_state.primary_ghost.map(|(s, ..)| s)
             } else {
                 None
@@ -212,7 +215,17 @@ where
                     // honest cue for the paste gestures in both modes
                     // (modulo an external copy replacing the clipboard,
                     // which nothing render-side can see).
-                    let ghost: Option<Selection> = if selection.is_none() && !in_alt_screen {
+                    // Also suppressed on an UNFOCUSED pane. The band answers
+                    // "what you last selected", and the paste gestures it
+                    // hints at act on the pane you are in, so showing it in
+                    // three panes at once answers a question nobody asked
+                    // and reads like three live selections. The PRIMARY text
+                    // itself is untouched: middle-click paste still hands
+                    // back whichever pane you last selected in.
+                    let ghost: Option<Selection> = if selection.is_none()
+                        && !in_alt_screen
+                        && self.focused
+                    {
                         widget_state
                             .primary_ghost
                             .filter(|(_, cols, total)| {

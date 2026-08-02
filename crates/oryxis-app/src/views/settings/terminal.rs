@@ -119,7 +119,7 @@ impl Oryxis {
     /// Row for the ZMODEM download folder: the resolved path (default or
     /// configured) plus a Browse button, and a Reset when a custom folder
     /// is set. Always shown (transfers work regardless of other toggles).
-    fn zmodem_download_dir_row(&self) -> Element<'_, Message> {
+    fn default_download_dir_row(&self) -> Element<'_, Message> {
         let configured = self.setting_zmodem_download_dir.trim();
         let shown = if configured.is_empty() {
             dirs::download_dir()
@@ -129,7 +129,7 @@ impl Oryxis {
             configured.to_string()
         };
         let browse = self.settings_nav_slot_labeled(
-            t("zmodem_download_dir"),
+            t("default_download_dir"),
             crate::keynav::RowAction::activate(Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir)),
             8.0,
             crate::widgets::styled_button_opt(
@@ -140,9 +140,9 @@ impl Oryxis {
         );
         let mut row = crate::widgets::dir_row(vec![
             column![
-                text(crate::i18n::t("zmodem_download_dir"))
+                text(crate::i18n::t("default_download_dir"))
                     .size(13)
-                    .color(crate::theme::OryxisColors::t().text_secondary),
+                    .color(crate::theme::OryxisColors::t().text_primary),
                 Space::new().height(2),
                 text(shown)
                     .size(11)
@@ -331,11 +331,20 @@ impl Oryxis {
                 Message::Settings(SettingsMessage::ToggleScrollbackResetOutput),
             ),
         ];
+        // Where downloads land is behaviour, not appearance: it sat under
+        // the Appearance header only because ZMODEM shipped alongside the
+        // rendering toggles. The label lost its "ZMODEM" prefix too, since
+        // the folder is the app's download destination and nothing about
+        // it is protocol-specific. The SETTING key stays
+        // `zmodem_download_dir`: renaming it would silently drop the
+        // folder anyone had already configured.
         let behavior_section = panel_section(
             toggles_col
                 .push(word_delimiters_block)
                 .push(Space::new().height(16))
-                .push(scrollback_block),
+                .push(scrollback_block)
+                .push(Space::new().height(6))
+                .push(self.default_download_dir_row()),
         );
 
         // Text rendering toggles open the Appearance card (under the
@@ -343,7 +352,6 @@ impl Oryxis {
         // behaviour); the font sub-blocks follow in the same card.
         let text_render_col = column![
             self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
-            self.nav_toggle_row(crate::i18n::t("pane_border_inactive"), self.setting_pane_border_inactive, Message::Settings(SettingsMessage::TogglePaneBorderInactive)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(10),
@@ -352,7 +360,6 @@ impl Oryxis {
             self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
             self.command_history_dir_row(),
             Space::new().height(10),
-            self.zmodem_download_dir_row(),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
             Space::new().height(10),
@@ -685,6 +692,31 @@ impl Oryxis {
         // Behavior (selection, delimiters, scrollback) then
         // Appearance (rendering, font, theme). Connection + logging
         // knobs live in their own sections.
+        // Split panes get their own block: they are the only settings
+        // that do nothing at all until a tab is split, so mixing them
+        // into Appearance made them read as global terminal knobs.
+        let split_panes_section = panel_section(column![
+            self.nav_pick_row(
+                crate::i18n::t("pane_gap"),
+                vec!["0".into(), "4".into(), "8".into(), "12".into()],
+                self.setting_pane_gap.clone(),
+                |v| {
+                    if v == "0" {
+                        crate::i18n::t("pane_gap_none").to_string()
+                    } else {
+                        format!("{v} px")
+                    }
+                },
+                140.0,
+                |v| Message::Settings(SettingsMessage::PaneGapChanged(v)),
+            ),
+            self.nav_toggle_row(
+                crate::i18n::t("pane_border_inactive"),
+                self.setting_pane_border_inactive,
+                Message::Settings(SettingsMessage::TogglePaneBorderInactive),
+            ),
+        ]);
+
         use crate::widgets::settings_group_header as gh;
         scrollable(
             container(
@@ -698,6 +730,10 @@ impl Oryxis {
                     appearance_section,
                     Space::new().height(12),
                     theme_picker_section,
+                    Space::new().height(18),
+                    gh(crate::i18n::t("terminal_group_split_panes")),
+                    Space::new().height(8),
+                    split_panes_section,
                     Space::new().height(18),
                     gh(crate::i18n::t("local_terminals")),
                     Space::new().height(8),
