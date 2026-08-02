@@ -206,6 +206,7 @@ impl Oryxis {
                 self.snippet_context_menu = None;
                 self.key_context_menu = None;
                 self.identity_context_menu = None;
+                self.port_forward_context_menu = None;
                 self.show_keychain_add_menu = false;
             }
             TabsMessage::ShowCardMenu(idx) => {

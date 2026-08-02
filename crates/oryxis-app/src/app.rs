@@ -950,6 +950,9 @@ pub struct Oryxis {
     pub(crate) show_port_forward_panel: bool,
     pub(crate) port_forward_form: crate::state::PortForwardRuleForm,
     pub(crate) hovered_port_forward_card: Option<usize>,
+    /// Index of the port-forward card whose kebab menu is open. Keeps the
+    /// kebab mounted while the pointer travels to the menu.
+    pub(crate) port_forward_context_menu: Option<usize>,
     pub(crate) port_forward_search: String,
     /// Toolbar search needles for the Cloud Accounts and Proxies views.
     pub(crate) cloud_search: String,

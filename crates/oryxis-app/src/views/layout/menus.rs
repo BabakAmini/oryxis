@@ -259,6 +259,7 @@ impl Oryxis {
             OverlayContent::PluginActions(id) => self.build_menu_plugin_actions(id),
             OverlayContent::IdentityActions(idx) => self.build_menu_identity_actions(*idx),
             OverlayContent::SnippetActions(idx) => self.build_menu_snippet_actions(*idx),
+            OverlayContent::PortForwardActions(idx) => self.build_menu_port_forward_actions(*idx),
             OverlayContent::KeychainAdd => self.build_menu_keychain_add(),
             OverlayContent::FolderActions(gid) => self.build_menu_folder_actions(*gid),
             OverlayContent::DynamicGroupActions(id) => self.build_menu_dynamic_group_actions(*id),

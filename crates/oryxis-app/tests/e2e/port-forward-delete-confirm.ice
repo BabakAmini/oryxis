@@ -60,13 +60,18 @@ click "Save"
 settle 700
 expect "db tunnel"
 
-# The trash is hover-revealed (floating-action convention), so the
+# The kebab is hover-revealed (floating-action convention), so the
 # cursor has to be over the card AND the tree rebuilt before the click
 # can land on a button that did not exist a moment ago.
 move (200, 190)
 settle 300
 find "db tunnel"
-click (374, 189)
+click (377, 189)
+settle 400
+# Edit sits beside Delete on purpose: a card menu offering only the
+# destructive action reads like that is all the card can do.
+expect "Edit"
+click "Delete"
 settle 400
 expect "Remove?"
 # Cancel, not Close: the negative line of a destructive prompt must not
@@ -87,12 +92,15 @@ click "Cancel"
 settle 400
 expect "db tunnel"
 
-# Confirming really removes it.
+# Confirming really removes it. Same kebab, same hover-then-walk dance.
 move (200, 190)
 settle 300
 find "db tunnel"
-click (374, 189)
-settle 400
+click (377, 189)
+settle 600
+click "Delete"
+settle 600
+expect "Remove?"
 click "Remove"
 settle 600
 expect "Forward a port"

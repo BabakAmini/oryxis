@@ -525,6 +525,7 @@ impl Oryxis {
                 show_port_forward_panel: false,
                 port_forward_form: crate::state::PortForwardRuleForm::default(),
                 hovered_port_forward_card: None,
+                port_forward_context_menu: None,
                 port_forward_search: String::new(),
                 cloud_search: String::new(),
                 proxy_search: String::new(),

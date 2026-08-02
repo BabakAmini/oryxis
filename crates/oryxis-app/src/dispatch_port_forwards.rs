@@ -150,6 +150,14 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
             }
+            PortForwardMessage::ShowPortForwardMenu(idx) => {
+                self.port_forward_context_menu = Some(idx);
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::PortForwardActions(idx),
+                    x: self.mouse_position.x,
+                    y: self.mouse_position.y,
+                });
+            }
             PortForwardMessage::RequestDeletePortForwardRule(idx) => {
                 // Both affordances land here: the hover trash in the row's
                 // action cluster and the Delete row inside the edit panel

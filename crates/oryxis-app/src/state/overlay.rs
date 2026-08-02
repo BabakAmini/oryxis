@@ -12,6 +12,8 @@ pub(crate) enum OverlayContent {
     IdentityActions(usize),
     /// Kebab menu on a snippet card. Items: Edit and Delete.
     SnippetActions(usize),
+    /// Kebab menu on a port-forward rule card. Items: Edit and Delete.
+    PortForwardActions(usize),
     KeychainAdd,
     TabActions(usize),
     /// Right-click menu on an SFTP browser tab. Items: New SFTP tab,

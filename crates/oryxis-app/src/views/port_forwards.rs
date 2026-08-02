@@ -243,27 +243,28 @@ impl Oryxis {
                 toggle = toggle.on_press(msg);
             }
 
-            // Trash kebab, hover-revealed (floating-action convention).
-            const TRASH_SLOT_W: f32 = 28.0;
-            let show_trash = self.hovered_port_forward_card == Some(idx) || kb_selected;
-            let trash: Element<'_, Message> = if show_trash {
-                button(text("\u{1F5D1}").size(13).color(OryxisColors::t().text_muted))
-                    .on_press(Message::PortForward(PortForwardMessage::RequestDeletePortForwardRule(idx)))
-                    .padding(Padding { top: 1.0, right: 6.0, bottom: 1.0, left: 6.0 })
-                    .style(|_, st| {
-                        let bg = match st {
-                            BtnStatus::Hovered => OryxisColors::t().bg_hover,
-                            _ => Color::TRANSPARENT,
-                        };
-                        button::Style {
-                            background: Some(Background::Color(bg)),
-                            border: Border { radius: Radius::from(6.0), ..Default::default() },
-                            ..Default::default()
-                        }
-                    })
-                    .into()
+            // Hover-revealed kebab, the app-wide card affordance (host,
+            // snippet, key and session-group cards all use it). This card
+            // used to carry a bare trash glyph instead, which both broke
+            // the convention and put the one destructive action on the
+            // card's only visible control. The menu carries Edit as well,
+            // even though clicking the card already edits: a card whose
+            // menu offers only "Delete" reads like deletion is all you can
+            // do from here. Stays mounted while its menu is open so the
+            // pointer can travel to it.
+            const DOTS_SLOT_W: f32 = 22.0;
+            let show_dots = self.hovered_port_forward_card == Some(idx)
+                || self.port_forward_context_menu == Some(idx)
+                || kb_selected;
+            let dots: Element<'_, Message> = if show_dots {
+                crate::widgets::card_kebab_button(
+                    OryxisColors::t().text_muted,
+                    true,
+                    Message::PortForward(PortForwardMessage::ShowPortForwardMenu(idx)),
+                )
+                .into()
             } else {
-                Space::new().width(Length::Fixed(TRASH_SLOT_W)).height(Length::Fixed(20.0)).into()
+                Space::new().width(Length::Fixed(DOTS_SLOT_W)).height(Length::Fixed(22.0)).into()
             };
 
             let kind_badge = format!("{}  \u{00B7}  {}", rule.kind, host_label);
@@ -292,7 +293,7 @@ impl Oryxis {
                         ].width(Length::Fill).into(),
                         toggle.into(),
                         Space::new().width(4).into(),
-                        trash,
+                        dots,
                     ]).align_y(iced::Alignment::Center),
                 )
                 .padding(Padding { top: 8.0, right: 2.0, bottom: 8.0, left: 2.0 }),
@@ -312,9 +313,11 @@ impl Oryxis {
                 }
             });
 
+            // Right-click opens the same kebab menu, the app-wide rule.
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
                 .on_enter(Message::PortForward(PortForwardMessage::PortForwardCardHovered(idx)))
                 .on_exit(Message::PortForward(PortForwardMessage::PortForwardCardUnhovered))
+                .on_right_press(Message::PortForward(PortForwardMessage::ShowPortForwardMenu(idx)))
                 .into();
             let card_el: Element<'_, Message> =
                 container(wrapped).width(Length::Fill).clip(true).into();

@@ -158,6 +158,7 @@ impl Oryxis {
         self.snippet_context_menu = None;
         self.key_context_menu = None;
         self.identity_context_menu = None;
+        self.port_forward_context_menu = None;
         self.overlay = None;
         self.error_dialog = Some(crate::state::ErrorDialog {
             title: crate::i18n::t("remove_confirm_title").to_string(),

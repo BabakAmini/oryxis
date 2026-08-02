@@ -256,6 +256,16 @@ impl Oryxis {
         ].into()
     }
 
+    /// Kebab menu on a port-forward rule card. Edit is here even though
+    /// clicking the card already edits: a menu whose only entry is Delete
+    /// reads like deletion is all this card can do.
+    pub(crate) fn build_menu_port_forward_actions(&self, idx: usize) -> Element<'_, Message> {
+        column![
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::PortForward(PortForwardMessage::EditPortForwardRule(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::trash(), crate::i18n::t("delete"), Message::PortForward(PortForwardMessage::RequestDeletePortForwardRule(idx)), OryxisColors::t().error),
+        ].into()
+    }
+
     pub(crate) fn build_menu_keychain_add(&self) -> Element<'_, Message> {
         // "Certificate" is the same key entity (a cert lives on its key),
         // offered explicitly so the intent is discoverable (B2.1, the
