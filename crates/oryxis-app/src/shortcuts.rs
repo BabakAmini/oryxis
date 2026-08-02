@@ -41,6 +41,7 @@ impl Oryxis {
                 TabRef::Sftp(id) => {
                     self.sftp_tabs.iter().find(|t| t.id == *id).map(|t| t.pinned).unwrap_or(false)
                 }
+                TabRef::Settings => false,
             }
         };
         let mut refs: Vec<TabRef> =
@@ -63,6 +64,11 @@ impl Oryxis {
                 }
                 self.sftp_tabs.iter().position(|t| t.id == *id).map(|v| Message::Sftp(SftpMessage::SelectSftpTab(v)))
             }
+            // Selecting it IS navigating to Settings; `ensure_settings_tab`
+            // makes that idempotent, so this never opens a second one.
+            TabRef::Settings => self.settings_tab_open.then(|| {
+                Message::Navigation(crate::app::NavigationMessage::ChangeView(View::Settings))
+            }),
         }
     }
 
@@ -82,6 +88,12 @@ impl Oryxis {
         }
         if let Some(i) = self.active_tab {
             return self.tabs.get(i).map(|t| TabRef::Terminal(t._id));
+        }
+        // Same rule as the SFTP arm above: Settings owns the strip slot
+        // only while its own surface is the one showing, so Ctrl+Tab can
+        // come back to whatever was open before it.
+        if self.settings_tab_open && self.active_view == View::Settings {
+            return Some(TabRef::Settings);
         }
         None
     }

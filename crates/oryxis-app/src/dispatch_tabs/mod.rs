@@ -124,6 +124,9 @@ impl Oryxis {
                     }
                 }
             }
+            TabsMessage::CloseSettingsTab => {
+                return self.close_settings_tab();
+            }
             TabsMessage::WindowDrag => {
                 if !self.consume_window_press() {
                     return Task::none();
@@ -674,6 +677,11 @@ impl Oryxis {
                                 tab.custom_name = new_name;
                             }
                         }
+                        // Not renameable: it has no per-tab identity to
+                        // name, and the rename entry is never offered for
+                        // it. Reachable only if some future surface starts
+                        // a rename on it, which should do nothing.
+                        crate::state::TabRef::Settings => {}
                     }
                 }
             }

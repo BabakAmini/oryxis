@@ -57,6 +57,14 @@ impl Oryxis {
                 }
                 self.active_view = view;
                 self.active_tab = None;
+                // Give Settings its strip entry (issue #120). Every door
+                // into Settings goes through here, which is what keeps it
+                // to one tab; and it has to happen BEFORE the early
+                // returns further down (the search-focus one fires for
+                // Settings, so a call at the end never ran).
+                if view == View::Settings {
+                    self.ensure_settings_tab();
+                }
                 // Drop any keyboard selection when leaving / changing the
                 // surface so a stale highlight doesn't linger. Keynav's
                 // own dispatches (SubNav Enter, the section-cycle hotkey)
@@ -142,14 +150,25 @@ impl Oryxis {
                 // Not when keynav drove the switch: the user is walking
                 // the pills, stealing focus back to the search would
                 // fight the roving highlight.
-                if !keep_keynav && let Some(id) = self.active_view_search_id() {
-                    return iced::widget::operation::focus(id);
-                }
                 // Opening Settings directly on the (default) Interface
                 // section never goes through ChangeSettingsSection, so
-                // fetch the renderer readout here too.
-                if view == View::Settings {
-                    return self.renderer_info_task();
+                // fetch the renderer readout here too, and put the
+                // section back where it was left (issue #120). Built
+                // BEFORE the search-focus return below and batched with
+                // it: Settings has a search id, so an early return there
+                // would shadow both of these every time.
+                let settings_tasks: Vec<Task<Message>> = if view == View::Settings {
+                    vec![self.renderer_info_task(), self.settings_restore_scroll()]
+                } else {
+                    Vec::new()
+                };
+                if !keep_keynav && let Some(id) = self.active_view_search_id() {
+                    let mut tasks = vec![iced::widget::operation::focus(id)];
+                    tasks.extend(settings_tasks);
+                    return Task::batch(tasks);
+                }
+                if !settings_tasks.is_empty() {
+                    return Task::batch(settings_tasks);
                 }
             }
             NavigationMessage::QuickHostInput(v) => {

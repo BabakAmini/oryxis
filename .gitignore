@@ -39,3 +39,7 @@ nohup_x11.out
 
 # Local design / UX proposal drafts (never committed, like the plan docs)
 /UX_1.0_PROPOSAL.html
+
+# Harness batch-runner dumps for a failed .ice test (the trimmed script
+# + a screenshot). Build output, not source.
+crates/oryxis-app/tests/e2e/errors/

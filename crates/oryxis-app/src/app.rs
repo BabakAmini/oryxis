@@ -1014,6 +1014,17 @@ pub struct Oryxis {
 
     // Settings
     pub(crate) settings_section: SettingsSection,
+    /// The Settings tab is in the strip (issue #120). Materialized on the
+    /// first visit to Settings, exactly like `ensure_sftp_tab` does for
+    /// the SFTP surface, so leaving Settings and coming back is one click
+    /// instead of a hunt through the menus. Transient by design: never
+    /// persisted, so a restart opens on real work.
+    pub(crate) settings_tab_open: bool,
+    /// Last scroll offset of each section, so returning to Settings lands
+    /// where you left instead of at the top. Keyed by section because the
+    /// sections are separate scrollables; the value is a relative offset
+    /// (0.0..=1.0) fed straight back to `scroll_to`.
+    pub(crate) settings_scroll: std::collections::HashMap<SettingsSection, f32>,
     /// Live query of the Settings sidebar search. Non-empty highlights
     /// every matching row in the open section (JetBrains style), tags
     /// the sections that contain matches, and auto-opens the best one;

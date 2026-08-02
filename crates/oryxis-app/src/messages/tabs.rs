@@ -149,6 +149,10 @@ pub enum TabsMessage {
     /// size so the SSM idle timer resets and a long alt-tab away doesn't
     /// drop the session.
     SsmKeepaliveTick,
+    /// Close the Settings tab (issue #120). Selecting it goes through
+    /// `NavigationMessage::ChangeView(View::Settings)` instead, so there
+    /// is no matching Select variant.
+    CloseSettingsTab,
     WindowDrag,
     WindowResizeDrag(iced::window::Direction),
     /// Double-click on a N/S edge, fill the full monitor height while

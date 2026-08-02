@@ -137,6 +137,13 @@ pub enum SettingsMessage {
     /// Flip the reveal/eye state of a secret input field.
     ToggleSecretVisibility(crate::state::SecretField),
     ChangeSettingsSection(SettingsSection),
+    /// The open section's scrollable moved; carries the relative y offset
+    /// (0.0..=1.0). Recorded per section so returning to Settings lands
+    /// where you left it (issue #120).
+    SectionScrolled(f32),
+    /// Deferred half of the restore: runs once the target section's view
+    /// has rebuilt, so the scrollable it addresses actually exists.
+    SectionScrollTo(iced::widget::Id, f32),
     /// Settings sidebar search: the query text changed (live filter).
     SettingsSearchChanged(String),
     /// Enter / Shift+Enter in the search: step the find-next cursor to

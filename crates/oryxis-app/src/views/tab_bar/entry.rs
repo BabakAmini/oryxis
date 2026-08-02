@@ -82,11 +82,13 @@ impl Oryxis {
 
     /// Whether a `strip_order` entry is pinned (used by the vertical
     /// strip to pack consecutive compact chips into rows).
-    pub(crate) fn strip_entry_pinned(&self, is_sftp: bool, idx: usize) -> bool {
-        if is_sftp {
-            self.sftp_tabs[idx].pinned
-        } else {
-            self.tabs[idx].pinned
+    pub(crate) fn strip_entry_pinned(&self, entry: StripEntry) -> bool {
+        match entry {
+            StripEntry::Sftp(idx) => self.sftp_tabs[idx].pinned,
+            StripEntry::Terminal(idx) => self.tabs[idx].pinned,
+            // Transient by design, so pinning it would promise a
+            // persistence it does not have.
+            StripEntry::Settings => false,
         }
     }
 
@@ -96,14 +98,41 @@ impl Oryxis {
     pub(crate) fn strip_tab_element(
         &self,
         ctx: &StripCtx,
-        is_sftp: bool,
-        idx: usize,
+        entry: StripEntry,
     ) -> Element<'_, Message> {
         let active_idx = self.active_tab;
         // Terminal and SFTP tabs share one strip; SFTP tabs are active
         // only while the SFTP surface itself is up.
         let sftp_surface = self.active_tab.is_none() && self.active_view == View::Sftp;
-        if is_sftp {
+        if entry == StripEntry::Settings {
+            // Same active rule as the SFTP tabs: it owns the strip slot
+            // only while its own surface is the one showing.
+            let is_active = self.active_tab.is_none() && self.active_view == View::Settings;
+            let label = crate::i18n::t("settings");
+            let width = ctx.uniform_w.unwrap_or_else(|| {
+                if ctx.dragging_any {
+                    ctx.drag_uniform_w
+                } else if is_active {
+                    TAB_NATURAL_WIDTH
+                } else {
+                    settings_tab_width(label)
+                }
+            });
+            let is_dragging = self
+                .tab_drag
+                .filter(|d| d.active)
+                .map(|d| d.from_id == crate::state::SETTINGS_TAB_ID)
+                .unwrap_or(false);
+            if is_dragging {
+                return Space::new().width(width).height(TAB_HEIGHT).into();
+            }
+            return settings_tab(label, is_active, width, ctx.solid_fill);
+        }
+        let idx = match entry {
+            StripEntry::Terminal(i) | StripEntry::Sftp(i) => i,
+            StripEntry::Settings => unreachable!("handled above"),
+        };
+        if entry == StripEntry::Sftp(idx) {
             let tab = &self.sftp_tabs[idx];
             let is_active = sftp_surface && self.active_sftp == Some(idx);
             // The mounted host (matched by the tab label = host name) drives

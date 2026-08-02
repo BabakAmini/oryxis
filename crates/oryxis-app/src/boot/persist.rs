@@ -79,6 +79,9 @@ impl Oryxis {
                     .position(|t| t.id == *id)
                     .filter(|&i| self.sftp_tabs[i].pinned)
                     .and_then(|i| self.sftp_pin_spec(i)),
+                // Transient by design (issue #120): a restart should open
+                // on real work, not on the settings screen.
+                crate::state::TabRef::Settings => None,
             };
             if let Some(spec) = spec
                 && seen.insert(spec.dedupe_key())

@@ -215,6 +215,14 @@ pub(crate) fn tab_content_width(label: &str, close_on_right: bool, has_count_chi
     (reserved + chars * TAB_CHAR_WIDTH).clamp(TAB_MIN_WIDTH, TAB_NATURAL_WIDTH)
 }
 
+/// Natural width of the Settings tab (issue #120). Its X always occupies
+/// the trailing slot (there is no hover-reveal), so the slot is reserved
+/// whatever the close-button-side setting says; `settings_tab` subtracts
+/// the same amount before truncating.
+pub(crate) fn settings_tab_width(label: &str) -> f32 {
+    tab_content_width(label, true, false)
+}
+
 /// Truncate a label to fit visually within `width` px at the tab font
 /// size. Falls back to a single character + ellipsis on extreme shrink
 /// so the user still sees something.

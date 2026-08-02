@@ -217,6 +217,104 @@ pub(crate) fn sftp_session_tab<'a>(
         .into()
 }
 
+/// The Settings tab (issue #120). Deliberately plainer than the session
+/// tabs: it has no host, so no OS badge, no per-host accent, no privacy
+/// redaction and no context menu. It carries the app accent and a gear,
+/// which is exactly the vocabulary the toolbar's Settings button already
+/// uses, so the strip entry reads as the same destination.
+pub(crate) fn settings_tab<'a>(
+    label: &'a str,
+    is_active: bool,
+    width: f32,
+    solid_fill: bool,
+) -> Element<'a, Message> {
+    let accent = crate::theme::readable_accent_on(
+        OryxisColors::t().accent,
+        OryxisColors::t().bg_sidebar,
+    );
+    let fg = if is_active {
+        OryxisColors::t().text_primary
+    } else {
+        OryxisColors::t().text_muted
+    };
+    let bg: Background = if is_active {
+        active_tab_bg(accent, solid_fill)
+    } else {
+        Background::Color(Color::TRANSPARENT)
+    };
+    let badge = container(iced_fonts::lucide::settings().size(12).color(Color::WHITE))
+        .center_x(Length::Fixed(TAB_ICON_SLOT))
+        .center_y(Length::Fixed(TAB_ICON_SLOT))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(accent)),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        });
+    // `truncate_label` already reserves the badge + gaps; only the
+    // trailing X slot is on top of that. Subtracting the badge again here
+    // is what truncated "Settings" to "Sett…" on a min-width chip, so the
+    // reserve has to match `settings_tab_width` exactly.
+    let label_width = (width - TAB_ICON_SLOT - 4.0).max(0.0);
+    let label_text = text(truncate_label(label, label_width))
+        .size(12)
+        .line_height(1.0)
+        .wrapping(iced::widget::text::Wrapping::None)
+        .font(SYSTEM_UI_SEMIBOLD)
+        .color(fg)
+        .width(Length::Fill);
+    let close: Element<'_, Message> = MouseArea::new(
+        container(
+            iced_fonts::lucide::x().size(11).color(if is_active {
+                OryxisColors::t().text_primary
+            } else {
+                OryxisColors::t().text_secondary
+            }),
+        )
+        .center_x(Length::Fixed(TAB_ICON_SLOT))
+        .center_y(Length::Fixed(TAB_ICON_SLOT))
+        .style(move |_| container::Style {
+            background: Some(Background::Color(if is_active {
+                Color::TRANSPARENT
+            } else {
+                OryxisColors::t().bg_hover
+            })),
+            border: Border { radius: Radius::from(4.0), ..Default::default() },
+            ..Default::default()
+        }),
+    )
+    .on_press(Message::Tabs(TabsMessage::CloseSettingsTab))
+    .into();
+    let inner_row = crate::widgets::dir_row(vec![
+        badge.into(),
+        Space::new().width(5).into(),
+        label_text.into(),
+        Space::new().width(4).into(),
+        close,
+    ])
+    .align_y(iced::Alignment::Center);
+    button(
+        container(inner_row)
+            .center_y(Length::Fixed(TAB_HEIGHT))
+            .padding(Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 6.0 }),
+    )
+    .width(Length::Fixed(width))
+    .on_press(Message::Navigation(NavigationMessage::ChangeView(View::Settings)))
+    .style(move |_, status| {
+        let hover_bg: Background = match status {
+            BtnStatus::Hovered if !is_active => {
+                Background::Color(Color::from_rgba(1.0, 1.0, 1.0, 0.06))
+            }
+            _ => bg,
+        };
+        button::Style {
+            background: Some(hover_bg),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}
+
 /// Compact (Chrome-style) pinned SFTP tab: icon-only folder chip at a fixed
 /// width. Select on click, right-click opens the context menu. Mirrors
 /// `pinned_tab_chip` for the SFTP side.

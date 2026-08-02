@@ -805,6 +805,29 @@ pub(crate) struct TerminalTab {
 pub(crate) enum TabRef {
     Terminal(Uuid),
     Sftp(Uuid),
+    /// The Settings tab (issue #120). Carries no id because there is at
+    /// most one: Settings is a single global surface, so a second entry
+    /// would be the same screen twice. `Oryxis::settings_tab_open` says
+    /// whether it is in the strip; `tab_order` says where.
+    Settings,
+}
+
+/// Stable synthetic id the Settings tab answers with inside the
+/// uuid-keyed strip machinery (drag / live-slide / reorder). `TabRef`
+/// itself keeps no id, because there is only ever one Settings tab; this
+/// constant is what lets it ride the same reorder code as every other
+/// tab instead of needing a parallel path.
+pub(crate) const SETTINGS_TAB_ID: Uuid = Uuid::from_u128(0x5E11_1465_0000_0000_0000_0000_0000_0001);
+
+impl TabRef {
+    /// Id used by the reorder machinery. Real for terminal / SFTP tabs,
+    /// the synthetic `SETTINGS_TAB_ID` for Settings.
+    pub(crate) fn strip_id(&self) -> Uuid {
+        match self {
+            TabRef::Terminal(id) | TabRef::Sftp(id) => *id,
+            TabRef::Settings => SETTINGS_TAB_ID,
+        }
+    }
 }
 
 /// An SFTP browser tab. Unlike terminal tabs, the **active** SFTP tab's

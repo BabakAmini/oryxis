@@ -5,6 +5,47 @@
 use crate::app::Oryxis;
 
 impl Oryxis {
+    /// Give the Settings surface a strip entry (issue #120), so leaving it
+    /// and coming back is one click instead of a hunt through the toolbar.
+    /// Idempotent, and called from `ChangeView(Settings)`, which is the
+    /// single door every entry point (gear, burger menu, hotkey, command
+    /// palette, the strip entry itself) already goes through. That is why
+    /// there is at most one: nothing else can mint a second.
+    ///
+    /// Modelled on `ensure_sftp_tab`, which does the same for `View::Sftp`.
+    pub(crate) fn ensure_settings_tab(&mut self) {
+        if self.settings_tab_open {
+            return;
+        }
+        self.settings_tab_open = true;
+        if !self.tab_order.contains(&crate::state::TabRef::Settings) {
+            self.tab_order.push(crate::state::TabRef::Settings);
+        }
+    }
+
+    /// Close the Settings tab. When Settings is the surface on screen the
+    /// close has to take you somewhere, so it lands on the previously
+    /// focused tab if there still is one, and on the Home dashboard
+    /// otherwise. Closing it from another surface only removes the chip.
+    pub(crate) fn close_settings_tab(&mut self) -> iced::Task<crate::app::Message> {
+        self.settings_tab_open = false;
+        self.tab_order.retain(|r| !matches!(r, crate::state::TabRef::Settings));
+        self.settings_scroll.clear();
+        if !(self.active_tab.is_none() && self.active_view == crate::state::View::Settings) {
+            return iced::Task::none();
+        }
+        // Most-recently-used first, skipping the entry we just dropped.
+        let fallback = self
+            .tab_mru
+            .iter()
+            .find(|r| !matches!(r, crate::state::TabRef::Settings))
+            .copied()
+            .and_then(|r| self.tab_ref_select_msg(&r));
+        iced::Task::done(fallback.unwrap_or(crate::app::Message::Navigation(
+            crate::app::NavigationMessage::ChangeView(crate::state::View::Dashboard),
+        )))
+    }
+
     /// Sync `tab_order` (the authoritative strip display order across terminal
     /// and SFTP tabs) with the live tabs: append refs for newly-created tabs,
     /// drop refs for closed ones, preserve the existing (drag-reordered) order.
@@ -14,6 +55,9 @@ impl Oryxis {
         self.tab_order.retain(|r| match r {
             TabRef::Terminal(id) => self.tabs.iter().any(|t| t._id == *id),
             TabRef::Sftp(id) => self.sftp_tabs.iter().any(|t| t.id == *id),
+            // Not backed by a storage vec: `settings_tab_open` is the
+            // whole existence test.
+            TabRef::Settings => self.settings_tab_open,
         });
         for id in self.tabs.iter().map(|t| t._id).collect::<Vec<_>>() {
             if !self.tab_order.iter().any(|r| matches!(r, TabRef::Terminal(x) if *x == id)) {
@@ -57,13 +101,12 @@ impl Oryxis {
                 crate::state::TabRef::Sftp(id) => {
                     self.sftp_tabs.iter().find(|t| t.id == *id).map(|t| t.pinned).unwrap_or(false)
                 }
+                // Transient by design, so pinning it would promise a
+                // persistence it does not have.
+                crate::state::TabRef::Settings => false,
             }
         };
-        let id_of = |r: &crate::state::TabRef| -> uuid::Uuid {
-            match r {
-                crate::state::TabRef::Terminal(id) | crate::state::TabRef::Sftp(id) => *id,
-            }
-        };
+        let id_of = |r: &crate::state::TabRef| -> uuid::Uuid { r.strip_id() };
         let Some(from_pos) = self.tab_order.iter().position(|r| id_of(r) == from_id) else { return };
         let Some(to_pos) = self.tab_order.iter().position(|r| id_of(r) == target_id) else { return };
         if from_pos == to_pos {
@@ -93,13 +136,12 @@ impl Oryxis {
                 crate::state::TabRef::Sftp(id) => {
                     self.sftp_tabs.iter().find(|t| t.id == *id).map(|t| t.pinned).unwrap_or(false)
                 }
+                // Transient by design, so pinning it would promise a
+                // persistence it does not have.
+                crate::state::TabRef::Settings => false,
             }
         };
-        let id_of = |r: &crate::state::TabRef| -> uuid::Uuid {
-            match r {
-                crate::state::TabRef::Terminal(id) | crate::state::TabRef::Sftp(id) => *id,
-            }
-        };
+        let id_of = |r: &crate::state::TabRef| -> uuid::Uuid { r.strip_id() };
         let Some(from_pos) = self.tab_order.iter().position(|r| id_of(r) == from_id) else {
             return;
         };

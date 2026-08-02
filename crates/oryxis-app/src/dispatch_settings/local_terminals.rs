@@ -159,6 +159,10 @@ impl Oryxis {
                 self.local_shell_picker_open = false;
                 self.active_view = View::Settings;
                 self.settings_section = crate::state::SettingsSection::Terminal;
+                // Direct view assignment rather than ChangeView, so the
+                // strip entry is this handler's own responsibility or
+                // Settings would show with no chip (issue #120).
+                self.ensure_settings_tab();
             }
             SettingsMessage::RescanLocalTerminals => {
                 return Ok(Task::perform(
