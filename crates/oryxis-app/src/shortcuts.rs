@@ -968,9 +968,14 @@ impl Oryxis {
         // XBUTTON1 / XBUTTON2), so every browser and file manager answers
         // them this way and a user's hand already expects it.
         //
-        // It runs before the bindable actions rather than after because
-        // those are terminal-only (`accepts_mouse` requires
-        // `terminal_only`), so nothing bindable is being shadowed here.
+        // It runs BEFORE the bindable actions, and that order is the
+        // whole policy: a visible file surface wins the two buttons, a
+        // user binding gets them everywhere else. Back / Forward are
+        // genuinely contested (they are the thumb pair on an ordinary
+        // five-button mouse, not exotic extras), so the choice is which
+        // context yields, not whether they may be bound at all. Same
+        // shape as the keyboard side, where a bare Ctrl+letter binding
+        // yields to the PTY inside a terminal and fires elsewhere.
         if let Some(task) = self.file_surface_nav(button) {
             return task;
         }
@@ -994,6 +999,13 @@ impl Oryxis {
     /// Walk the visited directories of whichever file surface is on
     /// screen. `None` when neither is, so the press falls through to the
     /// bindable actions.
+    ///
+    /// A visible file surface CONSUMES these buttons even with nowhere
+    /// to go (`Some(Task::none())`, not `None`). The alternative reads as
+    /// a broken binding: "back closes the tab, except in Files, except at
+    /// the start of the history where it closes the tab again" is a rule
+    /// no user can hold. Which surface is up is a fact the user can see;
+    /// how deep its history happens to be is not.
     ///
     /// "Up one level" deliberately does NOT live on these buttons, even
     /// though some clients put it there: after a jump through the path bar
@@ -1021,7 +1033,10 @@ impl Oryxis {
                 pane.nav_go_back(current)
             } else {
                 pane.nav_go_forward(current)
-            }?;
+            };
+            let Some(target) = target else {
+                return Some(Task::none());
+            };
             let is_remote = self.sftp.pane(side).is_remote;
             return Some(Task::done(if is_remote {
                 Message::Sftp(SftpMessage::SftpNavigateRemote(side, target))
@@ -1035,13 +1050,19 @@ impl Oryxis {
         if self.effective_sidebar_tab() != Some(crate::state::TerminalSidebarTab::Files) {
             return None;
         }
+        // No active pane means no Files tab is really mounted, so this
+        // is not a file surface after all: fall through rather than
+        // swallow the press.
         let pane = self.active_pane_mut()?;
         let current = pane.files.path.clone();
         let target = if back {
             pane.files.nav_go_back(current)
         } else {
             pane.files.nav_go_forward(current)
-        }?;
+        };
+        let Some(target) = target else {
+            return Some(Task::none());
+        };
         Some(Task::done(Message::SidebarFiles(
             crate::app::SidebarFilesMessage::SidebarFilesNavigate(target),
         )))
