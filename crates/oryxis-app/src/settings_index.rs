@@ -70,6 +70,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Interface, "close_button_position", "tab close button position left right"),
     e(S::Interface, "pinned_tab_style", "pinned tab style compact icon"),
     e(S::Interface, "tab_number_style", "tab number index numbering prefix badge icon slot ctrl digit"),
+    e(S::Interface, "tab_number_slot_align", "align shortcuts ctrl digit home slot offset first tab"),
     e(S::Interface, "duplicate_tab_position", "duplicate tab position next beside end start append copy"),
     e(S::Interface, "show_tab_host_address_label", "tab host address ip port second line show"),
     e(S::Interface, "show_tab_status_dot", "tab status dot connection indicator"),
