@@ -430,6 +430,20 @@ pub(crate) fn terminal_theme_import_card<'a>() -> Element<'a, Message> {
     )
 }
 
+/// "Community themes" card: opens the gallery on the site, where every
+/// contributed palette previews in its own colours. Deliberately a link
+/// rather than an in-app browser (issue #118): the site page works
+/// against the RELEASED app, because Copy there lands a scheme the
+/// Import card here already accepts.
+pub(crate) fn terminal_theme_community_card<'a>() -> Element<'a, Message> {
+    crate::widgets::theme_outline_card(
+        iced_fonts::lucide::globe(),
+        t("theme_community"),
+        OryxisColors::t().accent,
+        Message::OpenUrl("https://oryxis.app/themes".to_string()),
+    )
+}
+
 /// "Load from file" footer button shared by the theme import modals
 /// (terminal scheme + UI theme): opens a file picker whose contents land
 /// in the modal's paste box.

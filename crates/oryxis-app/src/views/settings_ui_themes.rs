@@ -401,6 +401,20 @@ pub(crate) fn ui_theme_import_card<'a>() -> Element<'a, Message> {
     )
 }
 
+/// "Community themes" card: opens the gallery on the site, where every
+/// contributed palette previews in its own colours. Deliberately a link
+/// rather than an in-app browser (issue #118): the site page works
+/// against the RELEASED app, because Copy there lands a scheme the
+/// Import card here already accepts.
+pub(crate) fn ui_theme_community_card<'a>() -> Element<'a, Message> {
+    crate::widgets::theme_outline_card(
+        iced_fonts::lucide::globe(),
+        t("theme_community"),
+        OryxisColors::t().accent,
+        Message::OpenUrl("https://oryxis.app/themes".to_string()),
+    )
+}
+
 impl Oryxis {
     /// A custom UI theme card with hover edit / delete affordances.
     pub(crate) fn ui_theme_custom_card<'a>(
