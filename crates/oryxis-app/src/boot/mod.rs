@@ -65,6 +65,13 @@ impl Oryxis {
             if !v.is_initialized() {
                 // Brand new vault, show setup screen
                 vault_state = VaultState::NeedSetup;
+                // Stamp the Ctrl+digit slot migration as already done, so
+                // the boot migration in `load_data_from_vault` leaves this
+                // vault on the new mapping (slot N = tab N). Only vaults
+                // that predate the change reach that migration unstamped
+                // and keep Home in the first slot. This is the one place
+                // that can tell a fresh install from an existing one.
+                let _ = v.set_setting("tab_slots_home_migrated", "true");
             } else {
                 // Consult the plaintext `has_user_password` flag before
                 // running `open_without_password`. That helper attempts
@@ -258,6 +265,7 @@ impl Oryxis {
                 host_search: String::new(),
                 quick_host_input: String::new(),
                 tabs: Vec::new(),
+                pending_tab_placement: None,
                 pending_pane_split: None,
                 split_menu_hovered: false,
                 active_tab: None,
@@ -587,6 +595,7 @@ impl Oryxis {
                 setting_host_list_view: false,
                 setting_card_accent_glass: true,
                 setting_show_host_address: false,
+                setting_show_tab_host_address: false,
                 privacy: crate::state::PrivacyState::default(),
                 setting_debug_logging: false,
                 download_mirror: Default::default(),
@@ -600,6 +609,9 @@ impl Oryxis {
                 ipc_state_signature: 0,
                 setting_tab_close_button_side: "left".into(),
                 setting_pinned_tab_style: "compact".into(),
+                setting_tab_slot_includes_home: false,
+                setting_duplicate_tab_position: "next".into(),
+                setting_tab_number_style: "off".into(),
                 pin_next_plugin_tab: None,
                 pending_ecs_autoconnect: None,
                 tab_drag: None,

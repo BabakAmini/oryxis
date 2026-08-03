@@ -218,11 +218,15 @@ impl Oryxis {
             | SettingsMessage::ToggleHostListView
             | SettingsMessage::ToggleCardAccentGlass
             | SettingsMessage::ToggleShowHostAddress
+            | SettingsMessage::ToggleShowTabHostAddress
             | SettingsMessage::SettingToggleTabAccentLine
             | SettingsMessage::SettingToggleTabAccentWash
             | SettingsMessage::SettingToggleTabAccentText
             | SettingsMessage::SettingTabCloseButtonSideChanged(..)
             | SettingsMessage::SettingPinnedTabStyleChanged(..)
+            | SettingsMessage::SettingDuplicateTabPositionChanged(..)
+            | SettingsMessage::SettingTabNumberStyleChanged(..)
+            | SettingsMessage::SettingToggleTabSlotIncludesHome
             | SettingsMessage::SettingTabFillStyleChanged(..)
             | SettingsMessage::SettingTabAccentColorChanged(..)
             | SettingsMessage::SettingTabBarPositionChanged(..)

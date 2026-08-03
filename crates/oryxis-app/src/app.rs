@@ -199,6 +199,12 @@ pub struct Oryxis {
 
     // Tabs
     pub(crate) tabs: Vec<TerminalTab>,
+    /// Where the tab a Duplicate is about to spawn should land in the
+    /// STRIP (never in `self.tabs`, whose indices half the app holds).
+    /// Armed by `handle_duplicate_tab`, consumed by
+    /// `reconcile_tab_order` when the new tab's id first shows up. See
+    /// [`crate::state::PendingTabPlacement`].
+    pub(crate) pending_tab_placement: Option<crate::state::PendingTabPlacement>,
     /// Set while the new-tab picker is open *to fill a split pane* rather
     /// than open a new tab: `(tab_idx, pane_to_split, axis)`. The picker's
     /// selection (host or local shell) lands in a new pane next to the
@@ -1231,6 +1237,11 @@ pub struct Oryxis {
     /// keeping addresses out of screenshots / screen shares. Port 22 is
     /// always omitted from the address regardless of this toggle.
     pub(crate) setting_show_host_address: bool,
+    /// When on, tabs show the connection address as a second line below
+    /// the tab label, formatted and masked exactly like the host cards'
+    /// subtitle (`host_address_label`). Off by default, for the same
+    /// screenshot / screen-share reason as `setting_show_host_address`.
+    pub(crate) setting_show_tab_host_address: bool,
     /// Privacy Mode (issue #78): global toggle, session override, hint
     /// flag, always/never mask lists, per-class gates and the Logs
     /// reveal toggle. See [`crate::state::PrivacyState`].
@@ -1290,6 +1301,29 @@ pub struct Oryxis {
     /// Pinned-tab visual style: "compact" (Chrome-style icon-only chip) or
     /// "full" (a normal tab with a special pinned border, stuck to the left).
     pub(crate) setting_pinned_tab_style: String,
+    /// Where "Duplicate Tab" puts the copy: `"next"` (default, beside the
+    /// original), `"end"` (the pre-#110 append) or `"start"`. Parsed by
+    /// [`crate::state::TabPlacement::from_setting`]; ordering only, never
+    /// an index into `tabs`.
+    pub(crate) setting_duplicate_tab_position: String,
+    /// Whether the Home (vault) area tab occupies the FIRST Ctrl+digit
+    /// slot, pushing every tab's slot up by one (so the third tab
+    /// answers to Ctrl+4).
+    ///
+    /// False on new installs: the slots are the tabs, which is what the
+    /// tab numbers show and what every other tabbed app does. True for
+    /// vaults that existed before the change, so nobody's muscle memory
+    /// breaks under them; the boot migration decides which
+    /// (`tab_slots_home_migrated`), and Settings > Shortcuts flips it.
+    /// Home keeps its own binding either way (Ctrl+Shift+1, the vault
+    /// section slot) plus the house icon in the strip.
+    pub(crate) setting_tab_slot_includes_home: bool,
+    /// Tab numbering (`"off"` default / `"prefix"` / `"icon"`): off shows
+    /// no number, prefix puts "12. " before the label, icon puts the
+    /// number in the host badge's slot instead of the OS / host glyph.
+    /// The number is the tab's position in the STRIP, which is what
+    /// `ActivateStripSlot` (Ctrl+N) counts, and it is not capped at 9.
+    pub(crate) setting_tab_number_style: String,
     /// One-shot: set when reopening a *pinned cloud* dormant tab. Because the
     /// cloud spawn is async (the tab is born later, in `spawn_plugin_tab`),
     /// the pin intent can't ride the synchronous len-check the host / local
