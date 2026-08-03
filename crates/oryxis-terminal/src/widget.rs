@@ -122,6 +122,14 @@ pub fn take_privacy_mask_drawn() -> bool {
 pub struct TerminalWidgetState {
     selecting: bool,
     selection: Option<Selection>,
+    /// True once this widget has been rendered focused, and never false
+    /// again. Distinguishes a pane that LOST focus (whose highlight is
+    /// dropped, see `on_event`) from a surface that is unfocused by
+    /// construction: the session player replays into a widget that is
+    /// never focused, because its keys are transport controls rather
+    /// than terminal input, and without the latch its selection was
+    /// swept before the drag that made it had ended.
+    ever_focused: bool,
     /// X11 PRIMARY selection: the text of the last completed selection,
     /// remembered independently of whether `selection` is still
     /// highlighted. Set by selecting (not by any setting, and not by the

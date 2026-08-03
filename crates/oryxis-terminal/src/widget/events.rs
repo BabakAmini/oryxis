@@ -337,6 +337,20 @@ where
         let hover_changed = widget_state.hover != new_hover;
         widget_state.hover = new_hover;
 
+        // Focus latch, read by the drop-the-highlight rule below. It turns
+        // true the first time this widget is rendered focused and never
+        // goes back, which is what separates a pane that LOST focus (its
+        // highlight must go) from a surface rendered unfocused by
+        // construction: the session player's replay stage is never focused
+        // (its keys are transport controls, not terminal input), so a plain
+        // `!focused` test swept the selection on the very next event of the
+        // drag that made it and nothing could be copied out of a recording.
+        // Set before any early return, or a press in the resize margin
+        // would leave it false on a pane that is focused.
+        if self.focused {
+            widget_state.ever_focused = true;
+        }
+
         // Presses inside a resize strip belong to whatever contains this
         // pane, not to the terminal: they are how a `pane_grid` divider is
         // grabbed. Declining here (rather than handling and forwarding) is
@@ -366,7 +380,14 @@ where
         // Events are broadcast to every widget, so the click that moves
         // focus is itself what clears the pane being left, and the same
         // holds when the whole tab changes.
-        if !self.focused && (widget_state.selection.is_some() || widget_state.selecting) {
+        //
+        // Gated on `ever_focused` so this reads as "lost focus" rather
+        // than "is not focused": a display-only surface that never takes
+        // focus keeps its selection (see the latch above).
+        if !self.focused
+            && widget_state.ever_focused
+            && (widget_state.selection.is_some() || widget_state.selecting)
+        {
             widget_state.selection = None;
             widget_state.selecting = false;
             return Some(CanvasAction::request_redraw());

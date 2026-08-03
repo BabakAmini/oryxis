@@ -184,6 +184,11 @@ impl Oryxis {
                 .with_font_name(&self.terminal_font_name)
                 .with_copy_on_select(self.prefs.copy_on_select)
                 .with_right_click_copy(self.prefs.right_click_copy)
+                // Same right-click scheme as a live pane. Without it the
+                // replay fell back to the widget default, so a user who
+                // had picked "paste" or "extend selection" got a
+                // different gesture here than everywhere else.
+                .with_right_click_action(self.prefs.terminal_right_click.to_widget())
                 .with_bold_is_bright(self.prefs.bold_is_bright)
                 .with_keyword_highlight(self.prefs.keyword_highlight)
                 .with_performance(self.prefs.performance_mode)

@@ -256,3 +256,50 @@
             }
         }
     }
+
+    /// A surface rendered unfocused BY CONSTRUCTION keeps its selection.
+    /// The session player replays into such a widget (its keys are
+    /// transport controls, so it never takes focus), and while the
+    /// lose-focus sweep tested `!focused` alone, the first mouse motion
+    /// of the drag that made a selection wiped it: nothing in a
+    /// recording could be selected, let alone copied.
+    #[test]
+    fn a_never_focused_surface_keeps_its_selection() {
+        let (view, mut ws) = view_and_state();
+        let view = view.focused(false);
+        ws.selection = Some(Selection { start: (0, 0), end: (5, 0), block: false });
+        let ev = iced::Event::Mouse(mouse::Event::CursorMoved {
+            position: Point::new(40.0, 40.0),
+        });
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        view.on_event(&mut ws, &ev, bounds(), cursor);
+        assert!(
+            ws.selection.is_some(),
+            "a display-only surface never had focus to lose"
+        );
+    }
+
+    /// The other half of the same rule: a pane that WAS focused drops its
+    /// highlight once it isn't. Split a tab three ways and every pane you
+    /// ever selected in would otherwise stay lit, with nothing saying
+    /// which one the next copy takes.
+    #[test]
+    fn a_pane_that_loses_focus_drops_its_highlight() {
+        let term = Arc::new(Mutex::new(TerminalState::new_no_pty(80, 24).unwrap()));
+        let focused: TerminalView<()> = TerminalView::new(Arc::clone(&term)).focused(true);
+        let unfocused: TerminalView<()> = TerminalView::new(term).focused(false);
+        let mut ws = TerminalWidgetState {
+            selection: Some(Selection { start: (0, 0), end: (5, 0), block: false }),
+            ..Default::default()
+        };
+        let ev = iced::Event::Mouse(mouse::Event::CursorMoved {
+            position: Point::new(40.0, 40.0),
+        });
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+
+        focused.on_event(&mut ws, &ev, bounds(), cursor);
+        assert!(ws.selection.is_some(), "the focused pane keeps its highlight");
+
+        unfocused.on_event(&mut ws, &ev, bounds(), cursor);
+        assert!(ws.selection.is_none(), "the pane being left drops its highlight");
+    }
