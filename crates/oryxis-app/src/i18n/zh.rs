@@ -1217,6 +1217,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "转发到 {host}",
         "move_to_remote" => "移动到 {host}",
         "sftp_move_same_directory" => "该项目已在此文件夹中",
+        "sftp_not_connected" => "未连接到主机",
+        "sftp_both_panes_connected" => "两个面板都必须已连接",
         "sftp_relay_into_itself" => "文件夹无法复制到自身内部",
         "sftp_move_verify_failed" => "无法确认副本已送达，因此未删除任何内容",
         "sftp_move_size_mismatch" => "副本大小与预期不符，因此未删除任何内容",

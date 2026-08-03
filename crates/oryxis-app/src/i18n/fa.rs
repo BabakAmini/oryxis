@@ -1289,6 +1289,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "انتقال به {host}",
         "move_to_remote" => "انتقال به {host}",
         "sftp_move_same_directory" => "این مورد از قبل در همان پوشه است",
+        "sftp_not_connected" => "به هیچ میزبانی متصل نیست",
+        "sftp_both_panes_connected" => "هر دو پنجره باید متصل باشند",
         "sftp_relay_into_itself" => "یک پوشه را نمی‌توان درون خودش کپی کرد",
         "sftp_move_verify_failed" => "رسیدن نسخه تأیید نشد، بنابراین چیزی حذف نشد",
         "sftp_move_size_mismatch" => "اندازه نسخه با مقدار مورد انتظار یکی نیست، بنابراین چیزی حذف نشد",

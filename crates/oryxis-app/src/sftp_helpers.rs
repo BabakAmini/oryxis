@@ -373,8 +373,11 @@ pub(crate) async fn destinations_are_one_directory(
 /// and it is the one same-file-family mistake the queue builder's
 /// unique-name step does not already prevent (issue #115).
 ///
-/// Both paths must already be resolved on the SAME host. The caller
-/// checks that; this is pure string containment.
+/// Both paths must already be resolved on the SAME host: this is pure
+/// string containment, so a symlinked spelling of the same directory
+/// would walk straight past it. The caller feeds it
+/// [`resolved_path`] output for exactly that reason, which is also what
+/// the sibling guard `destinations_are_one_directory` does.
 pub(crate) fn relay_target_is_inside_source(src_root: &str, dst_root: &str) -> bool {
     let src = src_root.trim_end_matches('/');
     let dst = dst_root.trim_end_matches('/');
@@ -383,6 +386,22 @@ pub(crate) fn relay_target_is_inside_source(src_root: &str, dst_root: &str) -> b
         return true;
     }
     dst == src || dst.starts_with(&format!("{src}/"))
+}
+
+/// A path with every symlink resolved, or the path itself when the server
+/// will not say.
+///
+/// The containment guard below compares strings, so `/srv/link/x` and
+/// `/srv/data/x` are different paths to it even when `link` IS `data`.
+/// Resolving first closes that, and falling back to the original on
+/// failure keeps the guard's error asymmetry intact: a missed detection
+/// leaves today's behaviour, while refusing a transfer we could not
+/// prove anything about would break a legitimate one.
+pub(crate) async fn resolved_path(client: &oryxis_ssh::SftpClient, path: &str) -> String {
+    client
+        .canonicalize(path)
+        .await
+        .unwrap_or_else(|_| path.to_string())
 }
 
 /// Remove the source side of a completed MOVE.

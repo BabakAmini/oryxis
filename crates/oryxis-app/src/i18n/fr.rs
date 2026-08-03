@@ -1217,6 +1217,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "Relayer vers {host}",
         "move_to_remote" => "Déplacer vers {host}",
         "sftp_move_same_directory" => "L'élément se trouve déjà dans ce dossier",
+        "sftp_not_connected" => "Aucune connexion à un hôte",
+        "sftp_both_panes_connected" => "Les deux volets doivent être connectés",
         "sftp_relay_into_itself" => "Un dossier ne peut pas être copié dans lui-même",
         "sftp_move_verify_failed" => "Impossible de confirmer que la copie est arrivée, rien n'a été supprimé",
         "sftp_move_size_mismatch" => "La copie n'a pas la taille attendue, rien n'a été supprimé",

@@ -14,7 +14,7 @@ use crate::sftp_helpers::{
     apply_overwrite_for_download_item, apply_overwrite_for_item, build_client_pool,
     do_download_item, do_local_duplicate_item,
     destinations_are_one_directory, do_relay_item, do_upload_item, parent_path,
-    relay_target_is_inside_source, remote_cp, remote_join, remove_moved_sources,
+    relay_target_is_inside_source, remote_cp, remote_join, remove_moved_sources, resolved_path,
     transfer_item_label, unique_name_in_local_dir,
     unique_name_in_remote_dir, walk_local_for_duplicate, walk_local_for_upload,
     walk_remote_for_download, walk_remote_for_relay, TransferStepOutcome, UploadOutcome,
@@ -92,7 +92,7 @@ impl Oryxis {
                     return Ok(Task::none());
                 }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 let remote_dir = self
@@ -165,7 +165,7 @@ impl Oryxis {
                 let downloading =
                     prompt.direction == crate::state::OverwriteDirection::Download;
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 // Pull a parked transfer item if this prompt fired from
@@ -315,7 +315,7 @@ impl Oryxis {
                     return Ok(ask);
                 }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 let local_dir = self
@@ -480,7 +480,7 @@ impl Oryxis {
                     return Ok(Task::none());
                 }
                 if self.sftp.pane(remote_side).client.is_none() {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 }
                 // A multi-select drop arrives as one FileDropped per
@@ -527,7 +527,7 @@ impl Oryxis {
                     return Ok(Task::none());
                 }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 let remote_dir = self
@@ -580,7 +580,7 @@ impl Oryxis {
                     return Ok(ask);
                 }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 let local_dir = self
@@ -1010,7 +1010,7 @@ impl Oryxis {
                     return Ok(Task::none());
                 }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 let remote_dir = self
@@ -1107,7 +1107,7 @@ impl Oryxis {
                     return Ok(ask);
                 }
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Ok(Task::none());
                 };
                 let remote_items: Vec<(String, bool)> = self
@@ -1306,7 +1306,7 @@ impl Oryxis {
             self.sftp.pane(from).client.clone(),
             self.sftp.pane(dest_side).client.clone(),
         ) else {
-            self.sftp.pane_mut(from).error = Some("Both panes must be connected".into());
+            self.sftp.pane_mut(from).error = Some(crate::i18n::t("sftp_both_panes_connected").to_string());
             return Task::none();
         };
         // Same machine? Two conservative signals: a shared SSH session is
@@ -1367,7 +1367,12 @@ impl Oryxis {
                 // the same name.
                 let unique = unique_name_in_remote_dir(&dst_client, &dest_dir, &basename).await?;
                 let target = remote_join(&dest_dir, &unique);
-                if same_host && relay_target_is_inside_source(&src_path, &target) {
+                if same_host
+                    && relay_target_is_inside_source(
+                        &resolved_path(&src_client, &src_path).await,
+                        &resolved_path(&dst_client, &target).await,
+                    )
+                {
                     return Err(crate::i18n::t("sftp_relay_into_itself").to_string());
                 }
                 if try_rename {

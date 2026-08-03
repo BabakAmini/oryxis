@@ -1217,6 +1217,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "{host} に転送",
         "move_to_remote" => "{host} に移動",
         "sftp_move_same_directory" => "この項目はすでにそのフォルダーにあります",
+        "sftp_not_connected" => "ホストに接続していません",
+        "sftp_both_panes_connected" => "両方のペインが接続されている必要があります",
         "sftp_relay_into_itself" => "フォルダーを自分自身の中にコピーすることはできません",
         "sftp_move_verify_failed" => "コピーの到達を確認できなかったため、何も削除しませんでした",
         "sftp_move_size_mismatch" => "コピーのサイズが想定と異なるため、何も削除しませんでした",

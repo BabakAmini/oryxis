@@ -1304,6 +1304,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "Ретранслювати до {host}",
         "move_to_remote" => "Перемістити на {host}",
         "sftp_move_same_directory" => "Цей об'єкт уже перебуває в цій теці",
+        "sftp_not_connected" => "Немає підключення до хоста",
+        "sftp_both_panes_connected" => "Обидві панелі мають бути підключені",
         "sftp_relay_into_itself" => "Теку не можна скопіювати всередину неї самої",
         "sftp_move_verify_failed" => "Не вдалося підтвердити, що копію доставлено, тому нічого не видалено",
         "sftp_move_size_mismatch" => "Розмір копії не збігається з очікуваним, тому нічого не видалено",

@@ -1311,6 +1311,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "relay_to_remote" => "Relay to {host}",
         "move_to_remote" => "Move to {host}",
         "sftp_move_same_directory" => "The item is already in that folder",
+        "sftp_not_connected" => "Not connected to a host",
+        "sftp_both_panes_connected" => "Both panes must be connected",
         "sftp_relay_into_itself" => "A folder cannot be copied into itself",
         "sftp_move_verify_failed" => "Could not confirm the copy landed, so nothing was removed",
         "sftp_move_size_mismatch" => "The copy did not land at the expected size, so nothing was removed",

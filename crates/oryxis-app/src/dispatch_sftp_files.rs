@@ -586,7 +586,7 @@ impl Oryxis {
             Some((client, host)) => (client, host),
             None => {
                 let Some(client) = self.sftp.pane(side).client.clone() else {
-                    self.sftp.pane_mut(side).error = Some("Not connected to a host".into());
+                    self.sftp.pane_mut(side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
                     return Task::none();
                 };
                 (client, self.sftp.pane(side).host_label.clone().unwrap_or_default())

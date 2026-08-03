@@ -1310,6 +1310,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "{host} पर रिले करें",
         "move_to_remote" => "{host} पर ले जाएँ",
         "sftp_move_same_directory" => "यह आइटम पहले से ही उस फ़ोल्डर में है",
+        "sftp_not_connected" => "किसी होस्ट से कनेक्ट नहीं है",
+        "sftp_both_panes_connected" => "दोनों पैनल कनेक्टेड होने चाहिए",
         "sftp_relay_into_itself" => "किसी फ़ोल्डर को उसी के अंदर कॉपी नहीं किया जा सकता",
         "sftp_move_verify_failed" => "प्रतिलिपि पहुँचने की पुष्टि नहीं हो सकी, इसलिए कुछ भी नहीं हटाया गया",
         "sftp_move_size_mismatch" => "प्रतिलिपि का आकार अपेक्षित से भिन्न है, इसलिए कुछ भी नहीं हटाया गया",

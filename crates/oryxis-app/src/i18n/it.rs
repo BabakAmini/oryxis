@@ -1208,6 +1208,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "Trasferisci a {host}",
         "move_to_remote" => "Sposta su {host}",
         "sftp_move_same_directory" => "L'elemento si trova già in quella cartella",
+        "sftp_not_connected" => "Nessuna connessione a un host",
+        "sftp_both_panes_connected" => "Entrambi i pannelli devono essere connessi",
         "sftp_relay_into_itself" => "Una cartella non può essere copiata dentro se stessa",
         "sftp_move_verify_failed" => "Impossibile confermare l'arrivo della copia, quindi non è stato rimosso nulla",
         "sftp_move_size_mismatch" => "La copia non ha la dimensione prevista, quindi non è stato rimosso nulla",

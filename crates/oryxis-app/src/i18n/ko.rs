@@ -1304,6 +1304,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "relay_to_remote" => "{host}(으)로 릴레이",
         "move_to_remote" => "{host}(으)로 이동",
         "sftp_move_same_directory" => "이 항목은 이미 해당 폴더에 있습니다",
+        "sftp_not_connected" => "호스트에 연결되어 있지 않습니다",
+        "sftp_both_panes_connected" => "두 창 모두 연결되어 있어야 합니다",
         "sftp_relay_into_itself" => "폴더를 자기 자신 안으로 복사할 수 없습니다",
         "sftp_move_verify_failed" => "복사본이 도착했는지 확인할 수 없어 아무것도 삭제하지 않았습니다",
         "sftp_move_size_mismatch" => "복사본 크기가 예상과 달라 아무것도 삭제하지 않았습니다",
