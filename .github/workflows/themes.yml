@@ -17,11 +17,20 @@ on:
       - "themes/**"
       - "scripts/gen_theme_index.py"
 
+# Least privilege by default; only the job that commits the regenerated
+# index widens it. Declared here rather than left implicit because a
+# theme pull request comes from a fork we do not control, and the default
+# token grant is broader than reading one directory needs.
+permissions:
+  contents: read
+
 jobs:
   validate:
     name: Validate submissions
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
 
