@@ -146,7 +146,19 @@ impl Oryxis {
                 // The AI/sidebar toggle now lives in the tab bar (panel
                 // button right of `+`), so the terminal canvas no longer
                 // carries its own floating sparkle overlay.
-                let term_with_toggle: Element<'_, Message> = grid.into();
+                //
+                // `spacing` only puts air BETWEEN panes, so a gap alone
+                // left the outer panes flush against the window while
+                // their shared edges breathed. Matching the outer padding
+                // to the gap makes every boundary the same width, which
+                // is what "gap" reads as; without it the setting looks
+                // half-applied (field report).
+                let term_with_toggle: Element<'_, Message> =
+                    if multipane && gap > 0.0 {
+                        container(grid).padding(gap).into()
+                    } else {
+                        grid.into()
+                    };
 
                 // The session-group editor renders here, as a sibling of the
                 // grid inside the terminal area, the same way the chat sidebar
