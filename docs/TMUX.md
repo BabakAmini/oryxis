@@ -11,7 +11,7 @@ never edits files on your servers.**
 
 | What you want | Inside tmux | What to do |
 |---|---|---|
-| A recording of everything on screen | Works already | Turn on Session logging (Settings > Session) |
+| A recording of everything on screen | Works already | Turn on Session logging (Settings > Security & Privacy > Logging & history) |
 | A plain-text transcript or an asciicast replay | Works already | Export it from the History screen |
 | The list of commands you typed (History sidebar) | Does not work | [Install the shell-integration snippet](#make-command-history-work-inside-tmux) yourself |
 | A log file on the server itself | Not an Oryxis feature | [Use tmux's own `pipe-pane`](#let-tmux-write-its-own-log) |
@@ -46,15 +46,9 @@ which is exactly what the next section sets up.
 Session recording captures the raw output stream, tmux included. Nothing
 to configure beyond turning it on:
 
-1. **Settings > Session > Session logging** records SSH session output
-   into the vault (encrypted). A per-host override exists on the host
-   editor.
-2. **Detailed recording (replay)** additionally stores timing and
-   resizes, which is what makes the asciicast export and the in-app
-   player possible.
-3. The **History** screen lists your recordings. Each one can be
-   replayed in the app, exported as an asciicast `.cast` file, or
-   exported as a plain-text transcript.
+1. **Settings > Security & Privacy > Logging & history > Session logging** records SSH session output into the vault (encrypted). A per-host override exists on the host editor. If the row is hard to find, type "session logging" into the Settings search box and it takes you straight there.
+2. **Detailed recording (replay)**, the next row down, additionally stores timing and resizes, which is what makes the asciicast export and the in-app player possible. It only appears once Session logging is on.
+3. The **History** screen lists your recordings. Each one can be replayed in the app, exported as an asciicast `.cast` file, or exported as a plain-text transcript.
 
 So if what you need is "a log of what happened in this session", you
 already have it, tmux or not.
@@ -97,10 +91,7 @@ might later click. So the key is a shared secret between the app and
 your own dotfile, and a stock VS Code integration (which knows nothing
 about it) reports commands Oryxis will not record.
 
-Your key lives in **Settings > Terminal > Shell integration**. The
-button there copies the snippet below with the key already in it, which
-is the path that cannot go wrong; the block is reproduced here so you
-can read what you are about to paste into your shell.
+Your key lives in **Settings > Terminal > Integration**, under the "Capture command history" toggle: the **Copy shell integration snippet** button there copies the snippet below with the key already in it, which is the path that cannot go wrong. The block is reproduced here so you can read what you are about to paste into your shell.
 
 ### 1. Save the snippet on the host
 
@@ -113,10 +104,11 @@ rather than from the app:
 # runs (OSC 633;E) so the command history keeps working inside tmux.
 # bash and zsh. Loading it twice is a no-op.
 #
-# The trailing __ORYXIS_NONCE__ is YOUR key, copied from
-# Settings > Terminal > Shell integration. Oryxis ignores any reported
-# command line that does not carry it, so a file or a log that prints
-# this sequence cannot plant a command in your history.
+# The trailing __ORYXIS_NONCE__ is YOUR key, copied from Settings >
+# Terminal > Integration, the "Copy shell integration snippet" button.
+# Oryxis ignores any reported command line that does not carry it, so a
+# file or a log that prints this sequence cannot plant a command in your
+# history.
 if [ -z "${__oryxis_si:-}" ]; then
   __oryxis_si=1
   __oryxis_key=__ORYXIS_NONCE__

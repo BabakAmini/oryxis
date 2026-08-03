@@ -2,10 +2,11 @@
 # runs (OSC 633;E) so the command history keeps working inside tmux.
 # bash and zsh. Loading it twice is a no-op.
 #
-# The trailing __ORYXIS_NONCE__ is YOUR key, copied from
-# Settings > Terminal > Shell integration. Oryxis ignores any reported
-# command line that does not carry it, so a file or a log that prints
-# this sequence cannot plant a command in your history.
+# The trailing __ORYXIS_NONCE__ is YOUR key, copied from Settings >
+# Terminal > Integration, the "Copy shell integration snippet" button.
+# Oryxis ignores any reported command line that does not carry it, so a
+# file or a log that prints this sequence cannot plant a command in your
+# history.
 if [ -z "${__oryxis_si:-}" ]; then
   __oryxis_si=1
   __oryxis_key=__ORYXIS_NONCE__
