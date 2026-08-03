@@ -127,7 +127,10 @@ impl Oryxis {
             }
             Message::NoOp => {}
 
-            _ => {}
+            // `update` lists the cross-cutting globals explicitly, so
+            // anything else here is a routing mistake, not a runtime
+            // case.
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

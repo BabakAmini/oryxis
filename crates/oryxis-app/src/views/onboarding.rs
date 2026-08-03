@@ -188,7 +188,7 @@ impl Oryxis {
         let fields = container(password_input_with_eye(
             t("master_password_optional"),
             &self.vault_ui.password_input,
-            |v| Message::Vault(VaultMessage::VaultPasswordChanged(v)),
+            |v| Message::Vault(VaultMessage::VaultPasswordChanged(v.into())),
             Some(Message::Vault(VaultMessage::VaultSetup)),
             self.vault_ui.password_visible,
             Message::Vault(VaultMessage::VaultTogglePasswordVisibility),

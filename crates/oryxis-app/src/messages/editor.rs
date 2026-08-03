@@ -84,7 +84,7 @@ pub enum EditorMessage {
     EditorAddressFamilyChanged(oryxis_core::models::connection::AddressFamily),
     EditorPortChanged(String),
     EditorUsernameChanged(String),
-    EditorPasswordChanged(String),
+    EditorPasswordChanged(super::Redacted),
     EditorAuthMethodChanged(String),
     EditorGroupChanged(String),
     EditorKeyChanged(String),
@@ -104,12 +104,12 @@ pub enum EditorMessage {
     EditorProxyHostChanged(String),
     EditorProxyPortChanged(String),
     EditorProxyUsernameChanged(String),
-    EditorProxyPasswordChanged(String),
+    EditorProxyPasswordChanged(super::Redacted),
     EditorProxyCommandChanged(String),
     EditorTogglePasswordVisibility,
     /// TOTP secret (2FA) field: value edit + eye toggle. Tri-state save
     /// mirrors the password field (untouched preserves the stored secret).
-    EditorTotpChanged(String),
+    EditorTotpChanged(super::Redacted),
     EditorToggleTotpVisibility,
     EditorUseTotpToggled,
     EditorSave,

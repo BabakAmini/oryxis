@@ -22,8 +22,8 @@ pub enum CloudMessage {
     CloudFormAwsRegionAdd,
     CloudFormAwsRegionRemove(usize),
     CloudFormAwsAccessKeyIdChanged(String),
-    CloudFormAwsAccessKeySecretChanged(String),
-    CloudFormAwsAccessKeySessionTokenChanged(String),
+    CloudFormAwsAccessKeySecretChanged(super::Redacted),
+    CloudFormAwsAccessKeySessionTokenChanged(super::Redacted),
     #[allow(dead_code)]
     CloudFormAwsAccessKeySecretToggleVisibility,
     CloudFormAwsSsoStartUrlChanged(String),

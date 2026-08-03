@@ -47,7 +47,7 @@ pub enum SshMessage {
     /// selector in the modal); `None` for saved hosts.
     SshKbiPrompt(Option<Uuid>, oryxis_ssh::KbiQuery),
     /// User edited the answer for prompt `usize` in the current round.
-    SshKbiInput(usize, String),
+    SshKbiInput(usize, super::Redacted),
     /// User submitted all answers for the current round.
     SshKbiSubmit,
     /// User cancelled the interactive auth.

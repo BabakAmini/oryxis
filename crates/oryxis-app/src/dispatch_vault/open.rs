@@ -15,7 +15,7 @@ impl Oryxis {
         match message {
             // -- Vault --
             VaultMessage::VaultPasswordChanged(pw) => {
-                self.vault_ui.password_input = pw;
+                self.vault_ui.password_input = pw.into_inner();
             }
             VaultMessage::VaultTogglePasswordVisibility => {
                 self.vault_ui.password_visible = !self.vault_ui.password_visible;
@@ -178,7 +178,7 @@ impl Oryxis {
             }
             // The parent routed us here, so anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

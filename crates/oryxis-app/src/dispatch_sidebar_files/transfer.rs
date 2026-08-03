@@ -28,7 +28,7 @@ impl Oryxis {
                 // One-shot transfer with a toast on completion. Heavier
                 // moves (progress, queues, retries) live in the full SFTP
                 // session one context-menu entry away.
-                return Task::perform(
+                Task::perform(
                     async move {
                         let dest = rfd::AsyncFileDialog::new()
                             .set_file_name(&basename)
@@ -46,7 +46,7 @@ impl Oryxis {
                         Some(m) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(m)),
                         None => Message::NoOp,
                     },
-                );
+                )
             }
             SidebarFilesMessage::SidebarFilesUploadInto(dir) => {
                 self.overlay = None;
@@ -62,7 +62,7 @@ impl Oryxis {
                 // superseded in-flight listing's completion dropped with
                 // `loading` stuck on, killing follow-cwd for good). The
                 // uploads themselves start in SidebarFilesUploadPicked.
-                return Task::perform(
+                Task::perform(
                     async move {
                         rfd::AsyncFileDialog::new().pick_files().await.map(|files| {
                             files
@@ -77,7 +77,7 @@ impl Oryxis {
                         }
                         _ => Message::NoOp,
                     },
-                );
+                )
             }
             SidebarFilesMessage::SidebarFilesUploadPicked(pane_id, dir, paths) => {
                 // The dialog returned real picks; the pane may have changed
@@ -88,7 +88,7 @@ impl Oryxis {
                 let Some(client) = pane.files.client.clone() else {
                     return Task::none();
                 };
-                return Task::perform(
+                Task::perform(
                     async move {
                         let mut failed: Vec<String> = Vec::new();
                         let mut ok = 0usize;
@@ -111,7 +111,7 @@ impl Oryxis {
                         }
                     },
                     move |toast| Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadFinished(pane_id, toast)),
-                );
+                )
             }
             SidebarFilesMessage::SidebarFilesUploadFinished(pane_id, toast) => {
                 let toast_task = self.update(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(toast)));
@@ -129,10 +129,10 @@ impl Oryxis {
                 pane.files.loading = true;
                 pane.files.error = None;
                 let seq = pane.files.next_req();
-                return Task::batch([
+                Task::batch([
                     toast_task,
                     list_dir_task(client, path, pane_id, seq),
-                ]);
+                ])
             }
             SidebarFilesMessage::SidebarFilesEdit(path) => {
                 self.overlay = None;
@@ -160,27 +160,26 @@ impl Oryxis {
                 }
                 .or_else(|| self.active_pane_mut().map(|p| p.label.clone()))
                 .unwrap_or_default();
-                return self.start_edit_watch(
+                self.start_edit_watch(
                     crate::state::SftpPaneSide::Right,
                     path,
                     crate::state::SftpEditOpener::OsDefault,
                     Some((client, host)),
                     true,
-                );
+                )
             }
             SidebarFilesMessage::SidebarFilesOpToast(text) => {
                 self.set_toast(text);
-                return Task::perform(
+                Task::perform(
                     async {
                         tokio::time::sleep(std::time::Duration::from_millis(3000)).await;
                     },
                     |_| Message::ToastClear,
-                );
+                )
             }
             // The parent routed us here, so anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => crate::dispatch::unrouted(m),
         }
-        Task::none()
     }
 }

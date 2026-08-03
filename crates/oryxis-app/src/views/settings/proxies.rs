@@ -427,7 +427,7 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     pw_placeholder,
                     self.proxy_identity_form.password.as_str(),
-                    |v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v)),
+                    |v| Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v.into())),
                     Some(Message::ProxyIdentity(ProxyIdentityMessage::SaveProxyIdentity)),
                     self.proxy_identity_form.password_visible,
                     Message::ProxyIdentity(ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility),

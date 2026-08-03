@@ -80,7 +80,7 @@ impl Oryxis {
                 }
             }
             AiMessage::AiApiKeyChanged(key) => {
-                self.ai.api_key = key;
+                self.ai.api_key = key.into_inner();
             }
             AiMessage::AiApiUrlChanged(url) => {
                 self.ai.api_url = url;
@@ -107,7 +107,7 @@ impl Oryxis {
             }
             // Routed here by `handle_ai`; anything else is a
             // grouping mistake rather than a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

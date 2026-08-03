@@ -58,7 +58,7 @@ impl Oryxis {
         let current = container(crate::widgets::password_input_with_eye(
             t("current_master_password_placeholder"),
             &self.vault_ui.current_password,
-            |v| Message::Vault(VaultMessage::VaultCurrentPasswordChanged(v)),
+            |v| Message::Vault(VaultMessage::VaultCurrentPasswordChanged(v.into())),
             Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultCurrentPassword),
             Message::Settings(SettingsMessage::ToggleSecretVisibility(SecretField::VaultCurrentPassword)),
@@ -68,7 +68,7 @@ impl Oryxis {
         let new = container(crate::widgets::password_input_with_eye(
             t("new_master_password_placeholder"),
             &self.vault_ui.new_password,
-            |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v)),
+            |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v.into())),
             Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultNewPassword),
             Message::Settings(SettingsMessage::ToggleSecretVisibility(SecretField::VaultNewPassword)),
@@ -78,7 +78,7 @@ impl Oryxis {
         let confirm = container(crate::widgets::password_input_with_eye(
             t("confirm_master_password_placeholder"),
             &self.vault_ui.confirm_password,
-            |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v)),
+            |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v.into())),
             Some(Message::Vault(VaultMessage::ConfirmChangeVaultPassword)),
             self.revealed_secrets.contains(&SecretField::VaultConfirmPassword),
             Message::Settings(SettingsMessage::ToggleSecretVisibility(SecretField::VaultConfirmPassword)),
@@ -160,7 +160,7 @@ impl Oryxis {
             let input = container(crate::widgets::password_input_with_eye(
                 t("new_master_password_placeholder"),
                 &self.vault_ui.new_password,
-                |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v)),
+                |v| Message::Vault(VaultMessage::VaultNewPasswordChanged(v.into())),
                 Some(Message::Vault(VaultMessage::SetVaultPassword)),
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::VaultNewPassword),
@@ -177,7 +177,7 @@ impl Oryxis {
             let confirm = container(crate::widgets::password_input_with_eye(
                 t("confirm_master_password_placeholder"),
                 &self.vault_ui.confirm_password,
-                |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v)),
+                |v| Message::Vault(VaultMessage::VaultConfirmPasswordChanged(v.into())),
                 Some(Message::Vault(VaultMessage::SetVaultPassword)),
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::VaultConfirmPassword),
@@ -771,7 +771,7 @@ impl Oryxis {
                 container(crate::widgets::password_input_with_eye_nav(
                     crate::i18n::t("export_password"),
                     &self.export_password,
-                    |v| Message::Share(ShareMessage::ExportPasswordChanged(v)),
+                    |v| Message::Share(ShareMessage::ExportPasswordChanged(v.into())),
                     None,
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::ExportPassword),
@@ -875,7 +875,7 @@ impl Oryxis {
                 container(crate::widgets::password_input_with_eye_nav(
                     crate::i18n::t("import_password"),
                     &self.vault_import.password,
-                    |v| Message::Share(ShareMessage::ImportPasswordChanged(v)),
+                    |v| Message::Share(ShareMessage::ImportPasswordChanged(v.into())),
                     // Enter inspects in phase 1, imports in phase 2.
                     Some(if self.vault_import.summary.is_some() {
                         Message::Share(ShareMessage::ImportConfirm)
@@ -1050,7 +1050,7 @@ impl Oryxis {
                     container(crate::widgets::password_input_with_eye_nav(
                         crate::i18n::t("import_password"),
                         &self.vault_import.password,
-                        |v| Message::Share(ShareMessage::ImportPasswordChanged(v)),
+                        |v| Message::Share(ShareMessage::ImportPasswordChanged(v.into())),
                         Some(Message::Share(ShareMessage::SftpBackupConfirm)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::ImportPassword),

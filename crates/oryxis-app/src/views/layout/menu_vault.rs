@@ -914,7 +914,7 @@ impl Oryxis {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::clipboard_list(),
                 crate::i18n::t("hotkey_terminal_paste_selection"),
-                Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text.clone())),
+                Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text.clone().into())),
                 OryxisColors::t().text_secondary,
             ));
         }

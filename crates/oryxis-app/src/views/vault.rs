@@ -45,7 +45,7 @@ impl Oryxis {
         container(crate::widgets::password_input_with_eye_id(
             placeholder,
             &self.vault_ui.password_input,
-            |v| Message::Vault(VaultMessage::VaultPasswordChanged(v)),
+            |v| Message::Vault(VaultMessage::VaultPasswordChanged(v.into())),
             Some(on_submit),
             self.vault_ui.password_visible,
             Message::Vault(VaultMessage::VaultTogglePasswordVisibility),

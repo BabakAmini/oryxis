@@ -131,7 +131,7 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         t("key_passphrase_placeholder"),
                         &self.keys_ui.import_form.passphrase,
-                        |v| Message::Keys(KeysMessage::KeyImportPassphraseChanged(v)),
+                        |v| Message::Keys(KeysMessage::KeyImportPassphraseChanged(v.into())),
                         Some(Message::Keys(KeysMessage::ImportKey)),
                         self.keys_ui.import_form.passphrase_visible,
                         Message::Keys(KeysMessage::KeyImportPassphraseToggleVisibility),

@@ -238,12 +238,12 @@ impl Oryxis {
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
             CloudMessage::CloudFormAwsAccessKeySecretChanged(v) => {
-                self.cloud_form.aws_access_key_secret = v;
+                self.cloud_form.aws_access_key_secret = v.into_inner();
                 self.cloud_form.aws_access_key_secret_touched = true;
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
             CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(v) => {
-                self.cloud_form.aws_access_key_session_token = v;
+                self.cloud_form.aws_access_key_session_token = v.into_inner();
                 self.cloud_form.test_state = CloudTestState::Idle;
             }
             CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility => {

@@ -229,7 +229,7 @@ impl Oryxis {
             }
             // Routed here by `handle_ai`; anything else is a
             // grouping mistake rather than a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

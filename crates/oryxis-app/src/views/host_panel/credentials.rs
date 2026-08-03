@@ -183,7 +183,7 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         pw_placeholder,
                         self.editor_form.password.as_str(),
-                        |v| Message::Editor(EditorMessage::EditorPasswordChanged(v)),
+                        |v| Message::Editor(EditorMessage::EditorPasswordChanged(v.into())),
                         Some(Message::Editor(EditorMessage::EditorSave)),
                         self.editor_form.password_visible,
                         Message::Editor(EditorMessage::EditorTogglePasswordVisibility),
@@ -256,7 +256,7 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         totp_placeholder,
                         self.editor_form.totp_secret.as_str(),
-                        |v| Message::Editor(EditorMessage::EditorTotpChanged(v)),
+                        |v| Message::Editor(EditorMessage::EditorTotpChanged(v.into())),
                         Some(Message::Editor(EditorMessage::EditorSave)),
                         self.editor_form.totp_visible,
                         Message::Editor(EditorMessage::EditorToggleTotpVisibility),

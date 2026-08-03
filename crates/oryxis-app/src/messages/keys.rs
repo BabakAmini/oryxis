@@ -21,8 +21,8 @@ pub enum KeysMessage {
     KeyGenerated(Result<std::sync::Arc<oryxis_vault::GeneratedKey>, String>),
     CopyGeneratedPublicKey,
     SaveGeneratedPublicKeyFile,
-    KeyGenExportPassphraseChanged(String),
-    KeyGenExportPassphraseConfirmChanged(String),
+    KeyGenExportPassphraseChanged(super::Redacted),
+    KeyGenExportPassphraseConfirmChanged(super::Redacted),
     KeyGenExportPassphraseToggleVisibility,
     KeyGenExportPassphraseConfirmToggleVisibility,
     /// Export the generated private key to a file, passphrase-
@@ -33,7 +33,7 @@ pub enum KeysMessage {
     BrowseKeyFile,
     KeyFileLoaded(String, String, Option<String>, Option<String>),
     KeyFileBrowseError(String),
-    KeyImportPassphraseChanged(String),
+    KeyImportPassphraseChanged(super::Redacted),
     KeyImportPassphraseToggleVisibility,
     /// Edit action on the public-key textarea (B2.1).
     KeyImportPublicAction(text_editor::Action),
@@ -73,7 +73,7 @@ pub enum KeysMessage {
     HideIdentityPanel,
     IdentityLabelChanged(String),
     IdentityUsernameChanged(String),
-    IdentityPasswordChanged(String),
+    IdentityPasswordChanged(super::Redacted),
     IdentityKeyChanged(String),
     IdentityTogglePasswordVisibility,
     SaveIdentity,

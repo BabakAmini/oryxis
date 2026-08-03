@@ -107,7 +107,10 @@ impl Oryxis {
             return Task::none();
         };
         crate::dispatch_global::read_clipboard_text(move |text| {
-            Message::Terminal(TerminalMessage::TerminalPasteResolved(tab_idx, text))
+            Message::Terminal(TerminalMessage::TerminalPasteResolved(
+                tab_idx,
+                text.map(Into::into),
+            ))
         })
     }
 
@@ -478,7 +481,9 @@ impl Oryxis {
             // Clipboard text came back from the runtime (the only place
             // allowed to touch it). `None` = empty or unavailable.
             TerminalMessage::TerminalPasteResolved(tab_idx, text) => {
-                if let Some(text) = text.filter(|t| !t.is_empty()) {
+                if let Some(text) = text.map(crate::messages::Redacted::into_inner)
+                    && !text.is_empty()
+                {
                     self.paste_text_into_tab(tab_idx, &text);
                 }
             }
@@ -516,6 +521,7 @@ impl Oryxis {
             }
             TerminalMessage::TerminalPasteSelection(pane_id, text) => {
                 self.overlay = None;
+                let text = text.into_inner();
                 if text.is_empty() {
                     return Task::none();
                 }

@@ -12,7 +12,7 @@ pub enum SyncMessage {
     /// Bearer token text-input change. Persisted to the vault settings
     /// table; an empty string leaves the request without an
     /// `Authorization` header (fine for unauthenticated signaling).
-    SignalingTokenChanged(String),
+    SignalingTokenChanged(super::Redacted),
     RelayUrlChanged(String),
     ListenPortChanged(String),
     // "Set up your own relay" wizard (Settings > Sync > P2P).
@@ -77,7 +77,7 @@ pub enum SyncMessage {
     SftpPathChanged(String),
     /// Text-input change for the SFTP-sync passphrase (persisted
     /// encrypted on change).
-    SftpPassphraseChanged(String),
+    SftpPassphraseChanged(super::Redacted),
     /// Auto-cadence timer fired (transport `sftp`, mode `auto`): run a
     /// sync round if one isn't already in flight.
     SftpTick,

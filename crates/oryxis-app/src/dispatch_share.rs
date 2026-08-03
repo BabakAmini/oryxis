@@ -46,7 +46,7 @@ impl Oryxis {
                 self.export_status = None;
             }
             ShareMessage::ExportPasswordChanged(v) => {
-                self.export_password = v;
+                self.export_password = v.into_inner();
             }
             ShareMessage::ExportToggleKeys => {
                 self.export_include_keys = !self.export_include_keys;
@@ -263,7 +263,7 @@ impl Oryxis {
                 self.panels.import_dialog = true;
             }
             ShareMessage::ImportPasswordChanged(v) => {
-                self.vault_import.password = v;
+                self.vault_import.password = v.into_inner();
             }
             ShareMessage::ImportInspect => {
                 if self.vault_import.password.is_empty() {
@@ -476,7 +476,7 @@ impl Oryxis {
                 self.share.include_ungrouped = !self.share.include_ungrouped;
             }
             ShareMessage::SharePasswordChanged(v) => {
-                self.share.password = v;
+                self.share.password = v.into_inner();
             }
             ShareMessage::ShareToggleKeys => {
                 self.share.include_keys = !self.share.include_keys;

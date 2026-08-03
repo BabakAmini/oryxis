@@ -612,7 +612,7 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         placeholder,
                         self.editor_form.proxy_password.as_str(),
-                        |v| Message::Editor(EditorMessage::EditorProxyPasswordChanged(v)),
+                        |v| Message::Editor(EditorMessage::EditorProxyPasswordChanged(v.into())),
                         Some(Message::Editor(EditorMessage::EditorSave)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::ProxyPassword),

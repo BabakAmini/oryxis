@@ -30,7 +30,7 @@ impl Oryxis {
             }
             SshMessage::SshKbiInput(idx, value) => {
                 if let Some(slot) = self.kbi_inputs.get_mut(idx) {
-                    *slot = value;
+                    *slot = value.into_inner();
                 }
             }
             SshMessage::SshKbiSubmit => {

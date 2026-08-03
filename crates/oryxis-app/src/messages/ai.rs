@@ -24,7 +24,7 @@ pub enum AiMessage {
     ToggleAiSaveHistory,
     AiProviderChanged(String),
     AiModelChanged(String),
-    AiApiKeyChanged(String),
+    AiApiKeyChanged(super::Redacted),
     AiApiUrlChanged(String),
     AiSystemPromptAction(text_editor::Action),
     SaveAiApiKey,

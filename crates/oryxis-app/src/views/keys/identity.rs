@@ -89,7 +89,7 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     identity_pw_placeholder,
                     self.identity_form.password.as_str(),
-                    |v| Message::Keys(KeysMessage::IdentityPasswordChanged(v)),
+                    |v| Message::Keys(KeysMessage::IdentityPasswordChanged(v.into())),
                     None,
                     self.identity_form.password_visible,
                     Message::Keys(KeysMessage::IdentityTogglePasswordVisibility),

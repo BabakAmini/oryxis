@@ -71,10 +71,10 @@ impl Oryxis {
                 self.vault_ui.password_error = None;
             }
             VaultMessage::VaultNewPasswordChanged(pw) => {
-                self.vault_ui.new_password = pw;
+                self.vault_ui.new_password = pw.into_inner();
             }
             VaultMessage::VaultConfirmPasswordChanged(pw) => {
-                self.vault_ui.confirm_password = pw;
+                self.vault_ui.confirm_password = pw.into_inner();
             }
             VaultMessage::SetVaultPassword => {
                 if self.vault_ui.new_password.len() < 4 {
@@ -121,7 +121,7 @@ impl Oryxis {
                 self.vault_ui.pending_kdf_pw = None;
             }
             VaultMessage::VaultCurrentPasswordChanged(pw) => {
-                self.vault_ui.current_password = pw;
+                self.vault_ui.current_password = pw.into_inner();
             }
             VaultMessage::ConfirmChangeVaultPassword => {
                 if self.vault_ui.new_password.len() < 4 {
@@ -244,7 +244,7 @@ impl Oryxis {
             }
             // The parent routed us here, so anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

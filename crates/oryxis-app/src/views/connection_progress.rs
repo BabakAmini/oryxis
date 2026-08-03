@@ -351,7 +351,7 @@ impl Oryxis {
                 let prompt_label = self.redact_progress(progress, &prompt.prompt);
                 let value = self.kbi_inputs.get(i).map(|s| s.as_str()).unwrap_or("");
                 let mut input = text_input(&prompt_label, value)
-                    .on_input(move |v| Message::Ssh(SshMessage::SshKbiInput(i, v)))
+                    .on_input(move |v| Message::Ssh(SshMessage::SshKbiInput(i, v.into())))
                     .on_submit(Message::Ssh(SshMessage::SshKbiSubmit))
                     .padding(10)
                     .size(14);

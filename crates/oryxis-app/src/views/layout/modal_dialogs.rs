@@ -28,7 +28,7 @@ impl Oryxis {
             container(crate::widgets::password_input_with_eye_nav(
                 crate::i18n::t("export_password"),
                 &self.share.password,
-                |v| Message::Share(ShareMessage::SharePasswordChanged(v)),
+                |v| Message::Share(ShareMessage::SharePasswordChanged(v.into())),
                 None,
                 self.revealed_secrets
                     .contains(&crate::state::SecretField::SharePassword),

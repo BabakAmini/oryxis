@@ -74,7 +74,7 @@ pub enum TerminalMessage {
     /// can't corrupt the heap (see `oryxis_terminal::host_clipboard`). The
     /// tab rides along because the read resolves later and the user may have
     /// switched tabs in between.
-    TerminalPasteResolved(usize, Option<String>),
+    TerminalPasteResolved(usize, Option<super::Redacted>),
     /// Careful-paste confirmation: send the multi-line text held in
     /// `pending_paste` to the tab it was captured for (not the currently
     /// active one, which may have changed since).
@@ -107,7 +107,7 @@ pub enum TerminalMessage {
     /// captures its own at build time, the menu carries the right-clicked
     /// one) and the focused pane can change before this is handled. Never
     /// touches the system clipboard.
-    TerminalPasteSelection(Uuid, String),
+    TerminalPasteSelection(Uuid, super::Redacted),
     /// Flush the buffered OS drop (a multi-file drop arrives as one
     /// FileDropped per file): resolve the target pane and route the
     /// batch to its transport. Fired by a short debounce after the

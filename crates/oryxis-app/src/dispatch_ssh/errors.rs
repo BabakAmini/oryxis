@@ -139,7 +139,7 @@ impl Oryxis {
             }
             // The router sends only this family here, so anything
             // else is a grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

@@ -12,7 +12,7 @@ pub enum ProxyIdentityMessage {
     ProxyIdentityFormHostChanged(String),
     ProxyIdentityFormPortChanged(String),
     ProxyIdentityFormUsernameChanged(String),
-    ProxyIdentityFormPasswordChanged(String),
+    ProxyIdentityFormPasswordChanged(super::Redacted),
     ProxyIdentityFormPasswordToggleVisibility,
     SaveProxyIdentity,
     DeleteProxyIdentity(Uuid),

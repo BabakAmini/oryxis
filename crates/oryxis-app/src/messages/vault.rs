@@ -3,7 +3,7 @@
 
 #[derive(Debug, Clone)]
 pub enum VaultMessage {
-    VaultPasswordChanged(String),
+    VaultPasswordChanged(super::Redacted),
     VaultTogglePasswordVisibility,
     VaultUnlock,
     VaultSetup,
@@ -36,14 +36,14 @@ pub enum VaultMessage {
     ConfirmRemoveVaultPassword,
     /// Dismiss the remove-password confirm prompt without removing.
     CancelRemoveVaultPassword,
-    VaultNewPasswordChanged(String),
-    VaultConfirmPasswordChanged(String),
+    VaultNewPasswordChanged(super::Redacted),
+    VaultConfirmPasswordChanged(super::Redacted),
     SetVaultPassword,
     /// Open / close the change-master-password form.
     OpenChangeVaultPassword,
     CancelChangeVaultPassword,
     /// Current-password field of the change-password form.
-    VaultCurrentPasswordChanged(String),
+    VaultCurrentPasswordChanged(super::Redacted),
     /// Verify the current password and rotate to the new one.
     ConfirmChangeVaultPassword,
     /// E1: Argon2id calibration finished off-thread; apply the pending

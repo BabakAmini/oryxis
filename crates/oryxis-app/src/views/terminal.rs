@@ -533,7 +533,7 @@ impl Oryxis {
             .on_paste_selection({
                 let pane_id = pane.id;
                 move |text| {
-                    Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text))
+                    Message::Terminal(TerminalMessage::TerminalPasteSelection(pane_id, text.into()))
                 }
             })
             .on_terminal_input(|v| Message::Terminal(TerminalMessage::TerminalInput(v)))

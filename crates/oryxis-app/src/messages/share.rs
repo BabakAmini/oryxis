@@ -4,7 +4,7 @@
 #[derive(Debug, Clone)]
 pub enum ShareMessage {
     ExportVault,
-    ExportPasswordChanged(String),
+    ExportPasswordChanged(super::Redacted),
     ExportToggleKeys,
     /// Toggle one category checkbox in the export dialog.
     ExportToggleCategory(oryxis_vault::ExportCategory),
@@ -27,7 +27,7 @@ pub enum ShareMessage {
     /// Discard the SSH-config import preview without saving.
     SshImportDismiss,
     ImportFileLoaded(Vec<u8>),
-    ImportPasswordChanged(String),
+    ImportPasswordChanged(super::Redacted),
     /// Decrypt the picked file with the entered password and reveal its
     /// per-category contents, the first step of the two-phase import.
     ImportInspect,
@@ -70,7 +70,7 @@ pub enum ShareMessage {
     ShareToggleGroup(uuid::Uuid),
     /// Toggle inclusion of ungrouped (root) hosts in the export.
     ShareToggleUngrouped,
-    SharePasswordChanged(String),
+    SharePasswordChanged(super::Redacted),
     ShareToggleKeys,
     ShareConfirm,
     ShareDismiss,

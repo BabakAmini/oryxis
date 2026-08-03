@@ -70,6 +70,7 @@ impl Oryxis {
                 }
             }
             SyncMessage::SignalingTokenChanged(v) => {
+                let v = v.into_inner();
                 self.sync.signaling_token = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("sync_signaling_token", &v);
@@ -438,6 +439,7 @@ impl Oryxis {
                 }
             }
             SyncMessage::SftpPassphraseChanged(v) => {
+                let v = v.into_inner();
                 self.sync.sftp.passphrase = v.clone();
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_sync_sftp_passphrase(&v);

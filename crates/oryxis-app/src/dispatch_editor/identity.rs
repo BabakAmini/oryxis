@@ -18,14 +18,14 @@ impl Oryxis {
             }
             EditorMessage::EditorPasswordChanged(v) => {
                 self.editor_form.username_focused = false;
-                self.editor_form.password.set(v);
+                self.editor_form.password.set(v.into_inner());
             }
             EditorMessage::EditorTogglePasswordVisibility => {
                 self.editor_form.password_visible = !self.editor_form.password_visible;
             }
             EditorMessage::EditorTotpChanged(v) => {
                 self.editor_form.username_focused = false;
-                self.editor_form.totp_secret.set(v);
+                self.editor_form.totp_secret.set(v.into_inner());
             }
             EditorMessage::EditorToggleTotpVisibility => {
                 self.editor_form.totp_visible = !self.editor_form.totp_visible;
@@ -109,7 +109,7 @@ impl Oryxis {
             }
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

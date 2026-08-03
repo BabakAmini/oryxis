@@ -7,6 +7,12 @@
 use uuid::Uuid;
 
 
+/// Payload wrapper for the secret-bearing fields, so a message that
+/// carries a password can be `Debug`-formatted (the stall watchdog and
+/// `dispatch::unrouted` both do) without the secret reaching the log.
+mod redacted;
+pub use redacted::Redacted;
+
 mod ai;
 pub use ai::AiMessage;
 mod onboarding;

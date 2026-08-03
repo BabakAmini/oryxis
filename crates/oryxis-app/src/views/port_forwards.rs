@@ -699,7 +699,7 @@ impl Oryxis {
         for (i, prompt) in kbi.prompts.iter().enumerate() {
             let value = self.kbi_inputs.get(i).map(|s| s.as_str()).unwrap_or("");
             let mut input = text_input(&prompt.prompt, value)
-                .on_input(move |v| Message::Ssh(SshMessage::SshKbiInput(i, v)))
+                .on_input(move |v| Message::Ssh(SshMessage::SshKbiInput(i, v.into())))
                 .on_submit(Message::Ssh(SshMessage::SshKbiSubmit))
                 .padding(10)
                 .size(14);

@@ -264,11 +264,34 @@ mod tests {
         // A paste-sized payload must not bloat the ring: the name stops
         // at the budget plus the ellipsis.
         let big = "x".repeat(64 * 1024);
-        let msg = crate::app::Message::CopyToClipboard(big);
+        let msg = crate::app::Message::OpenUrl(big);
         let name = message_name(&msg);
         assert!(name.len() <= NAME_BUDGET + '…'.len_utf8());
-        assert!(name.starts_with("CopyToClipboard"));
+        assert!(name.starts_with("OpenUrl"));
         assert!(name.ends_with('…'));
+    }
+
+    /// The ring feeds `recent_report`, which is written into the
+    /// debug-log file users attach to issues. A message that carries a
+    /// secret must reach it redacted: the payload here is the value of
+    /// a text input, so an unwrapped one would record the password one
+    /// keystroke at a time, ending with the whole thing.
+    #[test]
+    fn message_name_never_records_a_secret() {
+        let msg = crate::app::Message::Vault(crate::app::VaultMessage::VaultPasswordChanged(
+            "hunter2".into(),
+        ));
+        let name = message_name(&msg);
+        assert!(!name.contains("hunter2"), "{name}");
+        assert!(name.contains("<redacted>"), "{name}");
+
+        // Same for the text that comes back from the system clipboard:
+        // pasting a password into a sudo prompt is the everyday case.
+        let pasted = crate::app::Message::Terminal(
+            crate::app::TerminalMessage::TerminalPasteResolved(0, Some("hunter2".into())),
+        );
+        let name = message_name(&pasted);
+        assert!(!name.contains("hunter2"), "{name}");
     }
 
     #[test]

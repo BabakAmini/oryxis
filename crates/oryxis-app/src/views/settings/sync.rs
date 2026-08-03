@@ -141,7 +141,7 @@ impl Oryxis {
                 &self.sync.sftp.passphrase,
             )
             .id(iced::widget::Id::new("set-sync-sftp-passphrase"))
-            .on_input(|v| Message::Sync(SyncMessage::SftpPassphraseChanged(v)))
+            .on_input(|v| Message::Sync(SyncMessage::SftpPassphraseChanged(v.into())))
             .secure(true)
             .padding(10)
             .width(300)
@@ -1035,7 +1035,7 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     crate::i18n::t("sync_signaling_token_placeholder"),
                     &self.sync.signaling_token,
-                    |v| Message::Sync(SyncMessage::SignalingTokenChanged(v)),
+                    |v| Message::Sync(SyncMessage::SignalingTokenChanged(v.into())),
                     None,
                     self.revealed_secrets
                         .contains(&crate::state::SecretField::SyncSignalingToken),

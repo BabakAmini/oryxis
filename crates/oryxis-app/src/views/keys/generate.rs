@@ -113,7 +113,7 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     "",
                     &form.export_passphrase,
-                    |v| Message::Keys(KeysMessage::KeyGenExportPassphraseChanged(v)),
+                    |v| Message::Keys(KeysMessage::KeyGenExportPassphraseChanged(v.into())),
                     None,
                     form.export_passphrase_visible,
                     Message::Keys(KeysMessage::KeyGenExportPassphraseToggleVisibility),
@@ -137,7 +137,7 @@ impl Oryxis {
                 crate::widgets::password_input_with_eye_nav(
                     "",
                     &form.export_passphrase_confirm,
-                    |v| Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmChanged(v)),
+                    |v| Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmChanged(v.into())),
                     None,
                     form.export_passphrase_confirm_visible,
                     Message::Keys(KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility),

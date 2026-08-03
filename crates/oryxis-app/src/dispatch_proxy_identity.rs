@@ -98,7 +98,7 @@ impl Oryxis {
                 self.proxy_identity_form.username = v;
             }
             ProxyIdentityMessage::ProxyIdentityFormPasswordChanged(v) => {
-                self.proxy_identity_form.password.set(v);
+                self.proxy_identity_form.password.set(v.into_inner());
             }
             ProxyIdentityMessage::ProxyIdentityFormPasswordToggleVisibility => {
                 self.proxy_identity_form.password_visible =

@@ -108,7 +108,7 @@ impl Oryxis {
                 self.keys_ui.import_form.pem = new_text;
             }
             KeysMessage::KeyImportPassphraseChanged(v) => {
-                self.keys_ui.import_form.passphrase = v;
+                self.keys_ui.import_form.passphrase = v.into_inner();
                 // Clear stale "wrong passphrase" feedback as the user types.
                 self.keys_ui.error = None;
             }

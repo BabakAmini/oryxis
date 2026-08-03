@@ -201,7 +201,7 @@ impl Oryxis {
             TabsMessage::IconPickerResetAuto => return self.handle_icon_picker_reset_auto(),
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

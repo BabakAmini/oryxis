@@ -82,7 +82,7 @@ impl Oryxis {
             }
             // The parent routed us here, so anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

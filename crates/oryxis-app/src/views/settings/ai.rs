@@ -139,7 +139,7 @@ impl Oryxis {
                     crate::widgets::password_input_with_eye_nav(
                         key_placeholder,
                         &self.ai.api_key,
-                        |v| Message::Ai(AiMessage::AiApiKeyChanged(v)),
+                        |v| Message::Ai(AiMessage::AiApiKeyChanged(v.into())),
                         Some(Message::Ai(AiMessage::SaveAiApiKey)),
                         self.revealed_secrets
                             .contains(&crate::state::SecretField::AiApiKey),

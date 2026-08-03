@@ -53,7 +53,7 @@ impl Oryxis {
             EditorMessage::EditorProxyPortChanged(v) => { self.editor_form.proxy_port = v; }
             EditorMessage::EditorProxyUsernameChanged(v) => { self.editor_form.proxy_username = v; }
             EditorMessage::EditorProxyPasswordChanged(v) => {
-                self.editor_form.proxy_password.set(v);
+                self.editor_form.proxy_password.set(v.into_inner());
             }
             EditorMessage::EditorProxyCommandChanged(v) => { self.editor_form.proxy_command = v; }
             EditorMessage::OpenChainEditor => {
@@ -138,7 +138,7 @@ impl Oryxis {
             }
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.
-            _ => {}
+            m => return crate::dispatch::unrouted(m),
         }
         Task::none()
     }

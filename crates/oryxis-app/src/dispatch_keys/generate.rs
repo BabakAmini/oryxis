@@ -139,11 +139,11 @@ impl Oryxis {
                 ));
             }
             KeysMessage::KeyGenExportPassphraseChanged(v) => {
-                self.keys_ui.generate_form.export_passphrase = v;
+                self.keys_ui.generate_form.export_passphrase = v.into_inner();
                 self.keys_ui.generate_form.error = None;
             }
             KeysMessage::KeyGenExportPassphraseConfirmChanged(v) => {
-                self.keys_ui.generate_form.export_passphrase_confirm = v;
+                self.keys_ui.generate_form.export_passphrase_confirm = v.into_inner();
                 self.keys_ui.generate_form.error = None;
             }
             KeysMessage::KeyGenExportPassphraseToggleVisibility => {

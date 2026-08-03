@@ -374,7 +374,7 @@ impl Oryxis {
                         crate::widgets::password_input_with_eye_nav(
                             secret_placeholder,
                             &self.cloud_form.aws_access_key_secret,
-                            |v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretChanged(v)),
+                            |v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretChanged(v.into())),
                             None,
                             self.cloud_form.aws_access_key_secret_visible,
                             Message::Cloud(CloudMessage::CloudFormAwsAccessKeySecretToggleVisibility),
@@ -403,7 +403,7 @@ impl Oryxis {
                         10.0,
                         text_input(t("cloud_aws_access_key_session_token_ph"), &self.cloud_form.aws_access_key_session_token)
                             .id(iced::widget::Id::new("panel-cloud-aws-session-token"))
-                            .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(v)))
+                            .on_input(|v| Message::Cloud(CloudMessage::CloudFormAwsAccessKeySessionTokenChanged(v.into())))
                             .padding(10)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                             .into(),

@@ -43,7 +43,7 @@ impl Oryxis {
                 self.identity_form.username = v;
             }
             KeysMessage::IdentityPasswordChanged(v) => {
-                self.identity_form.password.set(v);
+                self.identity_form.password.set(v.into_inner());
             }
             KeysMessage::IdentityTogglePasswordVisibility => {
                 self.identity_form.password_visible = !self.identity_form.password_visible;
