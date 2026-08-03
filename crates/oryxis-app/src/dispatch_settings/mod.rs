@@ -35,6 +35,12 @@ pub(crate) fn resolve_scrollback_rows(rows: &str) -> usize {
 
 // Settings-dispatch sub-handlers, one file per arm family.
 mod advanced;
+mod search;
+mod locale;
+mod hotkeys;
+mod session_logs;
+mod timers;
+mod toggles;
 mod appearance;
 mod defaults;
 mod local_terminals;
@@ -177,7 +183,7 @@ impl Oryxis {
             | SettingsMessage::LocalConfigSaveGlobal
             | SettingsMessage::TerminalThemeChanged(..)
             | SettingsMessage::AppThemeChanged(..)) => {
-                return self.handle_settings_themes(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_themes(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::OpenLocalShell
             | SettingsMessage::ShowLocalShellPicker
@@ -200,7 +206,7 @@ impl Oryxis {
             | SettingsMessage::AddLocalTerminalSubmit
             | SettingsMessage::LocalTerminalCardHovered(..)
             | SettingsMessage::LocalTerminalCardUnhovered) => {
-                return self.handle_settings_local_terminals(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_local_terminals(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::SettingToggleShowStatusBar
             | SettingsMessage::SettingToggleStatusVersion
@@ -241,7 +247,7 @@ impl Oryxis {
             | SettingsMessage::ToggleNavRailExpanded
             | SettingsMessage::SettingDefaultHostIconChanged(..)
             | SettingsMessage::FlattenHostsToggle) => {
-                return self.handle_settings_appearance(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_appearance(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::TogglePasteGuard
             | SettingsMessage::ToggleCommandHistory
@@ -284,7 +290,7 @@ impl Oryxis {
             | SettingsMessage::SettingScrollbackChanged(..)
             | SettingsMessage::SettingWordDelimitersChanged(..)
             | SettingsMessage::SettingResetWordDelimiters) => {
-                return self.handle_settings_terminal_prefs(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_terminal_prefs(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::ToggleDefaultAgentForwarding
             | SettingsMessage::DefaultPortChanged(..)
@@ -303,7 +309,7 @@ impl Oryxis {
             | SettingsMessage::DefaultEnvVarKeyChanged(..)
             | SettingsMessage::DefaultEnvVarValueChanged(..)
             | SettingsMessage::ToggleDefaultsCollapsed) => {
-                return self.handle_settings_defaults(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_defaults(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::SettingRendererBackendChanged(..)
             | SettingsMessage::RendererInfoLoaded(..)
@@ -316,566 +322,73 @@ impl Oryxis {
             | SettingsMessage::RevealDebugLog
             | SettingsMessage::ClearDebugLog
             | SettingsMessage::RelaunchApp) => {
-                return self.handle_settings_advanced(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_advanced(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::TogglePrivacyMode
             | SettingsMessage::TogglePrivacySessionOverride
             | SettingsMessage::SettingPrivacyAlwaysMaskAction(..)
             | SettingsMessage::SettingPrivacyNeverMaskAction(..)
             | SettingsMessage::TogglePrivacyMaskClass(..)) => {
-                return self.handle_settings_privacy(m).unwrap_or_else(crate::dispatch::unrouted);
+                self.handle_settings_privacy(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             // Session-logging / OS-detect toggles (handled here; the
             // recording + probe logic lives in dispatch_ssh).
-            SettingsMessage::SettingToggleSessionLogging => {
-                self.prefs.session_logging = !self.prefs.session_logging;
-                self.persist_setting(
-                    "session_logging",
-                    if self.prefs.session_logging { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingToggleSessionLogFull => {
-                self.prefs.session_log_full = !self.prefs.session_log_full;
-                self.persist_setting(
-                    "session_log_full",
-                    if self.prefs.session_log_full { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingToggleSessionLogCompress => {
-                self.prefs.session_log_compress = !self.prefs.session_log_compress;
-                self.persist_setting(
-                    "session_log_compress",
-                    if self.prefs.session_log_compress { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingToggleConnectionHistory => {
-                self.prefs.connection_history = !self.prefs.connection_history;
-                self.persist_setting(
-                    "connection_history",
-                    if self.prefs.connection_history { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::LogsRetentionChanged(code) => {
-                self.prefs.logs_retention = code.to_string();
-                self.persist_setting("logs_retention", code);
-                // Apply right away so picking a shorter window has a
-                // visible effect, then refresh the cached Logs state.
-                if let Some(days) = Self::retention_days(code)
-                    && let Some(vault) = &self.vault
-                {
-                    let cutoff = chrono::Utc::now() - chrono::Duration::days(days);
-                    match vault.prune_logs_older_than(cutoff) {
-                        Ok(0) => {}
-                        Ok(n) => tracing::info!("logs retention pruned {n} rows"),
-                        Err(e) => tracing::warn!("logs retention prune failed: {e}"),
-                    }
-                    self.logs_page = 0;
-                    self.session_logs_page = 0;
-                    self.logs_total = vault.count_logs().unwrap_or(0);
-                    self.logs = vault.list_logs_page(0, 50).unwrap_or_default();
-                    self.session_logs_total = vault.count_session_logs().unwrap_or(0);
-                    self.session_logs =
-                        vault.list_session_logs_page(0, 50).unwrap_or_default();
-                }
-            }
-            SettingsMessage::SettingToggleOsDetection => {
-                self.prefs.os_detection = !self.prefs.os_detection;
-                self.persist_setting(
-                    "os_detection",
-                    if self.prefs.os_detection { "true" } else { "false" },
-                );
-            }
             // -- Settings --
-            SettingsMessage::LanguageChanged(token) => {
-                use crate::i18n::Language;
-                // Token-as-value from the picker: "auto" follows the
-                // OS locale, anything else is a concrete language code.
-                let lang = if token == "auto" {
-                    crate::i18n::detect_os_language()
-                } else {
-                    Language::from_code(&token)
-                };
-                self.prefs.language_choice = if token == "auto" {
-                    token
-                } else {
-                    // Persist the canonical code (`from_code` may have
-                    // normalized an unknown token to English).
-                    lang.code().to_string()
-                };
-                Language::set_active(lang);
-                if let Some(vault) = &self.vault {
-                    let _ = vault
-                        .set_setting("language", &self.prefs.language_choice);
-                }
-                // Switching to a CJK language pulls its font on
-                // demand (once per session). Show a hint while it
-                // downloads; a cached font loads silently.
-                if let Some(code) = crate::fonts::asset_code(lang)
-                    && !self.loaded_cjk_fonts.contains(code)
-                {
-                    self.loaded_cjk_fonts.insert(code.to_string());
-                    if !crate::fonts::is_language_cached(lang) {
-                        self.set_toast(
-                            crate::i18n::t("cjk_font_downloading").to_string(),
-                        );
-                    }
-                    return crate::fonts::ensure_task(lang);
-                }
-            }
-            SettingsMessage::CjkFontReady(code, result) => match result {
-                Ok(bytes) => {
-                    // Clear the "downloading" hint and register the font
-                    // with the iced font system so cosmic-text can fall
-                    // back to it. `iced::font::Error` is uninhabited, so
-                    // the load result is discarded.
-                    self.toast = None;
-                    return iced::font::load(bytes).discard();
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        target = "oryxis::fonts",
-                        lang = %code,
-                        error = %e,
-                        "CJK font download failed; using system fallback"
-                    );
-                    // Drop the guard so a later switch can retry.
-                    self.loaded_cjk_fonts.remove(&code);
-                    self.set_toast(crate::i18n::t("cjk_font_failed").to_string());
-                    return Task::perform(
-                        async {
-                            tokio::time::sleep(
-                                std::time::Duration::from_millis(2600),
-                            )
-                            .await;
-                        },
-                        |_| Message::ToastClear,
-                    );
-                }
-            },
-            SettingsMessage::LayoutDirectionChanged(name) => {
-                use crate::i18n::{t, LayoutDirection};
-                // Match against the *localized* label since that's what
-                // the pick_list emits; keys live on the enum so the
-                // mapping survives language switches.
-                if let Some(dir) = LayoutDirection::ALL
-                    .iter()
-                    .find(|d| t(d.label_key()) == name)
-                {
-                    LayoutDirection::set_active(*dir);
-                    self.persist_setting("layout_direction", dir.code());
-                }
-            }
-            SettingsMessage::SettingsSearchChanged(v) => {
-                self.settings_search = v;
-                self.settings_active_match = 0;
-                if self.settings_search.trim().is_empty() {
-                    return Task::none();
-                }
-                let ordered = self.settings_ordered_matches(&self.settings_search);
-                if ordered.is_empty() {
-                    return Task::none();
-                }
-                // Land the cursor on the first match in the OPEN section
-                // if it has one (don't yank the user's section); else
-                // open the document-first matching section.
-                match ordered.iter().position(|(s, _)| *s == self.settings_section) {
-                    Some(idx) => self.settings_active_match = idx,
-                    None => {
-                        self.settings_active_match = 0;
-                        self.switch_settings_section_for_search(ordered[0].0);
-                    }
-                }
-                // Keep the active match in view as the query narrows
-                // (JetBrains-style). Scrolling the content pane doesn't
-                // touch the search input's caret, so this is safe on
-                // every change.
-                return self.schedule_settings_scroll();
-            }
-            SettingsMessage::SettingsSearchStep(forward) => {
-                let ordered = self.settings_ordered_matches(&self.settings_search);
-                if ordered.is_empty() {
-                    return Task::none();
-                }
-                let n = ordered.len();
-                self.settings_active_match = if forward {
-                    (self.settings_active_match + 1) % n
-                } else {
-                    (self.settings_active_match + n - 1) % n
-                };
-                let section = ordered[self.settings_active_match].0;
-                if section != self.settings_section {
-                    self.switch_settings_section_for_search(section);
-                }
-                return self.schedule_settings_scroll();
-            }
-            SettingsMessage::RevealSetting(section, label_key) => {
-                // Palette entry point: put the setting's label in the
-                // search box and open its section, so it lands on the
-                // exact same highlight + scroll path as typing the query.
-                self.settings_search = crate::i18n::t(label_key).to_string();
-                self.keynav.pick_open = false;
-                let t1 = self.update(Message::Navigation(
-                    crate::app::NavigationMessage::ChangeView(View::Settings),
-                ));
-                let t2 = self.update(Message::Settings(
-                    SettingsMessage::ChangeSettingsSection(section),
-                ));
-                let t3 = self.schedule_settings_scroll();
-                return Task::batch([t1, t2, t3]);
-            }
-            SettingsMessage::RevealSettingScroll => {
-                // Scroll the top matched row (tagged with
-                // SETTINGS_SCROLL_TARGET_ID by the render) into view.
-                // The operation reads real layout positions during
-                // `operate`, so it works for rows scrolled far off the
-                // bottom (which `draw` culls) - the whole reason the
-                // old fixed-height / bounds-cell estimate mis-fired.
-                if !self.settings_search.trim().is_empty() {
-                    return crate::widgets::scroll_into_view_task(
-                        self.settings_section.scroll_id(),
-                        crate::keynav::SETTINGS_SCROLL_TARGET_ID,
-                        16.0,
-                    );
-                }
-            }
-            SettingsMessage::ChangeSettingsSection(section) => {
-                // Leaving the Shortcuts editor cancels any pending
-                // capture; otherwise the next keystroke on the new
-                // section would silently rebind the action.
-                if self.settings_section == crate::state::SettingsSection::Shortcuts
-                    && section != crate::state::SettingsSection::Shortcuts
-                {
-                    self.editing_hotkey = None;
-                }
-                self.settings_section = section;
-                // A pick_list dropdown open on the old section unmounts
-                // WITHOUT firing on_close when the section swaps, and a
-                // stuck `pick_open` swallows Enter/Space/Esc/arrows
-                // process-wide (live-QA bug: Enter dead in every
-                // terminal after fiddling with the renderer dropdown).
-                self.keynav.pick_open = false;
-                // Keyboard navigation: the old section's rows are gone;
-                // keep a sidebar (SubNav) selection alive through the
-                // switch (keynav's own Enter path sets the flag) so
-                // repeated Up/Down + Enter keep walking sections.
-                let keep = self.keynav.keep_focus_through_change_view;
-                self.keynav.keep_focus_through_change_view = false;
-                if !keep {
-                    self.keynav.focus = None;
-                }
-                self.keynav_clear_content();
-                self.keynav.settings_row_actions.borrow_mut().clear();
-                // Clicking another matching section while a search is
-                // active scrolls that section's first match into view.
-                if !self.settings_search.trim().is_empty() {
-                    return Task::batch([
-                        self.renderer_info_task(),
-                        self.schedule_settings_scroll(),
-                    ]);
-                }
-                // Sections remember where you left them (issue #120), so
-                // hopping out to check a change and back lands on the same
-                // row instead of at the top.
-                return Task::batch([self.renderer_info_task(), self.settings_restore_scroll()]);
-            }
-            SettingsMessage::SectionScrolled(offset) => {
-                self.settings_scroll.insert(self.settings_section, offset);
-            }
-            SettingsMessage::SectionScrollTo(id, y) => {
-                return iced::widget::operation::snap_to(
-                    id,
-                    iced::widget::operation::RelativeOffset { x: None, y: Some(y) },
-                );
-            }
-            SettingsMessage::StartEditingHotkey(action, slot) => {
-                self.editing_hotkey = Some((action, slot));
-            }
-            SettingsMessage::MouseButtonPressed(button) => {
-                return self.handle_mouse_button_press(button);
-            }
-            SettingsMessage::ResetHotkey(action) => {
-                let mut defaults = crate::hotkeys::default_bindings();
-                match defaults.remove(&action) {
-                    Some(d) => self.hotkey_bindings.insert(action, d),
-                    None => self.hotkey_bindings.remove(&action),
-                };
-                // Empty value persists the absence of an override, so
-                // future boots rehydrate to the default. Same
-                // semantics as deleting the row, and distinct from the
-                // UNBOUND token a deliberate unbind writes.
-                self.persist_setting(&format!("hotkey_{}", action.id()), "");
-            }
-            SettingsMessage::ResetAllHotkeys => {
-                self.hotkey_bindings = crate::hotkeys::default_bindings();
-                for action in crate::hotkeys::HotkeyAction::all() {
-                    self.persist_setting(&format!("hotkey_{}", action.id()), "");
-                }
-            }
-            SettingsMessage::SettingTogglePerformanceMode => {
-                self.prefs.performance_mode = !self.prefs.performance_mode;
-                self.persist_setting(
-                    "performance_mode",
-                    if self.prefs.performance_mode { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingTogglePerfOverlay => {
-                self.prefs.perf_overlay = !self.prefs.perf_overlay;
-                self.persist_setting(
-                    "perf_overlay",
-                    if self.prefs.perf_overlay { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingToggleRemoteDesktop => {
-                self.remote_desktop_enabled = !self.remote_desktop_enabled;
-                self.persist_setting(
-                    "remote_desktop_enabled",
-                    if self.remote_desktop_enabled { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::ToggleSecretVisibility(field) => {
-                if !self.revealed_secrets.remove(&field) {
-                    self.revealed_secrets.insert(field);
-                }
-            }
-            SettingsMessage::SettingToggleCloseToTray => {
-                self.prefs.close_to_tray = !self.prefs.close_to_tray;
-                self.persist_setting(
-                    "close_to_tray",
-                    if self.prefs.close_to_tray { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingToggleMinimizeToTray => {
-                self.prefs.minimize_to_tray = !self.prefs.minimize_to_tray;
-                // The Win32 subclass that intercepts the OS minimize
-                // verbs can't read app state, so the toggle has to be
-                // mirrored down to it or it keeps acting on the value
-                // this process booted with.
-                crate::tray::set_minimize_to_tray(self.prefs.minimize_to_tray);
-                self.persist_setting(
-                    "minimize_to_tray",
-                    if self.prefs.minimize_to_tray { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingToggleSftpEnabled => {
-                self.sftp_enabled = !self.sftp_enabled;
-                self.persist_setting(
-                    "sftp_enabled",
-                    if self.sftp_enabled { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingKeepaliveChanged(val) => {
-                // Accept only digits; cap at 86_400 (1 day) so users can't
-                // accidentally type a runaway value.
-                self.prefs.keepalive_interval = sanitize_uint(&val, 86_400);
-                self.persist_setting("keepalive_interval", &self.prefs.keepalive_interval);
-            }
-            SettingsMessage::SettingCloudAutoRefreshToggle => {
-                self.prefs.cloud_auto_refresh_enabled =
-                    !self.prefs.cloud_auto_refresh_enabled;
-                self.persist_setting(
-                    "cloud_auto_refresh_enabled",
-                    if self.prefs.cloud_auto_refresh_enabled { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingCloudAutoRefreshIntervalChanged(val) => {
-                // Floor of 1 minute, ceiling of 1 day. AWS rate limits
-                // are well above a per-minute pace for the discovery
-                // calls we make, but the ceiling is just a sanity cap.
-                self.prefs.cloud_auto_refresh_interval_minutes =
-                    sanitize_uint(&val, 1_440);
-                if self.prefs.cloud_auto_refresh_interval_minutes == "0" {
-                    self.prefs.cloud_auto_refresh_interval_minutes = "1".into();
-                }
-                self.persist_setting(
-                    "cloud_auto_refresh_interval_minutes",
-                    &self.prefs.cloud_auto_refresh_interval_minutes,
-                );
-            }
-            SettingsMessage::SettingCloudAutoArchiveToggle => {
-                self.prefs.cloud_auto_archive_orphans =
-                    !self.prefs.cloud_auto_archive_orphans;
-                self.persist_setting(
-                    "cloud_auto_archive_orphans",
-                    if self.prefs.cloud_auto_archive_orphans { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingCloudOrphanArchiveDaysChanged(val) => {
-                // Floor of 1 day (an orphan needs at least one full day
-                // to "settle" so a transient AWS API hiccup doesn't
-                // wipe legitimate hosts). Ceiling of one year.
-                self.prefs.cloud_orphan_archive_days = sanitize_uint(&val, 365);
-                if self.prefs.cloud_orphan_archive_days == "0" {
-                    self.prefs.cloud_orphan_archive_days = "1".into();
-                }
-                self.persist_setting(
-                    "cloud_orphan_archive_days",
-                    &self.prefs.cloud_orphan_archive_days,
-                );
-            }
-            SettingsMessage::SettingSftpConcurrencyChanged(val) => {
-                // Cap at 8, beyond that the SSH channel multiplexer
-                // overhead outweighs the throughput gain on most links.
-                self.prefs.sftp_concurrency = sanitize_uint(&val, 8);
-                if self.prefs.sftp_concurrency == "0" {
-                    self.prefs.sftp_concurrency = "1".into();
-                }
-                self.persist_setting("sftp_concurrency", &self.prefs.sftp_concurrency);
-            }
-            SettingsMessage::SettingSftpConnectTimeoutChanged(val) => {
-                self.prefs.sftp_connect_timeout = sanitize_uint(&val, 600);
-                if self.prefs.sftp_connect_timeout == "0" {
-                    self.prefs.sftp_connect_timeout = "1".into();
-                }
-                self.persist_setting(
-                    "sftp_connect_timeout",
-                    &self.prefs.sftp_connect_timeout,
-                );
-            }
-            SettingsMessage::SettingSftpAuthTimeoutChanged(val) => {
-                self.prefs.sftp_auth_timeout = sanitize_uint(&val, 600);
-                if self.prefs.sftp_auth_timeout == "0" {
-                    self.prefs.sftp_auth_timeout = "1".into();
-                }
-                self.persist_setting("sftp_auth_timeout", &self.prefs.sftp_auth_timeout);
-            }
-            SettingsMessage::SettingSftpSessionTimeoutChanged(val) => {
-                self.prefs.sftp_session_timeout = sanitize_uint(&val, 600);
-                if self.prefs.sftp_session_timeout == "0" {
-                    self.prefs.sftp_session_timeout = "1".into();
-                }
-                self.persist_setting(
-                    "sftp_session_timeout",
-                    &self.prefs.sftp_session_timeout,
-                );
-            }
-            SettingsMessage::SettingSftpOpTimeoutChanged(val) => {
-                self.prefs.sftp_op_timeout = sanitize_uint(&val, 600);
-                if self.prefs.sftp_op_timeout == "0" {
-                    self.prefs.sftp_op_timeout = "1".into();
-                }
-                // Apply live to both panes' active SFTP clients so the
-                // user doesn't have to reconnect to feel the change.
-                let to = self.sftp_op_timeout();
-                if let Some(client) = &self.sftp.left.client {
-                    client.set_op_timeout(to);
-                }
-                if let Some(client) = &self.sftp.right.client {
-                    client.set_op_timeout(to);
-                }
-                self.persist_setting("sftp_op_timeout", &self.prefs.sftp_op_timeout);
-            }
-            SettingsMessage::SettingToggleAutoReconnect => {
-                self.prefs.auto_reconnect = !self.prefs.auto_reconnect;
-                self.persist_setting(
-                    "auto_reconnect",
-                    if self.prefs.auto_reconnect { "true" } else { "false" },
-                );
-            }
-            SettingsMessage::SettingMaxReconnectChanged(val) => {
-                self.prefs.max_reconnect_attempts = sanitize_uint(&val, 100);
-                self.persist_setting(
-                    "max_reconnect_attempts",
-                    &self.prefs.max_reconnect_attempts,
-                );
-            }
-            SettingsMessage::SettingAutoLockChanged(val) => {
-                self.prefs.auto_lock_minutes = sanitize_uint(&val, 1440);
-                self.persist_setting("auto_lock_minutes", &self.prefs.auto_lock_minutes);
-            }
-            SettingsMessage::AutoLockTick => {
-                // Idle check. Guarded on Unlocked so a tick racing the
-                // lock is a no-op, and on a parseable non-zero threshold
-                // (the subscription only mounts then, but the setting can
-                // change between mount and fire).
-                let minutes = self
-                    .prefs.auto_lock_minutes
-                    .parse::<u64>()
-                    .ok()
-                    .filter(|m| *m > 0);
-                if let Some(minutes) = minutes
-                    && self.vault_ui.state == crate::state::VaultState::Unlocked
-                    // Without a master password, locking reopens
-                    // immediately; auto-locking would just churn.
-                    && self.vault_ui.has_user_password
-                    && self.last_user_activity.elapsed().as_secs() >= minutes * 60
-                {
-                    tracing::info!("vault auto-lock after {minutes} min idle");
-                    return Task::done(Message::Vault(VaultMessage::AutoLockVault));
-                }
-            }
-            SettingsMessage::ConnectAnimTick => {
-                self.connect_anim_tick = self.connect_anim_tick.wrapping_add(1);
-            }
-            SettingsMessage::AutoReconnectTick => {
-                // Liveness sweep, independent of the auto-reconnect setting.
-                // A pane whose SSH writer task has died reports
-                // `is_alive() == false` while its reader may still be
-                // draining output: the tab looks "connected" but silently
-                // swallows every keystroke (the writer's `send` errors and
-                // the input sites discard it). Nothing else checks
-                // `is_alive`, so without this such a pane stays a dead
-                // input sink forever. Surface it as a real disconnect so the
-                // UI updates and, when enabled, reconnect kicks in. Panes
-                // already torn down have `session == None` and are
-                // skipped, so this can't loop.
-                let dead: Vec<_> = self
-                    .tabs
-                    .iter()
-                    .flat_map(|t| t.pane_grid.panes.values())
-                    .filter(|p| p.session.as_ref().is_some_and(|s| !s.is_alive()))
-                    .map(|p| p.id)
-                    .collect();
-                if !dead.is_empty() {
-                    return Task::batch(
-                        dead.into_iter()
-                            .map(|id| Task::done(Message::Ssh(SshMessage::SshDisconnected(id)))),
-                    );
-                }
-                if !self.prefs.auto_reconnect {
-                    // fall through, nothing to do
-                } else {
-                    let max_attempts: u32 =
-                        self.prefs.max_reconnect_attempts.parse().unwrap_or(5);
-                    // Find the first disconnected SSH tab whose counter is under the limit.
-                    // Only reconnect one per tick to avoid thrashing; next tick picks up
-                    // the next candidate.
-                    let candidate: Option<usize> = (0..self.tabs.len()).find(|&i| {
-                        let tab = &self.tabs[i];
-                        if !tab.label.ends_with(" (disconnected)") {
-                            return false;
-                        }
-                        // Never auto-reconnect a split tab: `ReconnectTab`
-                        // removes + rebuilds the whole tab, which would kill
-                        // the live sibling panes. (Belt + suspenders: a
-                        // multi-pane tab isn't relabeled "(disconnected)" in
-                        // the first place, see `SshDisconnected`.)
-                        if tab.pane_grid.panes.len() > 1 {
-                            return false;
-                        }
-                        let base = tab.label.trim_end_matches(" (disconnected)");
-                        // Quick-connect hosts resolve via the same label
-                        // lookup; their counters key on the ephemeral id,
-                        // which is stable for the life of the entry.
-                        let Some(conn) = self.any_connection_by_label(base) else {
-                            return false;
-                        };
-                        let attempts = self.reconnect_counters.get(&conn.id).copied().unwrap_or(0);
-                        attempts < max_attempts
-                    });
-                    if let Some(tab_idx) = candidate {
-                        let base = self.tabs[tab_idx]
-                            .label
-                            .trim_end_matches(" (disconnected)")
-                            .to_string();
-                        if let Some(cid) = self.any_connection_by_label(&base).map(|c| c.id) {
-                            let entry = self.reconnect_counters.entry(cid).or_insert(0);
-                            *entry += 1;
-                        }
-                        return Task::done(Message::Tabs(TabsMessage::ReconnectTab(tab_idx)));
-                    }
-                }
-            }
+            m @ (
+            SettingsMessage::SettingsSearchChanged(..)
+            | SettingsMessage::SettingsSearchStep(..)
+            | SettingsMessage::RevealSetting(..)
+            | SettingsMessage::RevealSettingScroll
+            | SettingsMessage::ChangeSettingsSection(..)
+            | SettingsMessage::SectionScrolled(..)
+            | SettingsMessage::SectionScrollTo(..)
+            ) => self.handle_settings_search(m).unwrap_or_else(crate::dispatch::unrouted),
+            m @ (
+            SettingsMessage::LanguageChanged(..)
+            | SettingsMessage::CjkFontReady(..)
+            | SettingsMessage::LayoutDirectionChanged(..)
+            ) => self.handle_settings_locale(m).unwrap_or_else(crate::dispatch::unrouted),
+            m @ (
+            SettingsMessage::StartEditingHotkey(..)
+            | SettingsMessage::MouseButtonPressed(..)
+            | SettingsMessage::ResetHotkey(..)
+            | SettingsMessage::ResetAllHotkeys
+            | SettingsMessage::ToggleSecretVisibility(..)
+            ) => self.handle_settings_hotkeys(m).unwrap_or_else(crate::dispatch::unrouted),
+            m @ (
+            SettingsMessage::SettingToggleSessionLogging
+            | SettingsMessage::SettingToggleSessionLogFull
+            | SettingsMessage::SettingToggleSessionLogCompress
+            | SettingsMessage::SettingToggleConnectionHistory
+            | SettingsMessage::LogsRetentionChanged(..)
+            | SettingsMessage::SettingToggleOsDetection
+            ) => self.handle_settings_session_logs(m).unwrap_or_else(crate::dispatch::unrouted),
+            m @ (
+            SettingsMessage::SettingToggleAutoReconnect
+            | SettingsMessage::SettingMaxReconnectChanged(..)
+            | SettingsMessage::SettingAutoLockChanged(..)
+            | SettingsMessage::AutoLockTick
+            | SettingsMessage::ConnectAnimTick
+            | SettingsMessage::AutoReconnectTick
+            ) => self.handle_settings_timers(m).unwrap_or_else(crate::dispatch::unrouted),
+            m @ (
+            SettingsMessage::SettingTogglePerformanceMode
+            | SettingsMessage::SettingTogglePerfOverlay
+            | SettingsMessage::SettingToggleRemoteDesktop
+            | SettingsMessage::SettingToggleCloseToTray
+            | SettingsMessage::SettingToggleMinimizeToTray
+            | SettingsMessage::SettingToggleSftpEnabled
+            | SettingsMessage::SettingKeepaliveChanged(..)
+            | SettingsMessage::SettingCloudAutoRefreshToggle
+            | SettingsMessage::SettingCloudAutoRefreshIntervalChanged(..)
+            | SettingsMessage::SettingCloudAutoArchiveToggle
+            | SettingsMessage::SettingCloudOrphanArchiveDaysChanged(..)
+            | SettingsMessage::SettingSftpConcurrencyChanged(..)
+            | SettingsMessage::SettingSftpConnectTimeoutChanged(..)
+            | SettingsMessage::SettingSftpAuthTimeoutChanged(..)
+            | SettingsMessage::SettingSftpSessionTimeoutChanged(..)
+            | SettingsMessage::SettingSftpOpTimeoutChanged(..)
+            ) => self.handle_settings_toggles(m).unwrap_or_else(crate::dispatch::unrouted),
         }
-        Task::none()
     }
 }
