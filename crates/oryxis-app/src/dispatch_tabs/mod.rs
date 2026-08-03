@@ -28,6 +28,16 @@ use crate::state::{OverlayContent, OverlayState, View};
 const WINDOW_PRESS_DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(300);
 
 impl Oryxis {
+    /// Index of the tab with this id, or `None` if it is gone.
+    ///
+    /// Anything that survives across updates (a pending split, a routed
+    /// continuation) must hold an id and resolve it here, never cache a
+    /// position: `Oryxis::tabs` shifts on every close and on a tab merge,
+    /// and a stale index silently addresses a different tab.
+    pub(crate) fn tab_index_by_id(&self, id: uuid::Uuid) -> Option<usize> {
+        self.tabs.iter().position(|t| t._id == id)
+    }
+
     /// Returns `true` when this press should be forwarded to the OS.
     /// Returns `false` when the previous press was within
     /// [`WINDOW_PRESS_DEBOUNCE`], swallowing the spurious second

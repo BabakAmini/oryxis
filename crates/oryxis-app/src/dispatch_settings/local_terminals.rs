@@ -87,7 +87,9 @@ impl Oryxis {
         &mut self,
         pick: Option<(String, Vec<String>, String)>,
     ) -> Task<Message> {
-        if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
+        if let Some((tab_id, target, axis)) = self.pending_pane_split.take()
+            && let Some(tab_idx) = self.tab_index_by_id(tab_id)
+        {
             return self.local_shell_into_pane(tab_idx, target, axis, pick);
         }
         spawn_local_shell(self, pick)

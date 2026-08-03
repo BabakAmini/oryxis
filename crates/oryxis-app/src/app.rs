@@ -206,11 +206,19 @@ pub struct Oryxis {
     /// [`crate::state::PendingTabPlacement`].
     pub(crate) pending_tab_placement: Option<crate::state::PendingTabPlacement>,
     /// Set while the new-tab picker is open *to fill a split pane* rather
-    /// than open a new tab: `(tab_idx, pane_to_split, axis)`. The picker's
+    /// than open a new tab: `(tab_id, pane_to_split, axis)`. The picker's
     /// selection (host or local shell) lands in a new pane next to the
     /// target instead of a new tab. `None` = picker opens new tabs.
+    ///
+    /// Keyed by tab ID, not by index, for the same reason
+    /// `PendingTabPlacement` is: every path that removes a tab shifts the
+    /// positions held elsewhere and fixes them up by hand, and this one
+    /// was never in that list. A stale index would not fail loudly either,
+    /// because `pane_grid::Pane` is a per-grid counter and every grid has
+    /// a `Pane(0)`: the split would land in the wrong tab, beside the
+    /// wrong pane. An id that no longer resolves simply opens a tab.
     pub(crate) pending_pane_split:
-        Option<(usize, iced::widget::pane_grid::Pane, iced::widget::pane_grid::Axis)>,
+        Option<(uuid::Uuid, iced::widget::pane_grid::Pane, iced::widget::pane_grid::Axis)>,
     /// True while the cursor is over the `+` split popover itself. Lets the
     /// hover bridge keep the menu open when moving from the `+` button into
     /// the menu, and close it shortly after the cursor leaves both.

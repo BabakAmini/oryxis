@@ -169,7 +169,7 @@ impl Oryxis {
                 if let Some(tab_idx) = self.active_tab
                     && let Some(tab) = self.tabs.get(tab_idx)
                 {
-                    self.pending_pane_split = Some((tab_idx, tab.focused, axis));
+                    self.pending_pane_split = Some((tab._id, tab.focused, axis));
                     self.show_new_tab_picker = true;
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
@@ -185,10 +185,11 @@ impl Oryxis {
                 self.overlay = None;
                 if let Some(tab) = self.tabs.get(tab_idx) {
                     let target = tab.focused;
+                    let tab_id = tab._id;
                     self.active_tab = Some(tab_idx);
                     self.active_view = crate::state::View::Terminal;
                     self.remember_terminal_tab_focus(tab_idx);
-                    self.pending_pane_split = Some((tab_idx, target, axis));
+                    self.pending_pane_split = Some((tab_id, target, axis));
                     self.show_new_tab_picker = true;
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;

@@ -91,8 +91,14 @@ impl Oryxis {
                 self.show_new_tab_picker = false;
                 // If this pick is filling a split pane (not a new tab),
                 // route to the per-pane connect path instead.
-                if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
-                    return self.connect_ssh_into_pane(idx, tab_idx, target, axis);
+                if let Some((tab_id, target, axis)) = self.pending_pane_split.take() {
+                    // The tab the split was aimed at may be gone (closed,
+                    // or merged into another). Falling through to the
+                    // normal path opens the session as its own tab, which
+                    // is what the user asked for minus the placement.
+                    if let Some(tab_idx) = self.tab_index_by_id(tab_id) {
+                        return self.connect_ssh_into_pane(idx, tab_idx, target, axis);
+                    }
                 }
                 if let Some(conn) = self.connections.get(idx).cloned() {
                     return 
@@ -114,7 +120,9 @@ impl Oryxis {
                     .or_insert_with(|| *entry)
                     .conn
                     .clone();
-                if let Some((tab_idx, target, axis)) = self.pending_pane_split.take() {
+                if let Some((tab_id, target, axis)) = self.pending_pane_split.take()
+                    && let Some(tab_idx) = self.tab_index_by_id(tab_id)
+                {
                     return self.quick_connect_into_pane(id, tab_idx, target, axis);
                 }
                 return self.start_ssh_tab(conn, crate::state::ProgressOrigin::Quick(id));
