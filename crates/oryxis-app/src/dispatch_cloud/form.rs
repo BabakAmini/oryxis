@@ -400,10 +400,10 @@ impl Oryxis {
                 });
             }
             CloudMessage::CloudCardHovered(id) => {
-                self.hovered_cloud_card = Some(id);
+                self.hover.cloud_card = Some(id);
             }
             CloudMessage::CloudCardUnhovered => {
-                self.hovered_cloud_card = None;
+                self.hover.cloud_card = None;
             }
             CloudMessage::CloudSearchChanged(v) => self.cloud_search = v,
             CloudMessage::ShowCloudProviderPicker => {

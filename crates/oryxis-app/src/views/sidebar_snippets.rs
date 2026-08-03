@@ -397,7 +397,7 @@ impl Oryxis {
                 idx,
                 &snip.label,
                 &snip.command,
-                self.hovered_snippet_card == Some(idx),
+                self.hover.snippet_card == Some(idx),
             );
             list = list.push(self.sidebar_nav_slot(
                 crate::keynav::SidebarRow::item(
@@ -683,7 +683,7 @@ fn action_btn<'a>(
 /// One row in the Snippets tab. Label + a single ellipsized line of the
 /// command read inline; the Edit / Paste / Run actions float over the
 /// trailing edge and only appear on hover (see the card-icon convention
-/// in CLAUDE.md). `hovered` is `self.hovered_snippet_card == Some(idx)`.
+/// in CLAUDE.md). `hovered` is `self.hover.snippet_card == Some(idx)`.
 fn snippet_row<'a>(
     idx: usize,
     label: &'a str,

@@ -16,7 +16,7 @@ impl Oryxis {
             // leak what the subtitle mask hides. Same hover reveal as
             // the address; the icon badge takes the redacted label too
             // so Initials style can't leak the leading letters.
-            let display_label = if self.privacy_active(conn) && self.hovered_card != Some(idx) {
+            let display_label = if self.privacy_active(conn) && self.hover.card != Some(idx) {
                 crate::widgets::redact_for_display(&conn.label, &privacy_terms, self.privacy_classes())
             } else {
                 conn.label.clone()
@@ -34,7 +34,7 @@ impl Oryxis {
                 // Privacy Mode masks the address behind muted blocks,
                 // revealed when the card is hovered. The auth method label
                 // is not sensitive, so it stays readable.
-                let address = if self.privacy_active(conn) && self.hovered_card != Some(idx) {
+                let address = if self.privacy_active(conn) && self.hover.card != Some(idx) {
                     crate::widgets::mask_blocks(&address)
                 } else {
                     address
@@ -98,7 +98,7 @@ impl Oryxis {
             // of hover state. The button itself is always mounted (so the
             // surrounding MouseArea sees stable child bounds, no hover
             // event loop) and just toggles its glyph color + hover bg.
-            let show_dots = self.hovered_card == Some(idx) || self.card_context_menu == Some(idx);
+            let show_dots = self.hover.card == Some(idx) || self.card_context_menu == Some(idx);
             let rtl = crate::i18n::is_rtl_layout();
             let pad_trailing = 24.0_f32;
             let card_padding = if rtl {

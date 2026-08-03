@@ -253,7 +253,7 @@ impl Oryxis {
             // do from here. Stays mounted while its menu is open so the
             // pointer can travel to it.
             const DOTS_SLOT_W: f32 = 22.0;
-            let show_dots = self.hovered_port_forward_card == Some(idx)
+            let show_dots = self.hover.port_forward_card == Some(idx)
                 || self.port_forward_context_menu == Some(idx)
                 || kb_selected;
             let dots: Element<'_, Message> = if show_dots {

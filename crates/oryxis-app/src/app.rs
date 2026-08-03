@@ -227,7 +227,6 @@ pub struct Oryxis {
     /// Last terminal tab that had focus. Preserved when switching to nav-only
     /// views (Snippets, Keys, …) so snippet injection still targets that session.
     pub(crate) last_terminal_tab: Option<usize>,
-    pub(crate) hovered_tab: Option<usize>,
     pub(crate) show_new_tab_picker: bool,
     pub(crate) new_tab_picker_search: String,
     /// When set, the new-tab picker is drilled into this group, showing
@@ -364,34 +363,18 @@ pub struct Oryxis {
     /// out of the form struct because `text_editor::Content` isn't Clone.
     pub(crate) session_group_script_editor: iced::widget::text_editor::Content,
     pub(crate) session_group_panel_error: Option<String>,
-    /// Hovered session-group card on the dashboard, drives the `⋮` menu,
-    /// mirroring `hovered_card`.
-    pub(crate) hovered_session_group_card: Option<usize>,
     /// Per-pane initial-script overrides, keyed by the pane's stable id.
     /// Populated when a session group is opened; consumed (and removed)
     /// once the pane's shell is ready and the script is injected. Lets the
     /// override win over the host's own `initial_command` for that pane.
     pub(crate) pane_script_overrides: std::collections::HashMap<Uuid, String>,
 
-    // Card hover & context menu
-    pub(crate) hovered_card: Option<usize>,
     /// Unified vault-area keyboard navigation: active focus zone +
     /// selected item, plus the per-zone item lists recorded during
     /// render. Replaces the old dashboard-only `selected_nav` /
     /// `dashboard_nav` pair; see `keynav/mod.rs` for the model and
     /// `dispatch_keynav.rs` for the key router.
     pub(crate) keynav: crate::keynav::KeyNavState,
-    /// Hovered folder card on the dashboard (root view), drives the
-    /// `⋮` menu visibility, mirroring `hovered_card` for hosts.
-    pub(crate) hovered_folder_card: Option<Uuid>,
-    /// Hovered key card / identity card in the keychain view, same
-    /// hover-only-dots UX as host cards.
-    pub(crate) hovered_key_card: Option<usize>,
-    pub(crate) hovered_identity_card: Option<usize>,
-    /// Hovered row in the terminal-sidebar History tab (floating actions).
-    pub(crate) hovered_history_card: Option<usize>,
-    /// Hovered row in the terminal-sidebar Files tab (floating actions).
-    pub(crate) hovered_files_row: Option<usize>,
     /// One-shot preferred directory for the next SFTP mount, set by the
     /// sidebar Files "expand" promotion and consumed (with home-dir
     /// fallback) by the mount pipeline's `initial_remote_listing`.
@@ -418,7 +401,6 @@ pub struct Oryxis {
     /// Filter text of the sidebar History tab's search field (distinct
     /// from `history_search`, which filters the session-logs view).
     pub(crate) cmd_history_search: String,
-    pub(crate) hovered_snippet_card: Option<usize>,
     /// Snippet card whose `⋮` context menu (Edit / Delete) is open;
     /// keeps the kebab visible while the popup is up, mirroring
     /// `card_context_menu` for hosts.
@@ -466,6 +448,10 @@ pub struct Oryxis {
     /// the focused SFTP tab's live state lives here, the others park their
     /// state in `SftpTab::state` (swap-on-focus). With no SFTP tab focused
     /// this still holds the last-focused tab's state until it is parked.
+    /// Which card / row / chip the cursor is over, for the floating
+    /// hover-revealed actions every list uses. Twenty fields until
+    /// they moved here; see `state::hover`.
+    pub(crate) hover: crate::state::HoverState,
     pub(crate) sftp: crate::state::SftpState,
     /// Open SFTP browser tabs. Share the unified strip with terminal tabs.
     /// The active tab's live state is hoisted to `self.sftp`; inactive tabs
@@ -499,11 +485,6 @@ pub struct Oryxis {
     /// Lets handlers stamp re-emitted continuation messages with the right
     /// owner instead of the focused tab. `None` outside such a dispatch.
     pub(crate) routing_sftp: Option<Uuid>,
-    /// SFTP tab index the cursor is currently over, mirroring `hovered_tab`
-    /// for the SFTP side. Drives drag-arming (left-press over a hovered SFTP
-    /// tab starts a reorder) and the unified live-slide. `None` when not over
-    /// an SFTP tab.
-    pub(crate) hovered_sftp_tab: Option<usize>,
     /// SFTP close pending a confirmation: set when the user tries to close a
     /// tab (or "close others") where some affected tab has an in-flight
     /// transfer or an unsaved edit-session. Drives the close-guard modal;
@@ -805,13 +786,7 @@ pub struct Oryxis {
     /// fields: username, initial_command, transport, key, identity.
     pub(crate) cloud_dynamic_form: crate::state::CloudDynamicForm,
 
-    /// Hover tracking for the kebab on dynamic-group cards (root + nested).
-    pub(crate) hovered_dynamic_group_card: Option<Uuid>,
 
-    /// Card-hover state for the kebab "..." button on cloud profile
-    /// cards in Settings → Cloud, mirroring `hovered_card` /
-    /// `hovered_folder_card` for hosts and folders.
-    pub(crate) hovered_cloud_card: Option<Uuid>,
 
     // Snippets
     pub(crate) snippets: Vec<oryxis_core::models::snippet::Snippet>,
@@ -825,12 +800,6 @@ pub struct Oryxis {
         Vec<oryxis_core::models::custom_ui_theme::CustomUiTheme>,
     /// Open custom-theme editor modal. `None` = closed.
     pub(crate) theme_editor: Option<crate::state::ThemeEditorForm>,
-    /// Hovered custom terminal theme card (index into
-    /// `custom_terminal_themes`), for the floating edit / delete icons.
-    pub(crate) hovered_theme_card: Option<usize>,
-    /// Hovered BUILT-IN terminal theme card in the settings grid (index
-    /// into `TerminalTheme::ALL`), for the floating clone icon.
-    pub(crate) hovered_builtin_theme_card: Option<usize>,
     /// Open color-picker popover in the theme editor: `(slot, anchor)`.
     /// `None` = closed. Clicking a slot's swatch opens a compact picker
     /// (SV square + hue + hex + presets) anchored at the click.
@@ -883,10 +852,6 @@ pub struct Oryxis {
     /// the hovered card (mirrors the terminal-theme editor).
     pub(crate) ui_theme_editor: Option<crate::state::UiThemeEditorForm>,
     pub(crate) ui_color_popover: Option<(usize, iced::Point)>,
-    pub(crate) hovered_ui_theme_card: Option<usize>,
-    /// Hovered BUILT-IN app theme card in the Interface grid (index into
-    /// `AppTheme::ALL`), for the floating clone icon.
-    pub(crate) hovered_builtin_ui_theme_card: Option<usize>,
     /// Name of the active app theme (built-in or custom UI theme). The
     /// `AppTheme` enum can't name a custom theme, so this tracks the
     /// selection for highlighting + delete/rename bookkeeping.
@@ -963,7 +928,6 @@ pub struct Oryxis {
         Option<crate::dispatch_port_forwards::PfAgentWatch>,
     pub(crate) show_port_forward_panel: bool,
     pub(crate) port_forward_form: crate::state::PortForwardRuleForm,
-    pub(crate) hovered_port_forward_card: Option<usize>,
     /// Index of the port-forward card whose kebab menu is open. Keeps the
     /// kebab mounted while the pointer travels to the menu.
     pub(crate) port_forward_context_menu: Option<usize>,
@@ -1000,9 +964,6 @@ pub struct Oryxis {
     /// export can run with the player closed), see
     /// [`crate::state::GifExportState`].
     pub(crate) gif_export: crate::state::GifExportState,
-    /// Session-log row under the cursor (Logs view); drives the
-    /// clickable-row hover highlight.
-    pub(crate) hovered_log_row: Option<Uuid>,
 
     // Terminal theme
     /// Theme derived from the active app theme, used as the global
@@ -1034,11 +995,6 @@ pub struct Oryxis {
     /// instead of a hunt through the menus. Transient by design: never
     /// persisted, so a restart opens on real work.
     pub(crate) settings_tab_open: bool,
-    /// The cursor is over the Settings tab. Mirrors `hovered_tab` /
-    /// `hovered_sftp_tab` for the single-instance chip, which is what
-    /// gives it the same hover-revealed close X and the same
-    /// press-to-reorder arming as every other tab.
-    pub(crate) hovered_settings_tab: bool,
     /// Last scroll offset of each section, so returning to Settings lands
     /// where you left instead of at the top. Keyed by section because the
     /// sections are separate scrollables; the value is a relative offset
@@ -1645,9 +1601,6 @@ pub struct Oryxis {
     pub(crate) local_terminal_form: crate::state::LocalTerminalForm,
     /// True while the "add local terminal" modal is open.
     pub(crate) local_terminal_add_open: bool,
-    /// Index of the local-terminal card under the cursor, for the
-    /// hover-revealed remove action (card-action-icon convention).
-    pub(crate) hovered_local_terminal_card: Option<usize>,
     /// True while the Local Shell picker overlay is showing. Only
     /// surfaces on Windows where there's a real choice between cmd /
     /// PowerShell / WSL distros, non-Windows just spawns the

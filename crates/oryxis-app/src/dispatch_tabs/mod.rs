@@ -60,34 +60,34 @@ impl Oryxis {
         match message {
             // -- Card interactions --
             TabsMessage::CardHovered(idx) => {
-                self.hovered_card = Some(idx);
+                self.hover.card = Some(idx);
             }
             TabsMessage::CardUnhovered => {
-                self.hovered_card = None;
+                self.hover.card = None;
             }
             TabsMessage::FolderCardHovered(gid) => {
-                self.hovered_folder_card = Some(gid);
+                self.hover.folder_card = Some(gid);
             }
             TabsMessage::FolderCardUnhovered => {
-                self.hovered_folder_card = None;
+                self.hover.folder_card = None;
             }
             TabsMessage::KeyCardHovered(idx) => {
-                self.hovered_key_card = Some(idx);
+                self.hover.key_card = Some(idx);
             }
             TabsMessage::KeyCardUnhovered => {
-                self.hovered_key_card = None;
+                self.hover.key_card = None;
             }
             TabsMessage::IdentityCardHovered(idx) => {
-                self.hovered_identity_card = Some(idx);
+                self.hover.identity_card = Some(idx);
             }
             TabsMessage::SnippetCardHovered(idx) => {
-                self.hovered_snippet_card = Some(idx);
+                self.hover.snippet_card = Some(idx);
             }
             TabsMessage::SnippetCardUnhovered => {
-                self.hovered_snippet_card = None;
+                self.hover.snippet_card = None;
             }
             TabsMessage::IdentityCardUnhovered => {
-                self.hovered_identity_card = None;
+                self.hover.identity_card = None;
             }
             TabsMessage::MouseMoved(pos) => return self.handle_mouse_moved(pos),
             TabsMessage::WindowResized(size) => return self.handle_window_resized(size),
@@ -135,10 +135,10 @@ impl Oryxis {
                 }
             }
             TabsMessage::SettingsTabHovered => {
-                self.hovered_settings_tab = true;
+                self.hover.settings_tab = true;
             }
             TabsMessage::SettingsTabUnhovered => {
-                self.hovered_settings_tab = false;
+                self.hover.settings_tab = false;
             }
             TabsMessage::CloseSettingsTab => {
                 return self.close_settings_tab();
@@ -271,9 +271,9 @@ impl Oryxis {
                 }
             }
             TabsMessage::TabHovered(idx) => {
-                self.hovered_tab = Some(idx);
+                self.hover.tab = Some(idx);
                 // Terminal / SFTP hover are mutually exclusive (one cursor).
-                self.hovered_sftp_tab = None;
+                self.hover.sftp_tab = None;
                 // Live-slide: while a drag is active, entering another tab in
                 // the same group slides the dragged tab into that slot right
                 // away. Stable because after the move the dragged tab sits
@@ -290,7 +290,7 @@ impl Oryxis {
                 }
             }
             TabsMessage::TabUnhovered => {
-                self.hovered_tab = None;
+                self.hover.tab = None;
             }
             TabsMessage::TabDragToEnd => {
                 // Trailing drop zone: the live-slide only ever moves the

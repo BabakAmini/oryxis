@@ -18,10 +18,10 @@ impl Oryxis {
     ) -> Task<Message> {
         match message {
             CommandHistoryMessage::HistoryCardHovered(idx) => {
-                self.hovered_history_card = Some(idx);
+                self.hover.history_card = Some(idx);
             }
             CommandHistoryMessage::HistoryCardUnhovered => {
-                self.hovered_history_card = None;
+                self.hover.history_card = None;
             }
             CommandHistoryMessage::CmdHistorySearchChanged(v) => {
                 self.cmd_history_search = v;
@@ -457,7 +457,7 @@ impl Oryxis {
             (Some(h), Some(v)) => v.list_command_history(&h).unwrap_or_default(),
             _ => Vec::new(),
         };
-        self.hovered_history_card = None;
+        self.hover.history_card = None;
     }
 
     /// Re-insert a history entry into the active terminal, exactly like a

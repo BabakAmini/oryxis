@@ -254,10 +254,10 @@ impl Oryxis {
                 self.show_icon_picker = true;
             }
             SettingsMessage::LocalTerminalCardHovered(idx) => {
-                self.hovered_local_terminal_card = Some(idx);
+                self.hover.local_terminal_card = Some(idx);
             }
             SettingsMessage::LocalTerminalCardUnhovered => {
-                self.hovered_local_terminal_card = None;
+                self.hover.local_terminal_card = None;
             }
             SettingsMessage::LocalTerminalFormLabelChanged(v) => {
                 self.local_terminal_form.label = v;

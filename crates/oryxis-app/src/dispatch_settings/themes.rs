@@ -433,10 +433,10 @@ impl Oryxis {
                 self.theme_color_popover = None;
             }
             SettingsMessage::ThemeCardHovered(idx) => {
-                self.hovered_theme_card = Some(idx);
+                self.hover.theme_card = Some(idx);
             }
             SettingsMessage::ThemeCardUnhovered => {
-                self.hovered_theme_card = None;
+                self.hover.theme_card = None;
             }
             SettingsMessage::ThemeEditorNew => {
                 // Seed from the active terminal palette so the user starts
@@ -564,10 +564,10 @@ impl Oryxis {
                 }
             }
             SettingsMessage::UiThemeCardHovered(idx) => {
-                self.hovered_ui_theme_card = Some(idx);
+                self.hover.ui_theme_card = Some(idx);
             }
             SettingsMessage::UiThemeCardUnhovered => {
-                self.hovered_ui_theme_card = None;
+                self.hover.ui_theme_card = None;
             }
             SettingsMessage::ThemeEditorEdit(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx) {
@@ -650,10 +650,10 @@ impl Oryxis {
                 }
             }
             SettingsMessage::ThemeBuiltinCardHovered(idx) => {
-                self.hovered_builtin_theme_card = Some(idx);
+                self.hover.builtin_theme_card = Some(idx);
             }
             SettingsMessage::ThemeBuiltinCardUnhovered => {
-                self.hovered_builtin_theme_card = None;
+                self.hover.builtin_theme_card = None;
             }
             SettingsMessage::ThemeClone(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx) {
@@ -768,10 +768,10 @@ impl Oryxis {
                 Err(e) => self.theme_import_error = Some(e),
             },
             SettingsMessage::UiThemeBuiltinCardHovered(idx) => {
-                self.hovered_builtin_ui_theme_card = Some(idx);
+                self.hover.builtin_ui_theme_card = Some(idx);
             }
             SettingsMessage::UiThemeBuiltinCardUnhovered => {
-                self.hovered_builtin_ui_theme_card = None;
+                self.hover.builtin_ui_theme_card = None;
             }
             SettingsMessage::UiThemeClone(idx) => {
                 if let Some(theme) = self.custom_ui_themes.get(idx) {

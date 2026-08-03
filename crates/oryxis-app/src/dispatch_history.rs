@@ -487,10 +487,10 @@ impl Oryxis {
             }
 
             HistoryMessage::LogRowHovered(id) => {
-                self.hovered_log_row = Some(id);
+                self.hover.log_row = Some(id);
             }
             HistoryMessage::LogRowUnhovered => {
-                self.hovered_log_row = None;
+                self.hover.log_row = None;
             }
             HistoryMessage::DeleteSessionLog(idx) => {
                 if let Some(entry) = self.session_logs.get(idx) {

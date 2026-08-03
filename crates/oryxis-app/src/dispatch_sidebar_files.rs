@@ -149,10 +149,10 @@ impl Oryxis {
     ) -> Task<Message> {
         match message {
             SidebarFilesMessage::SidebarFilesRowHovered(idx) => {
-                self.hovered_files_row = Some(idx);
+                self.hover.files_row = Some(idx);
             }
             SidebarFilesMessage::SidebarFilesRowUnhovered => {
-                self.hovered_files_row = None;
+                self.hover.files_row = None;
             }
             SidebarFilesMessage::SidebarFilesToggleFollow => {
                 if let Some(pane) = self.active_pane_mut() {

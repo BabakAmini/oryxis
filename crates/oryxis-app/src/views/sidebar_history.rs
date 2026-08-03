@@ -132,7 +132,7 @@ impl Oryxis {
         pos: usize,
     ) -> Element<'a, Message> {
         let tab = crate::state::TerminalSidebarTab::History;
-        let row = history_row(entry, pos, self.hovered_history_card == Some(pos));
+        let row = history_row(entry, pos, self.hover.history_card == Some(pos));
         self.sidebar_nav_slot(
             crate::keynav::SidebarRow::item(
                 Message::CommandHistory(CommandHistoryMessage::RunHistoryCommand(entry.id)),

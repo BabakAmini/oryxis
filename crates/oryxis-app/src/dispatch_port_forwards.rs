@@ -292,10 +292,10 @@ impl Oryxis {
                 return self.handle_port_forward_agent_census(agents);
             }
             PortForwardMessage::PortForwardCardHovered(idx) => {
-                self.hovered_port_forward_card = Some(idx);
+                self.hover.port_forward_card = Some(idx);
             }
             PortForwardMessage::PortForwardCardUnhovered => {
-                self.hovered_port_forward_card = None;
+                self.hover.port_forward_card = None;
             }
             PortForwardMessage::PortForwardSearchChanged(v) => self.port_forward_search = v,
         }

@@ -288,11 +288,11 @@ impl Oryxis {
                 // #87, "can't move tabs on the left side").
                 let in_tab_strip = self.cursor_in_tab_strip();
                 if !in_tab_strip {
-                    self.hovered_tab = None;
-                    self.hovered_sftp_tab = None;
-                    self.hovered_settings_tab = false;
+                    self.hover.tab = None;
+                    self.hover.sftp_tab = None;
+                    self.hover.settings_tab = false;
                 }
-                if let Some(idx) = self.hovered_tab.filter(|_| in_tab_strip)
+                if let Some(idx) = self.hover.tab.filter(|_| in_tab_strip)
                     && let Some(tab) = self.tabs.get(idx)
                 {
                     self.tab_drag = Some(crate::state::TabDrag {
@@ -300,7 +300,7 @@ impl Oryxis {
                         start: self.mouse_position,
                         active: false,
                     });
-                } else if let Some(idx) = self.hovered_sftp_tab.filter(|_| in_tab_strip)
+                } else if let Some(idx) = self.hover.sftp_tab.filter(|_| in_tab_strip)
                     && let Some(tab) = self.sftp_tabs.get(idx)
                 {
                     // SFTP tabs arm the same unified reorder drag.
@@ -309,7 +309,7 @@ impl Oryxis {
                         start: self.mouse_position,
                         active: false,
                     });
-                } else if self.hovered_settings_tab && in_tab_strip {
+                } else if self.hover.settings_tab && in_tab_strip {
                     // So does the Settings tab, under its synthetic id
                     // (issue #120): the reorder machinery is uuid-keyed
                     // and `TabRef::strip_id` answers with the same value.

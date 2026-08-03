@@ -108,9 +108,9 @@ impl Oryxis {
                 });
             }
             SftpMessage::SftpTabHovered(idx) => {
-                self.hovered_sftp_tab = Some(idx);
+                self.hover.sftp_tab = Some(idx);
                 // Terminal / SFTP hover are mutually exclusive (one cursor).
-                self.hovered_tab = None;
+                self.hover.tab = None;
                 // Live-slide: while a drag is active, entering this SFTP tab
                 // slides the dragged tab (terminal or SFTP) into its slot in
                 // the unified `tab_order`.
@@ -122,7 +122,7 @@ impl Oryxis {
                 }
             }
             SftpMessage::SftpTabUnhovered => {
-                self.hovered_sftp_tab = None;
+                self.hover.sftp_tab = None;
             }
             SftpMessage::NewSftpTab => {
                 self.overlay = None;

@@ -283,7 +283,7 @@ impl Oryxis {
             // surrounding MouseArea bounds stay stable.
             let key_kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
                 == Some(crate::keynav::NavItem::Key(idx));
-            let key_show_dots = self.hovered_key_card == Some(idx)
+            let key_show_dots = self.hover.key_card == Some(idx)
                 || self.key_context_menu == Some(idx)
                 || key_kb_selected;
             let key_rtl = crate::i18n::is_rtl_layout();
@@ -518,7 +518,7 @@ impl Oryxis {
             // same pattern as host / key cards.
             let id_kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
                 == Some(crate::keynav::NavItem::Identity(idx));
-            let id_show_dots = self.hovered_identity_card == Some(idx)
+            let id_show_dots = self.hover.identity_card == Some(idx)
                 || self.identity_context_menu == Some(idx)
                 || id_kb_selected;
             let id_rtl = crate::i18n::is_rtl_layout();

@@ -359,7 +359,7 @@ impl Oryxis {
                 // manual-folder cards. Edit + Delete via the overlay
                 // menu wired in `dispatch_cloud`.
                 const DG_DOTS_SLOT_W: f32 = 22.0;
-                let show_dots = self.hovered_dynamic_group_card == Some(gid);
+                let show_dots = self.hover.dynamic_group_card == Some(gid);
                 let dyn_actions_btn: Element<'_, Message> = if show_dots {
                     crate::widgets::card_kebab_button(
                         OryxisColors::t().text_muted,
@@ -563,7 +563,7 @@ impl Oryxis {
                 );
 
                 const DG_DOTS_SLOT_W: f32 = 22.0;
-                let show_dots = self.hovered_dynamic_group_card == Some(gid);
+                let show_dots = self.hover.dynamic_group_card == Some(gid);
                 let dyn_actions_btn: Element<'_, Message> = if show_dots {
                     crate::widgets::card_kebab_button(
                         OryxisColors::t().text_muted,
@@ -726,7 +726,7 @@ impl Oryxis {
         // group affordance that distinguishes folder cards from host
         // cards at a glance, issue #38 polish).
         let folder_rtl = crate::i18n::is_rtl_layout();
-        let folder_show_dots = self.hovered_folder_card == Some(gid);
+        let folder_show_dots = self.hover.folder_card == Some(gid);
         let folder_pad_trailing = 24.0_f32;
         let folder_padding = if folder_rtl {
             Padding { top: 8.0, right: 2.0, bottom: 8.0, left: folder_pad_trailing }

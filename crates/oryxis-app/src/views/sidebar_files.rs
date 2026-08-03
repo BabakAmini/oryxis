@@ -386,7 +386,7 @@ impl Oryxis {
         pos: usize,
     ) -> Element<'a, Message> {
         let c = OryxisColors::t();
-        let hovered = self.hovered_files_row == Some(pos);
+        let hovered = self.hover.files_row == Some(pos);
 
         let mut cells: Vec<Element<'a, Message>> = vec![
             crate::views::sftp::file_icon(name, is_dir, is_symlink).into(),

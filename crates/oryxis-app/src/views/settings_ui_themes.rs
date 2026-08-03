@@ -431,7 +431,7 @@ impl Oryxis {
             Message::Settings(SettingsMessage::AppThemeChanged(name.to_string())),
         );
         let mut stack = iced::widget::Stack::new().push(card);
-        if self.hovered_ui_theme_card == Some(idx) {
+        if self.hover.ui_theme_card == Some(idx) {
             let actions = container(
                 dir_row(vec![
                     ui_icon_btn(
@@ -490,7 +490,7 @@ impl Oryxis {
             Message::Settings(SettingsMessage::AppThemeChanged(name.to_string())),
         );
         let mut stack = iced::widget::Stack::new().push(card);
-        if self.hovered_builtin_ui_theme_card == Some(idx) {
+        if self.hover.builtin_ui_theme_card == Some(idx) {
             let actions = container(
                 dir_row(vec![
                     ui_icon_btn(

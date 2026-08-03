@@ -141,7 +141,7 @@ impl Oryxis {
             return settings_tab(
                 label,
                 is_active,
-                self.hovered_settings_tab,
+                self.hover.settings_tab,
                 width,
                 ctx.close_on_right,
                 ctx.solid_fill,
@@ -186,7 +186,7 @@ impl Oryxis {
             // address. The width is computed from the same string
             // that renders so truncation stays consistent.
             let display_label =
-                if self.hovered_sftp_tab == Some(idx) {
+                if self.hover.sftp_tab == Some(idx) {
                     tab.display_label().to_string()
                 } else {
                     self.privacy_display_label(
@@ -224,7 +224,7 @@ impl Oryxis {
         }
         let tab = &self.tabs[idx];
         let is_active = active_idx == Some(idx);
-        let is_hovered = self.hovered_tab == Some(idx);
+        let is_hovered = self.hover.tab == Some(idx);
         // Reorder drag: the dragged tab gets the accent outline so the
         // user sees which one they picked up.
         let is_dragging = self

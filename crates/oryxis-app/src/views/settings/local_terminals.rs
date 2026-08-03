@@ -186,7 +186,7 @@ impl Oryxis {
         });
 
         let mut stack = iced::widget::Stack::new().push(card);
-        if self.hovered_local_terminal_card == Some(idx) {
+        if self.hover.local_terminal_card == Some(idx) {
             let actions = dir_row(vec![
                 local_terminal_card_btn(
                     iced_fonts::lucide::pencil(),
