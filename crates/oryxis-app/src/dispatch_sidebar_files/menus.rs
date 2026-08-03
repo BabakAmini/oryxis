@@ -1,0 +1,89 @@
+//! The two context menus (over a row, over the background) and the
+//! properties sheet a row menu can open.
+//!
+//! Properties is here rather than with the file operations because
+//! it only reads: one `stat` off-thread, straight into a dialog.
+
+use super::*;
+
+impl Oryxis {
+    pub(super) fn handle_sidebar_files_menus(
+        &mut self,
+        message: SidebarFilesMessage,
+    ) -> Task<Message> {
+        match message {
+            SidebarFilesMessage::ShowSidebarFilesRowMenu(path, is_dir) => {
+                let anchor = self.keynav_take_menu_anchor();
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::SidebarFilesRow { path, is_dir },
+                    x: anchor.0,
+                    y: anchor.1,
+                });
+            }
+            SidebarFilesMessage::ShowSidebarFilesBackgroundMenu => {
+                // Directory-level menu for the current folder; only once
+                // mounted (an unmounted browser has nothing to act on).
+                let Some(dir) = self
+                    .active_pane_mut()
+                    .filter(|p| p.files.client.is_some() && !p.files.path.is_empty())
+                    .map(|p| p.files.path.clone())
+                else {
+                    return Task::none();
+                };
+                let anchor = self.keynav_take_menu_anchor();
+                self.overlay = Some(crate::state::OverlayState {
+                    content: crate::state::OverlayContent::SidebarFilesBackground { dir },
+                    x: anchor.0,
+                    y: anchor.1,
+                });
+            }
+            SidebarFilesMessage::SidebarFilesShowProperties(path, is_dir) => {
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Task::none();
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Task::none();
+                };
+                let stat_client = client.clone();
+                let target = path.clone();
+                return Task::perform(
+                    async move { stat_client.stat(&target).await.map_err(|e| e.to_string()) },
+                    move |result| match result {
+                        Ok(stat) => {
+                            let mode = stat.permissions.unwrap_or(0o644);
+                            Message::Sftp(SftpMessage::SftpPropertiesLoaded(crate::state::PropertiesView {
+                                // `side` is unused when a client override
+                                // is present; Right is a stable filler.
+                                side: crate::state::SftpPaneSide::Right,
+                                client_override: Some(client.clone()),
+                                from_sidebar: true,
+                                path: path.clone(),
+                                is_dir,
+                                size: stat.size,
+                                mtime: stat.mtime,
+                                owner_uid: stat.uid,
+                                owner_gid: stat.gid,
+                                original_mode: mode,
+                                bits: crate::state::PermBits::from_mode(mode),
+                                mode_input: format!("{:03o}", mode & 0o777),
+                                applying: false,
+                                error: None,
+                            }))
+                        }
+                        // One-shot op, not a listing: its failure surfaces
+                        // as a toast (like download/upload) instead of a
+                        // SidebarFilesError, whose un-bumped stamp would
+                        // alias an in-flight listing's and paint an error
+                        // over it / clear its loading flag.
+                        Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(e)),
+                    },
+                );
+            }
+            // The parent routed us here, so anything else is a
+            // grouping mistake, not a runtime case.
+            _ => {}
+        }
+        Task::none()
+    }
+}

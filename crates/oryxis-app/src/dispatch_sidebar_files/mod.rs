@@ -1,0 +1,411 @@
+//! `Oryxis::handle_sidebar_files`, the terminal sidebar's Files tab.
+//!
+//! Was a 706-line match. The groups are the parts of the surface: the
+//! list and how you move through it (`navigate`), the path header
+//! (`path_bar`), the context menus (`menus`), the entry editors
+//! (`entries`), the transfers (`transfer`), and the async listings
+//! that feed all of it (`listing`).
+//!
+//! The helpers the arms share (path math, the pane lookups, the
+//! `op_then_list` operation wrapper) stay here, since every group
+//! reaches for them.
+
+// The `Err(message)` pass-through of the try_handler! chain carries the full
+// Message enum by design; same allowance as the sibling dispatch modules.
+#![allow(clippy::result_large_err)]
+
+// Dispatch sub-handlers, one file per arm family.
+mod navigate;
+mod path_bar;
+mod menus;
+mod entries;
+mod transfer;
+mod listing;
+
+use iced::Task;
+use uuid::Uuid;
+
+use crate::app::Oryxis;
+use crate::messages::{Message, SidebarFilesMessage, TabsMessage, SftpMessage};
+use crate::state::TerminalSidebarTab;
+
+/// Dirs first, then case-insensitive by name, the sidebar's fixed sort
+/// (the full SFTP pane has sortable columns; this browser does not).
+fn sort_entries(entries: &mut [oryxis_ssh::SftpEntry]) {
+    entries.sort_by(|a, b| {
+        b.is_dir
+            .cmp(&a.is_dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+}
+
+/// Parent of an absolute POSIX path, `None` at the root.
+pub(crate) fn files_parent_dir(path: &str) -> Option<String> {
+    let trimmed = path.trim_end_matches('/');
+    if trimmed.is_empty() {
+        return None;
+    }
+    let idx = trimmed.rfind('/')?;
+    Some(if idx == 0 { "/".to_string() } else { trimmed[..idx].to_string() })
+}
+
+/// Join an entry name onto the browser's current directory.
+pub(crate) fn files_join(path: &str, name: &str) -> String {
+    if path == "/" {
+        format!("/{name}")
+    } else {
+        format!("{}/{name}", path.trim_end_matches('/'))
+    }
+}
+
+/// Working-directory fallback for shells without OSC 7 integration:
+/// the stock Debian/Ubuntu/Fedora PS1 titles the window `\u@\h: \w`,
+/// so an OSC 0/2 title like `root@web: /var/www` carries the cwd.
+/// Extracts the trailing path (absolute or `~`-relative); anything
+/// else (`vim main.rs`, plain program names) yields `None`.
+pub(crate) fn title_cwd(title: &str) -> Option<&str> {
+    // Preferred: the "\u@\h: \w" form (Debian/Ubuntu default, colon +
+    // space). Fallback: the no-space "\u@\h:\w" some PS1s use, taken
+    // only when the head looks like `user@host` so a stray "note:foo"
+    // title can't masquerade as a cwd.
+    let tail = title
+        .rsplit_once(": ")
+        .map(|(_, t)| t)
+        .or_else(|| {
+            let (head, t) = title.rsplit_once(':')?;
+            head.contains('@').then_some(t)
+        })
+        .unwrap_or(title);
+    let tail = tail.trim();
+    (tail.starts_with('/') || tail == "~" || tail.starts_with("~/")).then_some(tail)
+}
+
+/// Expand a possibly `~`-relative cwd (the title fallback) against the
+/// session's home directory. Absolute paths pass through; `~` without
+/// a known home resolves to `None` (can't follow yet, the mount's
+/// canonicalize will supply the home).
+fn expand_cwd(cwd: &str, home: Option<&str>) -> Option<String> {
+    if cwd.starts_with('/') {
+        return Some(cwd.to_string());
+    }
+    let home = home?.trim_end_matches('/');
+    if cwd == "~" {
+        return Some(home.to_string());
+    }
+    cwd.strip_prefix("~/").map(|rest| format!("{home}/{rest}"))
+}
+
+/// Cap per host, matching the per-pane dropdown's own cap: the list is
+/// there to be scanned, not archived.
+const FILES_RECENT_CAP: usize = 20;
+
+impl Oryxis {
+    /// Record a visited folder in the persistent, host-keyed history and
+    /// write it back. No-op for panes with no saved host (quick-connect,
+    /// local, cloud), which have no stable key to file it under.
+    fn record_files_recent(&mut self, pane_id: uuid::Uuid, path: &str) {
+        if path.is_empty() {
+            return;
+        }
+        let host = self
+            .tabs
+            .iter()
+            .flat_map(|t| t.pane_grid.panes.values())
+            .find(|p| p.id == pane_id)
+            .and_then(|p| match p.origin {
+                crate::state::PaneOrigin::Host(id) => Some(id),
+                _ => None,
+            });
+        let Some(host) = host else {
+            return;
+        };
+        let list = self.files_recent_folders.entry(host).or_default();
+        if list.first().is_some_and(|p| p == path) {
+            // Already on top: the optimistic navigate records the same
+            // path twice (mount then listing), so this is the common case
+            // and it must not cost a vault write.
+            return;
+        }
+        list.retain(|p| p != path);
+        list.insert(0, path.to_string());
+        list.truncate(FILES_RECENT_CAP);
+        if let Ok(json) = serde_json::to_string(&self.files_recent_folders) {
+            self.persist_setting("files_recent_folders", &json);
+        }
+    }
+
+    /// Refill a pane's dropdown from the stored history for its host.
+    /// Called when the Files sidebar mounts, which is what makes the
+    /// disconnect-time wipe harmless.
+    fn hydrate_files_recent(&mut self, pane_id: uuid::Uuid) {
+        let host = self
+            .tabs
+            .iter()
+            .flat_map(|t| t.pane_grid.panes.values())
+            .find(|p| p.id == pane_id)
+            .and_then(|p| match p.origin {
+                crate::state::PaneOrigin::Host(id) => Some(id),
+                _ => None,
+            });
+        let Some(stored) = host.and_then(|h| self.files_recent_folders.get(&h)).cloned() else {
+            return;
+        };
+        if let Some(pane) = self.pane_by_id_any_tab(pane_id)
+            && pane.files.path_history.is_empty()
+        {
+            pane.files.path_history = stored;
+        }
+    }
+
+    pub(crate) fn handle_sidebar_files(
+        &mut self,
+        message: SidebarFilesMessage,
+    ) -> Task<Message> {
+        match message {
+            m @ (
+                SidebarFilesMessage::SidebarFilesRowHovered(..)
+                | SidebarFilesMessage::SidebarFilesRowUnhovered
+                | SidebarFilesMessage::SidebarFilesToggleFollow
+                | SidebarFilesMessage::SidebarFilesToggleHidden
+                | SidebarFilesMessage::SidebarFilesRefresh
+                | SidebarFilesMessage::SidebarFilesNavigate(..)
+                | SidebarFilesMessage::SidebarFilesExpand
+                | SidebarFilesMessage::SidebarFilesOpenSftpAt(..)
+            ) => self.handle_sidebar_files_navigate(m),
+            m @ (
+                SidebarFilesMessage::SidebarFilesStartEditPath
+                | SidebarFilesMessage::SidebarFilesEditPath(..)
+                | SidebarFilesMessage::SidebarFilesEditBlur
+                | SidebarFilesMessage::SidebarFilesPathHistoryToggle
+                | SidebarFilesMessage::SidebarFilesPathHistoryClose
+                | SidebarFilesMessage::SidebarFilesPathHistoryPick(..)
+                | SidebarFilesMessage::SidebarFilesCommitPath
+            ) => self.handle_sidebar_files_path_bar(m),
+            m @ (
+                SidebarFilesMessage::ShowSidebarFilesRowMenu(..)
+                | SidebarFilesMessage::ShowSidebarFilesBackgroundMenu
+                | SidebarFilesMessage::SidebarFilesShowProperties(..)
+            ) => self.handle_sidebar_files_menus(m),
+            m @ (
+                SidebarFilesMessage::SidebarFilesStartRename(..)
+                | SidebarFilesMessage::SidebarFilesRenameInput(..)
+                | SidebarFilesMessage::SidebarFilesRenameCommit
+                | SidebarFilesMessage::SidebarFilesStartNewEntry(..)
+                | SidebarFilesMessage::SidebarFilesNewEntryInput(..)
+                | SidebarFilesMessage::SidebarFilesNewEntryCommit
+                | SidebarFilesMessage::SidebarFilesDelete(..)
+                | SidebarFilesMessage::SidebarFilesDeleteConfirmed(..)
+            ) => self.handle_sidebar_files_entries(m),
+            m @ (
+                SidebarFilesMessage::SidebarFilesDownload(..)
+                | SidebarFilesMessage::SidebarFilesUploadInto(..)
+                | SidebarFilesMessage::SidebarFilesUploadPicked(..)
+                | SidebarFilesMessage::SidebarFilesUploadFinished(..)
+                | SidebarFilesMessage::SidebarFilesEdit(..)
+                | SidebarFilesMessage::SidebarFilesOpToast(..)
+            ) => self.handle_sidebar_files_transfer(m),
+            m @ (
+                SidebarFilesMessage::SidebarFilesMounted(..)
+                | SidebarFilesMessage::SidebarFilesListed(..)
+                | SidebarFilesMessage::SidebarFilesError(..)
+            ) => self.handle_sidebar_files_listing(m),
+        }
+    }
+
+    /// The active tab's focused pane, mutably. `None` outside a
+    /// terminal tab.
+    pub(crate) fn active_pane_mut(&mut self) -> Option<&mut crate::state::Pane> {
+        let idx = self.active_tab?;
+        Some(self.tabs.get_mut(idx)?.active_mut())
+    }
+
+    /// Find a pane by its stable id across every tab (async results
+    /// arrive after the user may have switched tabs / panes).
+    fn pane_by_id_any_tab(&mut self, pane_id: Uuid) -> Option<&mut crate::state::Pane> {
+        self.tabs
+            .iter_mut()
+            .flat_map(|t| t.pane_grid.panes.values_mut())
+            .find(|p| p.id == pane_id)
+    }
+
+    /// Bring the visible Files browser in line with its pane: mount the
+    /// SFTP channel if the tab just opened, or chase the shell's OSC 7
+    /// cwd when follow is on. Idempotent and cheap when nothing needs
+    /// doing, so every entry point (tab select, sidebar open, pane
+    /// focus, cwd change) just calls it.
+    pub(crate) fn sidebar_files_sync(&mut self) -> Task<Message> {
+        // Only the visible browser drives SFTP traffic; a background
+        // pane's cwd changes are picked up when its tab shows again.
+        if self.effective_sidebar_tab() != Some(TerminalSidebarTab::Files) {
+            return Task::none();
+        }
+        let Some(pane) = self.active_pane_mut() else {
+            return Task::none();
+        };
+        let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh()).cloned() else {
+            return Task::none();
+        };
+        if !ssh.is_alive() {
+            return Task::none();
+        }
+        let pane_id = pane.id;
+
+        // Not mounted yet: open the channel and land on the shell's cwd
+        // (when following) or the home directory.
+        if pane.files.client.is_none() {
+            if pane.files.mounting {
+                return Task::none();
+            }
+            pane.files.mounting = true;
+            pane.files.error = None;
+            // The pre-mount hint can only use an absolute cwd (a
+            // `~`-relative title fallback has no home to expand against
+            // yet; the mount lands on the home anyway and the post-mount
+            // chase in SidebarFilesMounted finishes the job).
+            let hint = if pane.files.follow() {
+                pane.cwd.as_deref().and_then(|c| expand_cwd(c, None))
+            } else {
+                None
+            };
+            let seq = pane.files.next_req();
+            return Task::perform(
+                async move {
+                    let client = ssh.open_sftp().await.map_err(|e| e.to_string())?;
+                    // Session home, resolved once: expands `~`-relative
+                    // cwds from the title fallback.
+                    let home = client.canonicalize(".").await.ok();
+                    let (path, entries) =
+                        crate::dispatch_sftp::initial_remote_listing(&client, hint).await?;
+                    Ok::<_, String>((client, home, path, entries))
+                },
+                move |result| match result {
+                    Ok((client, home, path, entries)) => {
+                        Message::SidebarFiles(SidebarFilesMessage::SidebarFilesMounted(pane_id, seq, client, home, path, entries))
+                    }
+                    Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
+                },
+            );
+        }
+
+        // Mounted: follow the shell if it moved.
+        if pane.files.follow()
+            && !pane.files.loading
+            && let Some(cwd) = pane
+                .cwd
+                .as_deref()
+                .and_then(|c| expand_cwd(c, pane.files.home.as_deref()))
+            && cwd != pane.files.path
+        {
+            let client = pane.files.client.clone().expect("checked above");
+            pane.files.loading = true;
+            let seq = pane.files.next_req();
+            return list_dir_task(client, cwd, pane_id, seq);
+        }
+        Task::none()
+    }
+}
+
+/// Run a mutation (rename / create / delete) then re-list the current
+/// directory, all on the sidebar browser's channel; the completion
+/// carries the request stamp like any listing.
+fn op_then_list(
+    client: oryxis_ssh::SftpClient,
+    list_path: String,
+    pane_id: Uuid,
+    seq: u64,
+    op: impl std::future::Future<Output = Result<(), oryxis_ssh::SshError>> + Send + 'static,
+) -> Task<Message> {
+    Task::perform(
+        async move {
+            op.await.map_err(|e| e.to_string())?;
+            let entries = client
+                .list_dir(&list_path)
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok::<_, String>((list_path, entries))
+        },
+        move |result| match result {
+            Ok((path, entries)) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, entries)),
+            Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
+        },
+    )
+}
+
+/// One directory listing on the sidebar browser's channel. `seq` is the
+/// request stamp compared on completion (latest request wins).
+/// `pub(crate)`: the OS-drop upload refreshes the visible listing on
+/// completion through this (`drop.rs`), pinned to its pane id rather
+/// than riding `SidebarFilesRefresh`, whose "active pane" can have
+/// changed during a long upload.
+pub(crate) fn list_dir_task(
+    client: oryxis_ssh::SftpClient,
+    path: String,
+    pane_id: Uuid,
+    seq: u64,
+) -> Task<Message> {
+    Task::perform(
+        async move {
+            let entries = client.list_dir(&path).await.map_err(|e| e.to_string())?;
+            Ok::<_, String>((path, entries))
+        },
+        move |result| match result {
+            Ok((path, entries)) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, entries)),
+            Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
+        },
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn title_cwd_extracts_stock_ps1_titles() {
+        // Stock Debian/Ubuntu PS1: \u@\h: \w
+        assert_eq!(title_cwd("root@web-01: /var/www"), Some("/var/www"));
+        assert_eq!(title_cwd("root@web-01: ~"), Some("~"));
+        assert_eq!(title_cwd("u@h: ~/projects/api"), Some("~/projects/api"));
+        // Colons inside the path segment: the LAST ": " wins.
+        assert_eq!(title_cwd("u@h: /data/a: b"), None); // "b" is not a path
+        assert_eq!(title_cwd("note: see: /etc"), Some("/etc"));
+        // No-space "\u@\h:\w" form (the head has an '@' so it's trusted).
+        assert_eq!(title_cwd("root@web-01:/var/www"), Some("/var/www"));
+        assert_eq!(title_cwd("root@web-01:~"), Some("~"));
+        // A bare absolute path as the whole title.
+        assert_eq!(title_cwd("/srv/app"), Some("/srv/app"));
+    }
+
+    #[test]
+    fn title_cwd_rejects_non_path_titles() {
+        assert_eq!(title_cwd("vim main.rs"), None);
+        assert_eq!(title_cwd("htop"), None);
+        assert_eq!(title_cwd(""), None);
+        assert_eq!(title_cwd("root@web-01"), None);
+        // Windows-style path in a title is not a POSIX cwd.
+        assert_eq!(title_cwd(r"cmd: C:\Users\x"), None);
+        // A bare "~x" user-home form is ambiguous; declined.
+        assert_eq!(title_cwd("u@h: ~other"), None);
+    }
+
+    #[test]
+    fn expand_cwd_handles_absolute_and_home_relative() {
+        assert_eq!(expand_cwd("/var/www", None).as_deref(), Some("/var/www"));
+        assert_eq!(expand_cwd("~", Some("/root")).as_deref(), Some("/root"));
+        assert_eq!(
+            expand_cwd("~/a/b", Some("/home/u/")).as_deref(),
+            Some("/home/u/a/b")
+        );
+        // Home unknown: `~` can't expand yet.
+        assert_eq!(expand_cwd("~", None), None);
+        assert_eq!(expand_cwd("~/x", None), None);
+    }
+
+    #[test]
+    fn files_join_and_parent_are_inverse_at_the_root() {
+        assert_eq!(files_join("/", "etc"), "/etc");
+        assert_eq!(files_join("/var/www", "html"), "/var/www/html");
+        assert_eq!(files_parent_dir("/etc").as_deref(), Some("/"));
+        assert_eq!(files_parent_dir("/var/www/html").as_deref(), Some("/var/www"));
+        assert_eq!(files_parent_dir("/"), None);
+    }
+}

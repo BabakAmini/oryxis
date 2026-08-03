@@ -1,0 +1,105 @@
+//! Where a directory listing actually arrives: the initial mount,
+//! each subsequent listing, and the error path.
+//!
+//! All three carry the request's sequence number and drop anything
+//! stale, so a slow listing cannot overwrite the directory the user
+//! has already moved on to.
+
+use super::*;
+
+impl Oryxis {
+    pub(super) fn handle_sidebar_files_listing(
+        &mut self,
+        message: SidebarFilesMessage,
+    ) -> Task<Message> {
+        match message {
+            SidebarFilesMessage::SidebarFilesMounted(pane_id, seq, client, home, path, mut entries) => {
+                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
+                    return Task::none();
+                };
+                // Superseded (a newer request, or a disconnect reset that
+                // bumped the stamp): the channel may ride a dead handle,
+                // drop it instead of installing a client that can only
+                // error. Also guards the reconnect race where the pane
+                // has a NEW session by the time the old mount lands.
+                if pane.files.req_seq != seq {
+                    return Task::none();
+                }
+                if pane.session.as_ref().and_then(|s| s.ssh()).is_none() {
+                    return Task::none();
+                }
+                sort_entries(&mut entries);
+                pane.files.client = Some(client);
+                pane.files.home = home;
+                pane.files.mounting = false;
+                pane.files.loading = false;
+                pane.files.error = None;
+                // Adopted-directory history (issue #85): recorded only
+                // here and in Listed, i.e. once a path proved listable.
+                // Unconditional: the optimistic navigate already set
+                // `files.path`, so an equality guard would skip exactly
+                // the visits that matter (the dedupe makes re-recording
+                // the current directory a no-op).
+                let previous = std::mem::take(&mut pane.files.path);
+                pane.files.push_path_history(path.clone());
+                pane.files.path = path.clone();
+                if previous != path {
+                    pane.files.push_nav(previous);
+                }
+                pane.files.entries = entries;
+                // Mount is where the stored, host-keyed history comes back
+                // (the per-pane list is wiped on disconnect on purpose),
+                // and where this visit joins it.
+                self.hydrate_files_recent(pane_id);
+                self.record_files_recent(pane_id, &path);
+                // The title-fallback cwd may be `~`-relative and only
+                // expandable now that the home is known; chase it.
+                return self.sidebar_files_sync();
+            }
+            SidebarFilesMessage::SidebarFilesListed(pane_id, seq, path, mut entries) => {
+                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
+                    return Task::none();
+                };
+                // Out-of-order completion of a superseded listing: drop,
+                // the newer request's result is the one that must win.
+                if pane.files.req_seq != seq {
+                    return Task::none();
+                }
+                sort_entries(&mut entries);
+                pane.files.loading = false;
+                pane.files.error = None;
+                // Unconditional for the same optimistic-path reason as
+                // the Mounted arm above.
+                let previous = std::mem::take(&mut pane.files.path);
+                pane.files.push_path_history(path.clone());
+                pane.files.path = path.clone();
+                if previous != path {
+                    pane.files.push_nav(previous);
+                }
+                pane.files.entries = entries;
+                self.record_files_recent(pane_id, &path);
+                // The shell may have moved again while this listing was
+                // in flight; chase it so follow never sticks one step
+                // behind a fast `cd a && cd b`.
+                return self.sidebar_files_sync();
+            }
+            SidebarFilesMessage::SidebarFilesError(pane_id, seq, e) => {
+                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
+                    return Task::none();
+                };
+                // A stale error must not clear the flags (or paint the
+                // banner) of a newer in-flight request.
+                if pane.files.req_seq != seq {
+                    return Task::none();
+                }
+                pane.files.mounting = false;
+                pane.files.loading = false;
+                pane.files.error = Some(e);
+            }
+            // The parent routed us here, so anything else is a
+            // grouping mistake, not a runtime case.
+            _ => {}
+        }
+        Task::none()
+    }
+}

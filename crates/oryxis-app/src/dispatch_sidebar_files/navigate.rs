@@ -1,0 +1,149 @@
+//! Moving around: hover, the two view toggles, refresh, and the
+//! three ways out of the current directory (walk into it, promote
+//! the browser to a full SFTP surface, follow the shell).
+//!
+//! `SidebarFilesNavigate` is the one place that unpins the OSC 7
+//! follow, so manual navigation wins until the pin is re-enabled.
+
+use super::*;
+
+impl Oryxis {
+    pub(super) fn handle_sidebar_files_navigate(
+        &mut self,
+        message: SidebarFilesMessage,
+    ) -> Task<Message> {
+        match message {
+            SidebarFilesMessage::SidebarFilesRowHovered(idx) => {
+                self.hover.files_row = Some(idx);
+            }
+            SidebarFilesMessage::SidebarFilesRowUnhovered => {
+                self.hover.files_row = None;
+            }
+            SidebarFilesMessage::SidebarFilesToggleFollow => {
+                if let Some(pane) = self.active_pane_mut() {
+                    pane.files.follow_disabled = !pane.files.follow_disabled;
+                }
+                // Re-enabling the pin snaps the browser back to the
+                // shell's directory right away.
+                return self.sidebar_files_sync();
+            }
+            SidebarFilesMessage::SidebarFilesToggleHidden => {
+                if let Some(pane) = self.active_pane_mut() {
+                    pane.files.show_hidden = !pane.files.show_hidden;
+                }
+            }
+            SidebarFilesMessage::SidebarFilesRefresh => {
+                // Also fired from the background context menu.
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Task::none();
+                };
+                pane.files.error = None;
+                match (&pane.files.client, pane.files.path.is_empty()) {
+                    // Mounted: re-list the current directory.
+                    (Some(client), false) => {
+                        let client = client.clone();
+                        let path = pane.files.path.clone();
+                        let pane_id = pane.id;
+                        pane.files.loading = true;
+                        let seq = pane.files.next_req();
+                        return list_dir_task(client, path, pane_id, seq);
+                    }
+                    // Not mounted (or a failed mount): retry from scratch.
+                    _ => return self.sidebar_files_sync(),
+                }
+            }
+            SidebarFilesMessage::SidebarFilesNavigate(path) => {
+                // Also fired from the row context menu; dismiss it.
+                self.overlay = None;
+                let Some(pane) = self.active_pane_mut() else {
+                    return Task::none();
+                };
+                let Some(client) = pane.files.client.clone() else {
+                    return Task::none();
+                };
+                // Clicking a row while the path input is open is its
+                // blur: close the edit (its buffer is stale the moment
+                // the listing changes) so the header snaps back to the
+                // label + actions.
+                pane.files.path_editing = None;
+                // A manual navigation away from the shell's cwd would be
+                // undone by the next follow sync, so browsing by hand
+                // implies unpinning; the toggle re-enables it. The toast
+                // makes the silent state flip visible (owner QA ask).
+                let mut unpinned = false;
+                if pane.files.follow()
+                    && pane
+                        .cwd
+                        .as_deref()
+                        .and_then(|c| expand_cwd(c, pane.files.home.as_deref()))
+                        .as_deref()
+                        != Some(path.as_str())
+                {
+                    pane.files.follow_disabled = true;
+                    unpinned = true;
+                }
+                let pane_id = pane.id;
+                // Optimistic UI: adopt the target path on screen NOW and
+                // clear the old listing, so the click answers instantly
+                // (the roundtrip used to look like a freeze, owner QA).
+                // Clearing is also correctness: keeping the OLD rows
+                // visible under the NEW path would let a rapid second
+                // click join a stale entry name onto the wrong base.
+                // The ".." row derives from the optimistic path, so
+                // navigating up mid-load stays coherent; the listing
+                // that lands (stamp-guarded) replaces everything.
+                pane.files.path = path.clone();
+                pane.files.entries.clear();
+                pane.files.loading = true;
+                pane.files.error = None;
+                // Rapid clicks race their listings; the stamp makes the
+                // LATEST navigation win regardless of completion order.
+                let seq = pane.files.next_req();
+                let list = list_dir_task(client, path, pane_id, seq);
+                if unpinned {
+                    self.set_toast(crate::i18n::t("files_follow_paused").to_string());
+                    return Task::batch([
+                        list,
+                        Task::perform(
+                            async {
+                                tokio::time::sleep(std::time::Duration::from_millis(
+                                    2500,
+                                ))
+                                .await;
+                            },
+                            |_| Message::ToastClear,
+                        ),
+                    ]);
+                }
+                return list;
+            }
+            SidebarFilesMessage::SidebarFilesExpand => {
+                // Expand = this tab's SFTP session (the hybrid Files
+                // mode) at the browser's current directory. Owner QA
+                // 2026-07-05: expanding must NOT open a standalone tab.
+                let path = self
+                    .active_pane_mut()
+                    .map(|p| p.files.path.clone())
+                    .unwrap_or_default();
+                return self.update(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpenSftpAt(path)));
+            }
+            SidebarFilesMessage::SidebarFilesOpenSftpAt(path) => {
+                // Flip the active tab into its SFTP session at `path`.
+                // The one-shot hint is consumed by the toggle's mount
+                // (or by a navigate when the session already exists),
+                // with home fallback if the path stopped existing.
+                self.overlay = None;
+                let Some(tab_idx) = self.active_tab else {
+                    return Task::none();
+                };
+                self.sftp_open_at_path = (!path.is_empty()).then_some(path);
+                return self.update(Message::Tabs(TabsMessage::ToggleTabFilesMode(tab_idx)));
+            }
+            // The parent routed us here, so anything else is a
+            // grouping mistake, not a runtime case.
+            _ => {}
+        }
+        Task::none()
+    }
+}
