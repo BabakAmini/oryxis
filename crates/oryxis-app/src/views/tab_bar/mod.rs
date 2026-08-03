@@ -269,7 +269,16 @@ impl Oryxis {
         if flexible == 0.0 {
             return None;
         }
-        let widest = widest.clamp(TAB_MIN_WIDTH, TAB_NATURAL_WIDTH);
+        // The user's ceiling, not the natural width: uniform exists so
+        // the strip stops reshuffling, and letting one long label set 200
+        // for everyone is the complaint that asked for this. The widest
+        // label still decides below the cap.
+        let cap = match self.setting_tab_uniform_size.as_str() {
+            "small" => 140.0,
+            "large" => 260.0,
+            _ => TAB_NATURAL_WIDTH,
+        };
+        let widest = widest.clamp(TAB_MIN_WIDTH, cap);
         // Fit check. Overflow shrinks every tab equally rather than
         // singling any out: uniform that stops being uniform under
         // pressure would bring back the reflow this mode exists to

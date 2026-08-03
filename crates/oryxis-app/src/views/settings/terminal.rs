@@ -199,6 +199,14 @@ impl Oryxis {
             10.0,
             crate::views::settings_themes::terminal_theme_import_card(),
         ));
+        theme_cards.push(self.settings_nav_slot_labeled(
+            t("theme_community"),
+            crate::keynav::RowAction::activate(Message::OpenUrl(
+                "https://oryxis.app/themes".to_string(),
+            )),
+            10.0,
+            crate::views::settings_themes::terminal_theme_community_card(),
+        ));
         // 2-column responsive grid for theme cards. Cards still
         // use the existing swatch-+-name layout (the "bolinhas"
         // style); only the row arrangement changes from a single

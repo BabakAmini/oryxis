@@ -147,6 +147,9 @@ pub enum SettingsMessage {
     CloseUiThemeGallery,
     ThemeDeleteRequested(usize),
     UiThemeDeleteRequested(usize),
+    /// Uniform-mode width ceiling (small / medium / large). Ignored
+    /// while the adaptive mode is selected.
+    SettingTabUniformSizeChanged(String),
     ChangeSettingsSection(SettingsSection),
     /// The open section's scrollable moved; carries the relative y offset
     /// (0.0..=1.0). Recorded per section so returning to Settings lands

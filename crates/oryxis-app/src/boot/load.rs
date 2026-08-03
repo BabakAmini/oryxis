@@ -671,6 +671,9 @@ impl Oryxis {
             {
                 self.setting_tab_width_mode = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("tab_uniform_size") {
+                self.setting_tab_uniform_size = v;
+            }
             if let Ok(Some(v)) = vault.get_setting("pinned_tabs_top_bar") {
                 self.setting_pinned_tabs_top_bar = v == "true";
             }

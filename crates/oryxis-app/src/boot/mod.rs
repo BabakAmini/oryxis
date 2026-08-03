@@ -612,6 +612,7 @@ impl Oryxis {
                 setting_tab_bar_position: "top".into(),
                 setting_inactive_tab_style: "none".into(),
                 setting_tab_width_mode: "adaptive".into(),
+                setting_tab_uniform_size: "medium".into(),
                 setting_pinned_tabs_top_bar: false,
                 setting_side_hide_top_bar: false,
                 setting_side_full_height: false,

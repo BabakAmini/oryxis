@@ -337,6 +337,9 @@ impl Oryxis {
             text(crate::i18n::t("tab_width_mode_desc"))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
+            // Ceiling for the uniform mode only: an optional knob whose UI
+            // is hidden while it cannot apply.
+            self.tab_uniform_size_row(),
         ];
         if matches!(self.setting_tab_bar_position.as_str(), "left" | "right") {
             top_bar_col = top_bar_col
@@ -709,6 +712,14 @@ impl Oryxis {
             10.0,
             crate::views::settings_ui_themes::ui_theme_import_card(),
         ));
+        cards.push(self.settings_nav_slot_labeled(
+            crate::i18n::t("theme_community"),
+            crate::keynav::RowAction::activate(Message::OpenUrl(
+                "https://oryxis.app/themes".to_string(),
+            )),
+            10.0,
+            crate::views::settings_ui_themes::ui_theme_community_card(),
+        ));
 
         // Chunk the cards into rows of two (Elements aren't Clone, so
         // drain pairs instead of `chunks`).
@@ -803,6 +814,39 @@ impl Oryxis {
                 Message::Settings(SettingsMessage::OpenUiThemeGallery),
             ),
         )
+    }
+
+
+    /// Width ceiling for the uniform tab mode. Hidden entirely under the
+    /// adaptive mode, following the rule that an inapplicable setting
+    /// shows no UI at all rather than a dead control.
+    fn tab_uniform_size_row(&self) -> Element<'_, Message> {
+        if self.setting_tab_width_mode != "uniform" {
+            return Space::new().into();
+        }
+        column![
+            Space::new().height(8),
+            self.nav_pick_row(
+                crate::i18n::t("tab_uniform_size"),
+                vec!["small".to_string(), "medium".to_string(), "large".to_string()],
+                self.setting_tab_uniform_size.clone(),
+                |s: &String| {
+                    crate::i18n::t(match s.as_str() {
+                        "small" => "tab_uniform_size_small",
+                        "large" => "tab_uniform_size_large",
+                        _ => "tab_uniform_size_medium",
+                    })
+                    .to_string()
+                },
+                180.0,
+                |v| Message::Settings(SettingsMessage::SettingTabUniformSizeChanged(v)),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("tab_uniform_size_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        ]
+        .into()
     }
 
 }

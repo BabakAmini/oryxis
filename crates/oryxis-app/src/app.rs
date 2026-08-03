@@ -1353,6 +1353,11 @@ pub struct Oryxis {
     /// labels ellipsize). Uniform exists so selecting a tab stops
     /// relaying the whole bar under the pointer.
     pub(crate) setting_tab_width_mode: String,
+    /// Width ceiling for the uniform mode: `small` / `medium` / `large`.
+    /// Only consulted when `setting_tab_width_mode == "uniform"`; the
+    /// widest label still sets the width, this is how far it may go
+    /// before every tab starts truncating instead.
+    pub(crate) setting_tab_uniform_size: String,
     /// Side dock only: pinned tabs live with the window chrome instead
     /// of scrolling inside the strip. Top bar visible: they dock next
     /// to Home up there; top bar hidden: they become a fixed group at
