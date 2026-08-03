@@ -450,512 +450,15 @@ where
             // Mouse press, scrollbar interaction takes priority, then
             // URL open, then text selection.
             iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                if let Some(pos) = cursor.position_in(bounds) {
-                    // Scrollbar: thumb drag start, or page-up/down on the
-                    // empty track area. Only meaningful when there's
-                    // actual scrollback.
-                    if let Ok(state) = self.state.lock() {
-                        let grid = state.backend.term.grid();
-                        if let Some(sb) = scrollbar_geom(
-                            bounds,
-                            grid.total_lines(),
-                            grid.screen_lines(),
-                            widget_state.scroll_offset.get(),
-                        ) && pos.x >= sb.track_x - 2.0
-                            && pos.x <= sb.track_x + sb.track_w + 2.0
-                            && pos.y >= sb.track_y
-                            && pos.y <= sb.track_y + sb.track_h
-                        {
-                            let page = grid.screen_lines() as i32;
-                            if pos.y >= sb.thumb_y && pos.y <= sb.thumb_y + sb.thumb_h {
-                                widget_state.scrollbar_drag =
-                                    Some((pos.y, widget_state.scroll_offset.get()));
-                            } else if pos.y < sb.thumb_y {
-                                widget_state.scroll_offset
-                                    .set((widget_state.scroll_offset.get() + page).min(sb.history_size));
-                            } else {
-                                widget_state.scroll_offset
-                                    .set((widget_state.scroll_offset.get() - page).max(0));
-                            }
-                            return Some(CanvasAction::request_redraw().and_capture());
-                        }
-                    }
-                    let (col, vrow) = self.pixel_to_cell(pos);
-                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                    // Only follow URLs on Ctrl+Click, plain clicks
-                    // start a selection, matching Termius. Without
-                    // the modifier gate, every click on a logged URL
-                    // would lose the selection start.
-                    if widget_state.modifiers.control()
-                        && let Ok(state) = self.state.lock()
-                    {
-                        // Discriminator (shared by the hover + hint paths): a
-                        // cell carrying an OSC 8 attribute follows OSC 8 rules
-                        // ONLY, it opens iff its scheme is allowlisted and it
-                        // NEVER falls back to a scraped URL. Otherwise a spoof
-                        // whose visible label reads `https://real.com` but
-                        // whose OSC 8 target is `javascript:...` would still
-                        // open through the scraped arm. Only a cell with no
-                        // explicit link is scraped for a literal `http(s)://`.
-                        let target = match osc8_link_at_cell(&state.backend.term, line, col) {
-                            Some((uri, _, _)) => osc8_scheme_allowed(&uri).then_some(uri),
-                            None => url_at_cell(&state.backend.term, line, col),
-                        };
-                        drop(state);
-                        if let Some(url) = target {
-                            open_url(&url);
-                            // Tell the app the gesture landed so the
-                            // one-time hover hint can retire itself.
-                            if let Some(msg) = self.on_link_opened.clone() {
-                                return Some(CanvasAction::publish(msg).and_capture());
-                            }
-                            return Some(CanvasAction::capture());
-                        }
-                    }
-                    // Shift+Click extends the current selection from its
-                    // existing anchor instead of starting a new one (xterm
-                    // behaviour). Handled before click-kind classification so
-                    // a quick shift+click can't be misread as a double-click
-                    // word grab. Block-ness carries over.
-                    if widget_state.modifiers.shift()
-                        && let Some(prev) = widget_state.selection
-                    {
-                        widget_state.select_anchor = None;
-                        widget_state.selecting = true;
-                        widget_state.last_extend_cell = Some((col, line));
-                        widget_state.selection = Some(Selection {
-                            start: prev.start,
-                            end: (col, line),
-                            block: prev.block,
-                        });
-                        return Some(CanvasAction::request_redraw().and_capture());
-                    }
-                    // Classify the press as single / double / triple / quad
-                    // (300 ms / 6 px window). 1=cell (Alt=block), 2=word
-                    // (smart-select on URL/IP/path), 3=line, 4=paragraph.
-                    let now = std::time::Instant::now();
-                    let consecutive = widget_state
-                        .last_click
-                        .map(|(t, p, _)| {
-                            now.duration_since(t) <= std::time::Duration::from_millis(300)
-                                && p.distance(pos) < 6.0
-                        })
-                        .unwrap_or(false);
-                    let count = next_click_count(
-                        widget_state.last_click.map(|(_, _, c)| c),
-                        consecutive,
-                    );
-                    widget_state.last_click = Some((now, pos, count));
-                    widget_state.selecting = true;
-                    widget_state.last_extend_cell = Some((col, line));
-                    match count {
-                        1 => {
-                            widget_state.select_anchor = None;
-                            // Alt+drag starts a rectangular (column) selection.
-                            widget_state.selection = Some(Selection {
-                                start: (col, line),
-                                end: (col, line),
-                                block: widget_state.modifiers.alt(),
-                            });
-                        }
-                        2 => {
-                            if let Ok(mut state) = self.state.lock() {
-                                // Smart-select: a double-click inside a URL /
-                                // IP / path grabs the whole token instead of
-                                // the delimiter word. Falls back to word.
-                                if let Some((c0, c1)) = smart_span_at(
-                                    &state.backend.term,
-                                    &state.palette,
-                                    line,
-                                    col,
-                                ) {
-                                    widget_state.select_anchor = None;
-                                    widget_state.selection = Some(Selection {
-                                        start: (c0, line),
-                                        end: (c1, line),
-                                        block: false,
-                                    });
-                                } else {
-                                    widget_state.select_anchor =
-                                        Some((SelectGranularity::Word, (col, line)));
-                                    widget_state.selection = Some(self.semantic_selection(
-                                        &mut state.backend,
-                                        (col, line),
-                                        SelectGranularity::Word,
-                                    ));
-                                }
-                            }
-                        }
-                        3 => {
-                            widget_state.select_anchor =
-                                Some((SelectGranularity::Line, (col, line)));
-                            if let Ok(mut state) = self.state.lock() {
-                                widget_state.selection = Some(self.semantic_selection(
-                                    &mut state.backend,
-                                    (col, line),
-                                    SelectGranularity::Line,
-                                ));
-                            }
-                        }
-                        // 4 (and the cycle restarts after): paragraph.
-                        _ => {
-                            widget_state.select_anchor =
-                                Some((SelectGranularity::Paragraph, (col, line)));
-                            if let Ok(mut state) = self.state.lock() {
-                                widget_state.selection = Some(self.semantic_selection(
-                                    &mut state.backend,
-                                    (col, line),
-                                    SelectGranularity::Paragraph,
-                                ));
-                            }
-                        }
-                    }
-                    return Some(CanvasAction::request_redraw().and_capture());
-                }
+                return self.on_left_press(widget_state, bounds, cursor);
             }
             // Mouse move, drag scrollbar thumb or extend selection.
             iced::Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                if let Some((start_y, start_offset)) = widget_state.scrollbar_drag
-                    && let Some(pos) = cursor.position_in(bounds)
-                    && let Ok(state) = self.state.lock()
-                {
-                    let grid = state.backend.term.grid();
-                    if let Some(sb) = scrollbar_geom(
-                        bounds,
-                        grid.total_lines(),
-                        grid.screen_lines(),
-                        start_offset,
-                    ) {
-                        let dy = pos.y - start_y;
-                        let track_range = (sb.track_h - sb.thumb_h).max(1.0);
-                        let dprogress = dy / track_range;
-                        let doffset = (dprogress * sb.history_size as f32) as i32;
-                        // Thumb moves down → progress decreases → offset decreases.
-                        widget_state.scroll_offset
-                            .set((start_offset - doffset).clamp(0, sb.history_size));
-                        return Some(CanvasAction::request_redraw().and_capture());
-                    }
-                }
-                if widget_state.selecting
-                    && let Some(abs) = cursor.position() {
-                        // Use the absolute cursor position (not
-                        // `position_in`, which is `None` outside the widget)
-                        // so a drag that leaves the widget but stays in the
-                        // window still extends + auto-scrolls, matching other
-                        // terminals. Once the pointer leaves the window the OS
-                        // stops sending events, which we can't work around
-                        // without a pointer grab iced doesn't expose.
-                        let rel = Point::new(abs.x - bounds.x, abs.y - bounds.y);
-                        // Auto-scroll when the drag passes the top/bottom
-                        // edge so the selection extends into scrollback. The
-                        // step grows with how far past the edge the cursor is
-                        // (deliberately aggressive: 2 lines per overshoot
-                        // cell). Events only fire on motion, so this follows
-                        // the mouse rather than ticking while held still.
-                        let top_edge = TERM_PAD_TOP;
-                        let bot_edge = (bounds.height - TERM_PAD).max(top_edge);
-                        // Rate-limit to one step per ~40 ms so the scroll
-                        // speed tracks wall-clock instead of the mouse-move
-                        // event rate (dozens per second at the edge), which
-                        // is what made it feel like it rocketed.
-                        let now = std::time::Instant::now();
-                        let due = widget_state
-                            .last_autoscroll
-                            .map(|t| {
-                                now.duration_since(t)
-                                    >= std::time::Duration::from_millis(40)
-                            })
-                            .unwrap_or(true);
-                        if (rel.y < top_edge || rel.y > bot_edge)
-                            && due
-                            && let Ok(state) = self.state.lock()
-                        {
-                            use alacritty_terminal::grid::Dimensions;
-                            let grid = state.backend.term.grid();
-                            let history = (grid
-                                .total_lines()
-                                .saturating_sub(grid.screen_lines()))
-                                as i32;
-                            let past = if rel.y < top_edge {
-                                top_edge - rel.y
-                            } else {
-                                rel.y - bot_edge
-                            };
-                            // 1 line per tick at the edge, +1 per cell of
-                            // overshoot, capped so a far pointer stays sane.
-                            let step =
-                                ((past / self.cell_height).floor() as i32 + 1).clamp(1, 4);
-                            widget_state.last_autoscroll = Some(now);
-                            if rel.y < top_edge {
-                                widget_state.scroll_offset
-                                    .set((widget_state.scroll_offset.get() + step).min(history));
-                            } else {
-                                widget_state.scroll_offset
-                                    .set((widget_state.scroll_offset.get() - step).max(0));
-                            }
-                        }
-                        // Clamp back into the widget for cell mapping (the
-                        // pointer may be outside the bounds now).
-                        let clamped = Point::new(
-                            rel.x.clamp(0.0, bounds.width),
-                            rel.y.clamp(0.0, bounds.height),
-                        );
-                        let (col, vrow) = self.pixel_to_cell(clamped);
-                        let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                        if let Some((gran, anchor)) = widget_state.select_anchor {
-                            // Word/line drag: extend by unioning the anchor's
-                            // word/line with the cursor's. Throttle to one
-                            // recompute per cell crossing, it locks the mutex
-                            // and runs two semantic searches, which must not
-                            // happen per pixel (same reasoning as the URL
-                            // hover throttle below).
-                            if widget_state.last_extend_cell != Some((col, line)) {
-                                widget_state.last_extend_cell = Some((col, line));
-                                if let Ok(mut state) = self.state.lock() {
-                                    let head = self.semantic_selection(
-                                        &mut state.backend, anchor, gran,
-                                    );
-                                    let tail = self.semantic_selection(
-                                        &mut state.backend, (col, line), gran,
-                                    );
-                                    drop(state);
-                                    widget_state.selection =
-                                        Some(union_selection(head, tail));
-                                }
-                            }
-                        } else if let Some(ref mut sel) = widget_state.selection {
-                            sel.end = (col, line);
-                        }
-                        return Some(CanvasAction::request_redraw().and_capture());
-                    }
-                // URL hover detection. Skip the lock + grid scan when
-                // the cursor is still over the same cell, at typical
-                // font sizes a single cell spans many pixels and
-                // running the scan on every pixel contended with
-                // `state.process` (the SSH echo path), showing up as
-                // typing lag.
-                let cell_changed;
-                // Whether `hovered_link` (the app's reveal / blocked chip)
-                // changed this move. A BLOCKED link returns no `hovered_url`
-                // (no pointer, no scraped fallback), so `url_changed` stays
-                // false, without this the blocked chip would rely on an
-                // incidental cursor-blink repaint to appear or clear.
-                let mut link_changed = false;
-                let new_hover_url = if let Some(pos) = cursor.position_in(bounds) {
-                    let (col, vrow) = self.pixel_to_cell(pos);
-                    let same_cell = widget_state.hovered_cell == Some((col, vrow));
-                    cell_changed = !same_cell;
-                    widget_state.hovered_cell = Some((col, vrow));
-                    if same_cell {
-                        widget_state
-                            .hovered_url
-                            .as_ref()
-                            .map(|(u, _)| (u.clone(), pos))
-                    } else if let Ok(mut state) = self.state.lock() {
-                        let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                        // OSC 8 discriminator (same rule as the open + hint
-                        // paths): a cell with an explicit link never falls back
-                        // to a scraped URL. A disallowed scheme suppresses the
-                        // pointer + underline but still records the blocked
-                        // target so the app can show a "not allowed" chip; an
-                        // allowed one drives the underline + the reveal chip.
-                        match osc8_link_run(&state.backend.term, line, col) {
-                            Some((uri, segments)) => {
-                                let allowed = osc8_scheme_allowed(&uri);
-                                // Underline every wrapped row (in on-screen
-                                // coordinates) only for an allowed link.
-                                let offset = widget_state.scroll_offset.get();
-                                widget_state.hovered_osc8 = if allowed {
-                                    segments
-                                        .into_iter()
-                                        .map(|(gl, sc, ec)| ((gl + offset) as u16, sc, ec))
-                                        .collect()
-                                } else {
-                                    Vec::new()
-                                };
-                                let new_link = Some(HoveredLink {
-                                    target: uri.clone(),
-                                    allowed,
-                                });
-                                link_changed = state.hovered_link != new_link;
-                                state.hovered_link = new_link;
-                                allowed.then_some((uri, pos))
-                            }
-                            None => {
-                                widget_state.hovered_osc8.clear();
-                                link_changed = state.hovered_link.is_some();
-                                state.hovered_link = None;
-                                url_at_cell(&state.backend.term, line, col).map(|u| (u, pos))
-                            }
-                        }
-                    } else {
-                        None
-                    }
-                } else {
-                    // Cursor left the canvas: a revealed privacy span must
-                    // re-mask, so flag a cell change when one was tracked.
-                    cell_changed = widget_state.hovered_cell.is_some();
-                    widget_state.hovered_cell = None;
-                    widget_state.hovered_osc8.clear();
-                    // Retract any link-reveal chip (allowed or blocked).
-                    if let Ok(mut state) = self.state.lock() {
-                        link_changed = state.hovered_link.is_some();
-                        state.hovered_link = None;
-                    }
-                    None
-                };
-                let url_changed = match (&widget_state.hovered_url, &new_hover_url) {
-                    (Some((a, _)), Some((b, _))) => a != b,
-                    (None, None) => false,
-                    _ => true,
-                };
-                widget_state.hovered_url = new_hover_url;
-                // Under Privacy Mode a cell change can move the revealed
-                // span even when no URL is involved, so repaint on any cell
-                // change too (otherwise hovering an IP wouldn't reveal it).
-                if hover_changed || url_changed || link_changed || (self.privacy && cell_changed) {
-                    return Some(CanvasAction::request_redraw());
-                }
+                return self.on_cursor_moved(widget_state, bounds, cursor, hover_changed);
             }
             // Mouse release, end selection or scrollbar drag.
             iced::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-                // The press was consumed by the perf HUD toggle; swallow
-                // the matching release so it can't privacy-pin or
-                // click-classify the cells underneath the panel.
-                if widget_state.hud_pressed {
-                    widget_state.hud_pressed = false;
-                    return Some(CanvasAction::capture());
-                }
-                let was_dragging = widget_state.scrollbar_drag.is_some();
-                widget_state.scrollbar_drag = None;
-                let was_selecting = widget_state.selecting;
-                // A double/triple-click selection is intentional even when
-                // it lands on a single cell (a one-character word), so it
-                // must still auto-copy despite `is_empty()`.
-                let was_semantic = widget_state.select_anchor.is_some();
-                widget_state.selecting = false;
-                widget_state.select_anchor = None;
-                widget_state.last_extend_cell = None;
-                // Text of the selection that just finished, read once and
-                // shared by the two things that want it: the PRIMARY
-                // selection below and the optional auto-copy. Degenerate
-                // selections that never moved (a single click) don't count,
-                // but a double/triple-click one does even when it lands on a
-                // one-character word. The grid width rides along for the
-                // ghost's resize guard.
-                let finished = if was_selecting
-                    && let Some(sel) = widget_state.selection
-                    && (!sel.is_empty() || was_semantic)
-                    && let Ok(state) = self.state.lock()
-                {
-                    use alacritty_terminal::grid::Dimensions;
-                    let grid = state.backend.term.grid();
-                    let cols = grid.columns() as u16;
-                    let total = grid.total_lines();
-                    let text = state.get_selection_text(&sel);
-                    drop(state);
-                    (!text.is_empty()).then_some((text, sel, cols, total))
-                } else {
-                    None
-                };
-                // X11 PRIMARY selection: selecting text IS the act that sets
-                // it, so this is not gated on any setting, and it survives
-                // the highlight being cleared on the next keystroke. That
-                // separation is the whole point of the buffer: it is what
-                // lets "select a path, type `cd `, paste it" work, which a
-                // highlight-bound read cannot do. Independent of the system
-                // clipboard by design (`copy_on_select` is the setting for
-                // people who want selections there too). The range is kept
-                // alongside the text: once the live highlight is gone the
-                // draw pass shows it as a faint ghost band, illustrating
-                // what a PRIMARY paste will insert.
-                if let Some((ref text, sel, cols, total)) = finished {
-                    widget_state.primary_selection = Some(text.clone());
-                    widget_state.primary_ghost = Some((sel, cols, total));
-                }
-                // Auto-copy the just-finished selection when the setting is
-                // enabled (XTerm / iTerm behaviour). When `right_click_copy`
-                // is on the copy is deferred to a right-click instead, so
-                // skip it here; the deferral is Paste-scheme-only (see
-                // `defers_copy_to_right_click`).
-                if let Some((ref text, ..)) = finished
-                    && self.copy_on_select
-                    && !self.defers_copy_to_right_click()
-                {
-                    set_clipboard_text(text);
-                }
-                if was_dragging {
-                    return Some(CanvasAction::request_redraw().and_capture());
-                }
-                // Plain click (no drag, no word/line select) on a masked
-                // privacy span toggles a pinned reveal for its value: the
-                // mask is undone for every occurrence of that value until
-                // it's clicked again. Keyed by the span text, not its
-                // cells, so the reveal survives scrolling and re-prints.
-                if self.privacy
-                    && was_selecting
-                    && !was_semantic
-                    && widget_state.selection.as_ref().is_some_and(|s| s.is_empty())
-                    && let Some(pos) = cursor.position_in(bounds)
-                {
-                    let (col, vrow) = self.pixel_to_cell(pos);
-                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                    let value = self.state.lock().ok().and_then(|state| {
-                        privacy_value_at_cell(
-                            &state.backend.term,
-                            &state.palette,
-                            &self.privacy_terms,
-                            self.privacy_classes,
-                            line,
-                            col,
-                        )
-                    });
-                    if let Some(value) = value {
-                        if !widget_state.pinned_privacy.remove(&value) {
-                            widget_state.pinned_privacy.insert(value);
-                        }
-                        return Some(CanvasAction::request_redraw().and_capture());
-                    }
-                }
-                // Plain click (no Ctrl, no drag, no word/line select) on a
-                // URL: the user likely expected the link to open, but plain
-                // clicks select (Termius-style, see the press handler). Let
-                // the app surface the "hold Ctrl and click" toast at the
-                // exact moment the gesture missed. Ctrl+Click never reaches
-                // here as a click: the press handler opens the URL without
-                // starting a selection, so `was_selecting` is false.
-                if !widget_state.modifiers.control()
-                    && was_selecting
-                    && !was_semantic
-                    && widget_state.selection.as_ref().is_some_and(|s| s.is_empty())
-                    && let Some(cb) = &self.on_link_click_hint
-                    && let Some(pos) = cursor.position_in(bounds)
-                {
-                    let (col, vrow) = self.pixel_to_cell(pos);
-                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                    let on_url = self.state.lock().is_ok_and(|state| {
-                        // Same OSC 8 discriminator: a blocked-scheme link is
-                        // not openable, so it must not draw the "hold Ctrl to
-                        // click" hint (the affordance would lie).
-                        match osc8_link_at_cell(&state.backend.term, line, col) {
-                            Some((uri, _, _)) => osc8_scheme_allowed(&uri),
-                            None => url_at_cell(&state.backend.term, line, col).is_some(),
-                        }
-                    });
-                    if on_url {
-                        return Some(CanvasAction::publish(cb()).and_capture());
-                    }
-                }
-                // Only swallow the release when it belongs to this terminal:
-                // a finishing selection, or a release physically over the
-                // canvas. A stray release that lands on a sibling widget
-                // (e.g. a button in the terminal sidebar) must pass through,
-                // otherwise that widget never sees its release and its
-                // `on_press` never fires (iced buttons act on release).
-                if was_selecting || was_semantic || cursor.position_in(bounds).is_some() {
-                    return Some(CanvasAction::capture());
-                }
-                return None;
+                return self.on_left_release(widget_state, bounds, cursor);
             }
             // A mouse button the user bound to a terminal gesture (the app
             // owns the binding model and hands the matcher down, see
@@ -1005,91 +508,7 @@ where
             iced::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right))
                 if cursor.position_in(bounds).is_some() =>
             {
-                // The right-click scheme (PuTTY's Menu / Paste / Extend) is
-                // the single authority for this gesture. Unlike the old
-                // path it is NOT gated on `copy_on_select`: an explicit
-                // "Paste" scheme that silently did nothing with copy-on-
-                // select off would be a surprise.
-                match self.right_click_action {
-                    RightClickAction::Menu => {
-                        if let Some(cb) = &self.on_context_menu {
-                            // Window-absolute position for the app's overlay
-                            // (same coordinate space as every other menu
-                            // anchor). `position()` is the viewport point.
-                            let abs = cursor.position().unwrap_or_default();
-                            // Capture the live selection's text now, so the
-                            // app-rendered "Copy" row can offer it (the
-                            // selection state is unreachable from the app).
-                            let sel_text = widget_state
-                                .selection
-                                .as_ref()
-                                .filter(|s| !s.is_empty())
-                                .and_then(|sel| {
-                                    self.state.lock().ok().and_then(|state| {
-                                        let t = state.get_selection_text(sel);
-                                        (!t.is_empty()).then_some(t)
-                                    })
-                                });
-                            return Some(
-                                CanvasAction::publish(cb(abs.x, abs.y, sel_text)).and_capture(),
-                            );
-                        }
-                        return Some(CanvasAction::capture());
-                    }
-                    RightClickAction::Extend => {
-                        // xterm extend: move the selection's NEARER boundary
-                        // to the click point, keeping the far anchor fixed,
-                        // then copy. A no-op when there is nothing to extend
-                        // (or when the live selection is a block).
-                        if let Some(pos) = cursor.position_in(bounds) {
-                            let (col, vrow) = self.pixel_to_cell(pos);
-                            let line =
-                                Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
-                            if let Some(sel) = widget_state.selection.as_ref().filter(|s| !s.block)
-                            {
-                                let extended = sel.extended_to((col, line));
-                                widget_state.selection = Some(extended);
-                                if let Ok(state) = self.state.lock() {
-                                    let text = state.get_selection_text(&extended);
-                                    drop(state);
-                                    if !text.is_empty() {
-                                        set_clipboard_text(&text);
-                                    }
-                                }
-                                return Some(CanvasAction::request_redraw().and_capture());
-                            }
-                        }
-                        return Some(CanvasAction::capture());
-                    }
-                    RightClickAction::Paste => {
-                        // copy_on_select + right_click_copy: a right-click
-                        // over a live selection copies it instead of pasting,
-                        // then clears the selection so the next right-click
-                        // pastes. The copy is written straight to the
-                        // clipboard here (mirroring Ctrl+Shift+C), not via
-                        // `on_paste_request` (the paste hook).
-                        if self.copy_on_select
-                            && self.right_click_copy
-                            && let Some(sel) = widget_state.selection
-                            && !sel.is_empty()
-                        {
-                            if let Ok(state) = self.state.lock() {
-                                let text = state.get_selection_text(&sel);
-                                drop(state);
-                                if !text.is_empty() {
-                                    set_clipboard_text(&text);
-                                }
-                            }
-                            widget_state.selection = None;
-                            return Some(CanvasAction::request_redraw().and_capture());
-                        }
-                        if let Some(msg) = self.on_paste_request.clone() {
-                            return Some(CanvasAction::publish(msg).and_capture());
-                        }
-                        crate::host_clipboard::paste_into(Arc::clone(&self.state));
-                        return Some(CanvasAction::capture());
-                    }
-                }
+                return self.on_right_press(widget_state, bounds, cursor);
             }
             // Ctrl + wheel, adjust terminal font size in the standard
             // alacritty / kitty / gnome-terminal way. Captured before the
@@ -1131,76 +550,7 @@ where
             iced::Event::Mouse(mouse::Event::WheelScrolled { delta })
                 if cursor.position_in(bounds).is_some() =>
             {
-                let lines = match delta {
-                    mouse::ScrollDelta::Lines { y, .. } => {
-                        // A discrete-notch wheel: whole lines, no residual
-                        // to carry. Reset any pixel remainder so a device
-                        // switch can't leave a stale fraction behind.
-                        widget_state.scroll_px_residual.set(0.0);
-                        *y as i32 * 3
-                    }
-                    // Pixel deltas (Windows precision touchpads / high-res
-                    // wheels) arrive a few pixels at a time, below one cell
-                    // per event. Truncating each to whole cells floored
-                    // every one to zero and scrollback never moved (#91).
-                    // Accumulate into a residual, emit the whole cells it
-                    // now covers, and keep the sub-cell remainder for the
-                    // next event; a sign flip drops the stale residual so a
-                    // reversal responds at once.
-                    mouse::ScrollDelta::Pixels { y, .. } => {
-                        let prev = widget_state.scroll_px_residual.get();
-                        let acc = if prev != 0.0 && prev.signum() != y.signum() {
-                            *y
-                        } else {
-                            prev + *y
-                        };
-                        let cells = (acc / self.cell_height).trunc();
-                        widget_state
-                            .scroll_px_residual
-                            .set(acc - cells * self.cell_height);
-                        cells as i32
-                    }
-                };
-                // A pixel delta that only grew the residual (no whole cell
-                // yet) still belongs to this canvas: consume it so it can't
-                // bleed into a sibling scrollable, but skip the lock and the
-                // redraw since nothing moved.
-                if lines == 0 {
-                    return Some(CanvasAction::capture());
-                }
-                // One lock for both the alt-screen test and the scroll
-                // clamp, this handler fires for every wheel tick and
-                // locking twice doubled the contention with `process()`.
-                let (in_alt_screen, max_scroll) = match self.state.lock() {
-                    Ok(s) => {
-                        let in_alt = s
-                            .backend
-                            .term
-                            .mode()
-                            .contains(alacritty_terminal::term::TermMode::ALT_SCREEN);
-                        let grid = s.backend.term.grid();
-                        (in_alt, grid.total_lines().saturating_sub(grid.screen_lines()) as i32)
-                    }
-                    Err(_) => (false, i32::MAX),
-                };
-                if in_alt_screen {
-                    // Translate wheel into arrow-key bytes for the remote
-                    // app, `top`/`vim`/`less` all listen for these. Routed
-                    // through `emit_input` so it reaches the SSH session,
-                    // a direct `state.write` only hits the local PTY and is
-                    // a no-op on SSH tabs (this used to silently do nothing
-                    // when scrolling vim / less over SSH).
-                    let arrow: &[u8] = if lines > 0 { b"\x1b[A" } else { b"\x1b[B" };
-                    let count = lines.unsigned_abs().min(10) as usize;
-                    let mut bytes = Vec::with_capacity(arrow.len() * count);
-                    for _ in 0..count {
-                        bytes.extend_from_slice(arrow);
-                    }
-                    return Some(self.emit_input(bytes));
-                }
-                widget_state.scroll_offset
-                    .set((widget_state.scroll_offset.get() + lines).max(0).min(max_scroll));
-                return Some(CanvasAction::request_redraw().and_capture());
+                return self.on_wheel_scroll(widget_state, delta);
             }
             // Modifier tracking for the URL Ctrl+Click gate. iced
             // doesn't pass the current modifier mask on mouse events,
@@ -1276,6 +626,731 @@ where
             }
             _ => {}
         }
+        None
+    }
+
+    /// The wheel over the grid: scrollback in the OS-natural
+    /// direction, or arrow keys when the remote app is on the
+    /// alternate screen (`top`, `vim`, `less`), where our own
+    /// scrollback is empty and paging belongs to the app.
+    fn on_wheel_scroll(
+        &self,
+        widget_state: &mut TerminalWidgetState,
+        delta: &mouse::ScrollDelta,
+    ) -> Option<CanvasAction<Message>> {
+            let lines = match delta {
+                mouse::ScrollDelta::Lines { y, .. } => {
+                    // A discrete-notch wheel: whole lines, no residual
+                    // to carry. Reset any pixel remainder so a device
+                    // switch can't leave a stale fraction behind.
+                    widget_state.scroll_px_residual.set(0.0);
+                    *y as i32 * 3
+                }
+                // Pixel deltas (Windows precision touchpads / high-res
+                // wheels) arrive a few pixels at a time, below one cell
+                // per event. Truncating each to whole cells floored
+                // every one to zero and scrollback never moved (#91).
+                // Accumulate into a residual, emit the whole cells it
+                // now covers, and keep the sub-cell remainder for the
+                // next event; a sign flip drops the stale residual so a
+                // reversal responds at once.
+                mouse::ScrollDelta::Pixels { y, .. } => {
+                    let prev = widget_state.scroll_px_residual.get();
+                    let acc = if prev != 0.0 && prev.signum() != y.signum() {
+                        *y
+                    } else {
+                        prev + *y
+                    };
+                    let cells = (acc / self.cell_height).trunc();
+                    widget_state
+                        .scroll_px_residual
+                        .set(acc - cells * self.cell_height);
+                    cells as i32
+                }
+            };
+            // A pixel delta that only grew the residual (no whole cell
+            // yet) still belongs to this canvas: consume it so it can't
+            // bleed into a sibling scrollable, but skip the lock and the
+            // redraw since nothing moved.
+            if lines == 0 {
+                return Some(CanvasAction::capture());
+            }
+            // One lock for both the alt-screen test and the scroll
+            // clamp, this handler fires for every wheel tick and
+            // locking twice doubled the contention with `process()`.
+            let (in_alt_screen, max_scroll) = match self.state.lock() {
+                Ok(s) => {
+                    let in_alt = s
+                        .backend
+                        .term
+                        .mode()
+                        .contains(alacritty_terminal::term::TermMode::ALT_SCREEN);
+                    let grid = s.backend.term.grid();
+                    (in_alt, grid.total_lines().saturating_sub(grid.screen_lines()) as i32)
+                }
+                Err(_) => (false, i32::MAX),
+            };
+            if in_alt_screen {
+                // Translate wheel into arrow-key bytes for the remote
+                // app, `top`/`vim`/`less` all listen for these. Routed
+                // through `emit_input` so it reaches the SSH session,
+                // a direct `state.write` only hits the local PTY and is
+                // a no-op on SSH tabs (this used to silently do nothing
+                // when scrolling vim / less over SSH).
+                let arrow: &[u8] = if lines > 0 { b"\x1b[A" } else { b"\x1b[B" };
+                let count = lines.unsigned_abs().min(10) as usize;
+                let mut bytes = Vec::with_capacity(arrow.len() * count);
+                for _ in 0..count {
+                    bytes.extend_from_slice(arrow);
+                }
+                return Some(self.emit_input(bytes));
+            }
+            widget_state.scroll_offset
+                .set((widget_state.scroll_offset.get() + lines).max(0).min(max_scroll));
+            Some(CanvasAction::request_redraw().and_capture())
+    }
+
+    /// A right press, under whichever of the three schemes the
+    /// user picked: context menu, paste, or extend the selection.
+    ///
+    /// The paste is delegated to the host rather than written
+    /// here, because a local `state.write` only reaches a local
+    /// PTY and would silently do nothing over SSH.
+    fn on_right_press(
+        &self,
+        widget_state: &mut TerminalWidgetState,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> Option<CanvasAction<Message>> {
+            // The right-click scheme (PuTTY's Menu / Paste / Extend) is
+            // the single authority for this gesture. Unlike the old
+            // path it is NOT gated on `copy_on_select`: an explicit
+            // "Paste" scheme that silently did nothing with copy-on-
+            // select off would be a surprise.
+            match self.right_click_action {
+                RightClickAction::Menu => {
+                    if let Some(cb) = &self.on_context_menu {
+                        // Window-absolute position for the app's overlay
+                        // (same coordinate space as every other menu
+                        // anchor). `position()` is the viewport point.
+                        let abs = cursor.position().unwrap_or_default();
+                        // Capture the live selection's text now, so the
+                        // app-rendered "Copy" row can offer it (the
+                        // selection state is unreachable from the app).
+                        let sel_text = widget_state
+                            .selection
+                            .as_ref()
+                            .filter(|s| !s.is_empty())
+                            .and_then(|sel| {
+                                self.state.lock().ok().and_then(|state| {
+                                    let t = state.get_selection_text(sel);
+                                    (!t.is_empty()).then_some(t)
+                                })
+                            });
+                        return Some(
+                            CanvasAction::publish(cb(abs.x, abs.y, sel_text)).and_capture(),
+                        );
+                    }
+                    Some(CanvasAction::capture())
+                }
+                RightClickAction::Extend => {
+                    // xterm extend: move the selection's NEARER boundary
+                    // to the click point, keeping the far anchor fixed,
+                    // then copy. A no-op when there is nothing to extend
+                    // (or when the live selection is a block).
+                    if let Some(pos) = cursor.position_in(bounds) {
+                        let (col, vrow) = self.pixel_to_cell(pos);
+                        let line =
+                            Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
+                        if let Some(sel) = widget_state.selection.as_ref().filter(|s| !s.block)
+                        {
+                            let extended = sel.extended_to((col, line));
+                            widget_state.selection = Some(extended);
+                            if let Ok(state) = self.state.lock() {
+                                let text = state.get_selection_text(&extended);
+                                drop(state);
+                                if !text.is_empty() {
+                                    set_clipboard_text(&text);
+                                }
+                            }
+                            return Some(CanvasAction::request_redraw().and_capture());
+                        }
+                    }
+                    Some(CanvasAction::capture())
+                }
+                RightClickAction::Paste => {
+                    // copy_on_select + right_click_copy: a right-click
+                    // over a live selection copies it instead of pasting,
+                    // then clears the selection so the next right-click
+                    // pastes. The copy is written straight to the
+                    // clipboard here (mirroring Ctrl+Shift+C), not via
+                    // `on_paste_request` (the paste hook).
+                    if self.copy_on_select
+                        && self.right_click_copy
+                        && let Some(sel) = widget_state.selection
+                        && !sel.is_empty()
+                    {
+                        if let Ok(state) = self.state.lock() {
+                            let text = state.get_selection_text(&sel);
+                            drop(state);
+                            if !text.is_empty() {
+                                set_clipboard_text(&text);
+                            }
+                        }
+                        widget_state.selection = None;
+                        return Some(CanvasAction::request_redraw().and_capture());
+                    }
+                    if let Some(msg) = self.on_paste_request.clone() {
+                        return Some(CanvasAction::publish(msg).and_capture());
+                    }
+                    crate::host_clipboard::paste_into(Arc::clone(&self.state));
+                    Some(CanvasAction::capture())
+                }
+            }
+    }
+
+    /// A left release: finish a selection (copy-on-select fires
+    /// here) or end a scrollbar drag.
+    ///
+    /// Only captures releases it actually owns. Capturing every
+    /// release is what once made sibling `button`s in the sidebar
+    /// look dead, since a button fires on release.
+    fn on_left_release(
+        &self,
+        widget_state: &mut TerminalWidgetState,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> Option<CanvasAction<Message>> {
+            // The press was consumed by the perf HUD toggle; swallow
+            // the matching release so it can't privacy-pin or
+            // click-classify the cells underneath the panel.
+            if widget_state.hud_pressed {
+                widget_state.hud_pressed = false;
+                return Some(CanvasAction::capture());
+            }
+            let was_dragging = widget_state.scrollbar_drag.is_some();
+            widget_state.scrollbar_drag = None;
+            let was_selecting = widget_state.selecting;
+            // A double/triple-click selection is intentional even when
+            // it lands on a single cell (a one-character word), so it
+            // must still auto-copy despite `is_empty()`.
+            let was_semantic = widget_state.select_anchor.is_some();
+            widget_state.selecting = false;
+            widget_state.select_anchor = None;
+            widget_state.last_extend_cell = None;
+            // Text of the selection that just finished, read once and
+            // shared by the two things that want it: the PRIMARY
+            // selection below and the optional auto-copy. Degenerate
+            // selections that never moved (a single click) don't count,
+            // but a double/triple-click one does even when it lands on a
+            // one-character word. The grid width rides along for the
+            // ghost's resize guard.
+            let finished = if was_selecting
+                && let Some(sel) = widget_state.selection
+                && (!sel.is_empty() || was_semantic)
+                && let Ok(state) = self.state.lock()
+            {
+                use alacritty_terminal::grid::Dimensions;
+                let grid = state.backend.term.grid();
+                let cols = grid.columns() as u16;
+                let total = grid.total_lines();
+                let text = state.get_selection_text(&sel);
+                drop(state);
+                (!text.is_empty()).then_some((text, sel, cols, total))
+            } else {
+                None
+            };
+            // X11 PRIMARY selection: selecting text IS the act that sets
+            // it, so this is not gated on any setting, and it survives
+            // the highlight being cleared on the next keystroke. That
+            // separation is the whole point of the buffer: it is what
+            // lets "select a path, type `cd `, paste it" work, which a
+            // highlight-bound read cannot do. Independent of the system
+            // clipboard by design (`copy_on_select` is the setting for
+            // people who want selections there too). The range is kept
+            // alongside the text: once the live highlight is gone the
+            // draw pass shows it as a faint ghost band, illustrating
+            // what a PRIMARY paste will insert.
+            if let Some((ref text, sel, cols, total)) = finished {
+                widget_state.primary_selection = Some(text.clone());
+                widget_state.primary_ghost = Some((sel, cols, total));
+            }
+            // Auto-copy the just-finished selection when the setting is
+            // enabled (XTerm / iTerm behaviour). When `right_click_copy`
+            // is on the copy is deferred to a right-click instead, so
+            // skip it here; the deferral is Paste-scheme-only (see
+            // `defers_copy_to_right_click`).
+            if let Some((ref text, ..)) = finished
+                && self.copy_on_select
+                && !self.defers_copy_to_right_click()
+            {
+                set_clipboard_text(text);
+            }
+            if was_dragging {
+                return Some(CanvasAction::request_redraw().and_capture());
+            }
+            // Plain click (no drag, no word/line select) on a masked
+            // privacy span toggles a pinned reveal for its value: the
+            // mask is undone for every occurrence of that value until
+            // it's clicked again. Keyed by the span text, not its
+            // cells, so the reveal survives scrolling and re-prints.
+            if self.privacy
+                && was_selecting
+                && !was_semantic
+                && widget_state.selection.as_ref().is_some_and(|s| s.is_empty())
+                && let Some(pos) = cursor.position_in(bounds)
+            {
+                let (col, vrow) = self.pixel_to_cell(pos);
+                let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
+                let value = self.state.lock().ok().and_then(|state| {
+                    privacy_value_at_cell(
+                        &state.backend.term,
+                        &state.palette,
+                        &self.privacy_terms,
+                        self.privacy_classes,
+                        line,
+                        col,
+                    )
+                });
+                if let Some(value) = value {
+                    if !widget_state.pinned_privacy.remove(&value) {
+                        widget_state.pinned_privacy.insert(value);
+                    }
+                    return Some(CanvasAction::request_redraw().and_capture());
+                }
+            }
+            // Plain click (no Ctrl, no drag, no word/line select) on a
+            // URL: the user likely expected the link to open, but plain
+            // clicks select (Termius-style, see the press handler). Let
+            // the app surface the "hold Ctrl and click" toast at the
+            // exact moment the gesture missed. Ctrl+Click never reaches
+            // here as a click: the press handler opens the URL without
+            // starting a selection, so `was_selecting` is false.
+            if !widget_state.modifiers.control()
+                && was_selecting
+                && !was_semantic
+                && widget_state.selection.as_ref().is_some_and(|s| s.is_empty())
+                && let Some(cb) = &self.on_link_click_hint
+                && let Some(pos) = cursor.position_in(bounds)
+            {
+                let (col, vrow) = self.pixel_to_cell(pos);
+                let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
+                let on_url = self.state.lock().is_ok_and(|state| {
+                    // Same OSC 8 discriminator: a blocked-scheme link is
+                    // not openable, so it must not draw the "hold Ctrl to
+                    // click" hint (the affordance would lie).
+                    match osc8_link_at_cell(&state.backend.term, line, col) {
+                        Some((uri, _, _)) => osc8_scheme_allowed(&uri),
+                        None => url_at_cell(&state.backend.term, line, col).is_some(),
+                    }
+                });
+                if on_url {
+                    return Some(CanvasAction::publish(cb()).and_capture());
+                }
+            }
+            // Only swallow the release when it belongs to this terminal:
+            // a finishing selection, or a release physically over the
+            // canvas. A stray release that lands on a sibling widget
+            // (e.g. a button in the terminal sidebar) must pass through,
+            // otherwise that widget never sees its release and its
+            // `on_press` never fires (iced buttons act on release).
+            if was_selecting || was_semantic || cursor.position_in(bounds).is_some() {
+                return Some(CanvasAction::capture());
+            }
+            None
+    }
+
+    /// Pointer motion: drag the scrollbar thumb, extend a live
+    /// selection, or just re-run the hover detection that lights
+    /// URLs and drives the scrollbar's reveal.
+    ///
+    /// The hottest path in the widget (dozens of events a second
+    /// while dragging), which is why it redraws only on a real
+    /// change rather than on every event.
+    fn on_cursor_moved(
+        &self,
+        widget_state: &mut TerminalWidgetState,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+        hover_changed: bool,
+    ) -> Option<CanvasAction<Message>> {
+            if let Some((start_y, start_offset)) = widget_state.scrollbar_drag
+                && let Some(pos) = cursor.position_in(bounds)
+                && let Ok(state) = self.state.lock()
+            {
+                let grid = state.backend.term.grid();
+                if let Some(sb) = scrollbar_geom(
+                    bounds,
+                    grid.total_lines(),
+                    grid.screen_lines(),
+                    start_offset,
+                ) {
+                    let dy = pos.y - start_y;
+                    let track_range = (sb.track_h - sb.thumb_h).max(1.0);
+                    let dprogress = dy / track_range;
+                    let doffset = (dprogress * sb.history_size as f32) as i32;
+                    // Thumb moves down → progress decreases → offset decreases.
+                    widget_state.scroll_offset
+                        .set((start_offset - doffset).clamp(0, sb.history_size));
+                    return Some(CanvasAction::request_redraw().and_capture());
+                }
+            }
+            if widget_state.selecting
+                && let Some(abs) = cursor.position() {
+                    // Use the absolute cursor position (not
+                    // `position_in`, which is `None` outside the widget)
+                    // so a drag that leaves the widget but stays in the
+                    // window still extends + auto-scrolls, matching other
+                    // terminals. Once the pointer leaves the window the OS
+                    // stops sending events, which we can't work around
+                    // without a pointer grab iced doesn't expose.
+                    let rel = Point::new(abs.x - bounds.x, abs.y - bounds.y);
+                    // Auto-scroll when the drag passes the top/bottom
+                    // edge so the selection extends into scrollback. The
+                    // step grows with how far past the edge the cursor is
+                    // (deliberately aggressive: 2 lines per overshoot
+                    // cell). Events only fire on motion, so this follows
+                    // the mouse rather than ticking while held still.
+                    let top_edge = TERM_PAD_TOP;
+                    let bot_edge = (bounds.height - TERM_PAD).max(top_edge);
+                    // Rate-limit to one step per ~40 ms so the scroll
+                    // speed tracks wall-clock instead of the mouse-move
+                    // event rate (dozens per second at the edge), which
+                    // is what made it feel like it rocketed.
+                    let now = std::time::Instant::now();
+                    let due = widget_state
+                        .last_autoscroll
+                        .map(|t| {
+                            now.duration_since(t)
+                                >= std::time::Duration::from_millis(40)
+                        })
+                        .unwrap_or(true);
+                    if (rel.y < top_edge || rel.y > bot_edge)
+                        && due
+                        && let Ok(state) = self.state.lock()
+                    {
+                        use alacritty_terminal::grid::Dimensions;
+                        let grid = state.backend.term.grid();
+                        let history = (grid
+                            .total_lines()
+                            .saturating_sub(grid.screen_lines()))
+                            as i32;
+                        let past = if rel.y < top_edge {
+                            top_edge - rel.y
+                        } else {
+                            rel.y - bot_edge
+                        };
+                        // 1 line per tick at the edge, +1 per cell of
+                        // overshoot, capped so a far pointer stays sane.
+                        let step =
+                            ((past / self.cell_height).floor() as i32 + 1).clamp(1, 4);
+                        widget_state.last_autoscroll = Some(now);
+                        if rel.y < top_edge {
+                            widget_state.scroll_offset
+                                .set((widget_state.scroll_offset.get() + step).min(history));
+                        } else {
+                            widget_state.scroll_offset
+                                .set((widget_state.scroll_offset.get() - step).max(0));
+                        }
+                    }
+                    // Clamp back into the widget for cell mapping (the
+                    // pointer may be outside the bounds now).
+                    let clamped = Point::new(
+                        rel.x.clamp(0.0, bounds.width),
+                        rel.y.clamp(0.0, bounds.height),
+                    );
+                    let (col, vrow) = self.pixel_to_cell(clamped);
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
+                    if let Some((gran, anchor)) = widget_state.select_anchor {
+                        // Word/line drag: extend by unioning the anchor's
+                        // word/line with the cursor's. Throttle to one
+                        // recompute per cell crossing, it locks the mutex
+                        // and runs two semantic searches, which must not
+                        // happen per pixel (same reasoning as the URL
+                        // hover throttle below).
+                        if widget_state.last_extend_cell != Some((col, line)) {
+                            widget_state.last_extend_cell = Some((col, line));
+                            if let Ok(mut state) = self.state.lock() {
+                                let head = self.semantic_selection(
+                                    &mut state.backend, anchor, gran,
+                                );
+                                let tail = self.semantic_selection(
+                                    &mut state.backend, (col, line), gran,
+                                );
+                                drop(state);
+                                widget_state.selection =
+                                    Some(union_selection(head, tail));
+                            }
+                        }
+                    } else if let Some(ref mut sel) = widget_state.selection {
+                        sel.end = (col, line);
+                    }
+                    return Some(CanvasAction::request_redraw().and_capture());
+                }
+            // URL hover detection. Skip the lock + grid scan when
+            // the cursor is still over the same cell, at typical
+            // font sizes a single cell spans many pixels and
+            // running the scan on every pixel contended with
+            // `state.process` (the SSH echo path), showing up as
+            // typing lag.
+            let cell_changed;
+            // Whether `hovered_link` (the app's reveal / blocked chip)
+            // changed this move. A BLOCKED link returns no `hovered_url`
+            // (no pointer, no scraped fallback), so `url_changed` stays
+            // false, without this the blocked chip would rely on an
+            // incidental cursor-blink repaint to appear or clear.
+            let mut link_changed = false;
+            let new_hover_url = if let Some(pos) = cursor.position_in(bounds) {
+                let (col, vrow) = self.pixel_to_cell(pos);
+                let same_cell = widget_state.hovered_cell == Some((col, vrow));
+                cell_changed = !same_cell;
+                widget_state.hovered_cell = Some((col, vrow));
+                if same_cell {
+                    widget_state
+                        .hovered_url
+                        .as_ref()
+                        .map(|(u, _)| (u.clone(), pos))
+                } else if let Ok(mut state) = self.state.lock() {
+                    let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
+                    // OSC 8 discriminator (same rule as the open + hint
+                    // paths): a cell with an explicit link never falls back
+                    // to a scraped URL. A disallowed scheme suppresses the
+                    // pointer + underline but still records the blocked
+                    // target so the app can show a "not allowed" chip; an
+                    // allowed one drives the underline + the reveal chip.
+                    match osc8_link_run(&state.backend.term, line, col) {
+                        Some((uri, segments)) => {
+                            let allowed = osc8_scheme_allowed(&uri);
+                            // Underline every wrapped row (in on-screen
+                            // coordinates) only for an allowed link.
+                            let offset = widget_state.scroll_offset.get();
+                            widget_state.hovered_osc8 = if allowed {
+                                segments
+                                    .into_iter()
+                                    .map(|(gl, sc, ec)| ((gl + offset) as u16, sc, ec))
+                                    .collect()
+                            } else {
+                                Vec::new()
+                            };
+                            let new_link = Some(HoveredLink {
+                                target: uri.clone(),
+                                allowed,
+                            });
+                            link_changed = state.hovered_link != new_link;
+                            state.hovered_link = new_link;
+                            allowed.then_some((uri, pos))
+                        }
+                        None => {
+                            widget_state.hovered_osc8.clear();
+                            link_changed = state.hovered_link.is_some();
+                            state.hovered_link = None;
+                            url_at_cell(&state.backend.term, line, col).map(|u| (u, pos))
+                        }
+                    }
+                } else {
+                    None
+                }
+            } else {
+                // Cursor left the canvas: a revealed privacy span must
+                // re-mask, so flag a cell change when one was tracked.
+                cell_changed = widget_state.hovered_cell.is_some();
+                widget_state.hovered_cell = None;
+                widget_state.hovered_osc8.clear();
+                // Retract any link-reveal chip (allowed or blocked).
+                if let Ok(mut state) = self.state.lock() {
+                    link_changed = state.hovered_link.is_some();
+                    state.hovered_link = None;
+                }
+                None
+            };
+            let url_changed = match (&widget_state.hovered_url, &new_hover_url) {
+                (Some((a, _)), Some((b, _))) => a != b,
+                (None, None) => false,
+                _ => true,
+            };
+            widget_state.hovered_url = new_hover_url;
+            // Under Privacy Mode a cell change can move the revealed
+            // span even when no URL is involved, so repaint on any cell
+            // change too (otherwise hovering an IP wouldn't reveal it).
+            if hover_changed || url_changed || link_changed || (self.privacy && cell_changed) {
+                return Some(CanvasAction::request_redraw());
+            }
+        None
+    }
+
+    /// A left press: the scrollbar first, then a Ctrl+click on a
+    /// detected URL, then plain text selection.
+    ///
+    /// Split out of `on_event`, whose arm order is load-bearing;
+    /// the guard that picks this stayed there.
+    fn on_left_press(
+        &self,
+        widget_state: &mut TerminalWidgetState,
+        bounds: Rectangle,
+        cursor: mouse::Cursor,
+    ) -> Option<CanvasAction<Message>> {
+            if let Some(pos) = cursor.position_in(bounds) {
+                // Scrollbar: thumb drag start, or page-up/down on the
+                // empty track area. Only meaningful when there's
+                // actual scrollback.
+                if let Ok(state) = self.state.lock() {
+                    let grid = state.backend.term.grid();
+                    if let Some(sb) = scrollbar_geom(
+                        bounds,
+                        grid.total_lines(),
+                        grid.screen_lines(),
+                        widget_state.scroll_offset.get(),
+                    ) && pos.x >= sb.track_x - 2.0
+                        && pos.x <= sb.track_x + sb.track_w + 2.0
+                        && pos.y >= sb.track_y
+                        && pos.y <= sb.track_y + sb.track_h
+                    {
+                        let page = grid.screen_lines() as i32;
+                        if pos.y >= sb.thumb_y && pos.y <= sb.thumb_y + sb.thumb_h {
+                            widget_state.scrollbar_drag =
+                                Some((pos.y, widget_state.scroll_offset.get()));
+                        } else if pos.y < sb.thumb_y {
+                            widget_state.scroll_offset
+                                .set((widget_state.scroll_offset.get() + page).min(sb.history_size));
+                        } else {
+                            widget_state.scroll_offset
+                                .set((widget_state.scroll_offset.get() - page).max(0));
+                        }
+                        return Some(CanvasAction::request_redraw().and_capture());
+                    }
+                }
+                let (col, vrow) = self.pixel_to_cell(pos);
+                let line = Self::visible_row_to_line(vrow, widget_state.scroll_offset.get());
+                // Only follow URLs on Ctrl+Click, plain clicks
+                // start a selection, matching Termius. Without
+                // the modifier gate, every click on a logged URL
+                // would lose the selection start.
+                if widget_state.modifiers.control()
+                    && let Ok(state) = self.state.lock()
+                {
+                    // Discriminator (shared by the hover + hint paths): a
+                    // cell carrying an OSC 8 attribute follows OSC 8 rules
+                    // ONLY, it opens iff its scheme is allowlisted and it
+                    // NEVER falls back to a scraped URL. Otherwise a spoof
+                    // whose visible label reads `https://real.com` but
+                    // whose OSC 8 target is `javascript:...` would still
+                    // open through the scraped arm. Only a cell with no
+                    // explicit link is scraped for a literal `http(s)://`.
+                    let target = match osc8_link_at_cell(&state.backend.term, line, col) {
+                        Some((uri, _, _)) => osc8_scheme_allowed(&uri).then_some(uri),
+                        None => url_at_cell(&state.backend.term, line, col),
+                    };
+                    drop(state);
+                    if let Some(url) = target {
+                        open_url(&url);
+                        // Tell the app the gesture landed so the
+                        // one-time hover hint can retire itself.
+                        if let Some(msg) = self.on_link_opened.clone() {
+                            return Some(CanvasAction::publish(msg).and_capture());
+                        }
+                        return Some(CanvasAction::capture());
+                    }
+                }
+                // Shift+Click extends the current selection from its
+                // existing anchor instead of starting a new one (xterm
+                // behaviour). Handled before click-kind classification so
+                // a quick shift+click can't be misread as a double-click
+                // word grab. Block-ness carries over.
+                if widget_state.modifiers.shift()
+                    && let Some(prev) = widget_state.selection
+                {
+                    widget_state.select_anchor = None;
+                    widget_state.selecting = true;
+                    widget_state.last_extend_cell = Some((col, line));
+                    widget_state.selection = Some(Selection {
+                        start: prev.start,
+                        end: (col, line),
+                        block: prev.block,
+                    });
+                    return Some(CanvasAction::request_redraw().and_capture());
+                }
+                // Classify the press as single / double / triple / quad
+                // (300 ms / 6 px window). 1=cell (Alt=block), 2=word
+                // (smart-select on URL/IP/path), 3=line, 4=paragraph.
+                let now = std::time::Instant::now();
+                let consecutive = widget_state
+                    .last_click
+                    .map(|(t, p, _)| {
+                        now.duration_since(t) <= std::time::Duration::from_millis(300)
+                            && p.distance(pos) < 6.0
+                    })
+                    .unwrap_or(false);
+                let count = next_click_count(
+                    widget_state.last_click.map(|(_, _, c)| c),
+                    consecutive,
+                );
+                widget_state.last_click = Some((now, pos, count));
+                widget_state.selecting = true;
+                widget_state.last_extend_cell = Some((col, line));
+                match count {
+                    1 => {
+                        widget_state.select_anchor = None;
+                        // Alt+drag starts a rectangular (column) selection.
+                        widget_state.selection = Some(Selection {
+                            start: (col, line),
+                            end: (col, line),
+                            block: widget_state.modifiers.alt(),
+                        });
+                    }
+                    2 => {
+                        if let Ok(mut state) = self.state.lock() {
+                            // Smart-select: a double-click inside a URL /
+                            // IP / path grabs the whole token instead of
+                            // the delimiter word. Falls back to word.
+                            if let Some((c0, c1)) = smart_span_at(
+                                &state.backend.term,
+                                &state.palette,
+                                line,
+                                col,
+                            ) {
+                                widget_state.select_anchor = None;
+                                widget_state.selection = Some(Selection {
+                                    start: (c0, line),
+                                    end: (c1, line),
+                                    block: false,
+                                });
+                            } else {
+                                widget_state.select_anchor =
+                                    Some((SelectGranularity::Word, (col, line)));
+                                widget_state.selection = Some(self.semantic_selection(
+                                    &mut state.backend,
+                                    (col, line),
+                                    SelectGranularity::Word,
+                                ));
+                            }
+                        }
+                    }
+                    3 => {
+                        widget_state.select_anchor =
+                            Some((SelectGranularity::Line, (col, line)));
+                        if let Ok(mut state) = self.state.lock() {
+                            widget_state.selection = Some(self.semantic_selection(
+                                &mut state.backend,
+                                (col, line),
+                                SelectGranularity::Line,
+                            ));
+                        }
+                    }
+                    // 4 (and the cycle restarts after): paragraph.
+                    _ => {
+                        widget_state.select_anchor =
+                            Some((SelectGranularity::Paragraph, (col, line)));
+                        if let Ok(mut state) = self.state.lock() {
+                            widget_state.selection = Some(self.semantic_selection(
+                                &mut state.backend,
+                                (col, line),
+                                SelectGranularity::Paragraph,
+                            ));
+                        }
+                    }
+                }
+                return Some(CanvasAction::request_redraw().and_capture());
+            }
         None
     }
 
