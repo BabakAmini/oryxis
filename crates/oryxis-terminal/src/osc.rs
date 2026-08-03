@@ -132,6 +132,13 @@ pub struct OscSniffer {
     /// and when neither is set no `E` is accepted at all: see the reasoning
     /// in `parse_osc633`.
     nonce: Option<String>,
+    /// Whether a refused `E` was already logged on this sniffer. A refusal
+    /// is silent by design (the sequence is invisible to the user either
+    /// way), but silence has one bad case: a host still sourcing the old
+    /// two-field snippet simply stops reporting, and "my history stopped"
+    /// then has nothing to look at. One debug line per pane answers it
+    /// without letting a hostile stream flood the log.
+    nonce_refusal_logged: bool,
 }
 
 impl OscSniffer {
@@ -258,8 +265,16 @@ impl OscSniffer {
                 // way to tell "the shell reported what it parsed" apart from
                 // "something printed bytes", and failing CLOSED is what keeps
                 // a forgotten `set_command_nonce` from silently reopening it.
-                let expected = self.nonce.as_deref().or(global_nonce())?;
-                if parts.next() != Some(expected) {
+                let expected = self.nonce.as_deref().or(global_nonce());
+                if expected.is_none() || parts.next() != expected {
+                    if !self.nonce_refusal_logged {
+                        self.nonce_refusal_logged = true;
+                        tracing::debug!(
+                            "osc 633;E refused: the reported command line does not \
+                             carry this vault's shell-integration key (copy the \
+                             current snippet from Settings > Terminal)"
+                        );
+                    }
                     return None;
                 }
                 let text = decode_osc633_arg(raw);

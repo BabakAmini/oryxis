@@ -832,9 +832,9 @@ impl TabPlacement {
 /// placement has to be remembered rather than applied inline.
 ///
 /// It is deliberately a STRIP placement keyed by tab id, not an index
-/// into `Oryxis::tabs`: `active_tab`, `last_terminal_tab`,
-/// `connecting.tab_idx` and `pending_pane_split` all hold positions in
-/// that vec, and every removal path fixes them up by hand
+/// into `Oryxis::tabs`: `active_tab`, `last_terminal_tab` and
+/// `connecting.tab_idx` hold positions in that vec, and every removal
+/// path fixes them up by hand
 /// (`teardown_tab_at`, `adjust_last_terminal_tab_after_remove`).
 /// Inserting into the middle of it would silently invalidate all four,
 /// so the copy is appended like any other tab and only its `tab_order`

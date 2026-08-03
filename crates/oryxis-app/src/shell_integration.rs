@@ -43,8 +43,17 @@ pub(crate) fn generate_nonce() -> String {
 }
 
 /// The snippet the user installs on a host, carrying `nonce`.
+///
+/// Line endings are forced to LF regardless of how the template was
+/// checked out. A Windows clone gets CRLF from git, and a `.sh` carrying
+/// `\r` fails on the host in ways that read as nonsense (`bash` reports
+/// `$'\r': command not found`, zsh mangles the `printf` escapes). The
+/// destination is always a POSIX shell, so the format is not the
+/// checkout's to decide.
 pub(crate) fn snippet(nonce: &str) -> String {
-    SNIPPET_TEMPLATE.replace(PLACEHOLDER, nonce)
+    SNIPPET_TEMPLATE
+        .replace("\r\n", "\n")
+        .replace(PLACEHOLDER, nonce)
 }
 
 #[cfg(test)]
@@ -68,6 +77,11 @@ mod tests {
         let s = snippet("deadbeef");
         assert!(s.contains("__oryxis_key=deadbeef"));
         assert!(!s.contains(PLACEHOLDER));
+        // It is pasted into a POSIX shell. A CRLF checkout (every Windows
+        // clone) would otherwise hand the host a file whose every line
+        // ends in `\r`, and bash answers that with `$'\r': command not
+        // found` on a line that looks perfectly fine.
+        assert!(!s.contains('\r'), "the copied snippet must be LF-only");
         // The reported line has to end with the key, which is the field the
         // sniffer compares; a snippet that emits the old 2-field form would
         // be refused by every pane.

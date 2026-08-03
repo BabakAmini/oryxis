@@ -84,7 +84,8 @@ impl Oryxis {
     ///
     /// Only `tab_order` moves. `Oryxis::tabs` keeps append-only
     /// semantics, so no `active_tab` / `last_terminal_tab` /
-    /// `connecting.tab_idx` / `pending_pane_split` index goes stale.
+    /// `connecting.tab_idx` index goes stale. (`pending_pane_split` was
+    /// on that list until it started holding a tab id instead.)
     fn place_new_tab_ref(&mut self, r: crate::state::TabRef) {
         let at = self
             .pending_tab_placement
