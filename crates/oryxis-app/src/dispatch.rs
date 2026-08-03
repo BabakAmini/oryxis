@@ -137,10 +137,10 @@ impl Oryxis {
     /// clear `suppress_hover`, after which the gate closes again).
     fn mouse_interest(&self) -> bool {
         self.chat_ui.sidebar_drag.is_some()
-            || self.sftp_split_drag.is_some()
-            || self.sftp_log_drag.is_some()
-            || self.sftp_col_resize.is_some()
-            || self.sftp_col_drag.is_some()
+            || self.sftp_chrome.split_drag.is_some()
+            || self.sftp_chrome.log_drag.is_some()
+            || self.sftp_chrome.col_resize.is_some()
+            || self.sftp_chrome.col_drag.is_some()
             || self.sftp.drag.is_some()
             || self.tab_drag.is_some()
             || self.window_fullscreen
@@ -156,7 +156,7 @@ impl Oryxis {
     pub(crate) fn confirm_remove(&mut self, name: String, action: Message) {
         self.card_context_menu = None;
         self.snippet_context_menu = None;
-        self.key_context_menu = None;
+        self.keys_ui.context_menu = None;
         self.identity_context_menu = None;
         self.port_forward_context_menu = None;
         self.overlay = None;

@@ -108,7 +108,7 @@ impl Oryxis {
                 // Burger menu is the most common entry point for
                 // this action; dismiss it so the spawned shell
                 // doesn't appear behind the still-open dropdown.
-                self.show_burger_menu = false;
+                self.panels.burger_menu = false;
                 // First open ever: run the one-time scan, then act on the
                 // result. Every later open reads the persisted list (the
                 // scan never repeats unless the user asks for a re-scan).
@@ -251,7 +251,7 @@ impl Oryxis {
                 self.icon_picker.for_session_group = false;
                 self.icon_picker.for_group_edit = false;
                 self.icon_picker.for_local_terminal = true;
-                self.show_icon_picker = true;
+                self.panels.icon_picker = true;
             }
             SettingsMessage::LocalTerminalCardHovered(idx) => {
                 self.hover.local_terminal_card = Some(idx);

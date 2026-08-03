@@ -173,7 +173,7 @@ impl Oryxis {
             }
 
             SessionGroupMessage::SessionGroupFormCancel => {
-                self.show_session_group_panel = false;
+                self.panels.session_group_panel = false;
                 self.session_group_panel_error = None;
                 Task::none()
             }
@@ -191,7 +191,7 @@ impl Oryxis {
                 self.icon_picker.for_group_form = false;
                 self.icon_picker.for_session_group = true;
                 self.icon_picker.for_local_terminal = false;
-                self.show_icon_picker = true;
+                self.panels.icon_picker = true;
                 Task::none()
             }
 
@@ -269,11 +269,11 @@ impl Oryxis {
     /// any stale error.
     fn open_session_group_editor(&mut self, mut form: SessionGroupForm) -> Task<Message> {
         // Mutually exclusive right-panel slot, close other panels first.
-        self.show_host_panel = false;
+        self.panels.host_panel = false;
         self.panel_nav_clear();
         self.cloud_form.visible = false;
         self.cloud_dynamic_form.visible = false;
-        self.cloud_discover_visible = false;
+        self.cloud_discover.visible = false;
         self.group_edit.visible = false;
         // Seed the multi-line script buffer from the first pane.
         form.current_pane = 0;
@@ -286,7 +286,7 @@ impl Oryxis {
             iced::widget::text_editor::Content::with_text(&first_script);
         self.editor_session_group = form;
         self.session_group_panel_error = None;
-        self.show_session_group_panel = true;
+        self.panels.session_group_panel = true;
         // Land focus in the name field so the user can type immediately
         // (otherwise the first keystrokes go nowhere, reading as broken).
         iced::widget::operation::focus(iced::widget::Id::new("session-group-name"))
@@ -300,7 +300,7 @@ impl Oryxis {
             return Task::none();
         }
         let Some(layout) = form.layout.clone() else {
-            self.show_session_group_panel = false;
+            self.panels.session_group_panel = false;
             return Task::none();
         };
 
@@ -364,7 +364,7 @@ impl Oryxis {
                         tab.session_group_id = Some(group_id_saved);
                         tab.label = group_label.clone();
                     }
-                    self.show_session_group_panel = false;
+                    self.panels.session_group_panel = false;
                     self.session_group_panel_error = None;
                     self.load_data_from_vault();
                 }

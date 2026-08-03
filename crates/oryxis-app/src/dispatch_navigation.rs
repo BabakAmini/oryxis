@@ -98,8 +98,8 @@ impl Oryxis {
                 // Burger menu auto-dismisses on navigation: the user
                 // picked a destination, leaving the overlay open is
                 // visual noise.
-                self.show_burger_menu = false;
-                self.show_subnav_overflow = false;
+                self.panels.burger_menu = false;
+                self.panels.subnav_overflow = false;
                 // Any floating overlay menu (kebab, sort, the
                 // multi-select tag filters, which STAY open by design)
                 // dies with its view: a stale `overlay` keeps the modal
@@ -338,12 +338,12 @@ impl Oryxis {
                     // content's right edge.
                     let panel_width = match kind {
                         SortMenuKind::Hosts => {
-                            if self.show_host_panel { crate::app::PANEL_WIDTH } else { 0.0 }
+                            if self.panels.host_panel { crate::app::PANEL_WIDTH } else { 0.0 }
                         }
                         SortMenuKind::Keys => {
-                            if self.show_key_panel
-                                || self.show_identity_panel
-                                || self.show_key_generate_panel
+                            if self.panels.key_panel
+                                || self.panels.identity_panel
+                                || self.panels.key_generate_panel
                             {
                                 crate::app::PANEL_WIDTH
                             } else {
@@ -351,7 +351,7 @@ impl Oryxis {
                             }
                         }
                         SortMenuKind::Snippets => {
-                            if self.show_snippet_panel { crate::app::PANEL_WIDTH } else { 0.0 }
+                            if self.panels.snippet_panel { crate::app::PANEL_WIDTH } else { 0.0 }
                         }
                     };
                     // Must match the `OverlayContent::SortMenu` width in

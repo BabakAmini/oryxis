@@ -170,7 +170,7 @@ impl Oryxis {
                     && let Some(tab) = self.tabs.get(tab_idx)
                 {
                     self.pending_pane_split = Some((tab._id, tab.focused, axis));
-                    self.show_new_tab_picker = true;
+                    self.panels.new_tab_picker = true;
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
                     // Same focus-the-search behavior as ShowNewTabPicker.
@@ -190,7 +190,7 @@ impl Oryxis {
                     self.active_view = crate::state::View::Terminal;
                     self.remember_terminal_tab_focus(tab_idx);
                     self.pending_pane_split = Some((tab_id, target, axis));
-                    self.show_new_tab_picker = true;
+                    self.panels.new_tab_picker = true;
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
                     // Same focus-the-search behavior as ShowNewTabPicker.
@@ -625,7 +625,7 @@ impl Oryxis {
             // the host-panel / modal guards keep that from also hitting the
             // session.
             TerminalMessage::TerminalImeCommit(text) => {
-                if text.is_empty() || self.show_host_panel || self.any_modal_blocks_input() {
+                if text.is_empty() || self.panels.host_panel || self.any_modal_blocks_input() {
                     return Task::none();
                 }
                 // `cursor_over_sidebar` honors the dock side (issue #85)

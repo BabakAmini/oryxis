@@ -14,7 +14,7 @@ impl Oryxis {
 
         // Keyboard rows are recorded in visual order.
         self.panel_nav_reset();
-        let form = &self.key_generate_form;
+        let form = &self.keys_ui.generate_form;
 
         let panel_header = container(
             dir_row(vec![

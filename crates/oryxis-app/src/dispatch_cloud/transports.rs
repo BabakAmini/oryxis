@@ -118,7 +118,7 @@ impl Oryxis {
                 // via the session plugin, it can't fill an SSH-only split
                 // pane, so leaving pending_pane_split set would misroute the
                 // next SSH pick into a pane. No-op when the picker is closed.
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 self.pending_pane_split = None;
                 // Resolve the dynamic group + its cloud_query. These
                 // used to fail silently, which left a reopened pinned
@@ -239,7 +239,7 @@ impl Oryxis {
             } => {
                 // See ConnectEcsExecTask: close the picker and drop any
                 // pending split-pane target, kubectl exec opens a full tab.
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 self.pending_pane_split = None;
                 let Some(group) = self.groups.iter().find(|g| g.id == group_id).cloned() else {
                     return Ok(Task::none());

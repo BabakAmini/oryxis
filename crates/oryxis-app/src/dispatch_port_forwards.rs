@@ -107,7 +107,7 @@ impl Oryxis {
             // -- Editor panel --
             PortForwardMessage::ShowPortForwardPanel => {
                 self.overlay = None;
-                self.show_port_forward_panel = true;
+                self.panels.port_forward_panel = true;
                 self.port_forward_form.editing_id = None;
                 self.port_forward_form.label.clear();
                 self.port_forward_form.kind = oryxis_core::models::port_forward_rule::ForwardKind::Local;
@@ -122,7 +122,7 @@ impl Oryxis {
                 self.port_forward_form.error = None;
             }
             PortForwardMessage::HidePortForwardPanel => {
-                self.show_port_forward_panel = false;
+                self.panels.port_forward_panel = false;
             }
             PortForwardMessage::PfLabelChanged(v) => self.port_forward_form.label = v,
             PortForwardMessage::PfKindChanged(k) => self.port_forward_form.kind = k,
@@ -138,7 +138,7 @@ impl Oryxis {
             PortForwardMessage::PfAutoStartToggled(v) => self.port_forward_form.auto_start = v,
             PortForwardMessage::EditPortForwardRule(idx) => {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
-                    self.show_port_forward_panel = true;
+                    self.panels.port_forward_panel = true;
                     self.port_forward_form.editing_id = Some(rule.id);
                     self.port_forward_form.label = rule.label.clone();
                     self.port_forward_form.kind = rule.kind;
@@ -155,7 +155,7 @@ impl Oryxis {
                 if let Some(err) = self.save_port_forward_rule() {
                     self.port_forward_form.error = Some(err);
                 } else {
-                    self.show_port_forward_panel = false;
+                    self.panels.port_forward_panel = false;
                     self.port_forward_form.error = None;
                     self.load_data_from_vault();
                 }
@@ -200,7 +200,7 @@ impl Oryxis {
                     self.port_forward_retry.remove(&id);
                     if let Some(vault) = &self.vault {
                         let _ = vault.delete_port_forward_rule(&id);
-                        self.show_port_forward_panel = false;
+                        self.panels.port_forward_panel = false;
                         self.load_data_from_vault();
                     }
                 }

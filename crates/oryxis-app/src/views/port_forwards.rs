@@ -329,7 +329,7 @@ impl Oryxis {
         }
 
         let nav_width = self.vault_rail_width();
-        let panel_width = if self.show_port_forward_panel { PANEL_WIDTH } else { 0.0 };
+        let panel_width = if self.panels.port_forward_panel { PANEL_WIDTH } else { 0.0 };
         let available = (self.window_size.width
             - nav_width
             - self.side_strip_reserve()

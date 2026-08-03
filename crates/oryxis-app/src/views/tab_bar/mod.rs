@@ -134,7 +134,7 @@ impl Oryxis {
             .into();
 
         let mut leading: Vec<Element<'_, Message>> = vec![
-            burger_menu_btn(self.show_burger_menu),
+            burger_menu_btn(self.panels.burger_menu),
             Space::new().width(1).height(TAB_HEIGHT).into(),
         ];
         if side {
@@ -704,7 +704,7 @@ impl Oryxis {
             // vault destination + global actions. Leading breathing space is
             // the burger button's own left padding (not a margin), so the gap
             // is part of its clickable / hover area.
-            leading.push(burger_menu_btn(self.show_burger_menu));
+            leading.push(burger_menu_btn(self.panels.burger_menu));
             // 1 px breather between the burger and the first area tab (home).
             leading.push(Space::new().width(1).height(TAB_HEIGHT).into());
         }

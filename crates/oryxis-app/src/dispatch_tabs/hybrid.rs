@@ -110,8 +110,8 @@ impl Oryxis {
                 .or_else(|| std::env::var_os("USERPROFILE"))
                 .map(std::path::PathBuf::from)
                 .unwrap_or_else(|| std::path::PathBuf::from("/"));
-            self.sftp.left.columns = self.sftp_columns_template.clone();
-            self.sftp.right.columns = self.sftp_columns_template.clone();
+            self.sftp.left.columns = self.sftp_chrome.columns_template.clone();
+            self.sftp.right.columns = self.sftp_chrome.columns_template.clone();
         }
         self.refresh_sftp_local(crate::state::SftpPaneSide::Left);
         // Saved host: the shared mount pipeline (reuse-or-connect)

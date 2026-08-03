@@ -192,7 +192,7 @@ impl Oryxis {
                 // (not `OverlayState`), so clearing `self.overlay`
                 // alone wasn't enough.
                 self.overlay = None;
-                self.show_burger_menu = false;
+                self.panels.burger_menu = false;
                 self.spawn_oryxis_child(None);
             }
             TabsMessage::ActivateStripSlot(slot) => {
@@ -223,10 +223,10 @@ impl Oryxis {
                 self.overlay = None;
                 self.card_context_menu = None;
                 self.snippet_context_menu = None;
-                self.key_context_menu = None;
+                self.keys_ui.context_menu = None;
                 self.identity_context_menu = None;
                 self.port_forward_context_menu = None;
-                self.show_keychain_add_menu = false;
+                self.panels.keychain_add_menu = false;
             }
             TabsMessage::ShowCardMenu(idx) => {
                 if self.card_context_menu == Some(idx) {
@@ -306,7 +306,7 @@ impl Oryxis {
                 // tab, never a split (only SplitPane sets that).
                 self.overlay = None; // dismiss the `+` hover popover if open
                 self.pending_pane_split = None;
-                self.show_new_tab_picker = true;
+                self.panels.new_tab_picker = true;
                 self.new_tab_picker_search.clear();
                 self.new_tab_picker_group = None;
                 // Land focus on the search so the picker is
@@ -316,7 +316,7 @@ impl Oryxis {
                 ));
             }
             TabsMessage::HideNewTabPicker => {
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 self.pending_pane_split = None;
                 self.new_tab_picker_group = None;
             }
@@ -338,7 +338,7 @@ impl Oryxis {
                 self.new_tab_picker_search.clear();
             }
             TabsMessage::PickLocalShell => {
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 // Both destinations (a pending split pane and a new tab)
                 // take the same route: the local-shell decision applies the
                 // user's curated list / "always open X" default and raises
@@ -350,7 +350,7 @@ impl Oryxis {
                 return self.update(Message::Settings(SettingsMessage::OpenLocalShell));
             }
             TabsMessage::ShowTabJump => {
-                self.show_tab_jump = true;
+                self.panels.tab_jump = true;
                 self.tab_jump_search.clear();
                 // Land focus on the search so the modal is
                 // type-to-filter from the first keystroke, matching the
@@ -362,13 +362,13 @@ impl Oryxis {
                 ));
             }
             TabsMessage::ToggleBurgerMenu => {
-                self.show_burger_menu = !self.show_burger_menu;
+                self.panels.burger_menu = !self.panels.burger_menu;
             }
             TabsMessage::ToggleSubnavOverflow => {
-                self.show_subnav_overflow = !self.show_subnav_overflow;
+                self.panels.subnav_overflow = !self.panels.subnav_overflow;
             }
             TabsMessage::HideTabJump => {
-                self.show_tab_jump = false;
+                self.panels.tab_jump = false;
             }
             TabsMessage::TabJumpSearchChanged(v) => {
                 self.tab_jump_search = v;
@@ -385,7 +385,7 @@ impl Oryxis {
                 );
             }
             TabsMessage::TabJumpSelect(inner) => {
-                self.show_tab_jump = false;
+                self.panels.tab_jump = false;
                 return Task::done(*inner);
             }
             TabsMessage::ShowCommandPalette => {
@@ -483,10 +483,10 @@ impl Oryxis {
                 self.icon_color_popover = None;
                 self.icon_picker.for_id = Some(conn_id);
                 self.icon_picker.for_local_terminal = false;
-                self.show_icon_picker = true;
+                self.panels.icon_picker = true;
             }
             TabsMessage::HideIconPicker => {
-                self.show_icon_picker = false;
+                self.panels.icon_picker = false;
                 self.icon_picker.for_id = None;
                 self.icon_picker.for_group_form = false;
                 self.icon_picker.for_session_group = false;
@@ -722,12 +722,12 @@ impl Oryxis {
                         .unwrap_or_default();
                     self.group_edit.visible = true;
                     // Mutually exclusive with the other right-hand panels.
-                    self.show_host_panel = false;
+                    self.panels.host_panel = false;
                     self.panel_nav_clear();
-                    self.show_session_group_panel = false;
+                    self.panels.session_group_panel = false;
                     self.cloud_form.visible = false;
                     self.cloud_dynamic_form.visible = false;
-                    self.cloud_discover_visible = false;
+                    self.cloud_discover.visible = false;
                 }
             }
             TabsMessage::NewSubgroup(gid) => {
@@ -749,12 +749,12 @@ impl Oryxis {
                         parent_label,
                     };
                     // Mutually exclusive with the other right-hand panels.
-                    self.show_host_panel = false;
+                    self.panels.host_panel = false;
                     self.panel_nav_clear();
-                    self.show_session_group_panel = false;
+                    self.panels.session_group_panel = false;
                     self.cloud_form.visible = false;
                     self.cloud_dynamic_form.visible = false;
-                    self.cloud_discover_visible = false;
+                    self.cloud_discover.visible = false;
                 }
             }
             TabsMessage::NewGroup => {
@@ -772,12 +772,12 @@ impl Oryxis {
                     parent_label: String::new(),
                 };
                 // Mutually exclusive with the other right-hand panels.
-                self.show_host_panel = false;
+                self.panels.host_panel = false;
                 self.panel_nav_clear();
-                self.show_session_group_panel = false;
+                self.panels.session_group_panel = false;
                 self.cloud_form.visible = false;
                 self.cloud_dynamic_form.visible = false;
-                self.cloud_discover_visible = false;
+                self.cloud_discover.visible = false;
             }
             TabsMessage::GroupEditLabelChanged(v) => {
                 self.group_edit.label = v;
@@ -802,7 +802,7 @@ impl Oryxis {
                 self.icon_picker.for_session_group = false;
                 self.icon_picker.for_group_edit = true;
                 self.icon_picker.for_local_terminal = false;
-                self.show_icon_picker = true;
+                self.panels.icon_picker = true;
             }
             TabsMessage::SaveGroupEdit => {
                 let trimmed = self.group_edit.label.trim().to_string();

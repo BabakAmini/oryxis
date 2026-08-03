@@ -457,13 +457,13 @@ impl Oryxis {
                 });
             }
             SettingsMessage::ThemeImportOpen => {
-                self.show_theme_import = true;
+                self.panels.theme_import = true;
                 self.theme_ui.import_content = iced::widget::text_editor::Content::new();
                 self.theme_ui.import_name.clear();
                 self.theme_ui.import_error = None;
             }
             SettingsMessage::ThemeImportClose => {
-                self.show_theme_import = false;
+                self.panels.theme_import = false;
             }
             SettingsMessage::ThemeImportContentAction(action) => {
                 self.theme_ui.import_content.perform(action);
@@ -486,7 +486,7 @@ impl Oryxis {
                         let mut form = crate::state::ThemeEditorForm::from_theme(&theme);
                         form.editing_id = None;
                         self.theme_ui.editor = Some(form);
-                        self.show_theme_import = false;
+                        self.panels.theme_import = false;
                     }
                     Err(e) => self.theme_ui.import_error = Some(e),
                 }
@@ -818,7 +818,7 @@ impl Oryxis {
                 }
             }
             SettingsMessage::UiThemeImportOpen => {
-                self.show_ui_theme_import = true;
+                self.panels.ui_theme_import = true;
                 self.ui_theme_import_content =
                     iced::widget::text_editor::Content::new();
                 self.ui_theme_import_name.clear();
@@ -856,7 +856,7 @@ impl Oryxis {
                             colors: theme.colors,
                             error: None,
                         });
-                        self.show_ui_theme_import = false;
+                        self.panels.ui_theme_import = false;
                     }
                     Err(e) => self.ui_theme_import_error = Some(e),
                 }

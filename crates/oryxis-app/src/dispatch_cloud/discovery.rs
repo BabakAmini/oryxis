@@ -28,22 +28,22 @@ impl Oryxis {
                 // hangs on top of the freshly-opened discovery panel.
                 self.overlay = None;
                 // Close any other right-panel (mutually exclusive slot).
-                self.show_host_panel = false;
+                self.panels.host_panel = false;
                 self.cloud_form.visible = false;
                 self.cloud_dynamic_form.visible = false;
                 self.group_edit.visible = false;
-                self.cloud_discover_visible = true;
-                self.cloud_discover_profile_id = Some(profile_id);
-                self.cloud_discover_selected_ec2.clear();
-                self.cloud_discover_selected_ecs.clear();
-                self.cloud_discover_selected_k8s.clear();
-                self.cloud_discover_filter.clear();
-                self.cloud_discover_state = CloudDiscoverState::Idle;
+                self.cloud_discover.visible = true;
+                self.cloud_discover.profile_id = Some(profile_id);
+                self.cloud_discover.selected_ec2.clear();
+                self.cloud_discover.selected_ecs.clear();
+                self.cloud_discover.selected_k8s.clear();
+                self.cloud_discover.filter.clear();
+                self.cloud_discover.state = CloudDiscoverState::Idle;
                 // Default the input to the profile's own label so the
                 // most common case (one folder per profile) requires
                 // zero typing. The user can clear or change before
                 // hitting Import.
-                self.cloud_discover_default_group_name = self
+                self.cloud_discover.default_group_name = self
                     .cloud_profiles
                     .iter()
                     .find(|p| p.id == profile_id)
@@ -52,21 +52,21 @@ impl Oryxis {
                 return Ok(self.spawn_discover(profile_id));
             }
             CloudMessage::HideCloudDiscover => {
-                self.cloud_discover_visible = false;
-                self.cloud_discover_profile_id = None;
-                self.cloud_discover_state = CloudDiscoverState::Idle;
-                self.cloud_discover_selected_ec2.clear();
-                self.cloud_discover_selected_ecs.clear();
-                self.cloud_discover_selected_k8s.clear();
-                self.cloud_discover_filter.clear();
+                self.cloud_discover.visible = false;
+                self.cloud_discover.profile_id = None;
+                self.cloud_discover.state = CloudDiscoverState::Idle;
+                self.cloud_discover.selected_ec2.clear();
+                self.cloud_discover.selected_ecs.clear();
+                self.cloud_discover.selected_k8s.clear();
+                self.cloud_discover.filter.clear();
             }
             CloudMessage::CloudDiscoverRefresh => {
-                if let Some(id) = self.cloud_discover_profile_id {
+                if let Some(id) = self.cloud_discover.profile_id {
                     return Ok(self.spawn_discover(id));
                 }
             }
             CloudMessage::CloudDiscoverResult(result) => {
-                self.cloud_discover_state = match result {
+                self.cloud_discover.state = match result {
                     Ok(boxed) => CloudDiscoverState::Loaded(*boxed),
                     Err(msg) => CloudDiscoverState::Failed(msg),
                 };
@@ -74,13 +74,13 @@ impl Oryxis {
                 // have changed (instance terminated, new ones spun up),
                 // and silently keeping a checked id that no longer
                 // exists in the new list would be misleading.
-                self.cloud_discover_selected_ec2.clear();
-                self.cloud_discover_selected_ecs.clear();
-                self.cloud_discover_selected_k8s.clear();
+                self.cloud_discover.selected_ec2.clear();
+                self.cloud_discover.selected_ecs.clear();
+                self.cloud_discover.selected_k8s.clear();
                 // Stamp the profile's last_discovered when we got real
                 // results, so the cards list shows fresh metadata.
-                if matches!(self.cloud_discover_state, CloudDiscoverState::Loaded(_))
-                    && let Some(id) = self.cloud_discover_profile_id
+                if matches!(self.cloud_discover.state, CloudDiscoverState::Loaded(_))
+                    && let Some(id) = self.cloud_discover.profile_id
                     && let Some(vault) = &self.vault
                     && let Some(mut cp) = self
                         .cloud_profiles
@@ -94,37 +94,37 @@ impl Oryxis {
                 }
             }
             CloudMessage::CloudDiscoverToggleEc2(instance_id) => {
-                if !self.cloud_discover_selected_ec2.remove(&instance_id) {
-                    self.cloud_discover_selected_ec2.insert(instance_id);
+                if !self.cloud_discover.selected_ec2.remove(&instance_id) {
+                    self.cloud_discover.selected_ec2.insert(instance_id);
                 }
             }
             CloudMessage::CloudDiscoverToggleEcs(key) => {
-                if !self.cloud_discover_selected_ecs.remove(&key) {
-                    self.cloud_discover_selected_ecs.insert(key);
+                if !self.cloud_discover.selected_ecs.remove(&key) {
+                    self.cloud_discover.selected_ecs.insert(key);
                 }
             }
             CloudMessage::CloudDiscoverToggleK8s(key) => {
-                if !self.cloud_discover_selected_k8s.remove(&key) {
-                    self.cloud_discover_selected_k8s.insert(key);
+                if !self.cloud_discover.selected_k8s.remove(&key) {
+                    self.cloud_discover.selected_k8s.insert(key);
                 }
             }
             CloudMessage::CloudDiscoverFilterChanged(s) => {
-                self.cloud_discover_filter = s;
+                self.cloud_discover.filter = s;
             }
             CloudMessage::CloudDiscoverToggleSection(key) => {
-                if !self.cloud_discover_collapsed.remove(&key) {
-                    self.cloud_discover_collapsed.insert(key);
+                if !self.cloud_discover.collapsed.remove(&key) {
+                    self.cloud_discover.collapsed.insert(key);
                 }
             }
             CloudMessage::CloudDiscoverDefaultTransportChanged(t) => {
-                self.cloud_discover_default_transport = t;
+                self.cloud_discover.default_transport = t;
             }
             CloudMessage::CloudDiscoverDefaultGroupNameChanged(v) => {
-                self.cloud_discover_default_group_name = v;
+                self.cloud_discover.default_group_name = v;
             }
             CloudMessage::CloudDiscoverDefaultGroupPick(label) => {
-                self.cloud_discover_default_group_name = label;
-                self.cloud_discover_default_group_picker_open = false;
+                self.cloud_discover.default_group_name = label;
+                self.cloud_discover.default_group_picker_open = false;
                 // The modal-stack injection at `view_main` only
                 // checks `self.overlay`; without also clearing it
                 // here the menu would re-render on top after every
@@ -138,10 +138,10 @@ impl Oryxis {
                 }
             }
             CloudMessage::ToggleCloudDiscoverGroupPicker => {
-                self.cloud_discover_default_group_picker_open =
-                    !self.cloud_discover_default_group_picker_open;
-                if self.cloud_discover_default_group_picker_open {
-                    self.cloud_discover_default_group_picker_search.clear();
+                self.cloud_discover.default_group_picker_open =
+                    !self.cloud_discover.default_group_picker_open;
+                if self.cloud_discover.default_group_picker_open {
+                    self.cloud_discover.default_group_picker_search.clear();
                     // Anchor the menu off the live combo bounds
                     // captured by the `bounds_reporter` wrapping the
                     // Import-into row. `BoundsCell` value is the
@@ -150,7 +150,7 @@ impl Oryxis {
                     // the combo's bottom; left edge matches combo
                     // left so the dropdown visually replaces the
                     // input column.
-                    let combo = self.cloud_discover_default_group_combo_bounds.get();
+                    let combo = self.cloud_discover.default_group_combo_bounds.get();
                     let gap = 6.0_f32;
                     let x = combo.x.max(0.0);
                     let y = (combo.y + combo.height + gap).max(0.0);
@@ -167,7 +167,7 @@ impl Oryxis {
                 }
             }
             CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(v) => {
-                self.cloud_discover_default_group_picker_search = v;
+                self.cloud_discover.default_group_picker_search = v;
             }
             CloudMessage::CloudAutoRefreshTick => {
                 // Fan out a sync for every configured profile. Each
@@ -220,7 +220,7 @@ impl Oryxis {
                 // provider (writes the kubeconfig), then create a K8s
                 // account pointed at the resulting context. Discovering
                 // that account then lists its workloads.
-                let Some(profile_id) = self.cloud_discover_profile_id else {
+                let Some(profile_id) = self.cloud_discover.profile_id else {
                     return Ok(Task::none());
                 };
                 let Some(mut profile) = self
@@ -335,7 +335,7 @@ impl Oryxis {
                 if already {
                     return Ok(self.show_toast(crate::i18n::t("cloud_aks_added").to_string()));
                 }
-                let Some(profile_id) = self.cloud_discover_profile_id else {
+                let Some(profile_id) = self.cloud_discover.profile_id else {
                     return Ok(Task::none());
                 };
                 let Some(mut profile) = self
@@ -570,8 +570,8 @@ impl Oryxis {
                 // user gets a chance to set the target group (and the
                 // transport, when EC2 hosts are part of the batch).
                 // Empty selection short-circuits.
-                if self.cloud_discover_selected_ec2.is_empty()
-                    && self.cloud_discover_selected_ecs.is_empty()
+                if self.cloud_discover.selected_ec2.is_empty()
+                    && self.cloud_discover.selected_ecs.is_empty()
                 {
                     return Ok(Task::none());
                 }
@@ -579,30 +579,30 @@ impl Oryxis {
             }
             CloudMessage::CloudDiscoverImportCancelled => {
                 self.cloud_import_confirm_visible = false;
-                self.cloud_discover_default_group_picker_open = false;
+                self.cloud_discover.default_group_picker_open = false;
             }
             CloudMessage::CloudDiscoverImportConfirmed => {
                 self.cloud_import_confirm_visible = false;
-                let Some(profile_id) = self.cloud_discover_profile_id else {
+                let Some(profile_id) = self.cloud_discover.profile_id else {
                     return Ok(Task::none());
                 };
                 if !self.cloud_profiles.iter().any(|p| p.id == profile_id) {
                     return Ok(Task::none());
                 }
-                let CloudDiscoverState::Loaded(result) = &self.cloud_discover_state else {
+                let CloudDiscoverState::Loaded(result) = &self.cloud_discover.state else {
                     return Ok(Task::none());
                 };
                 let selected_ec2: Vec<_> = result
                     .ec2
                     .iter()
-                    .filter(|e| self.cloud_discover_selected_ec2.contains(&e.instance_id))
+                    .filter(|e| self.cloud_discover.selected_ec2.contains(&e.instance_id))
                     .cloned()
                     .collect();
                 let selected_ecs: Vec<_> = result
                     .ecs_services
                     .iter()
                     .filter(|s| {
-                        self.cloud_discover_selected_ecs
+                        self.cloud_discover.selected_ecs
                             .contains(&format!("{}/{}/{}", s.cluster, s.service, s.container))
                     })
                     .cloned()
@@ -611,7 +611,7 @@ impl Oryxis {
                     .k8s_workloads
                     .iter()
                     .filter(|w| {
-                        self.cloud_discover_selected_k8s
+                        self.cloud_discover.selected_k8s
                             .contains(&format!("{}/{}/{}", w.namespace, w.kind, w.name))
                     })
                     .cloned()
@@ -627,7 +627,7 @@ impl Oryxis {
                     // group with that label on the spot, so the user
                     // can type any folder name (existing or new) and
                     // have it materialised in one go.
-                    let typed = self.cloud_discover_default_group_name.trim().to_string();
+                    let typed = self.cloud_discover.default_group_name.trim().to_string();
                     let provider_id_str = self
                         .cloud_profiles
                         .iter()
@@ -705,7 +705,7 @@ impl Oryxis {
                             // user picked at the bottom of the panel.
                             // Saves "import → edit each → set
                             // Instance Connect" on bulk imports.
-                            transport_pref: self.cloud_discover_default_transport,
+                            transport_pref: self.cloud_discover.default_transport,
                             // Public IPs change across stop/start, so
                             // re-resolving on each connect is the safer
                             // default for imported EC2.
@@ -781,12 +781,12 @@ impl Oryxis {
                         let _ = vault.save_group(&g);
                     }
 
-                    self.cloud_discover_visible = false;
-                    self.cloud_discover_profile_id = None;
-                    self.cloud_discover_selected_ec2.clear();
-                    self.cloud_discover_selected_ecs.clear();
-                    self.cloud_discover_selected_k8s.clear();
-                    self.cloud_discover_state = CloudDiscoverState::Idle;
+                    self.cloud_discover.visible = false;
+                    self.cloud_discover.profile_id = None;
+                    self.cloud_discover.selected_ec2.clear();
+                    self.cloud_discover.selected_ecs.clear();
+                    self.cloud_discover.selected_k8s.clear();
+                    self.cloud_discover.state = CloudDiscoverState::Idle;
                     self.load_data_from_vault();
                 }
             }

@@ -203,24 +203,24 @@ impl Oryxis {
                     // Sweep UI that may hold typed or revealed secrets;
                     // everything else (tabs, terminals) stays.
                     self.revealed_secrets.clear();
-                    self.show_host_panel = false;
+                    self.panels.host_panel = false;
                     self.host_panel_error = None;
                     self.editor_form = crate::state::ConnectionForm::default();
                     // The key-generation panel carries export
                     // passphrases and a public-key view; sweep it (a
                     // still-running generation task is dropped on
                     // completion by the locked-vault check).
-                    self.show_key_generate_panel = false;
-                    self.key_generate_form = crate::state::KeyGenerateForm::default();
+                    self.panels.key_generate_panel = false;
+                    self.keys_ui.generate_form = crate::state::KeyGenerateForm::default();
                     // The key import panel (holds a pasted cert / PEM) and
                     // the cert viewer are vault-area surfaces; drop them.
                     // The live PEM editor buffer is private material, so it
                     // is reset too, matching the generate-panel sweep.
-                    self.show_key_panel = false;
-                    self.key_import_form = crate::state::KeyImportForm::default();
-                    self.key_import_content = iced::widget::text_editor::Content::new();
-                    self.key_import_public_content = iced::widget::text_editor::Content::new();
-                    self.key_import_cert_content = iced::widget::text_editor::Content::new();
+                    self.panels.key_panel = false;
+                    self.keys_ui.import_form = crate::state::KeyImportForm::default();
+                    self.keys_ui.import_content = iced::widget::text_editor::Content::new();
+                    self.keys_ui.import_public_content = iced::widget::text_editor::Content::new();
+                    self.keys_ui.import_cert_content = iced::widget::text_editor::Content::new();
                     self.cert_viewer = None;
                     // The session player / log viewer hold DECRYPTED
                     // recording bytes (a session that ran `cat
@@ -385,16 +385,16 @@ impl Oryxis {
                         self.close_modal(crate::state::Modal::TabJump);
                         self.close_modal(crate::state::Modal::NewTabPicker);
                         self.error_dialog = None;
-                        self.show_host_panel = false;
+                        self.panels.host_panel = false;
                         self.host_panel_error = None;
                         self.editor_form = crate::state::ConnectionForm::default();
-                        self.show_key_generate_panel = false;
-                        self.key_generate_form = crate::state::KeyGenerateForm::default();
-                        self.show_key_panel = false;
-                        self.key_import_form = crate::state::KeyImportForm::default();
-                        self.key_import_content = iced::widget::text_editor::Content::new();
-                        self.key_import_public_content = iced::widget::text_editor::Content::new();
-                        self.key_import_cert_content = iced::widget::text_editor::Content::new();
+                        self.panels.key_generate_panel = false;
+                        self.keys_ui.generate_form = crate::state::KeyGenerateForm::default();
+                        self.panels.key_panel = false;
+                        self.keys_ui.import_form = crate::state::KeyImportForm::default();
+                        self.keys_ui.import_content = iced::widget::text_editor::Content::new();
+                        self.keys_ui.import_public_content = iced::widget::text_editor::Content::new();
+                        self.keys_ui.import_cert_content = iced::widget::text_editor::Content::new();
                         self.cert_viewer = None;
                         // Decrypted session-recording bytes (player grid /
                         // rendered viewer spans) are secret-bearing and

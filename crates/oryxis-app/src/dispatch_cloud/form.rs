@@ -62,9 +62,9 @@ impl Oryxis {
                 // menu stays floating on top of the editor.
                 self.overlay = None;
                 // Close any other right-panel (mutually exclusive slot).
-                self.show_host_panel = false;
+                self.panels.host_panel = false;
                 self.cloud_dynamic_form.visible = false;
-                self.cloud_discover_visible = false;
+                self.cloud_discover.visible = false;
                 self.group_edit.visible = false;
                 self.cloud_form.visible = true;
                 self.cloud_form.error = None;
@@ -413,7 +413,7 @@ impl Oryxis {
                 // rail layout and its 150 width disagreed with the
                 // render clamp's 210, pushing the menu past the button).
                 // The panel width only feeds the pre-first-draw fallback.
-                let panel_width = if self.cloud_discover_visible || self.show_host_panel {
+                let panel_width = if self.cloud_discover.visible || self.panels.host_panel {
                     crate::app::PANEL_WIDTH
                 } else {
                     0.0

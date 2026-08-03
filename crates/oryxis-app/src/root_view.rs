@@ -39,7 +39,7 @@ impl Oryxis {
                 Some(Message::Settings(SettingsMessage::HideLocalShellPicker)),
                 40.0,
             )
-        } else if self.local_terminal_add_open && !self.show_icon_picker {
+        } else if self.local_terminal_add_open && !self.panels.icon_picker {
             // The add / edit modal yields while the shared icon picker is
             // up (the picker layers inside `view_main`, below this overlay);
             // it reappears with the chosen icon / color on picker save.

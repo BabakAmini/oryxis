@@ -88,7 +88,7 @@ impl Oryxis {
                 self.card_context_menu = None;
                 self.overlay = None;
                 // Close the new-tab picker if the connection was picked there.
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 // If this pick is filling a split pane (not a new tab),
                 // route to the per-pane connect path instead.
                 if let Some((tab_id, target, axis)) = self.pending_pane_split.take() {
@@ -109,7 +109,7 @@ impl Oryxis {
             SshMessage::QuickConnect(entry) => {
                 self.card_context_menu = None;
                 self.overlay = None;
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 // Reuse an existing entry for the same id: a retry after the
                 // legacy-algorithm dialog must see its in-place mutations.
                 // First connects insert the incoming entry.

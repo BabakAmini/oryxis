@@ -20,7 +20,7 @@ impl Oryxis {
             }
             // Switching tabs dismisses the session-group editor (it's
             // tied to the tab it was opened from).
-            self.show_session_group_panel = false;
+            self.panels.session_group_panel = false;
             self.active_tab = Some(idx);
             // A hybrid tab in Files mode owns the live SFTP buffer
             // while shown (park/hoist, same invariant as the
@@ -184,7 +184,7 @@ impl Oryxis {
         // after the user clicks Close from it.
         self.overlay = None;
         // Closing a tab dismisses the session-group editor it spawned.
-        self.show_session_group_panel = false;
+        self.panels.session_group_panel = false;
         if idx < self.tabs.len() {
             self.teardown_tab_at(idx);
             if self.tabs.is_empty() {

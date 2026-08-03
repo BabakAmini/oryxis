@@ -145,7 +145,7 @@ impl Oryxis {
             .padding(Padding { top: 16.0, right: 24.0, bottom: 16.0, left: 24.0 })
             .width(Length::Fill);
 
-        let status: Element<'_, Message> = if let Some(err) = &self.snippet_error {
+        let status: Element<'_, Message> = if let Some(err) = &self.snippet_form.error {
             container(Element::from(text(err.clone()).size(12).color(OryxisColors::t().error)))
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 }).into()
         } else {
@@ -299,7 +299,7 @@ impl Oryxis {
         }
 
         let nav_width = self.vault_rail_width();
-        let panel_width = if self.show_snippet_panel { PANEL_WIDTH } else { 0.0 };
+        let panel_width = if self.panels.snippet_panel { PANEL_WIDTH } else { 0.0 };
         let available = (self.window_size.width
             - nav_width
             - self.side_strip_reserve()
@@ -365,14 +365,14 @@ impl Oryxis {
     /// the buttons into the side-panel keyboard walk.
     pub(crate) fn snippet_hotkey_row(&self, panel: bool) -> Element<'_, Message> {
         let c = OryxisColors::t();
-        let current: Element<'_, Message> = match &self.snippet_hotkey {
+        let current: Element<'_, Message> = match &self.snippet_form.hotkey {
             Some(b) => text(b.badges().join(" + "))
                 .size(12)
                 .color(c.text_primary)
                 .into(),
             None => text("\u{2014}").size(12).color(c.text_muted).into(),
         };
-        let record_label = if self.snippet_hotkey_capturing {
+        let record_label = if self.snippet_form.hotkey_capturing {
             t("hotkey_press_a_key")
         } else {
             t("snippet_hotkey_record")
@@ -383,7 +383,7 @@ impl Oryxis {
         )
         .on_press(Message::Snippet(SnippetMessage::SnippetHotkeyCaptureStart))
         .style(move |_, status| {
-            let bg = if self.snippet_hotkey_capturing {
+            let bg = if self.snippet_form.hotkey_capturing {
                 Color { a: 0.15, ..OryxisColors::t().accent }
             } else {
                 match status {
@@ -412,7 +412,7 @@ impl Oryxis {
             Space::new().width(Length::Fill).into(),
             record_btn,
         ];
-        if self.snippet_hotkey.is_some() {
+        if self.snippet_form.hotkey.is_some() {
             let clear: Element<'_, Message> = button(
                 container(iced_fonts::lucide::x().size(11).color(c.text_muted))
                     .padding(Padding { top: 5.0, right: 7.0, bottom: 5.0, left: 7.0 }),
@@ -663,7 +663,7 @@ self.keynav_ring_content(kb_selected, card_el)
     pub(crate) fn view_snippet_panel(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
         self.panel_nav_reset();
-        let is_editing = self.snippet_editing_id.is_some();
+        let is_editing = self.snippet_form.editing_id.is_some();
         let title = if is_editing { t("edit_snippet") } else { t("new_snippet") };
 
         let panel_header = container(
@@ -688,7 +688,7 @@ self.keynav_ring_content(kb_selected, card_el)
             self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("panel-snippet-name")),
                 10.0,
-                text_input("restart-nginx", &self.snippet_label)
+                text_input("restart-nginx", &self.snippet_form.label)
                     .id(iced::widget::Id::new("panel-snippet-name"))
                     .on_input(|v| Message::Snippet(SnippetMessage::SnippetLabelChanged(v)))
                     .padding(10)
@@ -705,17 +705,17 @@ self.keynav_ring_content(kb_selected, card_el)
             // Enter cannot focus it; free-text entry stays typing).
             {
                 let (group_prev, group_next) = crate::keynav::slots::cycle_pair(
-                    self.snippet_group_combo.options(),
-                    &self.snippet_group,
+                    self.snippet_form.group_combo.options(),
+                    &self.snippet_form.group,
                     |v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)),
                 );
-                let selection = (!self.snippet_group.is_empty())
-                    .then_some(&self.snippet_group);
+                let selection = (!self.snippet_form.group.is_empty())
+                    .then_some(&self.snippet_form.group);
                 self.panel_nav_slot(
                     crate::keynav::RowAction::picker(group_prev, group_next),
                     10.0,
                     iced::widget::combo_box(
-                        &self.snippet_group_combo,
+                        &self.snippet_form.group_combo,
                         t("group_optional_placeholder"),
                         selection,
                         |v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)),
@@ -734,7 +734,7 @@ self.keynav_ring_content(kb_selected, card_el)
             self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("panel-snippet-tags")),
                 10.0,
-                text_input(t("tags_placeholder"), &self.snippet_tags_input)
+                text_input(t("tags_placeholder"), &self.snippet_form.tags_input)
                     .id(iced::widget::Id::new("panel-snippet-tags"))
                     .on_input(|v| Message::Snippet(SnippetMessage::SnippetTagsChanged(v)))
                     .padding(10)
@@ -754,7 +754,7 @@ self.keynav_ring_content(kb_selected, card_el)
                 crate::keynav::RowAction::input(iced::widget::Id::new("panel-snippet-command")),
                 10.0,
                 container(
-                    text_editor(&self.snippet_command)
+                    text_editor(&self.snippet_form.command)
                         .id(iced::widget::Id::new("panel-snippet-command"))
                         .placeholder("sudo systemctl restart nginx")
                         .on_action(|v| Message::Snippet(SnippetMessage::SnippetCommandAction(v)))
@@ -772,7 +772,7 @@ self.keynav_ring_content(kb_selected, card_el)
         // Shared form chrome. Deleting a snippet lives on the card's ⋮
         // context menu (Edit / Delete), so the destructive action isn't
         // buried inside the editor form.
-        let panel_error = crate::widgets::form_error(self.snippet_error.as_deref());
+        let panel_error = crate::widgets::form_error(self.snippet_form.error.as_deref());
         let footer = crate::widgets::form_footer(
             self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::Snippet(SnippetMessage::HideSnippetPanel)),

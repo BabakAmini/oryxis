@@ -606,7 +606,7 @@ impl Oryxis {
             (self.window_size.width - left_edge - chat_right - strip_right).max(0.0);
         // Honor the user's resizable split, not a fixed 50/50, so the
         // boundary matches the actual divider position.
-        let split = left_edge + content_w * self.sftp_split_ratio;
+        let split = left_edge + content_w * self.sftp_chrome.split_ratio;
         self.mouse_position.x > split
             && self.mouse_position.x < self.window_size.width - chat_right - strip_right
     }
@@ -635,7 +635,7 @@ impl Oryxis {
         let left_edge = self.vault_rail_width() + strip_left + chat_left;
         let content_w =
             (self.window_size.width - left_edge - chat_right - strip_right).max(0.0);
-        let split = left_edge + content_w * self.sftp_split_ratio;
+        let split = left_edge + content_w * self.sftp_chrome.split_ratio;
         self.mouse_position.x > left_edge && self.mouse_position.x < split
     }
 
@@ -910,8 +910,8 @@ impl Oryxis {
             .map(std::path::PathBuf::from)
             .unwrap_or_else(|| std::path::PathBuf::from("/"));
         // Seed both panes' columns from the persisted template.
-        tab.state.left.columns = self.sftp_columns_template.clone();
-        tab.state.right.columns = self.sftp_columns_template.clone();
+        tab.state.left.columns = self.sftp_chrome.columns_template.clone();
+        tab.state.right.columns = self.sftp_chrome.columns_template.clone();
         let id = tab.id;
         self.sftp_tabs.push(tab);
         let idx = self.sftp_tabs.len() - 1;

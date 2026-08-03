@@ -339,19 +339,19 @@ impl Oryxis {
             .find(|p| p.id == profile_id)
             .cloned()
         else {
-            self.cloud_discover_state =
+            self.cloud_discover.state =
                 CloudDiscoverState::Failed("profile not found".into());
             return Task::none();
         };
         let registry: Arc<CloudProviderRegistry> = self.cloud_provider_registry.clone();
         let Some(provider) = registry.get(&profile.provider) else {
-            self.cloud_discover_state = CloudDiscoverState::Failed(format!(
+            self.cloud_discover.state = CloudDiscoverState::Failed(format!(
                 "provider \"{}\" not registered",
                 profile.provider
             ));
             return Task::none();
         };
-        self.cloud_discover_state = CloudDiscoverState::Running;
+        self.cloud_discover.state = CloudDiscoverState::Running;
         Task::perform(
             async move { provider.discover(&profile).await },
             |result| {

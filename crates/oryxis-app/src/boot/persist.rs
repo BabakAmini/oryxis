@@ -47,9 +47,9 @@ impl Oryxis {
     /// Persist the current column template (visibility + order + widths) so
     /// new panes/tabs inherit it across restarts.
     pub(crate) fn persist_sftp_columns(&self) {
-        self.persist_setting("sftp_columns", &self.sftp_columns_template.visibility_storage());
-        self.persist_setting("sftp_col_order", &self.sftp_columns_template.order_storage());
-        self.persist_setting("sftp_col_widths", &self.sftp_columns_template.width_storage());
+        self.persist_setting("sftp_columns", &self.sftp_chrome.columns_template.visibility_storage());
+        self.persist_setting("sftp_col_order", &self.sftp_chrome.columns_template.order_storage());
+        self.persist_setting("sftp_col_widths", &self.sftp_chrome.columns_template.width_storage());
     }
 
     /// Snapshot the currently-pinned tabs (those with a reopenable spec) to

@@ -244,7 +244,7 @@ impl Oryxis {
                 ),
                 View::Keys => (
                     "search_keys_identities",
-                    self.key_search.as_str(),
+                    self.keys_ui.search.as_str(),
                     |v| Message::Keys(KeysMessage::KeySearchChanged(v)),
                 ),
                 View::Snippets => (
@@ -584,7 +584,7 @@ impl Oryxis {
         let overflow_btn: Element<'_, Message> = if overflow_defs.is_empty() {
             Space::new().into()
         } else {
-            let open = self.show_subnav_overflow;
+            let open = self.panels.subnav_overflow;
             button(
                 container(
                     text("\u{22EF}")

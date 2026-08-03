@@ -1,5 +1,5 @@
 use iced::keyboard;
-use iced::widget::{svg, text_editor};
+use iced::widget::svg;
 use iced::{Point, Theme};
 
 use oryxis_core::models::connection::Connection;
@@ -227,36 +227,20 @@ pub struct Oryxis {
     /// Last terminal tab that had focus. Preserved when switching to nav-only
     /// views (Snippets, Keys, …) so snippet injection still targets that session.
     pub(crate) last_terminal_tab: Option<usize>,
-    pub(crate) show_new_tab_picker: bool,
     pub(crate) new_tab_picker_search: String,
     /// When set, the new-tab picker is drilled into this group, showing
     /// its members (or, for a cloud-query group, its resolved ECS tasks /
     /// K8s pods) instead of the top-level group + recent list. `None` is
     /// the top level. Reset to `None` whenever the picker opens or closes.
     pub(crate) new_tab_picker_group: Option<Uuid>,
-    /// Termius-style "Jump to" modal, lists all open tabs (plus Quick
-    /// connect entries) for direct navigation when the bar runs out of
-    /// horizontal room. Triggered by the `⋯` button in the tab bar or
-    /// Ctrl+J anywhere.
-    pub(crate) show_tab_jump: bool,
     pub(crate) tab_jump_search: String,
     /// Command palette (C4): `Ctrl+Shift+P` fuzzy search over every
     /// action. Only the open flag + query are app state; the row
     /// selection rides the modal keynav layer
     /// (`ModalSurface::Modal(Modal::CommandPalette)`).
     pub(crate) palette: crate::state::PaletteState,
-    /// Top-left burger menu visibility. Mirrors Termius's `☰` strip at
-    /// the start of the tab bar: Settings / Updates / About / Exit.
-    /// Toggled via the burger button or by pressing the same button
-    /// again to dismiss.
-    pub(crate) show_burger_menu: bool,
 
-    /// Vault sub-nav overflow ("…") menu: open when the pill strip
-    /// can't fit every destination and the user clicked the cue.
-    pub(crate) show_subnav_overflow: bool,
 
-    // Icon/color picker (from the host editor's icon box).
-    pub(crate) show_icon_picker: bool,
     /// Icon + color picker state (target routing, current selection,
     /// search). The open flag (`show_icon_picker`) and the HSV popover
     /// anchor (`icon_color_popover`) stay alongside it on `Oryxis`.
@@ -265,20 +249,9 @@ pub struct Oryxis {
     /// this point (the cursor position when the swatch was clicked). None
     /// keeps the picker collapsed behind the swatch + hex row.
     pub(crate) icon_color_popover: Option<iced::Point>,
-    /// Whether the per-host terminal theme picker modal is open.
-    /// Drawn on top of the host editor; the form's
-    /// `terminal_theme` field is updated as soon as the user picks
-    /// a card.
-    pub(crate) show_theme_picker: bool,
     /// Current slide index of the first-run onboarding carousel
     /// (`VaultState::NeedSetup`).
     pub(crate) onboarding_slide: usize,
-    /// Whether the jump host picker modal is open. Opened from the
-    /// Chain editor (Termius-style multi-hop jump-host editor), opened
-    /// from the "Host Chaining" row in the host editor. `adding` flips
-    /// the modal into "pick a host to append" mode; the search filters
-    /// that list by label, hostname, group, or username.
-    pub(crate) show_chain_editor: bool,
     pub(crate) chain_editor_adding: bool,
     pub(crate) chain_editor_search: String,
     pub(crate) connecting: Option<ConnectionProgress>,
@@ -348,16 +321,12 @@ pub struct Oryxis {
     // sets `connecting` again.
     pub(crate) pending_edit_cancel: bool,
 
-    // Connection editor
-    pub(crate) show_host_panel: bool,
     pub(crate) editor_form: ConnectionForm,
     /// Multi-line buffer for the host's initial command. Kept out of the
     /// form struct because `text_editor::Content` isn't Clone.
     pub(crate) editor_initial_command: iced::widget::text_editor::Content,
     pub(crate) host_panel_error: Option<String>,
 
-    // Session group editor (save / edit a split arrangement)
-    pub(crate) show_session_group_panel: bool,
     pub(crate) editor_session_group: crate::state::SessionGroupForm,
     /// Multi-line buffer for the currently-shown pane's startup script. Kept
     /// out of the form struct because `text_editor::Content` isn't Clone.
@@ -464,6 +433,16 @@ pub struct Oryxis {
     /// fields that stay behind are the Settings SCREEN's own state
     /// (open section, scroll offset, search) and belong to the view,
     /// not to the user's configuration.
+    /// See [`crate::state::PanelsOpen`].
+    pub(crate) panels: crate::state::PanelsOpen,
+    /// See [`crate::state::CloudDiscoverUi`].
+    pub(crate) cloud_discover: crate::state::CloudDiscoverUi,
+    /// See [`crate::state::SnippetForm`].
+    pub(crate) snippet_form: crate::state::SnippetForm,
+    /// See [`crate::state::KeysUi`].
+    pub(crate) keys_ui: crate::state::KeysUi,
+    /// See [`crate::state::SftpChrome`].
+    pub(crate) sftp_chrome: crate::state::SftpChrome,
     pub(crate) prefs: crate::state::AppPrefs,
     pub(crate) hover: crate::state::HoverState,
     pub(crate) sftp: crate::state::SftpState,
@@ -579,30 +558,9 @@ pub struct Oryxis {
 
     // Keys
     pub(crate) keys: Vec<SshKey>,
-    pub(crate) show_key_panel: bool,
-    /// Live multi-line PEM editor buffer. Stays on `Oryxis` (not in
-    /// `key_import_form`) because `text_editor::Content` is not `Clone`.
-    pub(crate) key_import_content: text_editor::Content,
-    /// Editor buffers for the public-key / certificate fields (multi-line
-    /// like the PEM: OpenSSH lines are far wider than the panel, so a
-    /// wrapping textarea beats a one-line input). The canonical values
-    /// live in `key_import_form` (synced on every action) because
-    /// `Content` is not `Clone`.
-    pub(crate) key_import_public_content: text_editor::Content,
-    pub(crate) key_import_cert_content: text_editor::Content,
-    pub(crate) key_import_form: crate::state::KeyImportForm,
     /// Parsed certificate on display in the read-only cert viewer modal
     /// (B2). `Some` = modal open; keyed to `Modal::CertificateViewer`.
     pub(crate) cert_viewer: Option<crate::state::CertViewerData>,
-    /// Key-generation panel state (keychain > ADD > Generate key).
-    pub(crate) key_generate_form: crate::state::KeyGenerateForm,
-    /// Whether the generation panel is open (mutually exclusive with
-    /// the import/identity panels in the keys view).
-    pub(crate) show_key_generate_panel: bool,
-    pub(crate) key_error: Option<String>,
-    pub(crate) key_success: Option<String>,
-    pub(crate) key_context_menu: Option<usize>,
-    pub(crate) key_search: String,
     /// Workspace-mode contextual search backing for Snippets view.
     /// Matches against snippet label + command.
     pub(crate) snippet_search: String,
@@ -630,10 +588,8 @@ pub struct Oryxis {
     // for every identity on every view() rebuild and slow the main
     // loop enough to fill iced's 100-slot subscription channel.
     pub(crate) identities_with_password: std::collections::HashSet<Uuid>,
-    pub(crate) show_identity_panel: bool,
     pub(crate) identity_form: crate::state::IdentityForm,
     pub(crate) identity_context_menu: Option<usize>,
-    pub(crate) show_keychain_add_menu: bool,
 
     // Per-list sort modes for the Hosts / Keychain / Snippets grids.
     // Persisted via the `hosts_sort` / `keys_sort` / `snippets_sort`
@@ -678,44 +634,6 @@ pub struct Oryxis {
     /// When `Some(provider_id)`, the first-use install opt-in modal
     /// is shown for that provider.
     pub(crate) plugin_install_modal: Option<String>,
-    /// Discovery panel state, opened from a profile card or from the
-    /// post-save flow. Carries the in-flight or completed result so
-    /// the user picks resources without paying another API round-trip.
-    pub(crate) cloud_discover_visible: bool,
-    pub(crate) cloud_discover_profile_id: Option<Uuid>,
-    pub(crate) cloud_discover_state: crate::state::CloudDiscoverState,
-    /// EC2 instance-ids currently checked in the discovery panel.
-    pub(crate) cloud_discover_selected_ec2: std::collections::HashSet<String>,
-    /// ECS service identifiers checked in the discovery panel.
-    /// Key format: `cluster/service/container` (the same triple a
-    /// `CloudQuery::EcsTasks` carries), guarantees a stable id even
-    /// when service or container names collide across clusters.
-    pub(crate) cloud_discover_selected_ecs: std::collections::HashSet<String>,
-    /// Kubernetes workload identifiers checked in the discovery panel.
-    /// Key format: `namespace/kind/name` (the workload identity the
-    /// import looks back up to build a `K8sPods` dynamic group).
-    pub(crate) cloud_discover_selected_k8s: std::collections::HashSet<String>,
-    /// Live filter for the discovery panel, matches against label,
-    /// instance-id, hostname, IP. Lowercased substring match.
-    pub(crate) cloud_discover_filter: String,
-    /// Section names currently collapsed in the discovery panel
-    /// ("ec2" / "ecs" / "k8s"). Persisted only in memory, re-opens
-    /// default to expanded.
-    pub(crate) cloud_discover_collapsed: std::collections::HashSet<String>,
-    /// Default transport applied to every EC2 host imported in this
-    /// discovery session. Lets the user pick "Instance Connect" once
-    /// instead of editing 10 hosts after the fact. Stored at the
-    /// `Oryxis` level (not on the `OverlayState`) so the choice
-    /// survives discovery refreshes.
-    pub(crate) cloud_discover_default_transport:
-        oryxis_core::models::cloud::TransportKind,
-    /// Target group name for the next import. Empty string = no
-    /// parent (drop at root). Otherwise the import flow finds a group
-    /// with this label or creates it on the spot, so the user can
-    /// type any name (existing or new) and have it materialised.
-    /// Decoupled from the pick_list-based approach so typing a brand
-    /// new folder name doesn't require a pre-existing entry.
-    pub(crate) cloud_discover_default_group_name: String,
     /// Native combo_box state for the host editor's Parent Group field.
     /// Holds the (visible) group labels + the filtered subset and the
     /// live typed value. Rebuilt on editor-open via
@@ -735,15 +653,6 @@ pub struct Oryxis {
     /// through `EditorKeyChanged`. Rebuilt on editor-open and cleared on
     /// focus (`EditorKeyComboOpened`) so search starts fresh.
     pub(crate) editor_key_combo: iced::widget::combo_box::State<String>,
-    /// Whether the floating group picker overlay (inside the import
-    /// confirmation modal) is open. Chevron toggles it; picking an
-    /// entry or clicking the scrim closes it.
-    pub(crate) cloud_discover_default_group_picker_open: bool,
-    /// Screen-space bounds of the Import-into combo row, populated
-    /// by a `bounds_reporter` wrapper. Read by the toggle handler to
-    /// anchor the picker overlay right under the chevron without
-    /// guessing layout offsets.
-    pub(crate) cloud_discover_default_group_combo_bounds: crate::widgets::BoundsCell,
     /// Shared search input for the group picker (used by both side
     /// panels' Parent Group fields). Reset on every open.
     pub(crate) group_picker_search: String,
@@ -779,11 +688,6 @@ pub struct Oryxis {
     pub(crate) toolbar_sort_btn_bounds: crate::widgets::BoundsCell,
     /// Bounds of the active toolbar's `…` overflow button, same role.
     pub(crate) toolbar_overflow_btn_bounds: crate::widgets::BoundsCell,
-    /// Search text inside the group picker overlay. Independent of
-    /// `cloud_discover_default_group_name` (the input box) so typing
-    /// in the picker's filter doesn't overwrite the user's chosen
-    /// folder name.
-    pub(crate) cloud_discover_default_group_picker_search: String,
     /// Modal that asks the user to pick the transport for the EC2
     /// hosts about to be imported. Only opened when there's at
     /// least one EC2 selected, pure-ECS imports skip straight to
@@ -812,9 +716,6 @@ pub struct Oryxis {
     /// built-in app themes and resolved by name.
     pub(crate) custom_ui_themes:
         Vec<oryxis_core::models::custom_ui_theme::CustomUiTheme>,
-    /// Import-theme modal (paste an iTerm / Windows Terminal / base16
-    /// scheme). On import the parsed colors open in the editor for review.
-    pub(crate) show_theme_import: bool,
     /// Import-UI-theme modal (paste the Oryxis UI theme JSON), mirroring
     /// the terminal scheme import modal above.
     /// Single external editor used by the SFTP "Open with default text
@@ -841,7 +742,6 @@ pub struct Oryxis {
     /// Session-only "Yes to all" grant from the same dialog (never
     /// persisted; dies with the app run).
     pub(crate) sftp_edit_upload_all: bool,
-    pub(crate) show_ui_theme_import: bool,
     pub(crate) ui_theme_import_content: iced::widget::text_editor::Content,
     pub(crate) ui_theme_import_name: String,
     pub(crate) ui_theme_import_error: Option<String>,
@@ -853,31 +753,9 @@ pub struct Oryxis {
     /// `AppTheme` enum can't name a custom theme, so this tracks the
     /// selection for highlighting + delete/rename bookkeeping.
     pub(crate) active_app_theme_name: String,
-    pub(crate) show_snippet_panel: bool,
-    pub(crate) snippet_label: String,
-    pub(crate) snippet_command: text_editor::Content,
-    /// Snippet editor: free-form group name (empty = ungrouped).
-    pub(crate) snippet_group: String,
-    /// Options state for the snippet Group combo (same type-ahead
-    /// combo_box as the host editor's Parent Group): filters the
-    /// existing snippet groups as you type, still accepts a new name.
-    /// Rebuilt whenever the editor opens.
-    pub(crate) snippet_group_combo: iced::widget::combo_box::State<String>,
-    /// Snippet editor: comma-separated tags as typed; parsed
-    /// (trim/dedup/drop-empty) on save. Chips are display-only, so
-    /// the field stays fully keyboard-editable.
-    pub(crate) snippet_tags_input: String,
-    pub(crate) snippet_editing_id: Option<Uuid>,
     /// Snippet run/paste waiting on its `{placeholders}` (modal open
     /// while `Some`).
     pub(crate) pending_snippet_vars: Option<crate::state::PendingSnippetVars>,
-    /// Snippet editor: the custom run hotkey being edited (parsed form
-    /// of `Snippet.hotkey`).
-    pub(crate) snippet_hotkey: Option<crate::hotkeys::HotkeyBinding>,
-    /// True while the snippet editor's shortcut recorder waits for a
-    /// key combo (next chord becomes the binding, Esc cancels).
-    pub(crate) snippet_hotkey_capturing: bool,
-    pub(crate) snippet_error: Option<String>,
 
     // Port forwards (standalone entity, independent of any terminal)
     pub(crate) port_forward_rules:
@@ -923,7 +801,6 @@ pub struct Oryxis {
     /// nothing is pending. See `dispatch_port_forwards::PfAgentWatch`.
     pub(crate) port_forward_agent_watch:
         Option<crate::dispatch_port_forwards::PfAgentWatch>,
-    pub(crate) show_port_forward_panel: bool,
     pub(crate) port_forward_form: crate::state::PortForwardRuleForm,
     /// Index of the port-forward card whose kebab menu is open. Keeps the
     /// kebab mounted while the pointer travels to the menu.
@@ -1023,12 +900,6 @@ pub struct Oryxis {
     /// separate from the vault view's so the two surfaces navigate
     /// independently).
     pub(crate) sidebar_snippet_group: Option<String>,
-    /// Global terminal-theme gallery (Settings > Terminal) is open.
-    pub(crate) show_terminal_theme_gallery: bool,
-    /// The app-theme gallery is open (Settings > Interface). Same reason
-    /// as its terminal sibling: the grid was the tallest thing on the
-    /// page and buried every group under it.
-    pub(crate) show_ui_theme_gallery: bool,
     /// Recently visited Files-sidebar folders, keyed by saved-host id.
     ///
     /// The per-pane list is deliberately wiped on disconnect, because a
@@ -1183,33 +1054,6 @@ pub struct Oryxis {
     /// Search field expanded in the Snippets tab. Collapsed = a search
     /// icon; expanded = a focused input that replaces the New / sort row.
     pub(crate) sidebar_search_open: bool,
-    /// SFTP center-split ratio: fraction (0..1) of the content width given
-    /// to the left pane. Global across SFTP tabs, persisted to the
-    /// `sftp_split_ratio` setting; only changed by dragging the divider.
-    pub(crate) sftp_split_ratio: f32,
-    /// Some((cursor_x_at_drag_start, ratio_at_drag_start)) while the user
-    /// is dragging the SFTP center divider.
-    pub(crate) sftp_split_drag: Option<(f32, f32)>,
-    /// Some((cursor_y_at_drag_start, height_at_drag_start)) while the user is
-    /// dragging the divider above the SFTP message-log panel.
-    pub(crate) sftp_log_drag: Option<(f32, f32)>,
-    /// Persisted template for the per-pane column configuration. New SFTP
-    /// panes/tabs are seeded from this; editing any pane's columns updates
-    /// it (and the `sftp_columns` / `sftp_col_order` / `sftp_col_widths`
-    /// settings) so the preferred shape carries across restarts.
-    pub(crate) sftp_columns_template: crate::state::SftpColumnState,
-    /// Active column-resize drag: `(side, column, cursor_x_at_start,
-    /// width_at_start)`. Updated by the global mouse-move handler.
-    pub(crate) sftp_col_resize: Option<(
-        crate::state::SftpPaneSide,
-        crate::state::SftpColumn,
-        f32,
-        f32,
-    )>,
-    /// Active column-reorder drag (header being dragged).
-    pub(crate) sftp_col_drag: Option<crate::state::SftpColDrag>,
-    /// Column header the cursor is currently over, the reorder drop target.
-    pub(crate) sftp_hovered_col: Option<(crate::state::SftpPaneSide, crate::state::SftpColumn)>,
 
     // MCP Server
     pub(crate) mcp: crate::state::McpState,
@@ -1228,15 +1072,12 @@ pub struct Oryxis {
     /// hosts beneath. Default: on. (Dashboard layout, not a sync field.)
     pub(crate) flatten_hosts: bool,
 
-    // Export/Import
-    pub(crate) show_export_dialog: bool,
     pub(crate) export_password: String,
     pub(crate) export_include_keys: bool,
     /// Which entity families to write into the export, one checkbox per
     /// category in the dialog. Reset to `all()` each time the dialog opens.
     pub(crate) export_selection: oryxis_vault::ExportSelection,
     pub(crate) export_status: Option<Result<String, String>>,
-    pub(crate) show_import_dialog: bool,
     /// SFTP backup target picker. Shown when the user routes an
     /// export/import through a remote host instead of a local file.
     /// `is_import` flips the same picker between writing the encrypted
@@ -1248,9 +1089,6 @@ pub struct Oryxis {
     /// section's import card.
     pub(crate) ssh_config_import_status: Option<Result<String, String>>,
 
-    // Share. The dialog-open flag stays at the top level; its transient
-    // editor state is grouped in `share`.
-    pub(crate) show_share_dialog: bool,
     pub(crate) share: crate::state::ShareForm,
 
     // SSH config import preview
@@ -1262,7 +1100,6 @@ pub struct Oryxis {
     /// Per-host "label already exists" flag, parallel to
     /// `ssh_import_hosts`; these are surfaced and default to unticked.
     pub(crate) ssh_import_existing: Vec<bool>,
-    pub(crate) show_ssh_import_dialog: bool,
 }
 
 

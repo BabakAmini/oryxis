@@ -139,7 +139,7 @@ impl Oryxis {
                     .find(|c| c.id == conn_id)
                     .map(|c| format!("{} :{port}", c.label))
                     .unwrap_or_else(|| format!(":{port}"));
-                self.show_port_forward_panel = true;
+                self.panels.port_forward_panel = true;
                 self.port_forward_form.editing_id = None;
                 self.port_forward_form.label = label;
                 self.port_forward_form.kind =

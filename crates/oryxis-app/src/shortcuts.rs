@@ -166,13 +166,13 @@ impl Oryxis {
     pub(crate) fn is_modal_open(&self, m: crate::state::Modal) -> bool {
         use crate::state::Modal;
         match m {
-            Modal::NewTabPicker => self.show_new_tab_picker,
-            Modal::TabJump => self.show_tab_jump,
+            Modal::NewTabPicker => self.panels.new_tab_picker,
+            Modal::TabJump => self.panels.tab_jump,
             Modal::CommandPalette => self.palette.open,
-            Modal::IconPicker => self.show_icon_picker,
-            Modal::ThemePicker => self.show_theme_picker,
-            Modal::ChainEditor => self.show_chain_editor,
-            Modal::SessionGroupPanel => self.show_session_group_panel,
+            Modal::IconPicker => self.panels.icon_picker,
+            Modal::ThemePicker => self.panels.theme_picker,
+            Modal::ChainEditor => self.panels.chain_editor,
+            Modal::SessionGroupPanel => self.panels.session_group_panel,
             Modal::FolderRename => self.folder_rename.is_some(),
             Modal::FolderDelete => self.folder_delete.is_some(),
             Modal::TabRename => self.tab_rename.is_some(),
@@ -185,17 +185,17 @@ impl Oryxis {
             // gated separately by `connecting.is_none()` at the render site.
             Modal::HostKey => self.pending_host_key.is_some(),
             Modal::AgentConfirm => self.agent.pending_confirm.is_some(),
-            Modal::TerminalThemeGallery => self.show_terminal_theme_gallery,
-            Modal::UiThemeGallery => self.show_ui_theme_gallery,
+            Modal::TerminalThemeGallery => self.panels.terminal_theme_gallery,
+            Modal::UiThemeGallery => self.panels.ui_theme_gallery,
             Modal::ThemeEditor => self.theme_ui.editor.is_some(),
-            Modal::ThemeImport => self.show_theme_import,
+            Modal::ThemeImport => self.panels.theme_import,
             Modal::UiThemeEditor => self.ui_theme_editor.is_some(),
-            Modal::UiThemeImport => self.show_ui_theme_import,
-            Modal::ShareDialog => self.show_share_dialog,
+            Modal::UiThemeImport => self.panels.ui_theme_import,
+            Modal::ShareDialog => self.panels.share_dialog,
             Modal::CloudImportConfirm => self.cloud_import_confirm_visible,
             Modal::ErrorDialog => self.error_dialog.is_some(),
             Modal::ClearHistoryConfirm => self.clear_history_confirm,
-            Modal::SshImport => self.show_ssh_import_dialog,
+            Modal::SshImport => self.panels.ssh_import_dialog,
             Modal::SftpRename => self.sftp.rename.is_some(),
             Modal::SftpNewEntry => self.sftp.new_entry.is_some(),
             Modal::SftpProperties => self.sftp.properties.is_some(),
@@ -222,23 +222,23 @@ impl Oryxis {
                 // Mirror HideNewTabPicker: abandoning the picker also
                 // abandons any pending split-fill intent, so a later
                 // unrelated open can't inherit it.
-                self.show_new_tab_picker = false;
+                self.panels.new_tab_picker = false;
                 self.pending_pane_split = None;
                 self.new_tab_picker_group = None;
             }
-            Modal::TabJump => self.show_tab_jump = false,
+            Modal::TabJump => self.panels.tab_jump = false,
             Modal::CommandPalette => {
                 self.palette.open = false;
                 self.palette.query.clear();
             }
             Modal::IconPicker => {
-                self.show_icon_picker = false;
+                self.panels.icon_picker = false;
                 self.icon_picker.for_id = None;
             }
-            Modal::ThemePicker => self.show_theme_picker = false,
-            Modal::ChainEditor => self.show_chain_editor = false,
+            Modal::ThemePicker => self.panels.theme_picker = false,
+            Modal::ChainEditor => self.panels.chain_editor = false,
             Modal::SessionGroupPanel => {
-                self.show_session_group_panel = false;
+                self.panels.session_group_panel = false;
                 self.session_group_panel_error = None;
             }
             Modal::FolderRename => self.folder_rename = None,
@@ -279,23 +279,23 @@ impl Oryxis {
                 self.theme_ui.editor = None;
                 self.theme_ui.color_popover = None;
             }
-            Modal::TerminalThemeGallery => self.show_terminal_theme_gallery = false,
-            Modal::UiThemeGallery => self.show_ui_theme_gallery = false,
-            Modal::ThemeImport => self.show_theme_import = false,
+            Modal::TerminalThemeGallery => self.panels.terminal_theme_gallery = false,
+            Modal::UiThemeGallery => self.panels.ui_theme_gallery = false,
+            Modal::ThemeImport => self.panels.theme_import = false,
             Modal::UiThemeEditor => {
                 self.ui_theme_editor = None;
                 self.ui_color_popover = None;
             }
-            Modal::UiThemeImport => self.show_ui_theme_import = false,
+            Modal::UiThemeImport => self.panels.ui_theme_import = false,
             Modal::ShareDialog => {
-                self.show_share_dialog = false;
+                self.panels.share_dialog = false;
                 self.share.filter = None;
                 self.share.status = None;
                 self.share.suggested_name = None;
             }
             Modal::CloudImportConfirm => {
                 self.cloud_import_confirm_visible = false;
-                self.cloud_discover_default_group_picker_open = false;
+                self.cloud_discover.default_group_picker_open = false;
             }
             // Esc on the error dialog is always Dismiss, never the
             // dialog's action (mirrors ErrorDialogDismiss).
@@ -304,7 +304,7 @@ impl Oryxis {
             Modal::ClearHistoryConfirm => self.clear_history_confirm = false,
             // Mirrors SshImportDismiss, companion state included.
             Modal::SshImport => {
-                self.show_ssh_import_dialog = false;
+                self.panels.ssh_import_dialog = false;
                 self.ssh_import_hosts.clear();
                 self.ssh_import_selected.clear();
                 self.ssh_import_existing.clear();
@@ -419,8 +419,8 @@ impl Oryxis {
         }
         // Burger menu last; it's a dropdown rather than a modal but
         // Esc still feels right for it.
-        if self.show_burger_menu {
-            self.show_burger_menu = false;
+        if self.panels.burger_menu {
+            self.panels.burger_menu = false;
             return true;
         }
         false
@@ -609,12 +609,12 @@ impl Oryxis {
         //      editor). The next chord becomes the snippet's custom
         //      run hotkey; Esc cancels. Guarded on the editor being
         //      open so a stale flag can't eat keys elsewhere.
-        if self.snippet_hotkey_capturing {
-            if !self.show_snippet_panel {
-                self.snippet_hotkey_capturing = false;
+        if self.snippet_form.hotkey_capturing {
+            if !self.panels.snippet_panel {
+                self.snippet_form.hotkey_capturing = false;
             } else {
                 if matches!(key, Key::Named(Named::Escape)) {
-                    self.snippet_hotkey_capturing = false;
+                    self.snippet_form.hotkey_capturing = false;
                     return Some(Task::none());
                 }
                 if matches!(
@@ -641,7 +641,7 @@ impl Oryxis {
                 // Conflicts: the static table and other snippets.
                 let in_table = self.hotkey_bindings.values().any(|b| b.contains(&binding));
                 let in_snippets = self.snippets.iter().any(|sn| {
-                    self.snippet_editing_id != Some(sn.id)
+                    self.snippet_form.editing_id != Some(sn.id)
                         && sn.hotkey.as_deref()
                             == Some(binding.serialize()).as_deref()
                 });
@@ -649,8 +649,8 @@ impl Oryxis {
                     self.set_toast(crate::i18n::t("snippet_hotkey_in_use").to_string());
                     return Some(toast_clear_after_secs(2));
                 }
-                self.snippet_hotkey = Some(binding);
-                self.snippet_hotkey_capturing = false;
+                self.snippet_form.hotkey = Some(binding);
+                self.snippet_form.hotkey_capturing = false;
                 return Some(Task::none());
             }
         }
@@ -719,7 +719,7 @@ impl Oryxis {
         // SFTP row while a split pane is pending (SFTP is a tab, never a
         // pane), so the chord stays blocked there too.
         let picker_exempt = |a: HotkeyAction| {
-            self.show_new_tab_picker
+            self.panels.new_tab_picker
                 && match a {
                     HotkeyAction::OpenLocalShell => true,
                     HotkeyAction::OpenSftp => self.pending_pane_split.is_none(),
@@ -802,7 +802,7 @@ impl Oryxis {
         //      the action types into the focused session; a hybrid tab
         //      in Files mode gates PTY writes off, so firing here would
         //      just dead-end (worst case through the vars modal).
-        if !modal_owns_keys && pty_owns_keys && !self.show_snippet_panel {
+        if !modal_owns_keys && pty_owns_keys && !self.panels.snippet_panel {
             let hit = self.snippets.iter().position(|sn| {
                 sn.hotkey
                     .as_deref()
@@ -1255,7 +1255,7 @@ impl Oryxis {
             // (and dismiss the picker either way). The global action
             // opens a new tab and would quietly drop the split, so the
             // printed hint would lie about its own row.
-            OpenLocalShell if self.show_new_tab_picker => {
+            OpenLocalShell if self.panels.new_tab_picker => {
                 Task::done(Message::Tabs(TabsMessage::PickLocalShell))
             }
             OpenLocalShell => Task::done(Message::Settings(SettingsMessage::OpenLocalShell)),

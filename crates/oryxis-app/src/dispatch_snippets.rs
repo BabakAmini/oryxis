@@ -139,8 +139,8 @@ impl Oryxis {
             }
         }
         labels.sort_by_key(|s| s.to_lowercase());
-        let selection = (!self.snippet_group.is_empty()).then(|| self.snippet_group.clone());
-        self.snippet_group_combo =
+        let selection = (!self.snippet_form.group.is_empty()).then(|| self.snippet_form.group.clone());
+        self.snippet_form.group_combo =
             iced::widget::combo_box::State::with_selection(labels, selection.as_ref());
     }
 
@@ -153,25 +153,25 @@ impl Oryxis {
             // -- Snippets --
             SnippetMessage::ShowSnippetPanel => {
                 self.overlay = None;
-                self.show_snippet_panel = true;
-                self.snippet_label.clear();
-                self.snippet_command = iced::widget::text_editor::Content::new();
-                self.snippet_group.clear();
-                self.snippet_tags_input.clear();
-                self.snippet_hotkey = None;
-                self.snippet_hotkey_capturing = false;
-                self.snippet_editing_id = None;
-                self.snippet_error = None;
+                self.panels.snippet_panel = true;
+                self.snippet_form.label.clear();
+                self.snippet_form.command = iced::widget::text_editor::Content::new();
+                self.snippet_form.group.clear();
+                self.snippet_form.tags_input.clear();
+                self.snippet_form.hotkey = None;
+                self.snippet_form.hotkey_capturing = false;
+                self.snippet_form.editing_id = None;
+                self.snippet_form.error = None;
                 self.reset_snippet_group_combo();
             }
             SnippetMessage::HideSnippetPanel => {
-                self.show_snippet_panel = false;
-                self.snippet_hotkey_capturing = false;
+                self.panels.snippet_panel = false;
+                self.snippet_form.hotkey_capturing = false;
             }
-            SnippetMessage::SnippetLabelChanged(v) => self.snippet_label = v,
-            SnippetMessage::SnippetGroupChanged(v) => self.snippet_group = v,
-            SnippetMessage::SnippetTagsChanged(v) => self.snippet_tags_input = v,
-            SnippetMessage::SnippetCommandAction(action) => self.snippet_command.perform(action),
+            SnippetMessage::SnippetLabelChanged(v) => self.snippet_form.label = v,
+            SnippetMessage::SnippetGroupChanged(v) => self.snippet_form.group = v,
+            SnippetMessage::SnippetTagsChanged(v) => self.snippet_form.tags_input = v,
+            SnippetMessage::SnippetCommandAction(action) => self.snippet_form.command.perform(action),
             SnippetMessage::ToggleSnippetTagFilter => {
                 self.prefs.snippet_tag_filter = !self.prefs.snippet_tag_filter;
                 self.persist_setting(
@@ -270,49 +270,49 @@ impl Oryxis {
                 self.snippet_context_menu = None;
                 self.overlay = None;
                 if let Some(snip) = self.snippets.get(idx) {
-                    self.show_snippet_panel = true;
-                    self.snippet_label = snip.label.clone();
-                    self.snippet_command =
+                    self.panels.snippet_panel = true;
+                    self.snippet_form.label = snip.label.clone();
+                    self.snippet_form.command =
                         iced::widget::text_editor::Content::with_text(&snip.command);
-                    self.snippet_group = snip.group.clone().unwrap_or_default();
-                    self.snippet_tags_input = snip.tags.join(", ");
-                    self.snippet_hotkey = snip
+                    self.snippet_form.group = snip.group.clone().unwrap_or_default();
+                    self.snippet_form.tags_input = snip.tags.join(", ");
+                    self.snippet_form.hotkey = snip
                         .hotkey
                         .as_deref()
                         .and_then(crate::hotkeys::HotkeyBinding::parse);
-                    self.snippet_hotkey_capturing = false;
-                    self.snippet_editing_id = Some(snip.id);
-                    self.snippet_error = None;
+                    self.snippet_form.hotkey_capturing = false;
+                    self.snippet_form.editing_id = Some(snip.id);
+                    self.snippet_form.error = None;
                     self.reset_snippet_group_combo();
                 }
             }
             SnippetMessage::SaveSnippet => {
-                if self.snippet_label.is_empty() || self.snippet_command.text().trim().is_empty() {
-                    self.snippet_error = Some("Label and command are required".into());
+                if self.snippet_form.label.is_empty() || self.snippet_form.command.text().trim().is_empty() {
+                    self.snippet_form.error = Some("Label and command are required".into());
                     return Task::none();
                 }
-                let mut snip = if let Some(id) = self.snippet_editing_id {
+                let mut snip = if let Some(id) = self.snippet_form.editing_id {
                     self.snippets.iter().find(|s| s.id == id).cloned()
                         .unwrap_or_else(|| oryxis_core::models::snippet::Snippet::new("", ""))
                 } else {
                     oryxis_core::models::snippet::Snippet::new("", "")
                 };
-                snip.label = self.snippet_label.clone();
-                snip.command = self.snippet_command.text().trim_end().to_string();
+                snip.label = self.snippet_form.label.clone();
+                snip.command = self.snippet_form.command.text().trim_end().to_string();
                 snip.group = {
-                    let g = self.snippet_group.trim();
+                    let g = self.snippet_form.group.trim();
                     (!g.is_empty()).then(|| g.to_string())
                 };
-                snip.tags = crate::util::parse_tags(&self.snippet_tags_input);
-                snip.hotkey = self.snippet_hotkey.map(|b| b.serialize());
+                snip.tags = crate::util::parse_tags(&self.snippet_form.tags_input);
+                snip.hotkey = self.snippet_form.hotkey.map(|b| b.serialize());
                 if let Some(vault) = &self.vault {
                     match vault.save_snippet(&snip) {
                         Ok(()) => {
-                            self.show_snippet_panel = false;
-                            self.snippet_error = None;
+                            self.panels.snippet_panel = false;
+                            self.snippet_form.error = None;
                             self.load_data_from_vault();
                         }
-                        Err(e) => self.snippet_error = Some(e.to_string()),
+                        Err(e) => self.snippet_form.error = Some(e.to_string()),
                     }
                 }
             }
@@ -331,7 +331,7 @@ impl Oryxis {
                     let id = snip.id;
                     if let Some(vault) = &self.vault {
                         let _ = vault.delete_snippet(&id);
-                        self.show_snippet_panel = false;
+                        self.panels.snippet_panel = false;
                         self.load_data_from_vault();
                     }
                 }
@@ -403,11 +403,11 @@ impl Oryxis {
                 self.pending_snippet_vars = None;
             }
             SnippetMessage::SnippetHotkeyCaptureStart => {
-                self.snippet_hotkey_capturing = true;
+                self.snippet_form.hotkey_capturing = true;
             }
             SnippetMessage::SnippetHotkeyClear => {
-                self.snippet_hotkey = None;
-                self.snippet_hotkey_capturing = false;
+                self.snippet_form.hotkey = None;
+                self.snippet_form.hotkey_capturing = false;
             }
         }
         Task::none()

@@ -415,7 +415,7 @@ impl Oryxis {
         // "Import into" input). Picking a row fills the
         // input and closes the menu.
         let picker_needle = self
-            .cloud_discover_default_group_picker_search
+            .cloud_discover.default_group_picker_search
             .trim()
             .to_lowercase();
         // Rows are full breadcrumb paths so a subgroup is a pickable
@@ -447,7 +447,7 @@ impl Oryxis {
         // form inputs underneath.
         let search_input = iced::widget::text_input(
             crate::i18n::t("search_groups"),
-            &self.cloud_discover_default_group_picker_search,
+            &self.cloud_discover.default_group_picker_search,
         )
         .on_input(
             |v| Message::Cloud(CloudMessage::CloudDiscoverDefaultGroupPickerSearchChanged(v)),

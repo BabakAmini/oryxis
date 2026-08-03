@@ -21,49 +21,49 @@ impl Oryxis {
                 self.active_view = View::Keys;
                 self.active_tab = None;
                 // Mutually exclusive with the import/identity panels.
-                self.show_key_panel = false;
-                self.show_identity_panel = false;
-                self.show_key_generate_panel = true;
-                self.key_generate_form = crate::state::KeyGenerateForm::default();
-                self.key_error = None;
-                self.key_success = None;
-                self.key_context_menu = None;
+                self.panels.key_panel = false;
+                self.panels.identity_panel = false;
+                self.panels.key_generate_panel = true;
+                self.keys_ui.generate_form = crate::state::KeyGenerateForm::default();
+                self.keys_ui.error = None;
+                self.keys_ui.success = None;
+                self.keys_ui.context_menu = None;
                 self.overlay = None;
             }
             KeysMessage::HideKeyGeneratePanel => {
-                self.show_key_generate_panel = false;
-                self.key_generate_form = crate::state::KeyGenerateForm::default();
+                self.panels.key_generate_panel = false;
+                self.keys_ui.generate_form = crate::state::KeyGenerateForm::default();
             }
             KeysMessage::KeyGenLabelChanged(v) => {
-                self.key_generate_form.label = v;
-                self.key_generate_form.error = None;
+                self.keys_ui.generate_form.label = v;
+                self.keys_ui.generate_form.error = None;
             }
-            KeysMessage::KeyGenCommentChanged(v) => self.key_generate_form.comment = v,
-            KeysMessage::KeyGenAlgoSelected(a) => self.key_generate_form.algo = a,
-            KeysMessage::KeyGenBitsSelected(b) => self.key_generate_form.rsa_bits = b,
-            KeysMessage::KeyGenCurveSelected(c) => self.key_generate_form.ecdsa_curve = c,
+            KeysMessage::KeyGenCommentChanged(v) => self.keys_ui.generate_form.comment = v,
+            KeysMessage::KeyGenAlgoSelected(a) => self.keys_ui.generate_form.algo = a,
+            KeysMessage::KeyGenBitsSelected(b) => self.keys_ui.generate_form.rsa_bits = b,
+            KeysMessage::KeyGenCurveSelected(c) => self.keys_ui.generate_form.ecdsa_curve = c,
             KeysMessage::GenerateKey => {
-                if self.key_generate_form.working {
+                if self.keys_ui.generate_form.working {
                     return Ok(Task::none());
                 }
-                let label = self.key_generate_form.label.trim().to_string();
+                let label = self.keys_ui.generate_form.label.trim().to_string();
                 if label.is_empty() {
-                    self.key_generate_form.error =
+                    self.keys_ui.generate_form.error =
                         Some(crate::i18n::t("keygen_label_required").to_string());
                     return Ok(Task::none());
                 }
-                let comment = self.key_generate_form.comment.trim().to_string();
-                let spec = match self.key_generate_form.algo {
+                let comment = self.keys_ui.generate_form.comment.trim().to_string();
+                let spec = match self.keys_ui.generate_form.algo {
                     crate::state::KeyGenAlgo::Ed25519 => oryxis_vault::GenerateSpec::Ed25519,
                     crate::state::KeyGenAlgo::Rsa => oryxis_vault::GenerateSpec::Rsa {
-                        bits: self.key_generate_form.rsa_bits,
+                        bits: self.keys_ui.generate_form.rsa_bits,
                     },
                     crate::state::KeyGenAlgo::Ecdsa => oryxis_vault::GenerateSpec::Ecdsa {
-                        curve: self.key_generate_form.ecdsa_curve,
+                        curve: self.keys_ui.generate_form.ecdsa_curve,
                     },
                 };
-                self.key_generate_form.working = true;
-                self.key_generate_form.error = None;
+                self.keys_ui.generate_form.working = true;
+                self.keys_ui.generate_form.error = None;
                 // RSA 4096 takes seconds: run on the blocking pool so
                 // the UI keeps painting the spinner.
                 return Ok(Task::perform(
@@ -79,7 +79,7 @@ impl Oryxis {
                 ));
             }
             KeysMessage::KeyGenerated(result) => {
-                self.key_generate_form.working = false;
+                self.keys_ui.generate_form.working = false;
                 match result {
                     Ok(generated) => {
                         // A soft auto-lock may have landed while the task
@@ -95,11 +95,11 @@ impl Oryxis {
                         if let Err(e) =
                             vault.save_key(&generated.key, Some(&generated.private_pem))
                         {
-                            self.key_generate_form.error = Some(e.to_string());
+                            self.keys_ui.generate_form.error = Some(e.to_string());
                             return Ok(Task::none());
                         }
                         self.keys = vault.list_keys().unwrap_or_default();
-                        self.key_generate_form.result =
+                        self.keys_ui.generate_form.result =
                             Some(crate::state::GeneratedKeyView {
                                 id: generated.key.id,
                                 label: generated.key.label.clone(),
@@ -107,16 +107,16 @@ impl Oryxis {
                                 public_key: generated.key.public_key.clone(),
                             });
                     }
-                    Err(e) => self.key_generate_form.error = Some(e),
+                    Err(e) => self.keys_ui.generate_form.error = Some(e),
                 }
             }
             KeysMessage::CopyGeneratedPublicKey => {
-                if let Some(result) = &self.key_generate_form.result {
+                if let Some(result) = &self.keys_ui.generate_form.result {
                     return Ok(iced::clipboard::write(result.public_key.clone()).discard());
                 }
             }
             KeysMessage::SaveGeneratedPublicKeyFile => {
-                let Some(result) = self.key_generate_form.result.clone() else {
+                let Some(result) = self.keys_ui.generate_form.result.clone() else {
                     return Ok(Task::none());
                 };
                 return Ok(Task::perform(
@@ -139,29 +139,29 @@ impl Oryxis {
                 ));
             }
             KeysMessage::KeyGenExportPassphraseChanged(v) => {
-                self.key_generate_form.export_passphrase = v;
-                self.key_generate_form.error = None;
+                self.keys_ui.generate_form.export_passphrase = v;
+                self.keys_ui.generate_form.error = None;
             }
             KeysMessage::KeyGenExportPassphraseConfirmChanged(v) => {
-                self.key_generate_form.export_passphrase_confirm = v;
-                self.key_generate_form.error = None;
+                self.keys_ui.generate_form.export_passphrase_confirm = v;
+                self.keys_ui.generate_form.error = None;
             }
             KeysMessage::KeyGenExportPassphraseToggleVisibility => {
-                self.key_generate_form.export_passphrase_visible =
-                    !self.key_generate_form.export_passphrase_visible;
+                self.keys_ui.generate_form.export_passphrase_visible =
+                    !self.keys_ui.generate_form.export_passphrase_visible;
             }
             KeysMessage::KeyGenExportPassphraseConfirmToggleVisibility => {
-                self.key_generate_form.export_passphrase_confirm_visible =
-                    !self.key_generate_form.export_passphrase_confirm_visible;
+                self.keys_ui.generate_form.export_passphrase_confirm_visible =
+                    !self.keys_ui.generate_form.export_passphrase_confirm_visible;
             }
             KeysMessage::ExportGeneratedPrivateKey => {
-                let Some(result) = self.key_generate_form.result.clone() else {
+                let Some(result) = self.keys_ui.generate_form.result.clone() else {
                     return Ok(Task::none());
                 };
-                let pass = self.key_generate_form.export_passphrase.clone();
-                let confirm = self.key_generate_form.export_passphrase_confirm.clone();
+                let pass = self.keys_ui.generate_form.export_passphrase.clone();
+                let confirm = self.keys_ui.generate_form.export_passphrase_confirm.clone();
                 if pass != confirm {
-                    self.key_generate_form.error =
+                    self.keys_ui.generate_form.error =
                         Some(crate::i18n::t("keygen_passphrase_mismatch").to_string());
                     return Ok(Task::none());
                 }
@@ -172,12 +172,12 @@ impl Oryxis {
                 let pem = match self.vault.as_ref().map(|v| v.get_key_private(&result.id)) {
                     Some(Ok(Some(pem))) => pem,
                     Some(Ok(None)) | None => {
-                        self.key_generate_form.error =
+                        self.keys_ui.generate_form.error =
                             Some(crate::i18n::t("key_not_found").into());
                         return Ok(Task::none());
                     }
                     Some(Err(e)) => {
-                        self.key_generate_form.error = Some(e.to_string());
+                        self.keys_ui.generate_form.error = Some(e.to_string());
                         return Ok(Task::none());
                     }
                 };
@@ -187,7 +187,7 @@ impl Oryxis {
                     match oryxis_vault::encrypt_private_pem(&pem, &pass) {
                         Ok(enc) => enc,
                         Err(e) => {
-                            self.key_generate_form.error = Some(e.to_string());
+                            self.keys_ui.generate_form.error = Some(e.to_string());
                             return Ok(Task::none());
                         }
                     }

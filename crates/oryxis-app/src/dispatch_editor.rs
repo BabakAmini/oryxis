@@ -29,10 +29,10 @@ impl Oryxis {
         // before opening the host editor.
         self.cloud_form.visible = false;
         self.cloud_dynamic_form.visible = false;
-        self.cloud_discover_visible = false;
-        self.show_session_group_panel = false;
+        self.cloud_discover.visible = false;
+        self.panels.session_group_panel = false;
         self.group_edit.visible = false;
-        self.show_host_panel = true;
+        self.panels.host_panel = true;
         self.panel_nav_clear();
         self.editor_form = self.new_connection_form();
         self.editor_form.protocol = protocol;
@@ -705,10 +705,10 @@ impl Oryxis {
                     // Mutually exclusive right-panel slot.
                     self.cloud_form.visible = false;
                     self.cloud_dynamic_form.visible = false;
-                    self.cloud_discover_visible = false;
-                    self.show_session_group_panel = false;
+                    self.cloud_discover.visible = false;
+                    self.panels.session_group_panel = false;
                     self.group_edit.visible = false;
-                    self.show_host_panel = true;
+                    self.panels.host_panel = true;
                     // When invoked from a focused terminal tab (the
                     // OpenPortForwards / edit-host hotkey), leave the
                     // terminal surface so the right-panel editor actually
@@ -769,10 +769,10 @@ impl Oryxis {
                 // on the dashboard (the menu was clicked from a terminal).
                 self.cloud_form.visible = false;
                 self.cloud_dynamic_form.visible = false;
-                self.cloud_discover_visible = false;
-                self.show_session_group_panel = false;
+                self.cloud_discover.visible = false;
+                self.panels.session_group_panel = false;
                 self.group_edit.visible = false;
-                self.show_host_panel = true;
+                self.panels.host_panel = true;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
                 self.active_view = crate::state::View::Dashboard;
@@ -815,7 +815,7 @@ impl Oryxis {
                 // the flow reads as "edit the temporary host and dial",
                 // never an implicit vault write.
                 let task = self.update(Message::Editor(EditorMessage::SaveQuickHost(id)));
-                if self.show_host_panel {
+                if self.panels.host_panel {
                     self.editor_form.quick_flow = true;
                 }
                 return task;
@@ -938,12 +938,12 @@ impl Oryxis {
                 self.reset_editor_key_combo();
             }
             EditorMessage::OpenChainEditor => {
-                self.show_chain_editor = true;
+                self.panels.chain_editor = true;
                 self.chain_editor_adding = false;
                 self.chain_editor_search.clear();
             }
             EditorMessage::CloseChainEditor => {
-                self.show_chain_editor = false;
+                self.panels.chain_editor = false;
                 self.chain_editor_adding = false;
                 self.chain_editor_search.clear();
             }
@@ -1029,16 +1029,16 @@ impl Oryxis {
             }
             EditorMessage::EditorProxyCommandChanged(v) => { self.editor_form.proxy_command = v; }
             EditorMessage::EditorOpenThemePicker => {
-                self.show_theme_picker = true;
+                self.panels.theme_picker = true;
             }
             EditorMessage::EditorCloseThemePicker => {
-                self.show_theme_picker = false;
+                self.panels.theme_picker = false;
             }
             EditorMessage::EditorTerminalThemeChanged(name) => {
                 // Empty string == "inherit the global pick".
                 self.editor_form.terminal_theme =
                     if name.is_empty() { None } else { Some(name) };
-                self.show_theme_picker = false;
+                self.panels.theme_picker = false;
             }
             EditorMessage::EditorCloudTransportChanged(t) => {
                 self.editor_form.cloud_transport = Some(t);
@@ -1250,7 +1250,7 @@ impl Oryxis {
                                 let s = (!s.is_empty()).then_some(s);
                                 let _ = vault.set_connection_totp_secret(&conn.id, s);
                             }
-                            self.show_host_panel = false;
+                            self.panels.host_panel = false;
                             self.panel_nav_clear();
                             self.host_panel_error = None;
                             // Re-paint any open tabs of this host so a
@@ -1321,13 +1321,13 @@ impl Oryxis {
                     totp_secret,
                     proxy_password,
                 };
-                self.show_host_panel = false;
+                self.panels.host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
                 return self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))));
             }
             EditorMessage::EditorCancel => {
-                self.show_host_panel = false;
+                self.panels.host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
             }
@@ -1348,7 +1348,7 @@ impl Oryxis {
                         // they go with it instead of dangling against an id
                         // that no longer resolves.
                         let _ = vault.delete_chat_conversations_for_connection(&id);
-                        self.show_host_panel = false;
+                        self.panels.host_panel = false;
                         self.panel_nav_clear();
                         self.load_data_from_vault();
                     }

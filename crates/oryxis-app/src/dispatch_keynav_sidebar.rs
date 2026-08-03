@@ -194,7 +194,7 @@ impl Oryxis {
         event: &keyboard::Event,
     ) -> Option<Task<Message>> {
         let tab = self.effective_sidebar_tab()?;
-        if self.any_modal_blocks_input() || self.show_host_panel {
+        if self.any_modal_blocks_input() || self.panels.host_panel {
             return None;
         }
         let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {

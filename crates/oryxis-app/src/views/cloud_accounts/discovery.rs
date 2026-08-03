@@ -113,7 +113,7 @@ impl Oryxis {
             self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("panel-discover-search")),
                 crate::widgets::INPUT_RADIUS,
-                text_input(t("cloud_discover_search_ph"), &self.cloud_discover_filter)
+                text_input(t("cloud_discover_search_ph"), &self.cloud_discover.filter)
                     .id(iced::widget::Id::new("panel-discover-search"))
                     .on_input(|v| Message::Cloud(CloudMessage::CloudDiscoverFilterChanged(v)))
                     .padding(Padding {
@@ -137,7 +137,7 @@ impl Oryxis {
 
         // Body content varies by state, keep each branch self-
         // contained so the layout above stays readable.
-        let body: Element<'_, Message> = match &self.cloud_discover_state {
+        let body: Element<'_, Message> = match &self.cloud_discover.state {
             CloudDiscoverState::Idle => Space::new().into(),
             CloudDiscoverState::Running => container(
                 text(t("cloud_discover_running"))
@@ -192,11 +192,11 @@ impl Oryxis {
         // Footer: action buttons. Disabled / enabled depending on what
         // the current state allows. We re-render every frame so the
         // selection counter stays live.
-        let import_count = self.cloud_discover_selected_ec2.len()
-            + self.cloud_discover_selected_ecs.len()
-            + self.cloud_discover_selected_k8s.len();
+        let import_count = self.cloud_discover.selected_ec2.len()
+            + self.cloud_discover.selected_ecs.len()
+            + self.cloud_discover.selected_k8s.len();
         let can_import = matches!(
-            self.cloud_discover_state,
+            self.cloud_discover.state,
             CloudDiscoverState::Loaded(_)
         ) && import_count > 0;
 
@@ -316,7 +316,7 @@ impl Oryxis {
             .iter()
             .filter_map(|c| {
                 let cr = c.cloud_ref.as_ref()?;
-                if Some(cr.profile_id) == self.cloud_discover_profile_id {
+                if Some(cr.profile_id) == self.cloud_discover.profile_id {
                     Some(cr.resource_id.clone())
                 } else {
                     None
@@ -329,7 +329,7 @@ impl Oryxis {
         // The total count above the section reflects unfiltered size
         // so the user sees how much got hidden vs. the raw discovery
         // total.
-        let needle = self.cloud_discover_filter.trim().to_lowercase();
+        let needle = self.cloud_discover.filter.trim().to_lowercase();
         let matches_filter = |e: &oryxis_cloud::DiscoveredEc2| -> bool {
             if needle.is_empty() {
                 return true;
@@ -367,7 +367,7 @@ impl Oryxis {
         // showing an empty header reads as broken / loading. Same
         // policy applies to ECS below. The "no matches" hint at the
         // very bottom catches the case where every section is empty.
-        let ec2_collapsed = self.cloud_discover_collapsed.contains("ec2");
+        let ec2_collapsed = self.cloud_discover.collapsed.contains("ec2");
         let show_ec2_section = filtered_count > 0;
         if show_ec2_section {
             // Provider-aware section title: the VM family is "EC2" on AWS
@@ -375,7 +375,7 @@ impl Oryxis {
             // the shared `result.ec2`. Resolve from the profile being
             // discovered; default to the generic "Instances".
             let vm_label = match self
-                .cloud_discover_profile_id
+                .cloud_discover.profile_id
                 .and_then(|id| self.cloud_profiles.iter().find(|p| p.id == id))
                 .map(|p| p.provider.as_str())
             {
@@ -414,7 +414,7 @@ impl Oryxis {
             sections.push(Space::new().height(4).into());
             for e in items {
                 let is_imported = already.contains(&e.instance_id);
-                let checked = self.cloud_discover_selected_ec2.contains(&e.instance_id);
+                let checked = self.cloud_discover.selected_ec2.contains(&e.instance_id);
                 let id_for_msg = e.instance_id.clone();
                 let label_text = match (&e.name, e.public_dns.as_deref().or(e.public_ip.as_deref()))
                 {
@@ -501,7 +501,7 @@ impl Oryxis {
             .iter()
             .filter_map(|g| {
                 let q = g.cloud_query.as_ref()?;
-                if q.profile_id != self.cloud_discover_profile_id? {
+                if q.profile_id != self.cloud_discover.profile_id? {
                     return None;
                 }
                 match &q.kind {
@@ -546,7 +546,7 @@ impl Oryxis {
                     result.ecs_services.len()
                 )
             };
-            let ecs_collapsed = self.cloud_discover_collapsed.contains("ecs");
+            let ecs_collapsed = self.cloud_discover.collapsed.contains("ecs");
             sections.push(self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "ecs".to_string(),
@@ -586,7 +586,7 @@ impl Oryxis {
                 for s in items {
                     let key = format!("{}/{}/{}", s.cluster, s.service, s.container);
                     let is_imported = already_ecs.contains(&key);
-                    let checked = self.cloud_discover_selected_ecs.contains(&key);
+                    let checked = self.cloud_discover.selected_ecs.contains(&key);
                     let label_text = format!(
                         "{} / {}  ·  {} {}",
                         s.service,
@@ -680,7 +680,7 @@ impl Oryxis {
             .iter()
             .filter_map(|g| {
                 let q = g.cloud_query.as_ref()?;
-                if Some(q.profile_id) != self.cloud_discover_profile_id {
+                if Some(q.profile_id) != self.cloud_discover.profile_id {
                     return None;
                 }
                 if let oryxis_core::models::cloud::CloudQueryKind::K8sPods {
@@ -722,7 +722,7 @@ impl Oryxis {
                     result.k8s_workloads.len()
                 )
             };
-            let k8s_collapsed = self.cloud_discover_collapsed.contains("k8s");
+            let k8s_collapsed = self.cloud_discover.collapsed.contains("k8s");
             sections.push(self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "k8s".to_string(),
@@ -756,7 +756,7 @@ impl Oryxis {
                         let key = format!("{}/{}/{}", w.namespace, w.kind, w.name);
                         let imported_key = format!("{}|{}", w.namespace, labels_key(&w.match_labels));
                         let is_imported = already_k8s.contains(&imported_key);
-                        let checked = self.cloud_discover_selected_k8s.contains(&key);
+                        let checked = self.cloud_discover.selected_k8s.contains(&key);
                         let mut label_text = format!(
                             "{} {}  ·  {} pod(s)",
                             w.kind, w.name, w.running_pod_count
@@ -870,7 +870,7 @@ impl Oryxis {
                     result.gke_clusters.len()
                 )
             };
-            let gke_collapsed = self.cloud_discover_collapsed.contains("gke");
+            let gke_collapsed = self.cloud_discover.collapsed.contains("gke");
             sections.push(self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "gke".to_string(),
@@ -986,7 +986,7 @@ impl Oryxis {
                     result.aks_clusters.len()
                 )
             };
-            let aks_collapsed = self.cloud_discover_collapsed.contains("aks");
+            let aks_collapsed = self.cloud_discover.collapsed.contains("aks");
             sections.push(self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::Cloud(CloudMessage::CloudDiscoverToggleSection(
                     "aks".to_string(),

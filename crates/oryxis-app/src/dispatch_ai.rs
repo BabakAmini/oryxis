@@ -651,15 +651,15 @@ impl Oryxis {
                 self.chat_ui.sidebar_drag = None;
                 // The same global Left-release ends an SFTP divider drag;
                 // persist the final ratio so it survives a relaunch.
-                if self.sftp_split_drag.take().is_some() {
+                if self.sftp_chrome.split_drag.take().is_some() {
                     self.persist_setting(
                         "sftp_split_ratio",
-                        &format!("{:.4}", self.sftp_split_ratio),
+                        &format!("{:.4}", self.sftp_chrome.split_ratio),
                     );
                 }
                 // Same Left-release ends a log-panel resize; persist the
                 // final height so it survives a relaunch.
-                if self.sftp_log_drag.take().is_some() {
+                if self.sftp_chrome.log_drag.take().is_some() {
                     self.persist_setting(
                         "sftp_log_height",
                         &format!("{:.0}", self.sftp.log_height),
@@ -667,8 +667,8 @@ impl Oryxis {
                 }
                 // End a column resize: the width was updated live, so just
                 // re-seed the template and persist.
-                if let Some((side, _, _, _)) = self.sftp_col_resize.take() {
-                    self.sftp_columns_template = self.sftp.pane(side).columns.clone();
+                if let Some((side, _, _, _)) = self.sftp_chrome.col_resize.take() {
+                    self.sftp_chrome.columns_template = self.sftp.pane(side).columns.clone();
                     self.persist_sftp_columns();
                 }
                 // A tab released over the content area merges into the
@@ -710,9 +710,9 @@ impl Oryxis {
                 // End a column reorder. If the drag went active, move the
                 // dragged column before whichever header the cursor is over;
                 // a release without movement is a plain click that sorts.
-                if let Some(drag) = self.sftp_col_drag.take() {
-                    let hovered = self.sftp_hovered_col;
-                    self.sftp_hovered_col = None;
+                if let Some(drag) = self.sftp_chrome.col_drag.take() {
+                    let hovered = self.sftp_chrome.hovered_col;
+                    self.sftp_chrome.hovered_col = None;
                     if drag.active {
                         // Name is never a drop target: nothing can be dropped
                         // onto/before it (so it shows no drop effect and keeps
@@ -723,7 +723,7 @@ impl Oryxis {
                             && hcol != crate::state::SftpColumn::Name
                         {
                             self.sftp.pane_mut(drag.side).columns.reorder(drag.col, hcol);
-                            self.sftp_columns_template =
+                            self.sftp_chrome.columns_template =
                                 self.sftp.pane(drag.side).columns.clone();
                             self.persist_sftp_columns();
                         }

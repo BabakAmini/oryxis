@@ -20,7 +20,7 @@ impl Oryxis {
         // shown while a terminal tab is active, so navigating there is a
         // no-op). `show_snippet_panel` is the shared "editing a snippet"
         // flag, set by New / Edit and cleared on Save / close.
-        if self.show_snippet_panel {
+        if self.panels.snippet_panel {
             return self.sidebar_snippet_editor();
         }
 
@@ -501,7 +501,7 @@ impl Oryxis {
     /// list; Delete shows only when editing an existing snippet.
     fn sidebar_snippet_editor(&self) -> Element<'_, Message> {
         let c = OryxisColors::t();
-        let title = if self.snippet_editing_id.is_some() {
+        let title = if self.snippet_form.editing_id.is_some() {
             t("edit_snippet")
         } else {
             t("new_snippet")
@@ -515,7 +515,7 @@ impl Oryxis {
         .align_y(iced::Alignment::Center);
 
         let label_input: Element<'_, Message> =
-            iced::widget::text_input("restart-nginx", &self.snippet_label)
+            iced::widget::text_input("restart-nginx", &self.snippet_form.label)
                 .on_input(|v| Message::Snippet(SnippetMessage::SnippetLabelChanged(v)))
                 .padding(8)
                 .size(13)
@@ -524,9 +524,9 @@ impl Oryxis {
         // Same type-ahead combo as the host editor's Parent Group and
         // the vault snippet panel: existing groups filter as you type,
         // a new name is accepted as-is.
-        let group_selection = (!self.snippet_group.is_empty()).then_some(&self.snippet_group);
+        let group_selection = (!self.snippet_form.group.is_empty()).then_some(&self.snippet_form.group);
         let group_input: Element<'_, Message> = iced::widget::combo_box(
-            &self.snippet_group_combo,
+            &self.snippet_form.group_combo,
             t("group_optional_placeholder"),
             group_selection,
             |v| Message::Snippet(SnippetMessage::SnippetGroupChanged(v)),
@@ -539,7 +539,7 @@ impl Oryxis {
         .width(Length::Fill)
         .into();
         let tags_input: Element<'_, Message> =
-            iced::widget::text_input(t("tags_placeholder"), &self.snippet_tags_input)
+            iced::widget::text_input(t("tags_placeholder"), &self.snippet_form.tags_input)
                 .on_input(|v| Message::Snippet(SnippetMessage::SnippetTagsChanged(v)))
                 .padding(8)
                 .size(13)
@@ -548,7 +548,7 @@ impl Oryxis {
         // Multi-line, auto-grows with content; container caps the height
         // (~8 lines) and then it scrolls internally.
         let command_input: Element<'_, Message> = container(
-            iced::widget::text_editor(&self.snippet_command)
+            iced::widget::text_editor(&self.snippet_form.command)
                 .placeholder("sudo systemctl restart nginx")
                 .on_action(|v| Message::Snippet(SnippetMessage::SnippetCommandAction(v)))
                 .padding(8)
@@ -559,7 +559,7 @@ impl Oryxis {
         .height(Length::Shrink.max(180.0))
         .into();
 
-        let error: Element<'_, Message> = if let Some(err) = &self.snippet_error {
+        let error: Element<'_, Message> = if let Some(err) = &self.snippet_form.error {
             text(err.clone()).size(11).color(c.error).into()
         } else {
             Space::new().into()
@@ -608,7 +608,7 @@ impl Oryxis {
         .spacing(0)
         .padding(12);
 
-        if let Some(edit_id) = self.snippet_editing_id
+        if let Some(edit_id) = self.snippet_form.editing_id
             && let Some(idx) = self.snippets.iter().position(|s| s.id == edit_id)
         {
             let delete = button(

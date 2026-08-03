@@ -759,7 +759,7 @@ impl Oryxis {
         ];
 
         // Show export dialog inline
-        if self.show_export_dialog {
+        if self.panels.export_dialog {
             // Keyboard rows (audit fix: the field recorded nothing
             // while its neighbors did): the field, then its eye.
             let pw_idx = self.settings_nav_record(crate::keynav::RowAction::input(
@@ -864,7 +864,7 @@ impl Oryxis {
         }
 
         // Show import dialog inline
-        if self.show_import_dialog {
+        if self.panels.import_dialog {
             // Keyboard rows (audit fix, same as the export dialog).
             let pw_idx = self.settings_nav_record(crate::keynav::RowAction::input(
                 iced::widget::Id::new("set-import-password"),

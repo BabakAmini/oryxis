@@ -756,7 +756,7 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sftp_split_ratio")
                 && let Ok(r) = v.parse::<f32>()
             {
-                self.sftp_split_ratio = r.clamp(0.15, 0.85);
+                self.sftp_chrome.split_ratio = r.clamp(0.15, 0.85);
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_log_height")
                 && let Ok(h) = v.parse::<f32>()
@@ -765,18 +765,18 @@ impl Oryxis {
                     h.clamp(crate::state::SFTP_LOG_MIN_H, crate::state::SFTP_LOG_MAX_H);
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_columns") {
-                self.sftp_columns_template.apply_visibility_storage(&v);
+                self.sftp_chrome.columns_template.apply_visibility_storage(&v);
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_col_order") {
-                self.sftp_columns_template.apply_order_storage(&v);
+                self.sftp_chrome.columns_template.apply_order_storage(&v);
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_col_widths") {
-                self.sftp_columns_template.apply_width_storage(&v);
+                self.sftp_chrome.columns_template.apply_width_storage(&v);
             }
             // Seed the initial panes from the loaded template; later tabs are
             // seeded at creation (see `seed_sftp_columns`).
-            self.sftp.left.columns = self.sftp_columns_template.clone();
-            self.sftp.right.columns = self.sftp_columns_template.clone();
+            self.sftp.left.columns = self.sftp_chrome.columns_template.clone();
+            self.sftp.right.columns = self.sftp_chrome.columns_template.clone();
             // Vault nav orientation. Prefer the new `nav_orientation`
             // setting; if it's absent, migrate from the legacy
             // `layout_mode` (classic → vertical rail, workspace →

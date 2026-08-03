@@ -119,7 +119,7 @@ impl Oryxis {
                 return Some((ModalSurface::Modal(m), family));
             }
         }
-        if self.show_burger_menu {
+        if self.panels.burger_menu {
             return Some((ModalSurface::Burger, SurfaceFamily::Menu));
         }
         // The SFTP right-click menu is a plain context menu: arrows move,

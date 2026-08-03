@@ -39,7 +39,7 @@ impl Oryxis {
         match message {
             // ── Export / Import ──
             ShareMessage::ExportVault => {
-                self.show_export_dialog = true;
+                self.panels.export_dialog = true;
                 self.export_password = String::new();
                 self.export_include_keys = true;
                 self.export_selection = oryxis_vault::ExportSelection::all();
@@ -149,7 +149,7 @@ impl Oryxis {
                     self.ssh_import_existing.iter().map(|e| !e).collect();
                 self.ssh_import_hosts = parsed;
                 self.ssh_config_import_status = None;
-                self.show_ssh_import_dialog = true;
+                self.panels.ssh_import_dialog = true;
             }
             ShareMessage::SshImportToggle(i) => {
                 if let Some(sel) = self.ssh_import_selected.get_mut(i) {
@@ -162,14 +162,14 @@ impl Oryxis {
                 }
             }
             ShareMessage::SshImportDismiss => {
-                self.show_ssh_import_dialog = false;
+                self.panels.ssh_import_dialog = false;
                 self.ssh_import_hosts.clear();
                 self.ssh_import_selected.clear();
                 self.ssh_import_existing.clear();
             }
             ShareMessage::SshImportConfirm => {
                 let Some(vault) = &self.vault else {
-                    self.show_ssh_import_dialog = false;
+                    self.panels.ssh_import_dialog = false;
                     self.ssh_config_import_status =
                         Some(Err("Vault not unlocked".into()));
                     return Task::none();
@@ -210,7 +210,7 @@ impl Oryxis {
                 }
                 let imported = saved.len();
                 self.connections.extend(saved);
-                self.show_ssh_import_dialog = false;
+                self.panels.ssh_import_dialog = false;
                 self.ssh_import_hosts.clear();
                 self.ssh_import_selected.clear();
                 self.ssh_import_existing.clear();
@@ -260,7 +260,7 @@ impl Oryxis {
             }
             ShareMessage::ImportFileLoaded(data) => {
                 self.vault_import.file_data = Some(data);
-                self.show_import_dialog = true;
+                self.panels.import_dialog = true;
             }
             ShareMessage::ImportPasswordChanged(v) => {
                 self.vault_import.password = v;
@@ -331,7 +331,7 @@ impl Oryxis {
                                 .join(", ");
                             let msg = format!("{} {}", crate::i18n::t("import_done"), body);
                             self.vault_import.status = Some(Ok(msg));
-                            self.show_import_dialog = false;
+                            self.panels.import_dialog = false;
                             self.vault_import.file_data = None;
                             self.vault_import.summary = None;
                             self.load_data_from_vault();
@@ -348,14 +348,14 @@ impl Oryxis {
             ShareMessage::ImportCompleted(result) => {
                 self.vault_import.status = Some(result);
                 if self.vault_import.status.as_ref().is_some_and(|r| r.is_ok()) {
-                    self.show_import_dialog = false;
+                    self.panels.import_dialog = false;
                     self.vault_import.file_data = None;
                     self.load_data_from_vault();
                 }
             }
             ShareMessage::ExportImportDismiss => {
-                self.show_export_dialog = false;
-                self.show_import_dialog = false;
+                self.panels.export_dialog = false;
+                self.panels.import_dialog = false;
                 self.export_status = None;
                 self.vault_import.status = None;
                 self.vault_import.file_data = None;
@@ -417,7 +417,7 @@ impl Oryxis {
                         self.sftp_backup.open = false;
                         self.sftp_backup.status = None;
                         self.vault_import.file_data = Some(data);
-                        self.show_import_dialog = true;
+                        self.panels.import_dialog = true;
                         return Task::done(Message::Share(ShareMessage::ImportInspect));
                     }
                     Err(e) => self.sftp_backup.status = Some(Err(e)),
@@ -431,7 +431,7 @@ impl Oryxis {
                     self.share.group_mode = false;
                     self.share.filter = Some(oryxis_vault::ExportFilter::Hosts(vec![conn.id]));
                     self.share.suggested_name = Some(share_file_name(&conn.label));
-                    self.show_share_dialog = true;
+                    self.panels.share_dialog = true;
                     self.share.password = String::new();
                     self.share.include_keys = false;
                     self.share.status = None;
@@ -462,7 +462,7 @@ impl Oryxis {
                     }
                 }
                 self.share.filter = None;
-                self.show_share_dialog = true;
+                self.panels.share_dialog = true;
                 self.share.password = String::new();
                 self.share.include_keys = false;
                 self.share.status = None;
@@ -561,7 +561,7 @@ impl Oryxis {
                                         );
                                     }
                                     self.share.status = Some(Ok(format!("Saved to {}", path.display())));
-                                    self.show_share_dialog = false;
+                                    self.panels.share_dialog = false;
                                     // Count exported hosts for the toast.
                                     // `Hosts` covers the per-host share and
                                     // the group-mode export (the only ways
@@ -594,7 +594,7 @@ impl Oryxis {
                 }
             }
             ShareMessage::ShareDismiss => {
-                self.show_share_dialog = false;
+                self.panels.share_dialog = false;
                 self.share.filter = None;
                 self.share.status = None;
                 self.share.suggested_name = None;

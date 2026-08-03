@@ -25,7 +25,7 @@ use crate::widgets::{dir_align_x, dir_row};
 
 impl Oryxis {
     /// Build the new-tab picker modal. The caller is responsible for checking
-    /// `self.show_new_tab_picker` before rendering and stacking it on top of
+    /// `self.panels.new_tab_picker` before rendering and stacking it on top of
     /// the base view.
     pub(crate) fn view_new_tab_picker(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded by the row builders below in

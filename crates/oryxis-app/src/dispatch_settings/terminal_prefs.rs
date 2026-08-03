@@ -259,16 +259,16 @@ impl Oryxis {
                 );
             }
             SettingsMessage::OpenTerminalThemeGallery => {
-                self.show_terminal_theme_gallery = true;
+                self.panels.terminal_theme_gallery = true;
             }
             SettingsMessage::CloseTerminalThemeGallery => {
-                self.show_terminal_theme_gallery = false;
+                self.panels.terminal_theme_gallery = false;
             }
             SettingsMessage::OpenUiThemeGallery => {
-                self.show_ui_theme_gallery = true;
+                self.panels.ui_theme_gallery = true;
             }
             SettingsMessage::CloseUiThemeGallery => {
-                self.show_ui_theme_gallery = false;
+                self.panels.ui_theme_gallery = false;
             }
             SettingsMessage::PaneGapChanged(v) => {
                 self.prefs.pane_gap = v.clone();

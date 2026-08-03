@@ -46,7 +46,7 @@ impl Oryxis {
                 }
             }
         }
-        self.show_icon_picker = false;
+        self.panels.icon_picker = false;
         self.icon_picker.for_id = None;
         self.icon_picker.for_group_form = false;
         self.icon_picker.for_session_group = false;
@@ -82,7 +82,7 @@ impl Oryxis {
                 let _ = vault.save_connection(conn, None);
             }
         }
-        self.show_icon_picker = false;
+        self.panels.icon_picker = false;
         self.icon_picker.for_id = None;
         self.icon_picker.for_group_form = false;
         self.icon_picker.for_session_group = false;

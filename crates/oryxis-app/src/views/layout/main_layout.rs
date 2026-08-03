@@ -323,7 +323,7 @@ impl Oryxis {
         // other modal stacked below still wins, but in practice the
         // burger menu and the bigger modals (share dialog, picker, etc.)
         // never coexist on the user's screen at the same time.
-        if self.show_burger_menu {
+        if self.panels.burger_menu {
             let menu = self.view_burger_menu();
             return wrap_with_resize(
                 Stack::new()
@@ -338,7 +338,7 @@ impl Oryxis {
 
         // Vault sub-nav overflow ("…") dropdown, same overlay shape as
         // the burger menu.
-        if self.show_subnav_overflow {
+        if self.panels.subnav_overflow {
             let menu = self.view_subnav_overflow_menu();
             return wrap_with_resize(
                 Stack::new()
@@ -352,7 +352,7 @@ impl Oryxis {
         }
 
         // Share dialog overlay
-        if self.show_share_dialog {
+        if self.panels.share_dialog {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -367,7 +367,7 @@ impl Oryxis {
         // SSH config import preview. Lists every parsed host with a
         // checkbox so the user picks which to add; hosts whose label
         // already exists are flagged and start unticked.
-        if self.show_ssh_import_dialog {
+        if self.panels.ssh_import_dialog {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -528,7 +528,7 @@ impl Oryxis {
         }
 
         // New-tab picker (opens via the "+" button in the tab bar).
-        if self.show_new_tab_picker {
+        if self.panels.new_tab_picker {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -542,7 +542,7 @@ impl Oryxis {
 
         // Tab-jump modal, Termius-style "Jump to" list. Opens via the
         // ⋯ button in the tab bar or the global Ctrl+J shortcut.
-        if self.show_tab_jump {
+        if self.panels.tab_jump {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -573,7 +573,7 @@ impl Oryxis {
         // through `widgets::modal_overlay`: it injects a color-popover layer
         // into its own Stack, which the simple helper can't host. Stays
         // mouse-safe via `opaque` and keyboard-safe via `any_modal_blocks_input`.
-        if self.show_icon_picker {
+        if self.panels.icon_picker {
             let picker = self.view_icon_picker();
             return wrap_with_resize(
                 Stack::new()
@@ -589,7 +589,7 @@ impl Oryxis {
         // Chain editor (from the host editor's "Host Chaining" row). Scrim
         // dismiss is context-dependent: pop the add-a-hop sub-view first,
         // else close the editor (mirrors Esc).
-        if self.show_chain_editor {
+        if self.panels.chain_editor {
             let on_scrim = if self.chain_editor_adding {
                 Message::Editor(EditorMessage::ChainEditorCancelAdd)
             } else {
@@ -607,7 +607,7 @@ impl Oryxis {
         }
 
         // Per-host terminal theme picker (from the host editor).
-        if self.show_theme_picker {
+        if self.panels.theme_picker {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -643,7 +643,7 @@ impl Oryxis {
         // nothing rendered (field report: "Import stopped working").
         // `ESC_ORDER` carries the same order so Esc answers what is
         // actually on screen.
-        if self.show_theme_import {
+        if self.panels.theme_import {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -657,7 +657,7 @@ impl Oryxis {
 
         // Global terminal-theme gallery (Settings -> Terminal). The grid
         // it holds used to sit inline and dominate the page.
-        if self.show_terminal_theme_gallery {
+        if self.panels.terminal_theme_gallery {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -686,7 +686,7 @@ impl Oryxis {
         }
 
         // Import-a-UI-theme modal (Settings -> Interface "Import" card).
-        if self.show_ui_theme_import {
+        if self.panels.ui_theme_import {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,
@@ -701,7 +701,7 @@ impl Oryxis {
         // App-theme gallery (Settings -> Interface). Last of the theme
         // modals: the UI editor and the UI import above are both opened
         // FROM it, so they have to win the chain.
-        if self.show_ui_theme_gallery {
+        if self.panels.ui_theme_gallery {
             return wrap_with_resize(
                 crate::widgets::modal_overlay(
                     base,

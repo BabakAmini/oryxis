@@ -28,10 +28,10 @@ impl Oryxis {
             y: (pos.y / SNAP).round() * SNAP,
         };
         let needs_drag_update = self.chat_ui.sidebar_drag.is_some()
-            || self.sftp_split_drag.is_some()
-            || self.sftp_log_drag.is_some()
-            || self.sftp_col_resize.is_some()
-            || self.sftp_col_drag.is_some()
+            || self.sftp_chrome.split_drag.is_some()
+            || self.sftp_chrome.log_drag.is_some()
+            || self.sftp_chrome.col_resize.is_some()
+            || self.sftp_chrome.col_drag.is_some()
             || self.sftp.drag.is_some()
             || self.tab_drag.is_some();
         // Promote an armed tab drag to active once the cursor moves
@@ -97,31 +97,31 @@ impl Oryxis {
         // content area (window minus the nav rail; the chat sidebar is
         // terminal-only so it isn't subtracted here). Clamp so neither
         // pane can collapse.
-        if let Some((start_x, start_ratio)) = self.sftp_split_drag {
+        if let Some((start_x, start_ratio)) = self.sftp_chrome.split_drag {
             let content_w = (self.window_size.width
                 - self.vault_rail_width()
                 - self.side_strip_reserve())
             .max(1.0);
             let new_ratio =
                 (start_ratio + (pos.x - start_x) / content_w).clamp(0.15, 0.85);
-            self.sftp_split_ratio = new_ratio;
+            self.sftp_chrome.split_ratio = new_ratio;
         }
         // SFTP message-log panel height: the divider sits above the
         // panel, so dragging up (smaller y) grows it.
-        if let Some((start_y, start_h)) = self.sftp_log_drag {
+        if let Some((start_y, start_h)) = self.sftp_chrome.log_drag {
             self.sftp.log_height = (start_h - (pos.y - start_y))
                 .clamp(crate::state::SFTP_LOG_MIN_H, crate::state::SFTP_LOG_MAX_H);
         }
         // SFTP column resize: the dragged column's width tracks the
         // cursor (clamped inside the setters). The total row width
         // grows; the other columns keep their size.
-        if let Some((side, col, start_x, start_w)) = self.sftp_col_resize {
+        if let Some((side, col, start_x, start_w)) = self.sftp_chrome.col_resize {
             let new_w = start_w + (pos.x - start_x);
             self.sftp.pane_mut(side).columns.width.set(col, new_w);
         }
         // Promote a column reorder drag to active past a small
         // threshold so a plain header click still sorts.
-        if let Some(drag) = self.sftp_col_drag.as_mut()
+        if let Some(drag) = self.sftp_chrome.col_drag.as_mut()
             && !drag.active
             && (pos.x - drag.press_x).abs() > 5.0
         {
@@ -254,7 +254,7 @@ impl Oryxis {
             // cancelling loses nothing but the ghost.
             self.tab_drag = None;
             self.sftp.drag = None;
-            self.sftp_col_drag = None;
+            self.sftp_chrome.col_drag = None;
             // An Alt released outside the window never reaches us; a
             // wedged side would silently turn Option keystrokes into
             // Meta (or vice versa) after refocus.

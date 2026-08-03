@@ -71,7 +71,7 @@ impl Oryxis {
         let mut head: Vec<Element<'_, Message>> = Vec::new();
         if hide_top_bar {
             let mut header: Vec<Element<'_, Message>> = vec![
-                burger_menu_btn(self.show_burger_menu),
+                burger_menu_btn(self.panels.burger_menu),
                 self.home_area_tab(solid_fill),
                 Space::new().width(Length::Fill).into(),
             ];

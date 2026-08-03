@@ -58,7 +58,7 @@ impl Oryxis {
         .on_press(Message::Sftp(SftpMessage::SftpSplitResizeStart))
         .interaction(iced::mouse::Interaction::ResizingHorizontally)
         .into();
-        let left_portion = (self.sftp_split_ratio * 1000.0).round().clamp(1.0, 999.0) as u16;
+        let left_portion = (self.sftp_chrome.split_ratio * 1000.0).round().clamp(1.0, 999.0) as u16;
         let right_portion = 1000u16.saturating_sub(left_portion).max(1);
         let panes = row![
             container(self.view_sftp_pane(SftpPaneSide::Left))
@@ -172,7 +172,7 @@ impl Oryxis {
             - self.vault_rail_width()
             - self.side_strip_reserve())
         .max(1.0);
-        let left_w = content_w * self.sftp_split_ratio;
+        let left_w = content_w * self.sftp_chrome.split_ratio;
         let pane_right = match side {
             SftpPaneSide::Left => left_w,
             SftpPaneSide::Right => content_w,
@@ -242,7 +242,7 @@ impl Oryxis {
         // ghost must not re-parent the panes, or iced resets the file lists'
         // scroll offset. Base stays at Stack index 0 whether or not a drag is
         // live.
-        let Some(drag) = self.sftp_col_drag.filter(|d| d.active) else {
+        let Some(drag) = self.sftp_chrome.col_drag.filter(|d| d.active) else {
             return iced::widget::Stack::new()
                 .push(base)
                 .width(Length::Fill)
@@ -376,8 +376,8 @@ impl Oryxis {
             - self.side_strip_reserve())
         .max(1.0);
             let w = match side {
-                SftpPaneSide::Left => content_w * self.sftp_split_ratio,
-                SftpPaneSide::Right => content_w * (1.0 - self.sftp_split_ratio),
+                SftpPaneSide::Left => content_w * self.sftp_chrome.split_ratio,
+                SftpPaneSide::Right => content_w * (1.0 - self.sftp_chrome.split_ratio),
             };
             (w - 6.0).max(1.0)
         };
@@ -391,11 +391,11 @@ impl Oryxis {
         let cols_total = cols_total_width(&ordered_cols, col_widths);
         let layout = ColLayout::resolve(cols_total, pane_avail);
         let col_drag = self
-            .sftp_col_drag
+            .sftp_chrome.col_drag
             .filter(|d| d.side == side && d.active)
             .map(|d| d.col);
         let col_hovered = self
-            .sftp_hovered_col
+            .sftp_chrome.hovered_col
             .filter(|(s, _)| *s == side)
             .map(|(_, c)| c);
         // Per-pane scroll id keyed by the current directory. Within one

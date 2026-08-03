@@ -208,7 +208,7 @@ impl Oryxis {
         let was_idle = self.keynav.focus.is_none();
         let Some(zone) = zone else {
             self.keynav.focus = None;
-            self.show_subnav_overflow = false;
+            self.panels.subnav_overflow = false;
             let Some(id) = self.active_view_search_id() else {
                 return Task::none();
             };
@@ -416,7 +416,7 @@ impl Oryxis {
                 let vertical = self.prefs.nav_orientation == "vertical"
                     || self.active_view == View::Settings;
                 if vertical {
-                    self.show_subnav_overflow = false;
+                    self.panels.subnav_overflow = false;
                     let items = self.keynav.subnav_items.borrow();
                     let pos = items.iter().position(|&i| i == item).unwrap_or(0);
                     let denom = items.len().saturating_sub(1).max(1);
@@ -437,7 +437,7 @@ impl Oryxis {
                 // "⋯" menu so the selection stays visible; back to an
                 // inline pill closes it again.
                 let (_, overflow) = self.subnav_pill_split();
-                self.show_subnav_overflow = matches!(
+                self.panels.subnav_overflow = matches!(
                     item,
                     NavItem::SubNav(v) if overflow.iter().any(|(_, ov)| *ov == v)
                 );
@@ -484,7 +484,7 @@ impl Oryxis {
                 None
             }
             Some((FocusZone::SubNav, NavItem::SubNav(view))) => {
-                self.show_subnav_overflow = false;
+                self.panels.subnav_overflow = false;
                 // ChangeView clears keynav focus on every other path
                 // (mouse, hotkeys); this flag keeps the pill focused
                 // so repeated Enter / arrows keep working.
@@ -653,7 +653,7 @@ impl Oryxis {
     fn keynav_escape(&mut self) -> Option<Task<Message>> {
         if self.keynav.focus.is_some() {
             self.keynav.focus = None;
-            self.show_subnav_overflow = false;
+            self.panels.subnav_overflow = false;
             return Some(Task::none());
         }
         None

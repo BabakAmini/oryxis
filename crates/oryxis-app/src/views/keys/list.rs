@@ -167,14 +167,14 @@ impl Oryxis {
         // its own error/success right next to the field that caused it
         // duplicating the message in the main keychain area is just noise.
         let panel_open =
-            self.show_key_panel || self.show_identity_panel || self.show_key_generate_panel;
+            self.panels.key_panel || self.panels.identity_panel || self.panels.key_generate_panel;
         let status: Element<'_, Message> = if panel_open {
             Space::new().into()
-        } else if let Some(err) = &self.key_error {
+        } else if let Some(err) = &self.keys_ui.error {
             container(Element::from(text(err.clone()).size(12).color(OryxisColors::t().error)))
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 })
                 .into()
-        } else if let Some(ok) = &self.key_success {
+        } else if let Some(ok) = &self.keys_ui.success {
             container(Element::from(text(ok.clone()).size(12).color(OryxisColors::t().success)))
                 .padding(Padding { top: 0.0, right: 24.0, bottom: 8.0, left: 24.0 })
                 .into()
@@ -199,7 +199,7 @@ impl Oryxis {
         // reordering the index list first so EditKey(idx) / DeleteKey
         // still target the canonical vault index, even though the
         // rendered order changes.
-        let search_lower = self.key_search.to_lowercase();
+        let search_lower = self.keys_ui.search.to_lowercase();
         let mut key_order: Vec<usize> = (0..self.keys.len()).collect();
         self.keys_sort.sort_items(
             &mut key_order,
@@ -284,7 +284,7 @@ impl Oryxis {
             let key_kb_selected = self.keynav.selected_in(crate::keynav::FocusZone::Content)
                 == Some(crate::keynav::NavItem::Key(idx));
             let key_show_dots = self.hover.key_card == Some(idx)
-                || self.key_context_menu == Some(idx)
+                || self.keys_ui.context_menu == Some(idx)
                 || key_kb_selected;
             let key_rtl = crate::i18n::is_rtl_layout();
             // Match the dashboard host-card geometry exactly: the host
@@ -422,9 +422,9 @@ impl Oryxis {
         // recomputes `cols` and the cards rewrap accordingly instead of
         // disappearing into clipped overflow.
         let nav_width = self.vault_rail_width();
-        let panel_width = if self.show_key_panel
-            || self.show_identity_panel
-            || self.show_key_generate_panel
+        let panel_width = if self.panels.key_panel
+            || self.panels.identity_panel
+            || self.panels.key_generate_panel
         {
             crate::app::PANEL_WIDTH
         } else {

@@ -20,7 +20,7 @@ impl Oryxis {
         match message {
             // ── Identities ──
             KeysMessage::ShowIdentityPanel => {
-                self.show_identity_panel = true;
+                self.panels.identity_panel = true;
                 self.identity_form.label.clear();
                 self.identity_form.username.clear();
                 // SecretInput::clear also drops the touched flag.
@@ -29,12 +29,12 @@ impl Oryxis {
                 self.identity_form.password_visible = false;
                 self.identity_form.has_existing_password = false;
                 self.identity_form.editing_id = None;
-                self.show_keychain_add_menu = false;
+                self.panels.keychain_add_menu = false;
                 self.identity_context_menu = None;
                 self.overlay = None;
             }
             KeysMessage::HideIdentityPanel => {
-                self.show_identity_panel = false;
+                self.panels.identity_panel = false;
             }
             KeysMessage::IdentityLabelChanged(v) => {
                 self.identity_form.label = v;
@@ -80,7 +80,7 @@ impl Oryxis {
                     let _ = vault.save_identity(&identity, password);
                     self.load_data_from_vault();
                 }
-                self.show_identity_panel = false;
+                self.panels.identity_panel = false;
             }
             KeysMessage::EditIdentity(idx) => {
                 if let Some(identity) = self.identities.get(idx) {
@@ -95,7 +95,7 @@ impl Oryxis {
                     self.identity_form.key = identity.key_id.and_then(|kid| {
                         self.keys.iter().find(|k| k.id == kid).map(|k| k.label.clone())
                     });
-                    self.show_identity_panel = true;
+                    self.panels.identity_panel = true;
                     self.identity_context_menu = None;
                     self.overlay = None;
                 }
@@ -132,23 +132,23 @@ impl Oryxis {
                 }
             }
             KeysMessage::ToggleKeychainAddMenu => {
-                if self.show_keychain_add_menu {
-                    self.show_keychain_add_menu = false;
+                if self.panels.keychain_add_menu {
+                    self.panels.keychain_add_menu = false;
                     self.overlay = None;
                 } else {
-                    self.show_keychain_add_menu = true;
+                    self.panels.keychain_add_menu = true;
                     // Opening the ADD menu closes any open editor panel
                     // (import / generate / identity). The menu's entries
                     // just reopen one of those, so a stale panel behind the
                     // menu is never wanted, and leaving it open mis-anchored
                     // the menu on top of the panel (the generate panel was
                     // not even counted in panel_width below).
-                    let panel_was_open = self.show_key_panel
-                        || self.show_key_generate_panel
-                        || self.show_identity_panel;
-                    self.show_key_panel = false;
-                    self.show_key_generate_panel = false;
-                    self.show_identity_panel = false;
+                    let panel_was_open = self.panels.key_panel
+                        || self.panels.key_generate_panel
+                        || self.panels.identity_panel;
+                    self.panels.key_panel = false;
+                    self.panels.key_generate_panel = false;
+                    self.panels.identity_panel = false;
                     // The trigger-bounds cell was drawn with that panel
                     // open, and closing it shifts the whole toolbar by the
                     // panel width before the next draw, so the stale rect

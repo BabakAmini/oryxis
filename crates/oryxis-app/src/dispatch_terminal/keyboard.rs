@@ -73,7 +73,7 @@ impl Oryxis {
                         tab = ?self.active_tab,
                         pick_open = self.keynav.pick_open,
                         modal = self.any_modal_blocks_input(),
-                        panel = self.show_host_panel,
+                        panel = self.panels.host_panel,
                         capture = self.editing_hotkey.is_some(),
                         "key-gate: ctrl+shift chord"
                     );
@@ -276,7 +276,7 @@ impl Oryxis {
                 if let keyboard::Event::KeyPressed { key, modifiers, .. } = &event
                     && matches!(key, keyboard::Key::Named(keyboard::key::Named::Tab))
                     && modifiers.control()
-                    && !self.show_host_panel
+                    && !self.panels.host_panel
                     && !self.any_modal_blocks_input()
                 {
                     return Ok(self.cycle_mru_step(!modifiers.shift()));

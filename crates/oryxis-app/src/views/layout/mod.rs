@@ -57,17 +57,17 @@ impl Oryxis {
         }
         match self.active_view {
             View::Dashboard => {
-                self.cloud_discover_visible
+                self.cloud_discover.visible
                     || self.cloud_dynamic_form.visible
                     || self.group_edit.visible
-                    || self.show_host_panel
-                    || self.show_session_group_panel
+                    || self.panels.host_panel
+                    || self.panels.session_group_panel
             }
             View::Keys => {
-                self.show_key_panel || self.show_identity_panel || self.show_key_generate_panel
+                self.panels.key_panel || self.panels.identity_panel || self.panels.key_generate_panel
             }
-            View::Snippets => self.show_snippet_panel,
-            View::PortForwarding => self.show_port_forward_panel,
+            View::Snippets => self.panels.snippet_panel,
+            View::PortForwarding => self.panels.port_forward_panel,
             View::Proxies => self.proxy_identity_form.visible,
             View::Cloud => self.cloud_form.visible,
             _ => false,
@@ -158,36 +158,36 @@ impl Oryxis {
         }
         match self.active_view {
             View::Dashboard => {
-                if self.cloud_discover_visible {
+                if self.cloud_discover.visible {
                     Some(self.view_cloud_discover_panel())
                 } else if self.cloud_dynamic_form.visible {
                     Some(self.view_dynamic_group_form_panel())
                 } else if self.group_edit.visible {
                     Some(self.view_group_edit_panel())
-                } else if self.show_host_panel {
+                } else if self.panels.host_panel {
                     Some(self.view_host_panel())
-                } else if self.show_session_group_panel {
+                } else if self.panels.session_group_panel {
                     Some(self.view_session_group_panel())
                 } else {
                     None
                 }
             }
             View::Keys => {
-                if self.show_key_panel {
+                if self.panels.key_panel {
                     Some(self.view_key_import_panel())
-                } else if self.show_identity_panel {
+                } else if self.panels.identity_panel {
                     Some(self.view_identity_panel())
-                } else if self.show_key_generate_panel {
+                } else if self.panels.key_generate_panel {
                     Some(self.view_key_generate_panel())
                 } else {
                     None
                 }
             }
             View::Snippets => self
-                .show_snippet_panel
+                .panels.snippet_panel
                 .then(|| self.view_snippet_panel()),
             View::PortForwarding => self
-                .show_port_forward_panel
+                .panels.port_forward_panel
                 .then(|| self.view_port_forward_panel()),
             View::Proxies => self
                 .proxy_identity_form.visible
@@ -346,17 +346,17 @@ impl Oryxis {
         }
         match self.active_view {
             View::Dashboard => {
-                self.cloud_discover_visible
+                self.cloud_discover.visible
                     || self.cloud_dynamic_form.visible
                     || self.group_edit.visible
-                    || self.show_host_panel
-                    || self.show_session_group_panel
+                    || self.panels.host_panel
+                    || self.panels.session_group_panel
             }
             View::Keys => {
-                self.show_key_panel || self.show_identity_panel || self.show_key_generate_panel
+                self.panels.key_panel || self.panels.identity_panel || self.panels.key_generate_panel
             }
-            View::Snippets => self.show_snippet_panel,
-            View::PortForwarding => self.show_port_forward_panel,
+            View::Snippets => self.panels.snippet_panel,
+            View::PortForwarding => self.panels.port_forward_panel,
             View::Proxies => self.proxy_identity_form.visible,
             View::Cloud => self.cloud_form.visible,
             _ => false,
