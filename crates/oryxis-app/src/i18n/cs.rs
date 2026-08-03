@@ -378,6 +378,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Import a export",
         "api_key" => "Klíč API",
         "interface_group_theme" => "Motiv aplikace",
+        "app_theme_desc" => "Barvy samotné aplikace: postranní panel, panely, text a zvýraznění. Terminál je přebírá, dokud nenastavíte motiv terminálu.",
         "interface_group_advanced" => "Pokročilé",
         "show_status_bar" => "Zobrazit stavový řádek",
         "status_show_connection" => "Zobrazit stav připojení",

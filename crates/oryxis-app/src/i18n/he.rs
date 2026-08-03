@@ -378,6 +378,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "ייבוא וייצוא",
         "api_key" => "מפתח API",
         "interface_group_theme" => "ערכת נושא של האפליקציה",
+        "app_theme_desc" => "הצבעים של האפליקציה עצמה: סרגל צד, לוחות, טקסט וצבע הדגשה. המסוף עוקב אחריהם אלא אם תגדירו ערכת נושא למסוף.",
         "interface_group_advanced" => "מתקדם",
         "show_status_bar" => "הצגת שורת מצב",
         "status_show_connection" => "הצג מצב חיבור",

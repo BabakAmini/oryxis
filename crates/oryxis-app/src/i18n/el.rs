@@ -378,6 +378,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Εισαγωγή & εξαγωγή",
         "api_key" => "Κλειδί API",
         "interface_group_theme" => "Θέμα εφαρμογής",
+        "app_theme_desc" => "Επιλέξτε τα χρώματα της ίδιας της εφαρμογής: πλαϊνή μπάρα, πάνελ, κείμενο και τόνος. Το τερματικό τα ακολουθεί, εκτός αν ορίσετε θέμα τερματικού.",
         "interface_group_advanced" => "Για προχωρημένους",
         "show_status_bar" => "Εμφάνιση γραμμής κατάστασης",
         "status_show_connection" => "Εμφάνιση κατάστασης σύνδεσης",

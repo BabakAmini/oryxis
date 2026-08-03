@@ -378,6 +378,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "security_group_import_export" => "Import & export",
         "api_key" => "API Key",
         "interface_group_theme" => "App theme",
+        "app_theme_desc" => "Pick the colours the app itself uses: sidebar, panels, text and accent. The terminal follows it unless you set a terminal theme.",
         "interface_group_advanced" => "Advanced",
         "show_status_bar" => "Show status bar",
         "status_show_connection" => "Show connection status",

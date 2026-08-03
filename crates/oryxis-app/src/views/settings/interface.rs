@@ -5,7 +5,6 @@ use iced::widget::column;
 
 impl Oryxis {
     pub(crate) fn view_settings_interface(&self) -> Element<'_, Message> {
-        use crate::theme::AppTheme;
         // Keyboard rows are recorded in visual order: the sections are
         // deliberately CONSTRUCTED in the same order they render (the
         // recording happens at construction), so keep any new section
@@ -448,76 +447,6 @@ impl Oryxis {
         }
         let status_bar_section = panel_section(status_bar_col);
 
-        // ── Theme ──
-        // Built-in themes, then custom UI themes, then the "+" card.
-        // Each card is a keyboard row (Enter applies / opens it);
-        // recorded here so the Theme group follows the Tabs group in
-        // the keyboard order, exactly as rendered.
-        let active_name = self.active_app_theme_name.as_str();
-        let mut cards: Vec<Element<'_, Message>> = Vec::new();
-        for (bidx, theme) in AppTheme::ALL.iter().enumerate() {
-            let name = theme.name();
-            cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(name.to_string()))),
-                10.0,
-                // Hover reveals a clone icon (duplicate the preset into an
-                // editable custom UI theme); Enter still applies it.
-                self.ui_builtin_theme_card(
-                    bidx,
-                    name,
-                    theme.colors_ref(),
-                    name == active_name,
-                ),
-            ));
-        }
-        // Resolve custom colors up front (the card only reads Copy
-        // values, so this temporary outlives the borrow).
-        let custom_colors: Vec<crate::theme::ThemeColors> = self
-            .custom_ui_themes
-            .iter()
-            .map(|t| crate::theme::theme_colors_from_hex(&t.colors))
-            .collect();
-        for (idx, theme) in self.custom_ui_themes.iter().enumerate() {
-            cards.push(self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(
-                    theme.name.clone(),
-                ))),
-                10.0,
-                self.ui_theme_custom_card(
-                    idx,
-                    &theme.name,
-                    &custom_colors[idx],
-                    theme.name == active_name,
-                ),
-            ));
-        }
-        cards.push(self.settings_nav_slot_labeled(
-            t("theme_new_custom"),
-            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeEditorNew)),
-            10.0,
-            crate::views::settings_ui_themes::ui_theme_add_card(),
-        ));
-        cards.push(self.settings_nav_slot_labeled(
-            t("theme_import"),
-            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeImportOpen)),
-            10.0,
-            crate::views::settings_ui_themes::ui_theme_import_card(),
-        ));
-
-        // Chunk the cards into rows of two (Elements aren't Clone, so
-        // drain pairs instead of `chunks`).
-        let mut grid_rows: Vec<Element<'_, Message>> = Vec::new();
-        let mut iter = cards.into_iter();
-        while let Some(a) = iter.next() {
-            let mut cells = vec![a];
-            if let Some(b) = iter.next() {
-                cells.push(b);
-            } else {
-                cells.push(Space::new().width(Length::FillPortion(1)).into());
-            }
-            grid_rows.push(dir_row(cells).spacing(12).into());
-        }
-
         // ── Advanced ──
         // Renderer backend picker + a hint that it only takes
         // effect after a restart (the backend is fixed at process
@@ -683,12 +612,10 @@ impl Oryxis {
         .width(Length::Fill)
         .align_x(dir_align_x());
 
-        // App-theme swatch grid sits under the Theme header.
-        for row_el in grid_rows {
-            content_col = content_col
-                .push(row_el)
-                .push(Space::new().height(8));
-        }
+        // ONE row under the Theme header: the theme in force, as a
+        // real card so the preview survives, opening the gallery
+        // (mirrors the terminal side).
+        content_col = content_col.push(self.active_app_theme_row());
 
         // Advanced: renderer backend + performance mode + teaching
         // hints in one card, plus the system tray toggles on Windows
@@ -716,4 +643,166 @@ impl Oryxis {
         .height(Length::Fill)
         .into()
     }
+
+    /// The app-theme gallery: every built-in and custom chrome theme as a
+    /// card, plus the create / import entries. Behind a modal for the same
+    /// reason the terminal one is (`terminal_theme_gallery`): the grid was
+    /// the tallest thing in Settings > Interface and pushed Advanced, the
+    /// tray toggles and everything else below a wall of swatches.
+    ///
+    /// The cards record themselves as keyboard rows in RENDER order, so
+    /// the modal is walkable the moment it opens.
+    pub(crate) fn ui_theme_gallery(&self) -> Element<'_, Message> {
+        self.keynav_settings_reset();
+        // ── Theme ──
+        // Built-in themes, then custom UI themes, then the "+" card.
+        // Each card is a keyboard row (Enter applies / opens it);
+        // recorded here so the Theme group follows the Tabs group in
+        // the keyboard order, exactly as rendered.
+        let active_name = self.active_app_theme_name.as_str();
+        let mut cards: Vec<Element<'_, Message>> = Vec::new();
+        for (bidx, theme) in crate::theme::AppTheme::ALL.iter().enumerate() {
+            let name = theme.name();
+            cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(name.to_string()))),
+                10.0,
+                // Hover reveals a clone icon (duplicate the preset into an
+                // editable custom UI theme); Enter still applies it.
+                self.ui_builtin_theme_card(
+                    bidx,
+                    name,
+                    theme.colors_ref(),
+                    name == active_name,
+                ),
+            ));
+        }
+        // Resolve custom colors up front (the card only reads Copy
+        // values, so this temporary outlives the borrow).
+        let custom_colors: Vec<crate::theme::ThemeColors> = self
+            .custom_ui_themes
+            .iter()
+            .map(|t| crate::theme::theme_colors_from_hex(&t.colors))
+            .collect();
+        for (idx, theme) in self.custom_ui_themes.iter().enumerate() {
+            cards.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::AppThemeChanged(
+                    theme.name.clone(),
+                ))),
+                10.0,
+                self.ui_theme_custom_card(
+                    idx,
+                    &theme.name,
+                    &custom_colors[idx],
+                    theme.name == active_name,
+                ),
+            ));
+        }
+        cards.push(self.settings_nav_slot_labeled(
+            t("theme_new_custom"),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeEditorNew)),
+            10.0,
+            crate::views::settings_ui_themes::ui_theme_add_card(),
+        ));
+        cards.push(self.settings_nav_slot_labeled(
+            t("theme_import"),
+            crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::UiThemeImportOpen)),
+            10.0,
+            crate::views::settings_ui_themes::ui_theme_import_card(),
+        ));
+
+        // Chunk the cards into rows of two (Elements aren't Clone, so
+        // drain pairs instead of `chunks`).
+        let mut grid_rows: Vec<Element<'_, Message>> = Vec::new();
+        let mut iter = cards.into_iter();
+        while let Some(a) = iter.next() {
+            let mut cells = vec![a];
+            if let Some(b) = iter.next() {
+                cells.push(b);
+            } else {
+                cells.push(Space::new().width(Length::FillPortion(1)).into());
+            }
+            grid_rows.push(dir_row(cells).spacing(12).into());
+        }
+        let footer: Element<'_, Message> = dir_row(vec![
+            Space::new().width(Length::Fill).into(),
+            crate::widgets::form_cancel_button(Message::Settings(
+                SettingsMessage::CloseUiThemeGallery,
+            )),
+        ])
+        .align_y(iced::Alignment::Center)
+        .into();
+        let mut grid = iced::widget::Column::new().width(Length::Fill);
+        for row_el in grid_rows {
+            grid = grid.push(row_el).push(Space::new().height(8));
+        }
+        let card = container(
+            iced::widget::column![
+                text(crate::i18n::t("interface_group_theme"))
+                    .size(18)
+                    .color(OryxisColors::t().text_primary),
+                Space::new().height(6),
+                text(crate::i18n::t("app_theme_desc"))
+                    .size(12)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(16),
+                // Right padding is the scrollbar's own gutter: it is drawn
+                // INSIDE the viewport, so a full-width grid gets a bar
+                // painted over its right-hand cards.
+                scrollable(
+                    container(grid)
+                        .padding(Padding { top: 0.0, right: 14.0, bottom: 0.0, left: 0.0 }),
+                )
+                .height(Length::Fixed(460.0)),
+                Space::new().height(12),
+                footer,
+            ],
+        )
+        .padding(24)
+        .width(Length::Fixed(720.0))
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_primary)),
+            border: Border {
+                radius: Radius::from(12.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        });
+        card.into()
+    }
+
+    /// The single Settings row that stands in for the grid: the app theme
+    /// in force, rendered as its own card so the preview survives the move
+    /// into the gallery, and clicking it opens that gallery.
+    fn active_app_theme_row(&self) -> Element<'_, Message> {
+        // Borrowed from state, not cloned: `app_theme_card` ties the
+        // returned element's lifetime to the label.
+        let name = self.active_app_theme_name.as_str();
+        let colors = self
+            .custom_ui_themes
+            .iter()
+            .find(|t| t.name == name)
+            .map(|t| crate::theme::theme_colors_from_hex(&t.colors))
+            .unwrap_or_else(|| {
+                crate::theme::AppTheme::ALL
+                    .iter()
+                    .find(|t| t.name() == name)
+                    .map(|t| *t.colors_ref())
+                    .unwrap_or(*crate::theme::AppTheme::OryxisDark.colors_ref())
+            });
+        self.settings_nav_slot_labeled(
+            crate::i18n::t("interface_group_theme"),
+            crate::keynav::RowAction::activate(Message::Settings(
+                SettingsMessage::OpenUiThemeGallery,
+            )),
+            10.0,
+            crate::views::settings_ui_themes::app_theme_card(
+                name,
+                &colors,
+                true,
+                Message::Settings(SettingsMessage::OpenUiThemeGallery),
+            ),
+        )
+    }
+
 }

@@ -264,6 +264,8 @@ impl Oryxis {
             | SettingsMessage::PaneGapChanged(..)
             | SettingsMessage::OpenTerminalThemeGallery
             | SettingsMessage::CloseTerminalThemeGallery
+            | SettingsMessage::OpenUiThemeGallery
+            | SettingsMessage::CloseUiThemeGallery
             | SettingsMessage::ToggleTerminalAutoTitle
             | SettingsMessage::BellModeChanged(..)
             | SettingsMessage::ClipboardAccessChanged(..)

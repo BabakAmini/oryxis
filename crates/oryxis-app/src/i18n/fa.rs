@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "درون‌ریزی و برون‌ریزی",
         "api_key" => "کلید API",
         "interface_group_theme" => "پوسته برنامه",
+        "app_theme_desc" => "رنگ‌های خود برنامه: نوار کناری، پنل‌ها، متن و رنگ تأکیدی. ترمینال از همین‌ها پیروی می‌کند مگر اینکه پوسته ترمینال تعیین کنید.",
         "interface_group_advanced" => "پیشرفته",
         "show_status_bar" => "نمایش نوار وضعیت",
         "status_show_connection" => "نمایش وضعیت اتصال",

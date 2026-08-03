@@ -141,6 +141,10 @@ pub enum SettingsMessage {
     /// exists anywhere else, and the trash sits in the same hover cluster
     /// as clone and edit. `ThemeDelete` / `UiThemeDelete` are only ever
     /// reached by confirming.
+    /// Open / close the app-theme gallery (Settings > Interface), the
+    /// sibling of the terminal one.
+    OpenUiThemeGallery,
+    CloseUiThemeGallery,
     ThemeDeleteRequested(usize),
     UiThemeDeleteRequested(usize),
     ChangeSettingsSection(SettingsSection),

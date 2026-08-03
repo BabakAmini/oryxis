@@ -378,6 +378,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "आयात और निर्यात",
         "api_key" => "API कुंजी",
         "interface_group_theme" => "ऐप थीम",
+        "app_theme_desc" => "ऐप के अपने रंग चुनें: साइडबार, पैनल, टेक्स्ट और एक्सेंट। जब तक आप टर्मिनल थीम सेट न करें, टर्मिनल इन्हीं का अनुसरण करता है।",
         "interface_group_advanced" => "उन्नत",
         "show_status_bar" => "स्टेटस बार दिखाएं",
         "status_show_connection" => "कनेक्शन स्थिति दिखाएँ",

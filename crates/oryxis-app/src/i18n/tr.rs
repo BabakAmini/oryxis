@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "İçe ve dışa aktarma",
         "api_key" => "API Anahtarı",
         "interface_group_theme" => "Uygulama teması",
+        "app_theme_desc" => "Uygulamanın kendi renkleri: kenar çubuğu, paneller, metin ve vurgu. Bir terminal teması ayarlamadıkça terminal de bunları kullanır.",
         "interface_group_advanced" => "Gelişmiş",
         "show_status_bar" => "Durum çubuğunu göster",
         "status_show_connection" => "Bağlantı durumunu göster",

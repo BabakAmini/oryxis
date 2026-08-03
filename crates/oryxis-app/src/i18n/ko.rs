@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "가져오기 및 내보내기",
         "api_key" => "API 키",
         "interface_group_theme" => "앱 테마",
+        "app_theme_desc" => "앱 자체의 색상을 고릅니다: 사이드바, 패널, 텍스트, 강조색. 터미널 테마를 따로 지정하지 않으면 터미널도 이를 따릅니다.",
         "interface_group_advanced" => "고급",
         "show_status_bar" => "상태 표시줄 표시",
         "status_show_connection" => "연결 상태 표시",

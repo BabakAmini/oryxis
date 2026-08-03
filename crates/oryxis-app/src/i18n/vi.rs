@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Nhập & xuất",
         "api_key" => "Khóa API",
         "interface_group_theme" => "Giao diện ứng dụng",
+        "app_theme_desc" => "Chọn màu của chính ứng dụng: thanh bên, bảng, chữ và màu nhấn. Terminal sẽ theo màu này trừ khi bạn đặt chủ đề riêng cho terminal.",
         "interface_group_advanced" => "Nâng cao",
         "show_status_bar" => "Hiện thanh trạng thái",
         "status_show_connection" => "Hiển thị trạng thái kết nối",

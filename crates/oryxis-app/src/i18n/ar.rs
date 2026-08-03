@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "الاستيراد والتصدير",
         "api_key" => "مفتاح API",
         "interface_group_theme" => "سمة التطبيق",
+        "app_theme_desc" => "ألوان التطبيق نفسه: الشريط الجانبي واللوحات والنص ولون التمييز. تتبعها الطرفية ما لم تحدد سمة للطرفية.",
         "interface_group_advanced" => "متقدم",
         "show_status_bar" => "إظهار شريط الحالة",
         "status_show_connection" => "إظهار حالة الاتصال",

@@ -354,6 +354,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "匯入與匯出",
         "api_key" => "API 金鑰",
         "interface_group_theme" => "應用程式主題",
+        "app_theme_desc" => "選擇應用程式本身的配色：側邊欄、面板、文字和強調色。除非另設終端機佈景主題，終端機會沿用這套配色。",
         "interface_group_advanced" => "進階",
         "show_status_bar" => "顯示狀態列",
         "status_show_connection" => "顯示連線狀態",

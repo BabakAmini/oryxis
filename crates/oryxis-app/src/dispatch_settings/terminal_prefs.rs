@@ -264,6 +264,12 @@ impl Oryxis {
             SettingsMessage::CloseTerminalThemeGallery => {
                 self.show_terminal_theme_gallery = false;
             }
+            SettingsMessage::OpenUiThemeGallery => {
+                self.show_ui_theme_gallery = true;
+            }
+            SettingsMessage::CloseUiThemeGallery => {
+                self.show_ui_theme_gallery = false;
+            }
             SettingsMessage::PaneGapChanged(v) => {
                 self.setting_pane_gap = v.clone();
                 self.persist_setting("pane_gap", &v);

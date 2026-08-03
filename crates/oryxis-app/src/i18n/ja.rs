@@ -354,6 +354,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "インポートとエクスポート",
         "api_key" => "APIキー",
         "interface_group_theme" => "アプリのテーマ",
+        "app_theme_desc" => "アプリ自体の配色を選びます。サイドバー、パネル、文字、アクセント。ターミナルテーマを設定しない限り、ターミナルもこれに従います。",
         "interface_group_advanced" => "詳細",
         "show_status_bar" => "ステータスバーを表示",
         "status_show_connection" => "接続状態を表示",

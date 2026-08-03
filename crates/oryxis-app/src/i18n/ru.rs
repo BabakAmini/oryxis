@@ -354,6 +354,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Импорт и экспорт",
         "api_key" => "Ключ API",
         "interface_group_theme" => "Тема приложения",
+        "app_theme_desc" => "Цвета самого приложения: боковая панель, панели, текст и акцент. Терминал следует им, пока вы не зададите тему терминала.",
         "interface_group_advanced" => "Дополнительно",
         "show_status_bar" => "Показывать строку состояния",
         "status_show_connection" => "Показывать статус подключения",

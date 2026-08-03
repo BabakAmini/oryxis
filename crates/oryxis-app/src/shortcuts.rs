@@ -178,6 +178,7 @@ impl Oryxis {
             Modal::HostKey => self.pending_host_key.is_some(),
             Modal::AgentConfirm => self.agent.pending_confirm.is_some(),
             Modal::TerminalThemeGallery => self.show_terminal_theme_gallery,
+            Modal::UiThemeGallery => self.show_ui_theme_gallery,
             Modal::ThemeEditor => self.theme_editor.is_some(),
             Modal::ThemeImport => self.show_theme_import,
             Modal::UiThemeEditor => self.ui_theme_editor.is_some(),
@@ -271,6 +272,7 @@ impl Oryxis {
                 self.theme_color_popover = None;
             }
             Modal::TerminalThemeGallery => self.show_terminal_theme_gallery = false,
+            Modal::UiThemeGallery => self.show_ui_theme_gallery = false,
             Modal::ThemeImport => self.show_theme_import = false,
             Modal::UiThemeEditor => {
                 self.ui_theme_editor = None;

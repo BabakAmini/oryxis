@@ -698,6 +698,21 @@ impl Oryxis {
             );
         }
 
+        // App-theme gallery (Settings -> Interface). Last of the theme
+        // modals: the UI editor and the UI import above are both opened
+        // FROM it, so they have to win the chain.
+        if self.show_ui_theme_gallery {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.ui_theme_gallery(),
+                    Some(Message::Settings(SettingsMessage::CloseUiThemeGallery)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Note: the update modal is rendered at the top-level `view()`
         // dispatcher (see `Oryxis::view`) so it overlays the lock screen
         // too. Don't re-render it here.

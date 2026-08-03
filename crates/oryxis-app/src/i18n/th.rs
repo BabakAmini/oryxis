@@ -378,6 +378,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "นำเข้าและส่งออก",
         "api_key" => "คีย์ API",
         "interface_group_theme" => "ธีมแอป",
+        "app_theme_desc" => "เลือกสีของตัวแอปเอง: แถบข้าง แผงต่าง ๆ ข้อความ และสีเน้น เทอร์มินัลจะใช้สีชุดนี้ เว้นแต่คุณตั้งธีมเทอร์มินัลไว้",
         "interface_group_advanced" => "ขั้นสูง",
         "show_status_bar" => "แสดงแถบสถานะ",
         "status_show_connection" => "แสดงสถานะการเชื่อมต่อ",

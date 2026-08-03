@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Імпорт та експорт",
         "api_key" => "Ключ API",
         "interface_group_theme" => "Тема застосунку",
+        "app_theme_desc" => "Кольори самого застосунку: бічна панель, панелі, текст і акцент. Термінал використовує їх, доки ви не задасте тему термінала.",
         "interface_group_advanced" => "Додатково",
         "show_status_bar" => "Показувати рядок стану",
         "status_show_connection" => "Показувати статус з'єднання",

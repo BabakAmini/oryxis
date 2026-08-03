@@ -56,6 +56,7 @@ pub(crate) enum Modal {
     /// The per-host picker is `ThemePicker`; this one writes the global
     /// override and carries the create / import / clone affordances.
     TerminalThemeGallery,
+    UiThemeGallery,
     ThemeEditor,
     ThemeImport,
     UiThemeEditor,
@@ -125,6 +126,7 @@ impl Modal {
         Modal::HostKey,
         Modal::ThemeEditor,
         Modal::TerminalThemeGallery,
+        Modal::UiThemeGallery,
         Modal::ThemeImport,
         Modal::UiThemeEditor,
         Modal::UiThemeImport,
@@ -189,6 +191,7 @@ impl Modal {
         Modal::ThemeImport,
         Modal::TerminalThemeGallery,
         Modal::UiThemeImport,
+        Modal::UiThemeGallery,
         Modal::ShareDialog,
         Modal::CloudImportConfirm,
         Modal::SftpPicker,
@@ -218,6 +221,7 @@ impl Modal {
             | Modal::HostKey
             | Modal::ThemeEditor
             | Modal::TerminalThemeGallery
+            | Modal::UiThemeGallery
             | Modal::ThemeImport
             | Modal::UiThemeEditor
             | Modal::UiThemeImport
@@ -266,6 +270,7 @@ mod tests {
                 | Modal::HostKey
                 | Modal::ThemeEditor
                 | Modal::TerminalThemeGallery
+                | Modal::UiThemeGallery
                 | Modal::ThemeImport
                 | Modal::UiThemeEditor
                 | Modal::UiThemeImport
@@ -286,7 +291,7 @@ mod tests {
                 | Modal::MonitorKill => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 34, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 35, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

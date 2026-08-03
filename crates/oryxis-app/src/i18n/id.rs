@@ -359,6 +359,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Impor & ekspor",
         "api_key" => "Kunci API",
         "interface_group_theme" => "Tema aplikasi",
+        "app_theme_desc" => "Pilih warna aplikasi itu sendiri: bilah sisi, panel, teks, dan aksen. Terminal mengikutinya kecuali Anda menetapkan tema terminal.",
         "interface_group_advanced" => "Lanjutan",
         "show_status_bar" => "Tampilkan bilah status",
         "status_show_connection" => "Tampilkan status koneksi",

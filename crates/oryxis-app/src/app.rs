@@ -1127,6 +1127,10 @@ pub struct Oryxis {
     pub(crate) setting_pane_gap: String,
     /// Global terminal-theme gallery (Settings > Terminal) is open.
     pub(crate) show_terminal_theme_gallery: bool,
+    /// The app-theme gallery is open (Settings > Interface). Same reason
+    /// as its terminal sibling: the grid was the tallest thing on the
+    /// page and buried every group under it.
+    pub(crate) show_ui_theme_gallery: bool,
     /// Recently visited Files-sidebar folders, keyed by saved-host id.
     ///
     /// The per-pane list is deliberately wiped on disconnect, because a

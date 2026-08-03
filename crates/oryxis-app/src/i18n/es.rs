@@ -354,6 +354,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "security_group_import_export" => "Importar y exportar",
         "api_key" => "Clave de API",
         "interface_group_theme" => "Tema de la app",
+        "app_theme_desc" => "Elige los colores de la propia aplicación: barra lateral, paneles, texto y acento. La terminal los sigue salvo que definas un tema de terminal.",
         "interface_group_advanced" => "Avanzado",
         "show_status_bar" => "Mostrar barra de estado",
         "status_show_connection" => "Mostrar estado de conexión",

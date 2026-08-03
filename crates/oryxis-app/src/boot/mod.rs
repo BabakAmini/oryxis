@@ -553,6 +553,7 @@ impl Oryxis {
                 setting_pane_border_inactive: true,
                 setting_pane_gap: "0".to_string(),
                 show_terminal_theme_gallery: false,
+                show_ui_theme_gallery: false,
                 files_recent_folders: std::collections::HashMap::new(),
                 setting_keyword_highlight: true,
                 setting_command_history: true,
