@@ -700,6 +700,31 @@ mod terminal_tab_tests {
         );
     }
 
+    /// Splitting while a pane is zoomed drops the zoom, which is what
+    /// keeps the focus honest: `make_split_pane` (and the tab-merge drop)
+    /// focus the pane they just created, and a zoom left armed would
+    /// leave that focus on something the grid does not draw, the very
+    /// state `focus_adjacent` above exists to avoid.
+    ///
+    /// The clearing happens in the fork (`State::split_node` takes
+    /// `maximized`), not here, so this pins a dependency the app relies
+    /// on silently: if a rebase ever drops it, the caret goes invisible
+    /// and only this fails.
+    #[test]
+    fn split_while_zoomed_drops_the_zoom() {
+        let mut tab = TerminalTab::new_single("a".into(), dummy_terminal());
+        let _second = split(&mut tab, pane_grid::Axis::Vertical);
+        tab.toggle_maximize();
+        assert!(tab.pane_grid.maximized().is_some(), "zoom armed");
+
+        let third = split(&mut tab, pane_grid::Axis::Vertical);
+        assert!(
+            tab.pane_grid.maximized().is_none(),
+            "the split must leave no zoom behind"
+        );
+        assert_eq!(tab.focused, third, "and the new pane is the focused one");
+    }
+
     /// And with nothing zoomed, moving focus must not start a zoom.
     #[test]
     fn moving_focus_alone_never_zooms() {
