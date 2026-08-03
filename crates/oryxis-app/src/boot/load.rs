@@ -412,6 +412,29 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("command_history") {
                 self.setting_command_history = v == "true";
             }
+            // The shell-integration key, minted on first boot and stable
+            // afterwards (the user has it pasted into dotfiles on real
+            // hosts, so it must not move under them). Installing it here,
+            // once, is what arms the in-band capture: without it every
+            // `OSC 633 ; E` is refused, which is the safe direction, since
+            // the sequence carries text straight into a history row that
+            // runs on one click.
+            let nonce = match vault.get_setting(crate::shell_integration::SETTING) {
+                Ok(Some(v)) if !v.trim().is_empty() => v,
+                _ => {
+                    let fresh = crate::shell_integration::generate_nonce();
+                    // A vault that refuses the write leaves the key in
+                    // memory for this run rather than disabling capture:
+                    // the snippet the user copies now simply stops working
+                    // after a restart, which they will notice, instead of
+                    // capture silently doing nothing while the setting
+                    // looks fine.
+                    let _ = vault.set_setting(crate::shell_integration::SETTING, &fresh);
+                    fresh
+                }
+            };
+            oryxis_terminal::osc::set_global_command_nonce(Some(nonce.clone()));
+            self.shell_integration_nonce = nonce;
             if let Ok(Some(v)) = vault.get_setting("command_history_file") {
                 self.setting_command_history_file = v == "true";
             }

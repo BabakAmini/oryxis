@@ -76,6 +76,68 @@ impl Oryxis {
         .into()
     }
 
+    /// Sub-row for the shell-integration key: what it is for, the Copy
+    /// button that puts the snippet (key already substituted) on the
+    /// clipboard, and Rotate.
+    ///
+    /// Shown under the capture toggle and only while it is on: the key
+    /// does nothing while nothing is being captured, and a control that
+    /// cannot matter yet is noise. Nested like the command-log folder row.
+    fn shell_integration_row(&self) -> Element<'_, Message> {
+        if !self.setting_command_history {
+            return Space::new().into();
+        }
+        let indent = if crate::i18n::is_rtl_layout() {
+            Padding { right: 22.0, ..Padding::ZERO }
+        } else {
+            Padding { left: 22.0, ..Padding::ZERO }
+        };
+        let copy = self.settings_nav_slot_labeled(
+            crate::i18n::t("shell_integration_copy"),
+            crate::keynav::RowAction::activate(Message::Settings(
+                SettingsMessage::CopyShellIntegrationSnippet,
+            )),
+            8.0,
+            crate::widgets::styled_button_opt(
+                crate::i18n::t("shell_integration_copy"),
+                Some(Message::Settings(SettingsMessage::CopyShellIntegrationSnippet)),
+                crate::theme::OryxisColors::t().accent,
+            ),
+        );
+        let rotate = self.settings_nav_slot_labeled(
+            crate::i18n::t("shell_integration_rotate"),
+            crate::keynav::RowAction::activate(Message::Settings(
+                SettingsMessage::RegenerateShellIntegrationNonce,
+            )),
+            8.0,
+            crate::widgets::styled_button_opt(
+                crate::i18n::t("shell_integration_rotate"),
+                Some(Message::Settings(SettingsMessage::RegenerateShellIntegrationNonce)),
+                crate::theme::OryxisColors::t().text_secondary,
+            ),
+        );
+        container(
+            column![
+                text(crate::i18n::t("shell_integration_hint"))
+                    .size(12)
+                    .color(crate::theme::OryxisColors::t().text_muted)
+                    .width(Length::Fill),
+                Space::new().height(6),
+                crate::widgets::dir_row(vec![
+                    Space::new().width(Length::Fill).into(),
+                    copy,
+                    Space::new().width(8).into(),
+                    rotate,
+                ])
+                .align_y(iced::Alignment::Center),
+            ]
+            .width(Length::Fill),
+        )
+        .padding(Padding { top: 8.0, ..indent })
+        .width(Length::Fill)
+        .into()
+    }
+
     /// Sub-row for the command-log folder, shown only while the
     /// live-append toggle is on: the effective folder (default
     /// `~/.oryxis/command-history/`) with a Change button, indented
@@ -565,6 +627,7 @@ impl Oryxis {
             self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::Settings(SettingsMessage::ToggleTerminalAutoTitle)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
+            self.shell_integration_row(),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
             self.command_history_dir_row(),

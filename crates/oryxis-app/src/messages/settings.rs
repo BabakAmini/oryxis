@@ -24,6 +24,13 @@ pub enum SettingsMessage {
     TogglePasteGuard,
     /// Settings > Terminal: enable/disable command-history capture.
     ToggleCommandHistory,
+    /// Settings > Terminal: put the shell-integration snippet, key already
+    /// substituted, on the clipboard.
+    CopyShellIntegrationSnippet,
+    /// Settings > Terminal: mint a new shell-integration key. Every copy of
+    /// the old snippet stops reporting until it is replaced, which is the
+    /// point: this is how a key that leaked is retired.
+    RegenerateShellIntegrationNonce,
     /// Open the editor for a brand new custom theme.
     ThemeEditorNew,
     /// Open the editor for the custom theme at this index.

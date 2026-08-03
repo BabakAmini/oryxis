@@ -295,6 +295,23 @@ impl Oryxis {
                     if self.setting_command_history { "true" } else { "false" },
                 );
             }
+            SettingsMessage::CopyShellIntegrationSnippet => {
+                let snippet =
+                    crate::shell_integration::snippet(&self.shell_integration_nonce);
+                self.set_toast(crate::i18n::t("shell_integration_copied").to_string());
+                return Ok(crate::dispatch_global::write_clipboard_text(snippet));
+            }
+            SettingsMessage::RegenerateShellIntegrationNonce => {
+                let fresh = crate::shell_integration::generate_nonce();
+                self.persist_setting(crate::shell_integration::SETTING, &fresh);
+                // Installed immediately, so the panes that are open right
+                // now start demanding the new key. Any host still sourcing
+                // the old snippet stops being recorded from this moment,
+                // which is exactly what retiring a leaked key means.
+                oryxis_terminal::osc::set_global_command_nonce(Some(fresh.clone()));
+                self.shell_integration_nonce = fresh;
+                self.set_toast(crate::i18n::t("shell_integration_rotated").to_string());
+            }
             SettingsMessage::TerminalLinkOpened => {
                 // First successful ctrl-click on a link in this pane: the
                 // hint did its job, retire it for the pane (HintMode::Once).

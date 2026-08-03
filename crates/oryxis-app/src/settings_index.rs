@@ -113,6 +113,8 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Terminal, "pane_gap", "pane gap gutter spacing split padding between panes"),
     e(S::Terminal, "keyword_highlight", "keyword highlight color rules trigger"),
     e(S::Terminal, "command_history_capture", "command history capture record log"),
+    e(S::Terminal, "shell_integration_copy", "shell integration snippet osc 633 tmux key nonce bashrc zshrc"),
+    e(S::Terminal, "shell_integration_rotate", "shell integration rotate key nonce regenerate revoke"),
     e(S::Terminal, "cmd_history_file", "command history text file log append export"),
     e(S::Terminal, "default_download_dir", "download folder directory default zmodem transfer rz sz save"),
     e(S::Terminal, "smart_contrast", "smart contrast readability colors legibility blue"),

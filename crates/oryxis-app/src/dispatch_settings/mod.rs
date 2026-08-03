@@ -245,6 +245,8 @@ impl Oryxis {
             }
             m @ (SettingsMessage::TogglePasteGuard
             | SettingsMessage::ToggleCommandHistory
+            | SettingsMessage::CopyShellIntegrationSnippet
+            | SettingsMessage::RegenerateShellIntegrationNonce
             | SettingsMessage::TerminalFontSizeIncrease
             | SettingsMessage::TerminalFontSizeDecrease
             | SettingsMessage::TerminalFontChanged(..)

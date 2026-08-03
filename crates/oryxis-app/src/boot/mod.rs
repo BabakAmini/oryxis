@@ -565,6 +565,11 @@ impl Oryxis {
                 files_recent_folders: std::collections::HashMap::new(),
                 setting_keyword_highlight: true,
                 setting_command_history: true,
+                // Replaced by the vault's own key during
+                // `load_data_from_vault`; empty until then, which is also
+                // what a locked vault shows, and an empty key is never
+                // installed, so nothing is captured before it is known.
+                shell_integration_nonce: String::new(),
                 setting_command_history_file: false,
                 setting_snippet_tag_filter: false,
                 snippet_filter_tags: Vec::new(),

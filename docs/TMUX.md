@@ -85,24 +85,41 @@ understands the two standard sequences:
   parsed it*. This is the one that survives tmux, because the text never
   has to be read back off a screen tmux owns.
 
-If your shell already emits these (you use VS Code's shell integration,
-or your own OSC 133 setup), Oryxis picks them up with no configuration
-at all: just make sure tmux is allowed to pass the sequences through
-(step 3 below).
+Prompt marks are read from any shell that emits them, with no setup.
+The reported command line is not: it has to carry **your shell
+integration key**, and Oryxis ignores every `E` that does not.
 
-If it does not, here is a snippet that does it. Install it yourself,
-wherever you keep your shell configuration.
+That gate exists because a captured command is one click from running
+again in the History tab, and nothing in a byte stream says who wrote
+it. Without the key, any file you `cat`, any log line, any host you
+connect to could put a command in your history that you never typed and
+might later click. So the key is a shared secret between the app and
+your own dotfile, and a stock VS Code integration (which knows nothing
+about it) reports commands Oryxis will not record.
+
+Your key lives in **Settings > Terminal > Shell integration**. The
+button there copies the snippet below with the key already in it, which
+is the path that cannot go wrong; the block is reproduced here so you
+can read what you are about to paste into your shell.
 
 ### 1. Save the snippet on the host
 
-Save this as `~/.config/oryxis/shell-integration.sh` (any path works):
+Save this as `~/.config/oryxis/shell-integration.sh` (any path works),
+replacing `__ORYXIS_NONCE__` with your key if you copied it from here
+rather than from the app:
 
 ```sh
 # Oryxis shell integration: makes the shell report the command line it
 # runs (OSC 633;E) so the command history keeps working inside tmux.
 # bash and zsh. Loading it twice is a no-op.
+#
+# The trailing __ORYXIS_NONCE__ is YOUR key, copied from
+# Settings > Terminal > Shell integration. Oryxis ignores any reported
+# command line that does not carry it, so a file or a log that prints
+# this sequence cannot plant a command in your history.
 if [ -z "${__oryxis_si:-}" ]; then
   __oryxis_si=1
+  __oryxis_key=__ORYXIS_NONCE__
   # Wrap the sequence in tmux's passthrough envelope when inside tmux.
   # Decided at emission time, so starting tmux after login still works.
   __oryxis_osc() {
@@ -126,7 +143,7 @@ if [ -z "${__oryxis_si:-}" ]; then
   # Report the command line, then "output starts here".
   __oryxis_pre() {
     case "$1" in ' '*) return ;; esac
-    __oryxis_osc "633;E;$(__oryxis_esc "$1")"
+    __oryxis_osc "633;E;$(__oryxis_esc "$1");$__oryxis_key"
     __oryxis_osc "133;C"
   }
   if [ -n "$ZSH_VERSION" ]; then

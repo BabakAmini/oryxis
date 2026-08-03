@@ -1097,6 +1097,12 @@ pub struct Oryxis {
     /// saved hosts into the vault's `command_history` table, surfaced in
     /// the terminal sidebar's History tab. Persisted as `command_history`.
     pub(crate) setting_command_history: bool,
+    /// The shell-integration key this vault mints once and every pane then
+    /// demands from `OSC 633 ; E` (see `shell_integration.rs`). Held in
+    /// state only so Settings can show and copy the snippet; the value the
+    /// capture actually compares against lives in the terminal crate,
+    /// installed at boot.
+    pub(crate) shell_integration_nonce: String,
     /// Live-append every captured command to a per-host plain-text file
     /// (offline reference / support sharing), on top of the vault
     /// capture. Persisted as `command_history_file`. Default off.
