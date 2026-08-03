@@ -286,6 +286,28 @@ where
             //
             // A miss is NOT a failure here: nothing is asserted, and a
             // test that wants an assertion has `expect`.
+            // The negative assertion `find` deliberately is not: a row
+            // that should have disappeared (a conditional sub-option, a
+            // closed panel) has no other way to be pinned in a committed
+            // test, and `expect` can only say "this is here".
+            "absent" => match session.texts(program) {
+                Ok(entries) => {
+                    match super::parse_quoted(rest) {
+                        None => Some(format!("{head}: absent wants a quoted string")),
+                        Some(needle) => {
+                            let hits =
+                                entries.iter().filter(|(t, _)| t.contains(&needle)).count();
+                            if hits == 0 {
+                                println!("== ok");
+                                None
+                            } else {
+                                Some(format!("{head}: still on screen ({hits} matches)"))
+                            }
+                        }
+                    }
+                }
+                Err(reason) => Some(format!("{head}: {reason}")),
+            },
             "find" | "texts" => match session.texts(program) {
                 Ok(entries) => {
                     let needle = super::parse_quoted(rest);

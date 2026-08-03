@@ -19,7 +19,7 @@ instructions: click [right] \"Text\"|#id|(x, y) / press / release / move <target
               scroll [pixels] (dx, dy) [<target>] / type \"text\"
               type enter|escape|tab|backspace / type ctrl+k / type ctrl+shift+f
               press enter / release tab / expect \"Text\"
-harness:      screenshot [name] / texts / find \"Text\"
+harness:      screenshot [name] / texts / find \"Text\" / absent \"Text\" (assert)
               clipboard [\"text\"] / clipboard is \"text\" (assert)
               wait <ms> / settle [idle_ms] / timeout <ms> / save <path.ice>
               reset [wipe] / status / help / quit
@@ -101,6 +101,32 @@ where
                 Err(reason) => out(format!("error {reason}")),
             },
             None => out("error find wants a quoted string: find \"Hosts\"".into()),
+        },
+        // The negative of `expect`: passes only when nothing on screen
+        // carries the text. `find` reports a count and succeeds either
+        // way, which is right for exploring and useless for asserting
+        // that a conditional row went away, so a committed test that
+        // wants "this is gone" has to say so.
+        "absent" => match parse_quoted(rest) {
+            Some(needle) => match session.texts(program) {
+                Ok(entries) => {
+                    let hits: Vec<_> = entries
+                        .into_iter()
+                        .filter(|(text, _)| text.contains(&needle))
+                        .collect();
+                    if hits.is_empty() {
+                        session.record(command);
+                        out("ok".into());
+                    } else {
+                        for (text, bounds) in hits {
+                            out(format_text_entry(&text, bounds));
+                        }
+                        out(format!("fail absent {needle:?}"));
+                    }
+                }
+                Err(reason) => out(format!("error {reason}")),
+            },
+            None => out("error absent wants a quoted string: absent \"Hosts\"".into()),
         },
         "wait" => match rest.parse::<u64>() {
             Ok(ms) => {

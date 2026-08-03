@@ -1,0 +1,54 @@
+viewport: 1400x2200
+mode: Zen
+-----
+# The shell-integration key (Settings > Terminal). Command history's
+# in-band path only accepts a reported command line that carries this
+# vault's key, so the two controls that put the key on a host are the
+# whole usable surface of that gate: if Copy stops working, capture
+# stops working and nothing else says so.
+#
+# Tall viewport on purpose: the Terminal section is long and the row
+# sits under the command-history toggle it belongs to.
+click "Skip"
+click "Continue without password"
+settle
+# Through the burger rather than the toolbar gear, so the flow does not
+# depend on the gear's pixel position at this width (same reasoning as
+# settings-tab.ice).
+click (19, 20)
+settle
+click "Settings"
+settle
+click "Terminal Settings"
+settle
+# The row is nested under the capture toggle and only exists while
+# capture is on, which is the default.
+expect "Capture command history"
+expect "Copy shell integration snippet"
+expect "Rotate key"
+# Copy: the click itself asserts the control is reachable, the toast
+# asserts the handler ran. The snippet's own content is pinned by unit
+# tests (it carries the key, keeps no placeholder, is LF-only), which is
+# where a randomly generated key can actually be asserted.
+clipboard "not the snippet"
+click "Copy shell integration snippet"
+expect "Snippet copied. Paste it into your shell config on the host."
+settle
+# Rotate: mints a new key and installs it immediately, so every copy of
+# the old snippet stops reporting from that moment.
+click "Rotate key"
+expect "New key in use. Hosts still running the old snippet stop reporting until you copy the new one."
+settle
+# Turning capture off takes the row with it: a key that nothing consults
+# is a control that cannot matter.
+#
+# The toggler is hit by position, not by its label: clicking the text of
+# a `nav_toggle_row` does not flip it (the toggler is the control, the
+# label is a label). The coordinate is deterministic because this file
+# declares its own viewport, and if a row is ever inserted above this
+# one the failure is the explicit `absent` below rather than a silent
+# pass.
+click (1340, 1784)
+settle
+absent "Copy shell integration snippet"
+absent "Rotate key"
