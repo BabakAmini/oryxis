@@ -79,6 +79,20 @@ impl Oryxis {
                         Message::Ai(AiMessage::ToggleAiReasoning),
                     ),
                 ),
+                Space::new().height(12),
+                self.settings_nav_slot_labeled(
+                    t("ai_save_history"),
+                    crate::keynav::RowAction::activate(Message::Ai(
+                        AiMessage::ToggleAiSaveHistory,
+                    )),
+                    8.0,
+                    crate::widgets::toggle_row_desc(
+                        t("ai_save_history"),
+                        t("ai_save_history_desc"),
+                        self.ai.save_history,
+                        Message::Ai(AiMessage::ToggleAiSaveHistory),
+                    ),
+                ),
             ];
 
             if current_info.kind == crate::ai::ProviderKind::Custom {

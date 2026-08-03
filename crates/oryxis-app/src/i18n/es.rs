@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "Asistente IA",
         "ai_reasoning" => "Razonamiento",
         "ai_reasoning_desc" => "Deja que los modelos de razonamiento piensen antes de responder. El razonamiento se cobra pero nunca se muestra, y algunos proveedores exigen reenviarlo con cada mensaje posterior.",
+        "ai_save_history" => "Guardar conversaciones",
+        "ai_save_history_desc" => "Conserva las conversaciones con la IA en la bóveda para releerlas en la pantalla de Historial. Un turno cita la salida del terminal y las líneas de comando, material sensible si no grabas nada en el host.",
         "language" => "Idioma",
         "language_auto_os" => "Automático (sistema)",
 

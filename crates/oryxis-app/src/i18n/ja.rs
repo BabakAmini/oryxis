@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "AIアシスタント",
         "ai_reasoning" => "推論",
         "ai_reasoning_desc" => "推論モデルが回答する前に思考できるようにします。推論は課金されますが表示されることはなく、以降のメッセージごとに再送信を求めるプロバイダーもあります。",
+        "ai_save_history" => "会話を保存",
+        "ai_save_history_desc" => "AI との会話を保管庫に保存し、履歴画面で読み返せるようにします。各ターンはターミナル出力やコマンド行を含むため、そのホストで記録を残さない場合は同じく扱いに注意が必要です。",
         "language" => "言語",
         "language_auto_os" => "自動（システムに従う）",
 

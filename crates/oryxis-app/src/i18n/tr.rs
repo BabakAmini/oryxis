@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "Yapay Zeka Asistanı",
         "ai_reasoning" => "Akıl yürütme",
         "ai_reasoning_desc" => "Akıl yürütme modellerinin yanıt vermeden önce düşünmesini sağlar. Akıl yürütme ücretlendirilir ama hiçbir zaman gösterilmez ve bazı sağlayıcılar bunun sonraki her mesajla yeniden gönderilmesini ister.",
+        "ai_save_history" => "Konuşmaları kaydet",
+        "ai_save_history_desc" => "Yapay zekâ konuşmalarını kasada tutar, böylece Geçmiş ekranından tekrar okuyabilirsiniz. Her tur terminal çıktısı ve komut satırları içerir; o makinede hiçbir kayıt tutmuyorsanız bu da hassas içeriktir.",
         "language" => "Dil",
         "language_auto_os" => "Otomatik (sistem)",
 

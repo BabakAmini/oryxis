@@ -86,9 +86,13 @@ mod tests {
             .nth(1)
             .and_then(|s| s.split("```").next())
             .expect("docs/TMUX.md must open with the snippet in an ```sh block");
+        // Line endings are not the subject: both files are checked out CRLF
+        // on Windows and LF elsewhere, and a test that failed on half the
+        // machines would just get deleted.
+        let normalize = |s: &str| s.replace("\r\n", "\n").trim().to_string();
         assert_eq!(
-            block.trim_start_matches('\n'),
-            SNIPPET_TEMPLATE,
+            normalize(block),
+            normalize(SNIPPET_TEMPLATE),
             "docs/TMUX.md and resources/shell-integration.sh drifted apart"
         );
     }

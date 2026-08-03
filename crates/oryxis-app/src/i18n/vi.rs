@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "Trợ lý AI",
         "ai_reasoning" => "Suy luận",
         "ai_reasoning_desc" => "Cho phép các mô hình suy luận suy nghĩ trước khi trả lời. Phần suy luận vẫn bị tính phí nhưng không bao giờ được hiển thị, và một số nhà cung cấp yêu cầu gửi lại nó trong mọi tin nhắn sau đó.",
+        "ai_save_history" => "Lưu hội thoại",
+        "ai_save_history_desc" => "Giữ các hội thoại với AI trong kho để đọc lại ở màn hình Lịch sử. Mỗi lượt trích dẫn đầu ra terminal và dòng lệnh, nên đây cũng là dữ liệu nhạy cảm nếu bạn không ghi gì trên máy chủ đó.",
         "language" => "Ngôn ngữ",
         "language_auto_os" => "Tự động (hệ thống)",
 

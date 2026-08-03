@@ -19,6 +19,14 @@ impl Oryxis {
     /// not have yet. Cheap and idempotent, so callers can fire it at every
     /// settle point without checking whether anything changed.
     pub(crate) fn flush_chat_history(&mut self, idx: usize) {
+        // The one gate. Checked here rather than at the three settle points
+        // that call this, so a fourth caller cannot forget it: what a turn
+        // quotes (terminal output, command lines) is the material the
+        // session recording protects, and that recording is off unless the
+        // user asked for it.
+        if !self.ai.save_history {
+            return;
+        }
         // Read everything out first. The vault is owned by `self`, so
         // holding a borrow of it while touching `self.tabs` would not
         // compile; collecting owned turns keeps the two phases apart.
@@ -171,5 +179,55 @@ fn role_name(role: &ChatRole) -> &'static str {
         ChatRole::Error => "error",
         ChatRole::PendingTool => "pending",
         ChatRole::Tool => "tool",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The privacy gate (`ai.save_history`) lives at the top of
+    /// `flush_chat_history`, which only protects anything while that
+    /// function is the ONLY way a turn reaches the vault. A second writer
+    /// added elsewhere would bypass it silently, and the material at stake
+    /// is what a turn quotes: terminal output and command lines, on hosts
+    /// where the user may have deliberately recorded nothing.
+    ///
+    /// Building an `Oryxis` in a unit test is not on the table (the struct
+    /// is the app), so the invariant is asserted structurally instead: the
+    /// vault's chat writers are referenced from this file and nowhere else.
+    #[test]
+    fn chat_turns_reach_the_vault_through_this_module_only() {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut offenders: Vec<String> = Vec::new();
+        let mut stack = vec![src.clone()];
+        while let Some(dir) = stack.pop() {
+            let Ok(entries) = std::fs::read_dir(&dir) else { continue };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    stack.push(path);
+                    continue;
+                }
+                if path.extension().is_none_or(|e| e != "rs") {
+                    continue;
+                }
+                if path.file_name().is_some_and(|n| n == "chat_persist.rs") {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else { continue };
+                for writer in ["append_chat_message", "upsert_chat_conversation"] {
+                    if text.contains(writer) {
+                        offenders.push(format!(
+                            "{}: calls {writer}",
+                            path.strip_prefix(&src).unwrap_or(&path).display()
+                        ));
+                    }
+                }
+            }
+        }
+        assert!(
+            offenders.is_empty(),
+            "a chat turn must reach the vault only through flush_chat_history, \
+             which is where the save-history setting is honored: {offenders:?}"
+        );
     }
 }

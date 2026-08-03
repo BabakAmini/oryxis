@@ -18,6 +18,10 @@ pub enum AiMessage {
     /// the chain-of-thought is billed and never shown, and it is billed
     /// twice once providers require it replayed (see `ChatStreamReasoning`).
     ToggleAiReasoning,
+    /// Toggle saving conversations to the vault. On by default; turning it
+    /// off stops new turns from being written and leaves what is already
+    /// stored alone (the History screen keeps its own delete).
+    ToggleAiSaveHistory,
     AiProviderChanged(String),
     AiModelChanged(String),
     AiApiKeyChanged(String),

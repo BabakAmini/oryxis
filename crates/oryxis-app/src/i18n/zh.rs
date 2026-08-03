@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "AI 助手",
         "ai_reasoning" => "推理",
         "ai_reasoning_desc" => "让推理模型在回答前先思考。推理内容会计费但永远不会显示，部分服务商还要求在之后的每条消息中重新发送。",
+        "ai_save_history" => "保存对话",
+        "ai_save_history_desc" => "把 AI 对话保存在保险库中，便于在历史记录页面回看。每轮对话会引用终端输出和命令行，如果你在该主机上不做任何录制，这些内容同样敏感。",
         "language" => "语言",
         "language_auto_os" => "自动（跟随系统）",
 

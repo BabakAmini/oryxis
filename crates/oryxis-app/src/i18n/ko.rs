@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "AI 어시스턴트",
         "ai_reasoning" => "추론",
         "ai_reasoning_desc" => "추론 모델이 답변하기 전에 생각하도록 합니다. 추론 내용은 요금이 청구되지만 표시되지 않으며, 일부 제공업체는 이후의 모든 메시지에 다시 보내도록 요구합니다.",
+        "ai_save_history" => "대화 저장",
+        "ai_save_history_desc" => "AI 대화를 보관함에 저장해 기록 화면에서 다시 볼 수 있게 합니다. 각 대화에는 터미널 출력과 명령줄이 인용되므로, 해당 호스트에서 아무것도 기록하지 않는다면 마찬가지로 민감한 자료입니다.",
         "language" => "언어",
         "language_auto_os" => "자동 (시스템)",
 

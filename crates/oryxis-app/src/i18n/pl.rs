@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "Asystent AI",
         "ai_reasoning" => "Rozumowanie",
         "ai_reasoning_desc" => "Pozwala modelom rozumującym pomyśleć przed odpowiedzią. Rozumowanie jest naliczane, ale nigdy nie jest pokazywane, a niektórzy dostawcy wymagają wysyłania go ponownie z każdą kolejną wiadomością.",
+        "ai_save_history" => "Zapisuj rozmowy",
+        "ai_save_history_desc" => "Przechowuje rozmowy z SI w sejfie, aby można je było odczytać na ekranie historii. Każda wypowiedź cytuje wyjście terminala i polecenia, więc to wrażliwy materiał, jeśli na hoście nic nie nagrywasz.",
         "language" => "Język",
         "language_auto_os" => "Auto (system)",
 

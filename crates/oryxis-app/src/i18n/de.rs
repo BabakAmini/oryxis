@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "KI-Assistent",
         "ai_reasoning" => "Denkprozess",
         "ai_reasoning_desc" => "Lässt Reasoning-Modelle vor der Antwort nachdenken. Der Denkprozess wird berechnet, aber nie angezeigt, und manche Anbieter verlangen, dass er mit jeder weiteren Nachricht erneut gesendet wird.",
+        "ai_save_history" => "Unterhaltungen speichern",
+        "ai_save_history_desc" => "Bewahrt KI-Unterhaltungen im Tresor auf, damit Sie sie im Verlauf nachlesen können. Ein Beitrag zitiert Terminalausgabe und Befehlszeilen, also heikles Material, wenn Sie auf einem Host nichts aufzeichnen.",
         "language" => "Sprache",
         "language_auto_os" => "Automatisch (System)",
 

@@ -449,6 +449,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "AI asistent",
         "ai_reasoning" => "Uvažování",
         "ai_reasoning_desc" => "Nechá modely s uvažováním přemýšlet před odpovědí. Uvažování se účtuje, ale nikdy se nezobrazuje, a někteří poskytovatelé vyžadují jeho opětovné odeslání s každou další zprávou.",
+        "ai_save_history" => "Ukládat konverzace",
+        "ai_save_history_desc" => "Uchovává konverzace s AI v trezoru, abyste si je mohli přečíst na obrazovce historie. Každý příspěvek cituje výstup terminálu a příkazy, takže jde o citlivý materiál, pokud na hostiteli nic nenahráváte.",
         "language" => "Jazyk",
         "language_auto_os" => "Automaticky (systém)",
 

@@ -423,6 +423,26 @@ impl Oryxis {
                     let _ = vault.set_setting("ai_enabled", if self.ai.enabled { "true" } else { "false" });
                 }
             }
+            AiMessage::ToggleAiSaveHistory => {
+                self.ai.save_history = !self.ai.save_history;
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting(
+                        "ai_save_history",
+                        if self.ai.save_history { "true" } else { "false" },
+                    );
+                }
+                // Turning it off does NOT delete what is stored: that is a
+                // separate, destructive act the user did not ask for, and
+                // the History screen already has a delete for it. It does
+                // detach the live tabs, so a conversation resumed after the
+                // switch comes back on starts a new row instead of
+                // appending to one the user thought they had stopped.
+                if !self.ai.save_history {
+                    for idx in 0..self.tabs.len() {
+                        self.detach_saved_chat(idx);
+                    }
+                }
+            }
             AiMessage::ToggleAiReasoning => {
                 self.ai.reasoning = !self.ai.reasoning;
                 if let Some(vault) = &self.vault {

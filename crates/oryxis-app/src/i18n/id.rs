@@ -430,6 +430,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ai_assistant" => "Asisten AI",
         "ai_reasoning" => "Penalaran",
         "ai_reasoning_desc" => "Biarkan model penalaran berpikir sebelum menjawab. Penalaran tetap ditagih tetapi tidak pernah ditampilkan, dan beberapa penyedia mewajibkan pengirimannya ulang pada setiap pesan berikutnya.",
+        "ai_save_history" => "Simpan percakapan",
+        "ai_save_history_desc" => "Menyimpan percakapan AI di brankas agar bisa dibaca lagi di layar Riwayat. Setiap giliran mengutip keluaran terminal dan baris perintah, jadi ini materi sensitif bila Anda tidak merekam apa pun di host itu.",
         "language" => "Bahasa",
         "language_auto_os" => "Otomatis (sistem)",
 

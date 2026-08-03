@@ -449,6 +449,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "ai_assistant" => "AI Assistant",
         "ai_reasoning" => "Reasoning",
         "ai_reasoning_desc" => "Let reasoning models think before answering. The reasoning is billed but never shown, and some providers require it resent with every later message.",
+        "ai_save_history" => "Save conversations",
+        "ai_save_history_desc" => "Keep AI conversations in the vault so you can read them back on the History screen. A turn quotes terminal output and command lines, so this is off-limits material if you record nothing on a host.",
         "language" => "Language",
         "language_auto_os" => "Auto (OS)",
 

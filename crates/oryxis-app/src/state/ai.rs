@@ -86,6 +86,17 @@ pub(crate) struct AiState {
     /// DeepSeek require it replayed (see `ChatMsg::reasoning`). Turning it
     /// on simply lets each provider's own default stand.
     pub(crate) reasoning: bool,
+    /// Keep conversations in the vault so they can be read back on the
+    /// History screen (issue #105 asked where they went).
+    ///
+    /// A turn quotes terminal output and command lines, which is the same
+    /// material the session recording protects, and recording is opt-in per
+    /// host and OFF by default. So this exists as its own switch rather
+    /// than being implied: a user who deliberately records nothing on a
+    /// host should not find a partial transcript of it saved anyway. On by
+    /// default, because the reader was asked for and a conversation that
+    /// dies with its tab is what the issue complained about.
+    pub(crate) save_history: bool,
 }
 
 impl Default for AiState {
@@ -99,6 +110,7 @@ impl Default for AiState {
             api_url: String::new(),
             system_prompt: text_editor::Content::new(),
             reasoning: false,
+            save_history: true,
         }
     }
 }
