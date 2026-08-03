@@ -998,6 +998,12 @@ where
     ///
     /// Its panel is opaque and sits above the glyphs, which is why the
     /// grid pass does not have to reserve the cells underneath it.
+    ///
+    /// Publishes the panel's rectangle into `widget_state.hud_rect`. That
+    /// is the hit-test `on_event` reads to send a press to the HUD's
+    /// compact / full-name toggle instead of to the grid, so the write
+    /// below is not bookkeeping: drop it and the panel stops being
+    /// clickable.
     fn perf_hud_layer(
         &self,
         renderer: &Renderer,
