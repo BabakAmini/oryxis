@@ -62,7 +62,7 @@ impl Oryxis {
         // entries".) Show just the empty state, no toolbar / pagination /
         // Clear all, matching the other empty vault views.
         let has_timeline = !self.session_logs.is_empty()
-            || !self.chat_conversations.is_empty()
+            || !self.chat_ui.conversations.is_empty()
             || self
                 .logs
                 .iter()
@@ -140,7 +140,7 @@ impl Oryxis {
                 kind: TimelineKind::Session { idx, entry },
             });
         }
-        for (idx, entry) in self.chat_conversations.iter().enumerate() {
+        for (idx, entry) in self.chat_ui.conversations.iter().enumerate() {
             // A conversation on a local shell has no host to resolve.
             let hostname = entry
                 .connection_id
@@ -242,7 +242,7 @@ impl Oryxis {
         // Nothing to clear → the button is disabled (muted, no action).
         let has_entries = !self.logs.is_empty()
             || !self.session_logs.is_empty()
-            || !self.chat_conversations.is_empty();
+            || !self.chat_ui.conversations.is_empty();
         let mut clear_btn = button(
             container(
                 text(crate::i18n::t("clear_all").to_uppercase())
@@ -492,7 +492,7 @@ impl Oryxis {
         // ── Saved conversation reader ──
         // Same slot as the recording viewer below: opening one closes the
         // other in the dispatcher, so only one can be up.
-        if let Some(viewer) = &self.chat_viewer {
+        if let Some(viewer) = &self.chat_ui.viewer {
             return self.view_chat_viewer(viewer);
         }
 

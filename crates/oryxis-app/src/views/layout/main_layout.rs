@@ -623,7 +623,7 @@ impl Oryxis {
         // in Settings -> Terminal). Exempt from `modal_overlay` (nested color
         // popover in its own Stack); mouse-safe via `opaque`, keyboard-safe
         // via `any_modal_blocks_input`.
-        if self.theme_editor.is_some() {
+        if self.theme_ui.editor.is_some() {
             let editor = self.view_theme_editor_modal();
             return wrap_with_resize(
                 Stack::new()

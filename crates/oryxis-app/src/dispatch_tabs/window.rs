@@ -27,7 +27,7 @@ impl Oryxis {
             x: (pos.x / SNAP).round() * SNAP,
             y: (pos.y / SNAP).round() * SNAP,
         };
-        let needs_drag_update = self.chat_sidebar_drag.is_some()
+        let needs_drag_update = self.chat_ui.sidebar_drag.is_some()
             || self.sftp_split_drag.is_some()
             || self.sftp_log_drag.is_some()
             || self.sftp_col_resize.is_some()
@@ -87,11 +87,11 @@ impl Oryxis {
         // dock side (issue #85): docked right, dragging left grows it;
         // docked left, dragging right grows it. Clamp to a sane band so
         // the user can't accidentally make it unusable.
-        if let Some((start_x, start_width)) = self.chat_sidebar_drag {
+        if let Some((start_x, start_width)) = self.chat_ui.sidebar_drag {
             let delta = pos.x - start_x;
             let signed = if self.setting_terminal_sidebar_left { delta } else { -delta };
             let new_width = (start_width + signed).clamp(260.0, 700.0);
-            self.chat_sidebar_width = new_width;
+            self.chat_ui.sidebar_width = new_width;
         }
         // SFTP center divider: the ratio tracks the cursor across the
         // content area (window minus the nav rail; the chat sidebar is

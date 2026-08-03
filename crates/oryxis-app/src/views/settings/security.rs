@@ -874,10 +874,10 @@ impl Oryxis {
                 10.0,
                 container(crate::widgets::password_input_with_eye_nav(
                     crate::i18n::t("import_password"),
-                    &self.import_password,
+                    &self.vault_import.password,
                     |v| Message::Share(ShareMessage::ImportPasswordChanged(v)),
                     // Enter inspects in phase 1, imports in phase 2.
-                    Some(if self.import_summary.is_some() {
+                    Some(if self.vault_import.summary.is_some() {
                         Message::Share(ShareMessage::ImportConfirm)
                     } else {
                         Message::Share(ShareMessage::ImportInspect)
@@ -907,7 +907,7 @@ impl Oryxis {
                 .push(text(crate::i18n::t("import_password_hint")).size(12).color(OryxisColors::t().text_muted))
                 .push(Space::new().height(4))
                 .push(pw_input);
-            if let Some(summary) = &self.import_summary {
+            if let Some(summary) = &self.vault_import.summary {
                 // Phase 2: the file is decrypted, show what it
                 // holds. Present categories are interactive
                 // checkboxes (with counts); absent ones are
@@ -927,7 +927,7 @@ impl Oryxis {
                         categories = categories.push(self.settings_nav_slot(
                             crate::keynav::RowAction::activate(Message::Share(ShareMessage::ImportToggleCategory(cat))),
                             4.0,
-                            checkbox(self.import_selection.get(cat))
+                            checkbox(self.vault_import.selection.get(cat))
                                 .label(format!("{label} ({count})"))
                                 .on_toggle(move |_| Message::Share(ShareMessage::ImportToggleCategory(cat)))
                                 .size(16)
@@ -1049,7 +1049,7 @@ impl Oryxis {
                     10.0,
                     container(crate::widgets::password_input_with_eye_nav(
                         crate::i18n::t("import_password"),
-                        &self.import_password,
+                        &self.vault_import.password,
                         |v| Message::Share(ShareMessage::ImportPasswordChanged(v)),
                         Some(Message::Share(ShareMessage::SftpBackupConfirm)),
                         self.revealed_secrets
@@ -1155,7 +1155,7 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(text(msg).size(12).color(color));
         }
-        if let Some(status) = &self.import_status {
+        if let Some(status) = &self.vault_import.status {
             let (msg, color) = match status {
                 Ok(m) => (m.as_str(), OryxisColors::t().success),
                 Err(m) => (m.as_str(), OryxisColors::t().error),

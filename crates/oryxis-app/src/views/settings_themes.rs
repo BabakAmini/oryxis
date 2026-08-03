@@ -25,7 +25,7 @@ impl Oryxis {
     /// The custom-theme editor modal. Caller renders it (over the base) only
     /// while `theme_editor` is `Some`.
     pub(crate) fn view_theme_editor_modal(&self) -> Element<'_, Message> {
-        let Some(form) = self.theme_editor.as_ref() else {
+        let Some(form) = self.theme_ui.editor.as_ref() else {
             return Space::new().into();
         };
         let title = if form.editing_id.is_some() {
@@ -151,7 +151,7 @@ impl Oryxis {
             .width(Length::Fill)
             .height(Length::Fill);
         // Compact color-picker popover, anchored at the clicked swatch.
-        if let Some((slot, anchor)) = self.theme_color_popover {
+        if let Some((slot, anchor)) = self.theme_ui.color_popover {
             stack = stack.push(self.color_popover(form, slot, anchor));
         }
         // `opaque` makes the whole modal capture every mouse event so
@@ -236,14 +236,14 @@ impl Oryxis {
     /// Import-a-scheme modal: paste an iTerm / Windows Terminal / base16
     /// scheme; on import the parsed colors open in the editor for review.
     pub(crate) fn view_theme_import_modal(&self) -> Element<'_, Message> {
-        let name_input = text_input(t("theme_name"), &self.theme_import_name)
+        let name_input = text_input(t("theme_name"), &self.theme_ui.import_name)
             .on_input(|v| Message::Settings(SettingsMessage::ThemeImportNameChanged(v)))
             .padding(10)
             .size(13)
             .style(crate::widgets::rounded_input_style);
 
         let paste = container(
-            iced::widget::text_editor(&self.theme_import_content)
+            iced::widget::text_editor(&self.theme_ui.import_content)
                 .on_action(|v| Message::Settings(SettingsMessage::ThemeImportContentAction(v)))
                 .padding(10)
                 .height(Length::Fixed(220.0))
@@ -266,7 +266,7 @@ impl Oryxis {
         // Shared form chrome (buttons + error slot); the row itself
         // keeps the modal card's trailing alignment.
         col = col.push(Space::new().height(8));
-        col = col.push(crate::widgets::form_error(self.theme_import_error.as_deref()));
+        col = col.push(crate::widgets::form_error(self.theme_ui.import_error.as_deref()));
         col = col.push(Space::new().height(8));
         // "Load from file" fills the paste box from a scheme file picked
         // on disk; Apply then parses it like any pasted content.

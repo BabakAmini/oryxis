@@ -19,7 +19,7 @@ impl Oryxis {
     /// success (after reloading the list + repainting).
     pub(crate) fn save_theme_editor(&mut self) -> Option<String> {
         use oryxis_core::models::custom_terminal_theme::CustomTerminalTheme;
-        let form = self.theme_editor.clone()?;
+        let form = self.theme_ui.editor.clone()?;
         let name = form.name.trim().to_string();
         if name.is_empty() {
             return Some(crate::i18n::t("theme_error_name_required").to_string());
@@ -427,10 +427,10 @@ impl Oryxis {
                 }
             }
             SettingsMessage::ThemeEditorOpenPicker(slot) => {
-                self.theme_color_popover = Some((slot, self.mouse_position));
+                self.theme_ui.color_popover = Some((slot, self.mouse_position));
             }
             SettingsMessage::ThemeEditorClosePicker => {
-                self.theme_color_popover = None;
+                self.theme_ui.color_popover = None;
             }
             SettingsMessage::ThemeCardHovered(idx) => {
                 self.hover.theme_card = Some(idx);
@@ -446,7 +446,7 @@ impl Oryxis {
                     let q = |x: f32| (x.clamp(0.0, 1.0) * 255.0).round() as u8;
                     format!("#{:02x}{:02x}{:02x}", q(c.r), q(c.g), q(c.b))
                 };
-                self.theme_editor = Some(crate::state::ThemeEditorForm {
+                self.theme_ui.editor = Some(crate::state::ThemeEditorForm {
                     editing_id: None,
                     name: String::new(),
                     foreground: hex(p.foreground),
@@ -458,26 +458,26 @@ impl Oryxis {
             }
             SettingsMessage::ThemeImportOpen => {
                 self.show_theme_import = true;
-                self.theme_import_content = iced::widget::text_editor::Content::new();
-                self.theme_import_name.clear();
-                self.theme_import_error = None;
+                self.theme_ui.import_content = iced::widget::text_editor::Content::new();
+                self.theme_ui.import_name.clear();
+                self.theme_ui.import_error = None;
             }
             SettingsMessage::ThemeImportClose => {
                 self.show_theme_import = false;
             }
             SettingsMessage::ThemeImportContentAction(action) => {
-                self.theme_import_content.perform(action);
-                self.theme_import_error = None;
+                self.theme_ui.import_content.perform(action);
+                self.theme_ui.import_error = None;
             }
             SettingsMessage::ThemeImportNameChanged(v) => {
-                self.theme_import_name = v;
+                self.theme_ui.import_name = v;
             }
             SettingsMessage::ThemeImportApply => {
-                let content = self.theme_import_content.text();
-                let name = if self.theme_import_name.trim().is_empty() {
+                let content = self.theme_ui.import_content.text();
+                let name = if self.theme_ui.import_name.trim().is_empty() {
                     crate::i18n::t("theme_imported_default").to_string()
                 } else {
-                    self.theme_import_name.trim().to_string()
+                    self.theme_ui.import_name.trim().to_string()
                 };
                 match crate::theme_import::parse_theme(&content, &name) {
                     Ok(theme) => {
@@ -485,10 +485,10 @@ impl Oryxis {
                         // theme) so the user can review / rename before save.
                         let mut form = crate::state::ThemeEditorForm::from_theme(&theme);
                         form.editing_id = None;
-                        self.theme_editor = Some(form);
+                        self.theme_ui.editor = Some(form);
                         self.show_theme_import = false;
                     }
-                    Err(e) => self.theme_import_error = Some(e),
+                    Err(e) => self.theme_ui.import_error = Some(e),
                 }
             }
             // -- Custom UI (chrome) themes --
@@ -571,7 +571,7 @@ impl Oryxis {
             }
             SettingsMessage::ThemeEditorEdit(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx) {
-                    self.theme_editor =
+                    self.theme_ui.editor =
                         Some(crate::state::ThemeEditorForm::from_theme(theme));
                 }
             }
@@ -579,13 +579,13 @@ impl Oryxis {
                 self.close_modal(crate::state::Modal::ThemeEditor);
             }
             SettingsMessage::ThemeEditorNameChanged(name) => {
-                if let Some(form) = &mut self.theme_editor {
+                if let Some(form) = &mut self.theme_ui.editor {
                     form.name = name;
                     form.error = None;
                 }
             }
             SettingsMessage::ThemeEditorColorChanged(slot, value) => {
-                if let Some(form) = &mut self.theme_editor {
+                if let Some(form) = &mut self.theme_ui.editor {
                     // Keep only hex-ish characters so the live preview stays
                     // sane while typing; full validation happens on save.
                     let cleaned: String = value
@@ -598,7 +598,7 @@ impl Oryxis {
             }
             SettingsMessage::ThemeEditorSave => {
                 if let Some(err) = self.save_theme_editor() {
-                    if let Some(form) = &mut self.theme_editor {
+                    if let Some(form) = &mut self.theme_ui.editor {
                         form.error = Some(err);
                     }
                 } else {
@@ -660,7 +660,7 @@ impl Oryxis {
                     let mut form = crate::state::ThemeEditorForm::from_theme(theme);
                     form.editing_id = None;
                     form.name = self.unique_terminal_theme_name(&theme.name);
-                    self.theme_editor = Some(form);
+                    self.theme_ui.editor = Some(form);
                 }
             }
             SettingsMessage::ThemeCloneBuiltin(idx) => {
@@ -669,7 +669,7 @@ impl Oryxis {
                 if let Some(theme) = oryxis_terminal::TerminalTheme::ALL.get(idx) {
                     let p = theme.palette();
                     let hex = crate::theme::color_to_hex;
-                    self.theme_editor = Some(crate::state::ThemeEditorForm {
+                    self.theme_ui.editor = Some(crate::state::ThemeEditorForm {
                         editing_id: None,
                         name: self.unique_terminal_theme_name(theme.name()),
                         foreground: hex(p.foreground),
@@ -755,17 +755,17 @@ impl Oryxis {
             }
             SettingsMessage::ThemeImportFileLoaded(result) => match result {
                 Ok(content) => {
-                    if self.theme_import_name.trim().is_empty()
+                    if self.theme_ui.import_name.trim().is_empty()
                         && let Some(name) = crate::theme_import::suggest_name(&content)
                     {
-                        self.theme_import_name = name;
+                        self.theme_ui.import_name = name;
                     }
-                    self.theme_import_content =
+                    self.theme_ui.import_content =
                         iced::widget::text_editor::Content::with_text(&content);
-                    self.theme_import_error = None;
+                    self.theme_ui.import_error = None;
                 }
                 Err(e) if e == "cancelled" => {}
-                Err(e) => self.theme_import_error = Some(e),
+                Err(e) => self.theme_ui.import_error = Some(e),
             },
             SettingsMessage::UiThemeBuiltinCardHovered(idx) => {
                 self.hover.builtin_ui_theme_card = Some(idx);

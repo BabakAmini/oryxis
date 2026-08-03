@@ -110,10 +110,10 @@ impl Oryxis {
         let strip_right = self.side_strip_reserve() - strip_left;
         if self.setting_terminal_sidebar_left {
             self.mouse_position.x > strip_left
-                && self.mouse_position.x < strip_left + self.chat_sidebar_width
+                && self.mouse_position.x < strip_left + self.chat_ui.sidebar_width
         } else {
             let right_edge = self.window_size.width - strip_right;
-            self.mouse_position.x > right_edge - self.chat_sidebar_width
+            self.mouse_position.x > right_edge - self.chat_ui.sidebar_width
                 && self.mouse_position.x < right_edge
         }
     }

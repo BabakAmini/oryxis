@@ -602,13 +602,13 @@ impl Oryxis {
                 self.sidebar_snippet_search.clear();
             }
             AiMessage::ChatInputAction(action) => {
-                self.chat_input.perform(action);
+                self.chat_ui.input.perform(action);
             }
             AiMessage::ChatScrolled(relative_y) => {
                 // Strict end check (not "near end"), relative_offset.y
                 // becomes 1.0 when the user is exactly at the bottom.
                 // Tiny epsilon covers f32 rounding from the layout pass.
-                self.chat_scroll_at_bottom = relative_y >= 0.999;
+                self.chat_ui.scroll_at_bottom = relative_y >= 0.999;
             }
             AiMessage::ChatResetConversation => {
                 // Cancel any in-flight stream first, otherwise the detached
@@ -627,7 +627,7 @@ impl Oryxis {
                     // user cleared.
                     self.detach_saved_chat(idx);
                 }
-                self.chat_scroll_at_bottom = true;
+                self.chat_ui.scroll_at_bottom = true;
             }
             AiMessage::ChatModeChanged(mode) => {
                 // Apply to the active tab's conversation and remember it as
@@ -645,10 +645,10 @@ impl Oryxis {
             AiMessage::ChatSidebarResizeStart => {
                 // Capture cursor x and current width, the MouseMoved
                 // handler computes the delta against these.
-                self.chat_sidebar_drag = Some((self.mouse_position.x, self.chat_sidebar_width));
+                self.chat_ui.sidebar_drag = Some((self.mouse_position.x, self.chat_ui.sidebar_width));
             }
             AiMessage::ChatSidebarResizeStop => {
-                self.chat_sidebar_drag = None;
+                self.chat_ui.sidebar_drag = None;
                 // The same global Left-release ends an SFTP divider drag;
                 // persist the final ratio so it survives a relaunch.
                 if self.sftp_split_drag.take().is_some() {
@@ -746,7 +746,7 @@ impl Oryxis {
                 }
             }
             AiMessage::SendChat => {
-                let input = self.chat_input.text().trim().to_string();
+                let input = self.chat_ui.input.text().trim().to_string();
                 if input.is_empty() || !self.ai.enabled {
                     return Task::none();
                 }
@@ -765,11 +765,11 @@ impl Oryxis {
                 // doesn't bleed into this one.
                 tab.chat_auto_run_history.clear();
                 tab.chat_auto_run_streak = 0;
-                self.chat_input = text_editor::Content::new();
+                self.chat_ui.input = text_editor::Content::new();
                 // Sending a message snaps focus back to the latest
                 // exchange, so the next assistant response should
                 // also follow (until the user scrolls up again).
-                self.chat_scroll_at_bottom = true;
+                self.chat_ui.scroll_at_bottom = true;
 
                 let stream_task = self.spawn_chat_stream_for(idx);
                 return Task::batch(vec![chat_scroll_to_end(), stream_task]);
@@ -804,7 +804,7 @@ impl Oryxis {
                 }
                 // Only follow the scroll when the streaming tab is the one
                 // on screen; a background stream must not yank the view.
-                if is_active && self.chat_scroll_at_bottom {
+                if is_active && self.chat_ui.scroll_at_bottom {
                     return chat_scroll_to_end();
                 }
             }
@@ -845,7 +845,7 @@ impl Oryxis {
                     // conversation cannot capture a half-streamed answer.
                     self.flush_chat_history(idx);
                 }
-                if is_active && self.chat_scroll_at_bottom {
+                if is_active && self.chat_ui.scroll_at_bottom {
                     return chat_scroll_to_end();
                 }
             }
@@ -877,7 +877,7 @@ impl Oryxis {
                     self.tabs[idx].chat_task = None;
                     self.tabs[idx].chat_loading = false;
                 }
-                if is_active && self.chat_scroll_at_bottom {
+                if is_active && self.chat_ui.scroll_at_bottom {
                     return chat_scroll_to_end();
                 }
             }
@@ -912,7 +912,7 @@ impl Oryxis {
                         return Task::none();
                     }
                 }
-                self.chat_scroll_at_bottom = true;
+                self.chat_ui.scroll_at_bottom = true;
                 let stream_task = self.spawn_chat_stream_for(idx);
                 return Task::batch(vec![chat_scroll_to_end(), stream_task]);
             }
@@ -1042,7 +1042,7 @@ impl Oryxis {
                     .chat_history
                     .push(pending_tool_bubble(command, thought_signature));
                 self.tabs[idx].chat_loading = false;
-                if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
+                if Some(idx) == self.active_tab && self.chat_ui.scroll_at_bottom {
                     return chat_scroll_to_end();
                 }
             }
@@ -1063,7 +1063,7 @@ impl Oryxis {
                     .chat_history
                     .push(pending_tool_bubble(command, thought_signature));
                 self.tabs[idx].chat_loading = false;
-                if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
+                if Some(idx) == self.active_tab && self.chat_ui.scroll_at_bottom {
                     return chat_scroll_to_end();
                 }
             }
@@ -1239,7 +1239,7 @@ impl Oryxis {
                         "[terminal session is not connected; command not sent]",
                     ));
                     tab.chat_loading = false;
-                    if Some(idx) == self.active_tab && self.chat_scroll_at_bottom {
+                    if Some(idx) == self.active_tab && self.chat_ui.scroll_at_bottom {
                         return chat_scroll_to_end();
                     }
                     return Task::none();

@@ -1035,7 +1035,7 @@ impl Oryxis {
                 row![resize_handle, panel]
             };
         container(handle_and_panel.width(Length::Fill).height(Length::Fill))
-            .width(Length::Fixed(self.chat_sidebar_width))
+            .width(Length::Fixed(self.chat_ui.sidebar_width))
             .height(Length::Fill)
             .into()
     }
@@ -1123,7 +1123,7 @@ impl Oryxis {
         // then scrolls internally. Enter sends the message; Shift+Enter
         // inserts a newline. No send button, every chat-style UI uses
         // Enter today, so the arrow was just visual noise.
-        let chat_editor = iced::widget::text_editor(&self.chat_input)
+        let chat_editor = iced::widget::text_editor(&self.chat_ui.input)
             // Programmatic focus target for the FocusSidebarList hotkey's
             // Chat stop (the fork's text_editor is operation::Focusable).
             .id(iced::widget::Id::new("chat-input"))

@@ -232,11 +232,11 @@ impl Oryxis {
             ShareMessage::ImportVault => {
                 // Close the "+ Host ▾" add menu when reached from there.
                 self.overlay = None;
-                self.import_status = None;
-                self.import_password = String::new();
-                self.import_file_data = None;
-                self.import_summary = None;
-                self.import_selection = oryxis_vault::ExportSelection::all();
+                self.vault_import.status = None;
+                self.vault_import.password = String::new();
+                self.vault_import.file_data = None;
+                self.vault_import.summary = None;
+                self.vault_import.selection = oryxis_vault::ExportSelection::all();
                 // Picker + read off the event loop; the follow-up
                 // messages route back into the dialog state.
                 return Task::perform(
@@ -259,31 +259,31 @@ impl Oryxis {
                 );
             }
             ShareMessage::ImportFileLoaded(data) => {
-                self.import_file_data = Some(data);
+                self.vault_import.file_data = Some(data);
                 self.show_import_dialog = true;
             }
             ShareMessage::ImportPasswordChanged(v) => {
-                self.import_password = v;
+                self.vault_import.password = v;
             }
             ShareMessage::ImportInspect => {
-                if self.import_password.is_empty() {
-                    self.import_status = Some(Err(crate::i18n::t("password_required").to_string()));
+                if self.vault_import.password.is_empty() {
+                    self.vault_import.status = Some(Err(crate::i18n::t("password_required").to_string()));
                     return Task::none();
                 }
-                if let Some(data) = &self.import_file_data {
-                    match oryxis_vault::inspect_export(data, &self.import_password) {
+                if let Some(data) = &self.vault_import.file_data {
+                    match oryxis_vault::inspect_export(data, &self.vault_import.password) {
                         Ok(summary) => {
                             // Pre-check every category the file carries;
                             // the user unchecks to narrow.
-                            self.import_selection = summary.default_selection();
-                            self.import_summary = Some(summary);
-                            self.import_status = None;
+                            self.vault_import.selection = summary.default_selection();
+                            self.vault_import.summary = Some(summary);
+                            self.vault_import.status = None;
                         }
                         Err(oryxis_vault::VaultError::InvalidPassword) => {
-                            self.import_status = Some(Err(crate::i18n::t("import_wrong_password").to_string()));
+                            self.vault_import.status = Some(Err(crate::i18n::t("import_wrong_password").to_string()));
                         }
                         Err(e) => {
-                            self.import_status = Some(Err(e.to_string()));
+                            self.vault_import.status = Some(Err(e.to_string()));
                         }
                     }
                 }
@@ -292,20 +292,20 @@ impl Oryxis {
                 // Only categories present in the file are interactive in
                 // the UI, but guard anyway, toggling an absent one is a
                 // no-op since it stays empty in the payload.
-                self.import_selection.toggle(cat);
+                self.vault_import.selection.toggle(cat);
             }
             ShareMessage::ImportConfirm => {
-                if self.import_password.is_empty() {
-                    self.import_status = Some(Err(crate::i18n::t("password_required").to_string()));
+                if self.vault_import.password.is_empty() {
+                    self.vault_import.status = Some(Err(crate::i18n::t("password_required").to_string()));
                     return Task::none();
                 }
                 // Confirm only acts after a successful inspection, the UI
                 // hides the button until then, this guards the message path.
-                if self.import_summary.is_none() {
+                if self.vault_import.summary.is_none() {
                     return Task::none();
                 }
-                if let (Some(vault), Some(data)) = (&self.vault, &self.import_file_data) {
-                    match oryxis_vault::import_vault(vault, data, &self.import_password, &self.import_selection) {
+                if let (Some(vault), Some(data)) = (&self.vault, &self.vault_import.file_data) {
+                    match oryxis_vault::import_vault(vault, data, &self.vault_import.password, &self.vault_import.selection) {
                         Ok(result) => {
                             // Fully translated summary, built from the
                             // same category labels the dialog uses. Only
@@ -330,26 +330,26 @@ impl Oryxis {
                                 .collect::<Vec<_>>()
                                 .join(", ");
                             let msg = format!("{} {}", crate::i18n::t("import_done"), body);
-                            self.import_status = Some(Ok(msg));
+                            self.vault_import.status = Some(Ok(msg));
                             self.show_import_dialog = false;
-                            self.import_file_data = None;
-                            self.import_summary = None;
+                            self.vault_import.file_data = None;
+                            self.vault_import.summary = None;
                             self.load_data_from_vault();
                         }
                         Err(oryxis_vault::VaultError::InvalidPassword) => {
-                            self.import_status = Some(Err(crate::i18n::t("import_wrong_password").to_string()));
+                            self.vault_import.status = Some(Err(crate::i18n::t("import_wrong_password").to_string()));
                         }
                         Err(e) => {
-                            self.import_status = Some(Err(e.to_string()));
+                            self.vault_import.status = Some(Err(e.to_string()));
                         }
                     }
                 }
             }
             ShareMessage::ImportCompleted(result) => {
-                self.import_status = Some(result);
-                if self.import_status.as_ref().is_some_and(|r| r.is_ok()) {
+                self.vault_import.status = Some(result);
+                if self.vault_import.status.as_ref().is_some_and(|r| r.is_ok()) {
                     self.show_import_dialog = false;
-                    self.import_file_data = None;
+                    self.vault_import.file_data = None;
                     self.load_data_from_vault();
                 }
             }
@@ -357,9 +357,9 @@ impl Oryxis {
                 self.show_export_dialog = false;
                 self.show_import_dialog = false;
                 self.export_status = None;
-                self.import_status = None;
-                self.import_file_data = None;
-                self.import_summary = None;
+                self.vault_import.status = None;
+                self.vault_import.file_data = None;
+                self.vault_import.summary = None;
                 self.sftp_backup.open = false;
             }
 
@@ -376,11 +376,11 @@ impl Oryxis {
                 // Close the "+ Host ▾" add menu when reached from there,
                 // and reset the import dialog state the loaded blob feeds.
                 self.overlay = None;
-                self.import_status = None;
-                self.import_password = String::new();
-                self.import_file_data = None;
-                self.import_summary = None;
-                self.import_selection = oryxis_vault::ExportSelection::all();
+                self.vault_import.status = None;
+                self.vault_import.password = String::new();
+                self.vault_import.file_data = None;
+                self.vault_import.summary = None;
+                self.vault_import.selection = oryxis_vault::ExportSelection::all();
                 self.open_sftp_backup_picker(true);
             }
             ShareMessage::SftpBackupHostSelected(idx) => {
@@ -416,7 +416,7 @@ impl Oryxis {
                         // a wrong password surfaces its error there).
                         self.sftp_backup.open = false;
                         self.sftp_backup.status = None;
-                        self.import_file_data = Some(data);
+                        self.vault_import.file_data = Some(data);
                         self.show_import_dialog = true;
                         return Task::done(Message::Share(ShareMessage::ImportInspect));
                     }
@@ -711,7 +711,7 @@ impl Oryxis {
         // Restore needs the decrypt password up front (mirrors export, which
         // collects the encrypt password before the picker opens). The fetched
         // blob is inspected with it as soon as it lands.
-        if is_import && self.import_password.is_empty() {
+        if is_import && self.vault_import.password.is_empty() {
             self.sftp_backup.status =
                 Some(Err(crate::i18n::t("password_required").to_string()));
             return Task::none();

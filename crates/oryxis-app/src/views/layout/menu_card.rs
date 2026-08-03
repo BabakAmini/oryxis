@@ -97,7 +97,7 @@ impl Oryxis {
         idx: usize,
     ) -> Element<'_, Message> {
         let mut col = column![].spacing(2);
-        if let Some(id) = self.chat_conversations.get(idx).map(|c| c.id) {
+        if let Some(id) = self.chat_ui.conversations.get(idx).map(|c| c.id) {
             col = col.push(self.menu_item(
                 iced_fonts::lucide::bot(),
                 crate::i18n::t("chat_open"),

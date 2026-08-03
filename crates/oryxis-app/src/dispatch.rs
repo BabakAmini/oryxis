@@ -136,7 +136,7 @@ impl Oryxis {
     /// post-keyboard-nav hover restore (which needs exactly one move to
     /// clear `suppress_hover`, after which the gate closes again).
     fn mouse_interest(&self) -> bool {
-        self.chat_sidebar_drag.is_some()
+        self.chat_ui.sidebar_drag.is_some()
             || self.sftp_split_drag.is_some()
             || self.sftp_log_drag.is_some()
             || self.sftp_col_resize.is_some()

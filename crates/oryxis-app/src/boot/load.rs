@@ -123,7 +123,7 @@ impl Oryxis {
             // Saved AI conversations share the History timeline. The list is
             // metadata only (turn bodies load when one is opened), so it is
             // cheap to hold whole rather than paginate.
-            self.chat_conversations = vault.list_chat_conversations().unwrap_or_default();
+            self.chat_ui.conversations = vault.list_chat_conversations().unwrap_or_default();
         }
     }
 

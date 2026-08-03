@@ -617,7 +617,7 @@ impl Oryxis {
         let w = self
             .active_tab
             .and_then(|i| self.tabs.get(i))
-            .map(|t| if t.chat_visible { self.chat_sidebar_width } else { 0.0 })
+            .map(|t| if t.chat_visible { self.chat_ui.sidebar_width } else { 0.0 })
             .unwrap_or(0.0);
         if self.setting_terminal_sidebar_left {
             (w, 0.0)

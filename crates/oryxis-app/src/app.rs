@@ -451,6 +451,12 @@ pub struct Oryxis {
     /// Which card / row / chip the cursor is over, for the floating
     /// hover-revealed actions every list uses. Twenty fields until
     /// they moved here; see `state::hover`.
+    /// See [`crate::state::ThemeEditorUi`].
+    pub(crate) theme_ui: crate::state::ThemeEditorUi,
+    /// See [`crate::state::VaultImportState`].
+    pub(crate) vault_import: crate::state::VaultImportState,
+    /// See [`crate::state::ChatUi`].
+    pub(crate) chat_ui: crate::state::ChatUi,
     pub(crate) hover: crate::state::HoverState,
     pub(crate) sftp: crate::state::SftpState,
     /// Open SFTP browser tabs. Share the unified strip with terminal tabs.
@@ -798,18 +804,9 @@ pub struct Oryxis {
     /// built-in app themes and resolved by name.
     pub(crate) custom_ui_themes:
         Vec<oryxis_core::models::custom_ui_theme::CustomUiTheme>,
-    /// Open custom-theme editor modal. `None` = closed.
-    pub(crate) theme_editor: Option<crate::state::ThemeEditorForm>,
-    /// Open color-picker popover in the theme editor: `(slot, anchor)`.
-    /// `None` = closed. Clicking a slot's swatch opens a compact picker
-    /// (SV square + hue + hex + presets) anchored at the click.
-    pub(crate) theme_color_popover: Option<(crate::state::ThemeColorSlot, iced::Point)>,
     /// Import-theme modal (paste an iTerm / Windows Terminal / base16
     /// scheme). On import the parsed colors open in the editor for review.
     pub(crate) show_theme_import: bool,
-    pub(crate) theme_import_content: iced::widget::text_editor::Content,
-    pub(crate) theme_import_name: String,
-    pub(crate) theme_import_error: Option<String>,
     /// Import-UI-theme modal (paste the Oryxis UI theme JSON), mirroring
     /// the terminal scheme import modal above.
     /// Single external editor used by the SFTP "Open with default text
@@ -946,12 +943,6 @@ pub struct Oryxis {
 
     // Session logs (terminal recording)
     pub(crate) session_logs: Vec<oryxis_vault::SessionLogEntry>,
-    /// Saved AI conversations, newest first. Shares the History timeline
-    /// with the recordings (see `TimelineKind::Chat`).
-    pub(crate) chat_conversations: Vec<oryxis_vault::ChatConversationEntry>,
-    /// The conversation open in the reader, with its turns loaded.
-    /// `None` when the reader is closed.
-    pub(crate) chat_viewer: Option<crate::state::ChatViewer>,
     pub(crate) session_logs_page: usize,
     pub(crate) session_logs_total: usize,
     pub(crate) viewing_session_log: Option<crate::state::SessionLogViewer>,
@@ -1607,16 +1598,6 @@ pub struct Oryxis {
     /// default shell directly.
     pub(crate) local_shell_picker_open: bool,
 
-    // AI chat sidebar
-    pub(crate) chat_input: text_editor::Content,
-    // Per-conversation stream state (`chat_loading` + `chat_task`) lives on
-    // `TerminalTab` now, so a chat on one tab keeps running while the user
-    // works in another and Stop / close / reset target the right tab.
-    /// True when the user's scroll is anchored at (or very near) the bottom
-    /// of the chat history, used to decide whether new assistant messages
-    /// should auto-scroll. If the user has scrolled up to read older
-    /// content, we leave them where they are.
-    pub(crate) chat_scroll_at_bottom: bool,
     /// Active tab in the terminal side panel (Chat / Snippets / History).
     pub(crate) terminal_sidebar_tab: crate::state::TerminalSidebarTab,
     /// Search needle for the Snippets tab of the terminal sidebar. Kept
@@ -1629,11 +1610,6 @@ pub struct Oryxis {
     /// Search field expanded in the Snippets tab. Collapsed = a search
     /// icon; expanded = a focused input that replaces the New / sort row.
     pub(crate) sidebar_search_open: bool,
-    /// User-resizable width of the chat sidebar in pixels.
-    pub(crate) chat_sidebar_width: f32,
-    /// Some((cursor_x_at_drag_start, sidebar_width_at_drag_start)) while
-    /// the user is dragging the resize handle on the sidebar's left edge.
-    pub(crate) chat_sidebar_drag: Option<(f32, f32)>,
     /// SFTP center-split ratio: fraction (0..1) of the content width given
     /// to the left pane. Global across SFTP tabs, persisted to the
     /// `sftp_split_ratio` setting; only changed by dragging the divider.
@@ -1688,16 +1664,6 @@ pub struct Oryxis {
     pub(crate) export_selection: oryxis_vault::ExportSelection,
     pub(crate) export_status: Option<Result<String, String>>,
     pub(crate) show_import_dialog: bool,
-    pub(crate) import_password: String,
-    pub(crate) import_file_data: Option<Vec<u8>>,
-    /// Per-category record counts of the picked file, populated by the
-    /// "Inspect" step (decrypt + count). `None` until inspected; the
-    /// import checkboxes + confirm button only render once it's `Some`.
-    pub(crate) import_summary: Option<oryxis_vault::ExportSummary>,
-    /// Which of the inspected categories to apply on import. Defaults to
-    /// every category the file actually contains.
-    pub(crate) import_selection: oryxis_vault::ExportSelection,
-    pub(crate) import_status: Option<Result<String, String>>,
     /// SFTP backup target picker. Shown when the user routes an
     /// export/import through a remote host instead of a local file.
     /// `is_import` flips the same picker between writing the encrypted
