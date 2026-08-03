@@ -299,6 +299,12 @@ pub(crate) fn is_portable_setting(key: &str) -> bool {
         "mcp_server_enabled",
         "skipped_update_version",
         "pinned_tabs",
+        // Files-sidebar folder history: per-host browsing trail, and
+        // encrypted under THIS vault's master key, so the verbatim value
+        // `list_settings` hands out would arrive in the target vault as
+        // undecryptable bytes. Local state like `pinned_tabs`, not a
+        // preference worth carrying.
+        "files_recent_folders",
     ];
     if DENY_EXACT.contains(&key) {
         return false;

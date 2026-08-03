@@ -402,7 +402,7 @@ impl Oryxis {
             // Files-sidebar folder history, keyed by host. A malformed or
             // stale blob is dropped rather than failing the boot: it is a
             // convenience list, and losing it costs nothing.
-            if let Ok(Some(v)) = vault.get_setting("files_recent_folders")
+            if let Ok(Some(v)) = vault.get_files_recent_folders()
                 && let Ok(map) = serde_json::from_str::<
                     std::collections::HashMap<uuid::Uuid, Vec<String>>,
                 >(&v)

@@ -79,6 +79,49 @@ impl VaultStore {
         }
     }
 
+    /// Store the Files-sidebar folder history encrypted in the settings
+    /// table (base64-encoded JSON). Same field-encryption path as the AI
+    /// API key, so it rides key rotation via `convert_settings_b64`.
+    ///
+    /// Not a credential, but not plaintext material either: the settings
+    /// table is read WITHOUT unlocking (that is what hydrates theme and
+    /// language on the lock screen), so a plain row would hand the
+    /// directory layout of every host to anyone holding the file. The
+    /// rest of the user's browsing trail (command history, session logs,
+    /// chat) is encrypted, and this belongs with it.
+    pub fn set_files_recent_folders(&self, json: &str) -> Result<(), VaultError> {
+        let encrypted = self.encrypt_field(json)?;
+        let encoded = BASE64.encode(&encrypted);
+        self.set_setting("files_recent_folders", &encoded)
+    }
+
+    /// Retrieve and decrypt the Files-sidebar folder history.
+    ///
+    /// Anything that fails to decode is DELETED and reported as absent:
+    /// the only way to get a non-ciphertext row here is a pre-encryption
+    /// build (the plain JSON this replaces), and leaving that row in
+    /// place would keep the very plaintext this method exists to remove.
+    /// The list is a convenience, so dropping it costs nothing.
+    pub fn get_files_recent_folders(&self) -> Result<Option<String>, VaultError> {
+        let Some(encoded) = self.get_setting("files_recent_folders")? else {
+            return Ok(None);
+        };
+        let decoded = BASE64
+            .decode(encoded.as_bytes())
+            .ok()
+            .and_then(|bytes| self.decrypt_field(&bytes).ok());
+        match decoded {
+            Some(json) => Ok(Some(json)),
+            None => {
+                self.db.execute(
+                    "DELETE FROM settings WHERE key = ?1",
+                    params!["files_recent_folders"],
+                )?;
+                Ok(None)
+            }
+        }
+    }
+
     /// Store the SFTP-sync group passphrase encrypted in the settings
     /// table (base64-encoded). Same field-encryption path as the AI API
     /// key, so it rides key rotation via `convert_settings_b64`. An empty

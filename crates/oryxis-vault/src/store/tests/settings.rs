@@ -42,6 +42,36 @@ fn sync_sftp_passphrase_empty_clears_row() {
 }
 
 #[test]
+fn files_recent_folders_round_trip_encrypted() {
+    let mut vault = temp_vault();
+    vault.set_master_password("master").unwrap();
+    let json = r#"{"6f1a":["/srv/acme-client/deploy"]}"#;
+    vault.set_files_recent_folders(json).unwrap();
+    assert_eq!(vault.get_files_recent_folders().unwrap().as_deref(), Some(json));
+    // The settings table is read WITHOUT unlocking, so a plain row would
+    // hand every host's directory layout to anyone holding the file.
+    let raw = vault.get_setting("files_recent_folders").unwrap().unwrap();
+    assert!(
+        !raw.contains("acme-client"),
+        "the folder history must not sit in plaintext in the settings column"
+    );
+}
+
+#[test]
+fn files_recent_folders_drops_a_pre_encryption_row() {
+    let mut vault = temp_vault();
+    vault.set_master_password("master").unwrap();
+    // What a build before the encryption change left behind: plain JSON.
+    // Reading must report absence AND remove the row, or the plaintext
+    // this guards against would survive the upgrade.
+    vault
+        .set_setting("files_recent_folders", r#"{"6f1a":["/srv/acme-client"]}"#)
+        .unwrap();
+    assert_eq!(vault.get_files_recent_folders().unwrap(), None);
+    assert_eq!(vault.get_setting("files_recent_folders").unwrap(), None);
+}
+
+#[test]
 fn settings_get_unset_returns_none() {
     let vault = temp_vault();
     // No tests should pollute global state, but defensively

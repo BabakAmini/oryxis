@@ -1006,6 +1006,7 @@ impl VaultStore {
             self.convert_blob_column(table, id_col, col, dec, enc, lenient)?;
         }
         self.convert_settings_b64("ai_api_key", dec, enc, lenient)?;
+        self.convert_settings_b64("files_recent_folders", dec, enc, lenient)?;
         self.convert_settings_b64("sync_sftp_passphrase", dec, enc, lenient)?;
         self.convert_settings_b64("sync_device_identity", dec, enc, lenient)?;
         // The session-recording content key only needs its wrapper

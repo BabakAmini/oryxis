@@ -129,8 +129,16 @@ impl Oryxis {
         list.retain(|p| p != path);
         list.insert(0, path.to_string());
         list.truncate(FILES_RECENT_CAP);
-        if let Ok(json) = serde_json::to_string(&self.files_recent_folders) {
-            self.persist_setting("files_recent_folders", &json);
+        // Encrypted, not a plain setting: the settings table is readable
+        // without unlocking, and this is the user's directory trail on
+        // every host. A write while the vault is soft-locked has no key,
+        // so it just doesn't persist; the in-memory list still works for
+        // the session.
+        if let Ok(json) = serde_json::to_string(&self.files_recent_folders)
+            && let Some(vault) = &self.vault
+            && let Err(e) = vault.set_files_recent_folders(&json)
+        {
+            tracing::warn!("failed to persist the Files folder history: {e}");
         }
     }
 
