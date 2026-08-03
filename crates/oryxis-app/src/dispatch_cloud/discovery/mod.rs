@@ -6,6 +6,12 @@
 //! the choices made inside it (`selection`), the two managed-Kubernetes
 //! add flows (`clusters`), the import batch (`import`), and the
 //! background refresh that never opens a panel at all (`profile_sync`).
+//!
+//! Note this router is a FILTER, not a total function: `CloudMessage` is
+//! wider than the discovery half, so the tail hands the rest back to
+//! `handle_cloud`. Unlike the exhaustive routers elsewhere, a new
+//! discovery variant that nobody lists here compiles fine and falls
+//! through silently, so add the pattern with the arm.
 
 // Dispatch sub-handlers, one file per arm family.
 mod panel;
