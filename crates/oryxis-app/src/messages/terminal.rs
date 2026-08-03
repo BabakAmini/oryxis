@@ -74,7 +74,7 @@ pub enum TerminalMessage {
     /// can't corrupt the heap (see `oryxis_terminal::host_clipboard`). The
     /// tab rides along because the read resolves later and the user may have
     /// switched tabs in between.
-    TerminalPasteResolved(usize, Option<super::Redacted>),
+    TerminalPasteResolved(Uuid, Option<super::Redacted>),
     /// Careful-paste confirmation: send the multi-line text held in
     /// `pending_paste` to the tab it was captured for (not the currently
     /// active one, which may have changed since).

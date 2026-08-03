@@ -51,8 +51,15 @@ impl Oryxis {
     /// paste path captures its tab when the read is requested. Re-resolving
     /// the active tab at delivery time would drop the text into whatever tab
     /// the user switched to meanwhile, i.e. into a different host's shell.
-    pub(crate) fn paste_text_into_tab(&mut self, tab_idx: usize, text: &str) {
-        if self.tabs.get(tab_idx).is_none() {
+    ///
+    /// It is the tab's stable `_id`, not its index, for the second half of
+    /// the same reason: an index captured before the read names a POSITION,
+    /// and closing any earlier tab in the meantime slides another session
+    /// into it. The text would still land in a live shell, just the wrong
+    /// one, and "the index still exists" cannot tell the two apart. Same
+    /// hazard `pending_pane_split` had.
+    pub(crate) fn paste_text_into_tab(&mut self, tab_id: uuid::Uuid, text: &str) {
+        if self.tab_index_by_id(tab_id).is_none() {
             return;
         }
         // Two independent gates (owner call: each has its own setting):
@@ -64,10 +71,10 @@ impl Oryxis {
             || (self.prefs.paste_guard
                 && !crate::paste_guard::paste_warnings(text).is_empty())
         {
-            self.pending_paste = Some((tab_idx, text.to_string()));
+            self.pending_paste = Some((tab_id, text.to_string()));
             return;
         }
-        self.write_paste_to_tab(tab_idx, text);
+        self.write_paste_to_tab(tab_id, text);
     }
 
     /// Write `text` into `tab_idx`'s session, wrapping it for
@@ -76,7 +83,10 @@ impl Oryxis {
     /// local PTY. Shared by the clipboard (right-click / Ctrl+Shift+V)
     /// paste paths and the careful-paste confirmation. Explicit tab for the
     /// reason in [`Self::paste_text_into_tab`].
-    pub(crate) fn write_paste_to_tab(&mut self, tab_idx: usize, text: &str) {
+    pub(crate) fn write_paste_to_tab(&mut self, tab_id: uuid::Uuid, text: &str) {
+        let Some(tab_idx) = self.tab_index_by_id(tab_id) else {
+            return;
+        };
         let Some(tab) = self.tabs.get(tab_idx) else {
             return;
         };
@@ -101,14 +111,14 @@ impl Oryxis {
     /// Windows with `STATUS_HEAP_CORRUPTION` inside `GetClipboardData`
     /// (field crash 2026-07-29; see `oryxis_terminal::host_clipboard`).
     pub(crate) fn paste_clipboard_into_active(&mut self) -> Task<Message> {
-        // Capture the target tab NOW, not when the text comes back: see
-        // `paste_text_into_tab`.
-        let Some(tab_idx) = self.active_tab else {
+        // Capture the target tab NOW, not when the text comes back, and
+        // capture its id rather than its index: see `paste_text_into_tab`.
+        let Some(tab_id) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t._id) else {
             return Task::none();
         };
         crate::dispatch_global::read_clipboard_text(move |text| {
             Message::Terminal(TerminalMessage::TerminalPasteResolved(
-                tab_idx,
+                tab_id,
                 text.map(Into::into),
             ))
         })
@@ -480,11 +490,11 @@ impl Oryxis {
             }
             // Clipboard text came back from the runtime (the only place
             // allowed to touch it). `None` = empty or unavailable.
-            TerminalMessage::TerminalPasteResolved(tab_idx, text) => {
+            TerminalMessage::TerminalPasteResolved(tab_id, text) => {
                 if let Some(text) = text.map(crate::messages::Redacted::into_inner)
                     && !text.is_empty()
                 {
-                    self.paste_text_into_tab(tab_idx, &text);
+                    self.paste_text_into_tab(tab_id, &text);
                 }
             }
             TerminalMessage::ShowTerminalContextMenu(pane_id, x, y, selection) => {
@@ -528,7 +538,8 @@ impl Oryxis {
                 // Paste into the pane the gesture came from, not the
                 // focused one: they agree for middle-click and the chord,
                 // but the context menu can outlive a focus change.
-                let Some(tab_idx) = self.pane_tab_index(pane_id) else {
+                let Some(tab_id) = self.pane_tab_index(pane_id).and_then(|i| self.tabs.get(i)).map(|t| t._id)
+                else {
                     return Task::none();
                 };
                 // Deliberately does NOT touch the system clipboard: X11
@@ -536,7 +547,7 @@ impl Oryxis {
                 // the setting for people who also want selections on the
                 // clipboard. Pasting through the normal path keeps the
                 // careful-paste and paste-guard gates.
-                self.paste_text_into_tab(tab_idx, &text);
+                self.paste_text_into_tab(tab_id, &text);
             }
             TerminalMessage::TerminalDropFlush => {
                 return self.handle_terminal_drop_flush();

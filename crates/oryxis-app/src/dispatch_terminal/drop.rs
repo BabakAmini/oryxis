@@ -95,6 +95,7 @@ impl Oryxis {
         let Some(tab) = self.tabs.get(tab_idx) else {
             return Task::none();
         };
+        let tab_id = tab._id;
         // The pane whose last-drawn canvas rect contains the cursor,
         // falling back to the focused pane: `FileDropped` carries no
         // position, and some platforms stop delivering CursorMoved while
@@ -132,7 +133,7 @@ impl Oryxis {
             // bracketed paste and the paste guards.
             let line = typed_drop_line(&files, &dirs);
             if !line.is_empty() {
-                self.paste_text_into_tab(tab_idx, &line);
+                self.paste_text_into_tab(tab_id, &line);
             }
             return Task::none();
         };

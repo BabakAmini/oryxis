@@ -391,7 +391,7 @@ pub struct Oryxis {
     /// index it is destined for. The target is captured when the paste is
     /// requested rather than resolved on confirm: see
     /// `dispatch_terminal::paste_text_into_tab`.
-    pub(crate) pending_paste: Option<(usize, String)>,
+    pub(crate) pending_paste: Option<(uuid::Uuid, String)>,
     /// Paths from an in-flight OS drop onto the terminal, buffered so a
     /// multi-file gesture (one `FileDropped` per file) becomes one routed
     /// batch. Flushed by `TerminalDropFlush` after a short debounce; the

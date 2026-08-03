@@ -160,6 +160,73 @@ fn recent_report(now: u64) -> String {
     out
 }
 
+/// One compact memory line appended to every stall report: process
+/// RSS, system availability, swap in use, and the kernel's PSI memory
+/// pressure. This is the swap-storm discriminator for #104-class
+/// reports: a machine-wide memory stall freezes the app exactly like a
+/// render stall (no pixels, no CPU, innocent-looking in-flight
+/// message), so a stall line that also says "memory was fine" or
+/// "memory was thrashing" keeps us from chasing the named message in
+/// the wrong world. Empty when /proc is unavailable; each part is
+/// best-effort on its own.
+#[cfg(target_os = "linux")]
+fn memory_summary() -> String {
+    let rss = std::fs::read_to_string("/proc/self/status")
+        .ok()
+        .and_then(|s| field_kb(&s, "VmRSS:"));
+    let meminfo = std::fs::read_to_string("/proc/meminfo").ok();
+    let avail = meminfo.as_deref().and_then(|s| field_kb(s, "MemAvailable:"));
+    let swap_total = meminfo.as_deref().and_then(|s| field_kb(s, "SwapTotal:"));
+    let swap_free = meminfo.as_deref().and_then(|s| field_kb(s, "SwapFree:"));
+    // PSI needs CONFIG_PSI (default on modern kernels); absent files
+    // just drop the part.
+    let psi = std::fs::read_to_string("/proc/pressure/memory")
+        .ok()
+        .and_then(|s| psi_some_avg10(&s));
+    let mut out = String::new();
+    if let Some(kb) = rss {
+        let _ = write!(out, " rss={}MB", kb / 1024);
+    }
+    if let Some(kb) = avail {
+        let _ = write!(out, " avail={}MB", kb / 1024);
+    }
+    if let (Some(total), Some(free)) = (swap_total, swap_free) {
+        let _ = write!(out, " swap={}/{}MB", (total - free.min(total)) / 1024, total / 1024);
+    }
+    if let Some(avg10) = psi {
+        let _ = write!(out, " psi_mem_some_avg10={avg10}");
+    }
+    if out.is_empty() { out } else { format!("; mem{out}") }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn memory_summary() -> String {
+    String::new()
+}
+
+/// `Key:   123456 kB` -> `123456`, from /proc/self/status or
+/// /proc/meminfo shaped text.
+#[cfg(any(target_os = "linux", test))]
+fn field_kb(text: &str, key: &str) -> Option<u64> {
+    text.lines()
+        .find_map(|line| line.strip_prefix(key))
+        .and_then(|rest| rest.split_whitespace().next())
+        .and_then(|n| n.parse().ok())
+}
+
+/// The `avg10` value of the `some` line of a /proc/pressure file:
+/// share of the last 10s in which at least one task was stalled on
+/// memory, which is the earliest system-wide thrashing signal.
+#[cfg(any(target_os = "linux", test))]
+fn psi_some_avg10(text: &str) -> Option<String> {
+    text.lines()
+        .find(|line| line.starts_with("some"))
+        .and_then(|line| {
+            line.split_whitespace().find_map(|token| token.strip_prefix("avg10="))
+        })
+        .map(|v| v.to_string())
+}
+
 /// Spawn the monitor thread once. Parked (cheap sleep loop) while the
 /// debug toggle is off, so flipping the setting at runtime arms and
 /// disarms it without restarts.
@@ -207,16 +274,20 @@ fn monitor_loop() {
             let since = *update_stall_since.get_or_insert(now.saturating_sub(update_age));
             if now.saturating_sub(last_stall_log) >= STALL_RELOG_MS {
                 last_stall_log = now;
+                // Sampled AT the stall, not after: a swap storm and a
+                // render stall look identical from inside the process,
+                // the memory line is what tells them apart.
+                let mem = memory_summary();
                 match &*lock(&IN_FLIGHT) {
                     Some((entered, name)) => tracing::warn!(
-                        "stall-watchdog: UPDATE STALLED for {} ms; handler in flight for {} ms: {name}\nrecent messages:\n{}",
+                        "stall-watchdog: UPDATE STALLED for {} ms; handler in flight for {} ms: {name}{mem}\nrecent messages:\n{}",
                         now.saturating_sub(since),
                         now.saturating_sub(*entered),
                         recent_report(now),
                     ),
                     None => tracing::warn!(
                         "stall-watchdog: EVENT LOOP SILENT for {} ms with no handler in flight (last view {} ms ago); \
-                         the loop is stuck outside update() (event dispatch / redraw / present)\nrecent messages:\n{}",
+                         the loop is stuck outside update() (event dispatch / redraw / present){mem}\nrecent messages:\n{}",
                         now.saturating_sub(since),
                         view_age,
                         recent_report(now),
@@ -239,9 +310,10 @@ fn monitor_loop() {
                 view_stall_since = Some(now.saturating_sub(view_age));
                 tracing::warn!(
                     "stall-watchdog: PRESENTATION STALLED: update alive (last real message {} ms ago) \
-                     but view() has not run for {} ms; iced/wgpu is not drawing",
+                     but view() has not run for {} ms; iced/wgpu is not drawing{}",
                     real_age,
                     view_age,
+                    memory_summary(),
                 );
             }
         } else if let Some(since) = view_stall_since.take()
@@ -288,7 +360,10 @@ mod tests {
         // Same for the text that comes back from the system clipboard:
         // pasting a password into a sudo prompt is the everyday case.
         let pasted = crate::app::Message::Terminal(
-            crate::app::TerminalMessage::TerminalPasteResolved(0, Some("hunter2".into())),
+            crate::app::TerminalMessage::TerminalPasteResolved(
+                uuid::Uuid::nil(),
+                Some("hunter2".into()),
+            ),
         );
         let name = message_name(&pasted);
         assert!(!name.contains("hunter2"), "{name}");
@@ -298,6 +373,33 @@ mod tests {
     fn message_name_keeps_short_names_whole() {
         let name = message_name(&crate::app::Message::NoOp);
         assert_eq!(name, "NoOp");
+    }
+
+    #[test]
+    fn proc_parsers_read_the_fields() {
+        let status = "VmPeak:\t  500000 kB\nVmRSS:\t  431104 kB\nThreads:\t30\n";
+        assert_eq!(field_kb(status, "VmRSS:"), Some(431_104));
+        assert_eq!(field_kb(status, "MemAvailable:"), None);
+
+        let meminfo = "MemTotal:       32000000 kB\nMemAvailable:   9800000 kB\n\
+                       SwapTotal:       8388604 kB\nSwapFree:        8388604 kB\n";
+        assert_eq!(field_kb(meminfo, "MemAvailable:"), Some(9_800_000));
+
+        let psi = "some avg10=12.34 avg60=5.00 avg300=1.00 total=123456\n\
+                   full avg10=3.00 avg60=1.00 avg300=0.10 total=6543\n";
+        assert_eq!(psi_some_avg10(psi).as_deref(), Some("12.34"));
+        assert_eq!(psi_some_avg10("garbage"), None);
+    }
+
+    /// Live read on Linux: the stall reports depend on this never
+    /// erroring, whatever the kernel config; at minimum the process's
+    /// own RSS must resolve.
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn memory_summary_reads_proc() {
+        let mem = memory_summary();
+        assert!(mem.starts_with("; mem"), "{mem}");
+        assert!(mem.contains("rss="), "{mem}");
     }
 
     #[test]
