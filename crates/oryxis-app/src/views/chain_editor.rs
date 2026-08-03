@@ -372,7 +372,7 @@ impl Oryxis {
                 };
                 let style = crate::widgets::resolve_host_icon_style(
                     c.icon_style.as_deref(),
-                    &self.setting_default_host_icon,
+                    &self.prefs.default_host_icon,
                 );
                 let glyph_el: Element<'a, Message> = glyph.view(13.0, Color::WHITE);
                 crate::widgets::host_icon(style, badge_color, &c.label, Some(glyph_el), SIZE)

@@ -18,7 +18,7 @@ impl Oryxis {
         let all_hosts_section = panel_section(column![
             self.nav_toggle_row(
                 t("monitor_all_hosts"),
-                self.setting_monitor_all_hosts,
+                self.prefs.monitor_all_hosts,
                 Message::Settings(SettingsMessage::SettingToggleMonitorAllHosts),
             ),
             Space::new().height(4),
@@ -39,7 +39,7 @@ impl Oryxis {
                 t("monitor_interval"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-monitor-interval")),
                 10.0,
-                text_input("5", &self.setting_monitor_interval)
+                text_input("5", &self.prefs.monitor_interval)
                     .id(iced::widget::Id::new("set-monitor-interval"))
                     .on_input(|v| Message::Settings(SettingsMessage::SettingMonitorIntervalChanged(v)))
                     .padding(10)
@@ -54,7 +54,7 @@ impl Oryxis {
         let status_bar_section = panel_section(column![
             self.nav_toggle_row(
                 t("monitor_status_bar"),
-                self.setting_monitor_status_bar,
+                self.prefs.monitor_status_bar,
                 Message::Settings(SettingsMessage::SettingToggleMonitorStatusBar),
             ),
             Space::new().height(4),

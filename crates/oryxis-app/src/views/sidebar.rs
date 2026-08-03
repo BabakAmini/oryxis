@@ -22,7 +22,7 @@ impl Oryxis {
     /// rail with labels.
     pub(crate) fn view_vault_nav_rail(&self) -> Element<'_, Message> {
         let active = self.active_tab.is_none();
-        let expanded = self.setting_nav_rail_expanded;
+        let expanded = self.prefs.nav_rail_expanded;
         let act = |view: View| active && self.active_view == view;
         // Record the section order for the keyboard router (same
         // logical list as the horizontal pills; only one of the two

@@ -592,7 +592,7 @@ impl Oryxis {
         };
         let badge_style = crate::widgets::resolve_host_icon_style(
             conn.icon_style.as_deref(),
-            &self.setting_default_host_icon,
+            &self.prefs.default_host_icon,
         );
         let (glyph, default_color) = crate::os_icon::resolve_icon(
             conn.detected_os.as_deref(),

@@ -262,7 +262,7 @@ impl Oryxis {
             let algo = format!("{} {}", t("type_label"), key.algorithm);
             let key_style = crate::widgets::resolve_host_icon_style(
                 None,
-                &self.setting_default_host_icon,
+                &self.prefs.default_host_icon,
             );
             let glyph_el: Element<'_, Message> = iced_fonts::lucide::key_round()
                 .size(16)
@@ -499,7 +499,7 @@ impl Oryxis {
 
             let id_style = crate::widgets::resolve_host_icon_style(
                 None,
-                &self.setting_default_host_icon,
+                &self.prefs.default_host_icon,
             );
             let id_glyph_el: Element<'_, Message> = iced_fonts::lucide::user()
                 .size(16)

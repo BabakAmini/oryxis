@@ -78,7 +78,7 @@ impl Oryxis {
                 // A visible gutter belongs to no pane, so it IS the handle
                 // and the panes keep all their pixels. Only when the panes
                 // sit flush does each one have to hand a strip back.
-                let gap = self.setting_pane_gap.parse::<f32>().unwrap_or(0.0).clamp(0.0, 24.0);
+                let gap = self.prefs.pane_gap.parse::<f32>().unwrap_or(0.0).clamp(0.0, 24.0);
                 let neighbours: std::collections::HashMap<_, _> = if multipane && gap <= 0.0 {
                     const UNIT: f32 = 1000.0;
                     let regions = tab.pane_grid.layout().pane_regions(
@@ -171,7 +171,7 @@ impl Oryxis {
                     // dir_row) places it, RTL must not flip a side the user
                     // chose. The session-group editor keeps its trailing
                     // position; only the Chat/Files sidebar moves.
-                    let left = self.setting_terminal_sidebar_left;
+                    let left = self.prefs.terminal_sidebar_left;
                     let mut children: Vec<Element<'_, Message>> = Vec::new();
                     if chat_visible && left {
                         children.push(self.view_terminal_sidebar(tab));
@@ -504,26 +504,26 @@ impl Oryxis {
             .with_bell_flash(pane.bell_flash)
             .with_font_size(self.terminal_font_size)
             .with_font_name(&self.terminal_font_name)
-            .with_copy_on_select(self.setting_copy_on_select)
-            .with_right_click_copy(self.setting_right_click_copy)
+            .with_copy_on_select(self.prefs.copy_on_select)
+            .with_right_click_copy(self.prefs.right_click_copy)
             .with_terminal_chords(self.terminal_chord_resolver())
             .with_mouse_bindings(self.terminal_mouse_resolver())
-            .with_right_click_action(self.setting_terminal_right_click.to_widget())
+            .with_right_click_action(self.prefs.terminal_right_click.to_widget())
             // The keypress half of the pair is queued on the input funnel
             // (`write_bytes_to_pane`), not here: see issue #111.
-            .with_reset_scroll_on_output(self.setting_scrollback_reset_output)
-            .with_bold_is_bright(self.setting_bold_is_bright)
-            .with_keyword_highlight(self.setting_keyword_highlight)
-            .with_performance(self.setting_performance_mode)
-            .with_perf_overlay(self.setting_perf_overlay)
+            .with_reset_scroll_on_output(self.prefs.scrollback_reset_output)
+            .with_bold_is_bright(self.prefs.bold_is_bright)
+            .with_keyword_highlight(self.prefs.keyword_highlight)
+            .with_performance(self.prefs.performance_mode)
+            .with_perf_overlay(self.prefs.perf_overlay)
             .with_privacy(self.privacy_active_for_label(&pane.label))
             .with_privacy_terms(&self.privacy_terms())
             .with_privacy_classes(self.privacy_classes())
-            .with_smart_contrast(self.setting_smart_contrast)
+            .with_smart_contrast(self.prefs.smart_contrast)
             // C5: a host with `disable_mouse_reporting` keeps clicks local
             // even when the remote turns on mouse tracking.
             .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)
-            .with_word_delimiters(&self.setting_word_delimiters)
+            .with_word_delimiters(&self.prefs.word_delimiters)
             .with_resize_margins(resize_margins)
             .on_font_size_increase(Message::Settings(SettingsMessage::TerminalFontSizeIncrease))
             .on_font_size_decrease(Message::Settings(SettingsMessage::TerminalFontSizeDecrease))
@@ -543,7 +543,7 @@ impl Oryxis {
         // the per-frame snapshot lock costs nothing when it's off. The
         // env-var check mirrors the widget's own `ORYXIS_TERM_PERF`
         // force-on so the forced HUD isn't missing its net row.
-        let hud_on = self.setting_perf_overlay
+        let hud_on = self.prefs.perf_overlay
             || std::env::var("ORYXIS_TERM_PERF").is_ok_and(|v| !v.is_empty() && v != "0");
         if hud_on && let Some(ssh) = pane.session.as_ref().and_then(|t| t.ssh()) {
             let q = ssh.net_quality();
@@ -560,7 +560,7 @@ impl Oryxis {
         // Context menu (right-click scheme = Menu): carry the clicked
         // pane's id so Copy All / Clear Scrollback target the right pane,
         // not just the focused one.
-        if self.setting_terminal_right_click == crate::util::RightClickMode::Menu {
+        if self.prefs.terminal_right_click == crate::util::RightClickMode::Menu {
             let pane_id = pane.id;
             term_view = term_view.on_context_menu(move |x, y, sel| {
                 Message::Terminal(TerminalMessage::ShowTerminalContextMenu(pane_id, x, y, sel))
@@ -569,10 +569,10 @@ impl Oryxis {
         // Wire the teaching hints only while they should still show for
         // this pane, so the widget stops emitting once HintMode::Once has
         // retired them (and never emits under Never).
-        if self.setting_hint_mode.should_show(pane.mouse_hint_shown) {
+        if self.prefs.hint_mode.should_show(pane.mouse_hint_shown) {
             term_view = term_view.on_mouse_capture_hint(|| Message::Terminal(TerminalMessage::TerminalMouseCaptureHint));
         }
-        if self.setting_hint_mode.should_show(pane.link_hint_shown) {
+        if self.prefs.hint_mode.should_show(pane.link_hint_shown) {
             term_view = term_view.on_link_click_hint(|| Message::Terminal(TerminalMessage::TerminalLinkClickHint));
         }
         // Wrap the canvas so the focused pane asks the OS to enable its IME.
@@ -637,7 +637,7 @@ impl Oryxis {
                 (OryxisColors::t().warning, 2.0)
             } else if is_focused {
                 (OryxisColors::t().accent, 2.0)
-            } else if self.setting_pane_border_inactive {
+            } else if self.prefs.pane_border_inactive {
                 (OryxisColors::t().border, 1.0)
             } else {
                 // Setting off: the focused pane still gets its accent
@@ -880,7 +880,7 @@ impl Oryxis {
         // an SSH session (it reads /proc over an exec channel); the
         // per-host opt-in is handled inside the tab body, which offers
         // to enable it.
-        let monitor_available = self.setting_host_monitoring
+        let monitor_available = self.prefs.host_monitoring
             && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
         let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
             || (self.terminal_sidebar_tab == STab::Files && !files_available)
@@ -1029,7 +1029,7 @@ impl Oryxis {
         // terminal): the panel's left when the sidebar is docked right,
         // its right when docked left (issue #85).
         let handle_and_panel: iced::widget::Row<'_, Message> =
-            if self.setting_terminal_sidebar_left {
+            if self.prefs.terminal_sidebar_left {
                 row![panel, resize_handle]
             } else {
                 row![resize_handle, panel]

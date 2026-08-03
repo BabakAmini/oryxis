@@ -59,7 +59,7 @@ impl Oryxis {
     ) -> Option<std::time::Duration> {
         crate::util::resolve_keepalive(
             conn.keepalive_interval,
-            &self.setting_keepalive_interval,
+            &self.prefs.keepalive_interval,
         )
     }
 
@@ -328,35 +328,35 @@ impl Oryxis {
             // Session-logging / OS-detect toggles (handled here; the
             // recording + probe logic lives in dispatch_ssh).
             SettingsMessage::SettingToggleSessionLogging => {
-                self.setting_session_logging = !self.setting_session_logging;
+                self.prefs.session_logging = !self.prefs.session_logging;
                 self.persist_setting(
                     "session_logging",
-                    if self.setting_session_logging { "true" } else { "false" },
+                    if self.prefs.session_logging { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingToggleSessionLogFull => {
-                self.setting_session_log_full = !self.setting_session_log_full;
+                self.prefs.session_log_full = !self.prefs.session_log_full;
                 self.persist_setting(
                     "session_log_full",
-                    if self.setting_session_log_full { "true" } else { "false" },
+                    if self.prefs.session_log_full { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingToggleSessionLogCompress => {
-                self.setting_session_log_compress = !self.setting_session_log_compress;
+                self.prefs.session_log_compress = !self.prefs.session_log_compress;
                 self.persist_setting(
                     "session_log_compress",
-                    if self.setting_session_log_compress { "true" } else { "false" },
+                    if self.prefs.session_log_compress { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingToggleConnectionHistory => {
-                self.setting_connection_history = !self.setting_connection_history;
+                self.prefs.connection_history = !self.prefs.connection_history;
                 self.persist_setting(
                     "connection_history",
-                    if self.setting_connection_history { "true" } else { "false" },
+                    if self.prefs.connection_history { "true" } else { "false" },
                 );
             }
             SettingsMessage::LogsRetentionChanged(code) => {
-                self.setting_logs_retention = code.to_string();
+                self.prefs.logs_retention = code.to_string();
                 self.persist_setting("logs_retention", code);
                 // Apply right away so picking a shorter window has a
                 // visible effect, then refresh the cached Logs state.
@@ -379,10 +379,10 @@ impl Oryxis {
                 }
             }
             SettingsMessage::SettingToggleOsDetection => {
-                self.setting_os_detection = !self.setting_os_detection;
+                self.prefs.os_detection = !self.prefs.os_detection;
                 self.persist_setting(
                     "os_detection",
-                    if self.setting_os_detection { "true" } else { "false" },
+                    if self.prefs.os_detection { "true" } else { "false" },
                 );
             }
             // -- Settings --
@@ -395,7 +395,7 @@ impl Oryxis {
                 } else {
                     Language::from_code(&token)
                 };
-                self.setting_language_choice = if token == "auto" {
+                self.prefs.language_choice = if token == "auto" {
                     token
                 } else {
                     // Persist the canonical code (`from_code` may have
@@ -405,7 +405,7 @@ impl Oryxis {
                 Language::set_active(lang);
                 if let Some(vault) = &self.vault {
                     let _ = vault
-                        .set_setting("language", &self.setting_language_choice);
+                        .set_setting("language", &self.prefs.language_choice);
                 }
                 // Switching to a CJK language pulls its font on
                 // demand (once per session). Show a hint while it
@@ -612,17 +612,17 @@ impl Oryxis {
                 }
             }
             SettingsMessage::SettingTogglePerformanceMode => {
-                self.setting_performance_mode = !self.setting_performance_mode;
+                self.prefs.performance_mode = !self.prefs.performance_mode;
                 self.persist_setting(
                     "performance_mode",
-                    if self.setting_performance_mode { "true" } else { "false" },
+                    if self.prefs.performance_mode { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingTogglePerfOverlay => {
-                self.setting_perf_overlay = !self.setting_perf_overlay;
+                self.prefs.perf_overlay = !self.prefs.perf_overlay;
                 self.persist_setting(
                     "perf_overlay",
-                    if self.setting_perf_overlay { "true" } else { "false" },
+                    if self.prefs.perf_overlay { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingToggleRemoteDesktop => {
@@ -638,22 +638,22 @@ impl Oryxis {
                 }
             }
             SettingsMessage::SettingToggleCloseToTray => {
-                self.setting_close_to_tray = !self.setting_close_to_tray;
+                self.prefs.close_to_tray = !self.prefs.close_to_tray;
                 self.persist_setting(
                     "close_to_tray",
-                    if self.setting_close_to_tray { "true" } else { "false" },
+                    if self.prefs.close_to_tray { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingToggleMinimizeToTray => {
-                self.setting_minimize_to_tray = !self.setting_minimize_to_tray;
+                self.prefs.minimize_to_tray = !self.prefs.minimize_to_tray;
                 // The Win32 subclass that intercepts the OS minimize
                 // verbs can't read app state, so the toggle has to be
                 // mirrored down to it or it keeps acting on the value
                 // this process booted with.
-                crate::tray::set_minimize_to_tray(self.setting_minimize_to_tray);
+                crate::tray::set_minimize_to_tray(self.prefs.minimize_to_tray);
                 self.persist_setting(
                     "minimize_to_tray",
-                    if self.setting_minimize_to_tray { "true" } else { "false" },
+                    if self.prefs.minimize_to_tray { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingToggleSftpEnabled => {
@@ -666,92 +666,92 @@ impl Oryxis {
             SettingsMessage::SettingKeepaliveChanged(val) => {
                 // Accept only digits; cap at 86_400 (1 day) so users can't
                 // accidentally type a runaway value.
-                self.setting_keepalive_interval = sanitize_uint(&val, 86_400);
-                self.persist_setting("keepalive_interval", &self.setting_keepalive_interval);
+                self.prefs.keepalive_interval = sanitize_uint(&val, 86_400);
+                self.persist_setting("keepalive_interval", &self.prefs.keepalive_interval);
             }
             SettingsMessage::SettingCloudAutoRefreshToggle => {
-                self.setting_cloud_auto_refresh_enabled =
-                    !self.setting_cloud_auto_refresh_enabled;
+                self.prefs.cloud_auto_refresh_enabled =
+                    !self.prefs.cloud_auto_refresh_enabled;
                 self.persist_setting(
                     "cloud_auto_refresh_enabled",
-                    if self.setting_cloud_auto_refresh_enabled { "true" } else { "false" },
+                    if self.prefs.cloud_auto_refresh_enabled { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingCloudAutoRefreshIntervalChanged(val) => {
                 // Floor of 1 minute, ceiling of 1 day. AWS rate limits
                 // are well above a per-minute pace for the discovery
                 // calls we make, but the ceiling is just a sanity cap.
-                self.setting_cloud_auto_refresh_interval_minutes =
+                self.prefs.cloud_auto_refresh_interval_minutes =
                     sanitize_uint(&val, 1_440);
-                if self.setting_cloud_auto_refresh_interval_minutes == "0" {
-                    self.setting_cloud_auto_refresh_interval_minutes = "1".into();
+                if self.prefs.cloud_auto_refresh_interval_minutes == "0" {
+                    self.prefs.cloud_auto_refresh_interval_minutes = "1".into();
                 }
                 self.persist_setting(
                     "cloud_auto_refresh_interval_minutes",
-                    &self.setting_cloud_auto_refresh_interval_minutes,
+                    &self.prefs.cloud_auto_refresh_interval_minutes,
                 );
             }
             SettingsMessage::SettingCloudAutoArchiveToggle => {
-                self.setting_cloud_auto_archive_orphans =
-                    !self.setting_cloud_auto_archive_orphans;
+                self.prefs.cloud_auto_archive_orphans =
+                    !self.prefs.cloud_auto_archive_orphans;
                 self.persist_setting(
                     "cloud_auto_archive_orphans",
-                    if self.setting_cloud_auto_archive_orphans { "true" } else { "false" },
+                    if self.prefs.cloud_auto_archive_orphans { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingCloudOrphanArchiveDaysChanged(val) => {
                 // Floor of 1 day (an orphan needs at least one full day
                 // to "settle" so a transient AWS API hiccup doesn't
                 // wipe legitimate hosts). Ceiling of one year.
-                self.setting_cloud_orphan_archive_days = sanitize_uint(&val, 365);
-                if self.setting_cloud_orphan_archive_days == "0" {
-                    self.setting_cloud_orphan_archive_days = "1".into();
+                self.prefs.cloud_orphan_archive_days = sanitize_uint(&val, 365);
+                if self.prefs.cloud_orphan_archive_days == "0" {
+                    self.prefs.cloud_orphan_archive_days = "1".into();
                 }
                 self.persist_setting(
                     "cloud_orphan_archive_days",
-                    &self.setting_cloud_orphan_archive_days,
+                    &self.prefs.cloud_orphan_archive_days,
                 );
             }
             SettingsMessage::SettingSftpConcurrencyChanged(val) => {
                 // Cap at 8, beyond that the SSH channel multiplexer
                 // overhead outweighs the throughput gain on most links.
-                self.setting_sftp_concurrency = sanitize_uint(&val, 8);
-                if self.setting_sftp_concurrency == "0" {
-                    self.setting_sftp_concurrency = "1".into();
+                self.prefs.sftp_concurrency = sanitize_uint(&val, 8);
+                if self.prefs.sftp_concurrency == "0" {
+                    self.prefs.sftp_concurrency = "1".into();
                 }
-                self.persist_setting("sftp_concurrency", &self.setting_sftp_concurrency);
+                self.persist_setting("sftp_concurrency", &self.prefs.sftp_concurrency);
             }
             SettingsMessage::SettingSftpConnectTimeoutChanged(val) => {
-                self.setting_sftp_connect_timeout = sanitize_uint(&val, 600);
-                if self.setting_sftp_connect_timeout == "0" {
-                    self.setting_sftp_connect_timeout = "1".into();
+                self.prefs.sftp_connect_timeout = sanitize_uint(&val, 600);
+                if self.prefs.sftp_connect_timeout == "0" {
+                    self.prefs.sftp_connect_timeout = "1".into();
                 }
                 self.persist_setting(
                     "sftp_connect_timeout",
-                    &self.setting_sftp_connect_timeout,
+                    &self.prefs.sftp_connect_timeout,
                 );
             }
             SettingsMessage::SettingSftpAuthTimeoutChanged(val) => {
-                self.setting_sftp_auth_timeout = sanitize_uint(&val, 600);
-                if self.setting_sftp_auth_timeout == "0" {
-                    self.setting_sftp_auth_timeout = "1".into();
+                self.prefs.sftp_auth_timeout = sanitize_uint(&val, 600);
+                if self.prefs.sftp_auth_timeout == "0" {
+                    self.prefs.sftp_auth_timeout = "1".into();
                 }
-                self.persist_setting("sftp_auth_timeout", &self.setting_sftp_auth_timeout);
+                self.persist_setting("sftp_auth_timeout", &self.prefs.sftp_auth_timeout);
             }
             SettingsMessage::SettingSftpSessionTimeoutChanged(val) => {
-                self.setting_sftp_session_timeout = sanitize_uint(&val, 600);
-                if self.setting_sftp_session_timeout == "0" {
-                    self.setting_sftp_session_timeout = "1".into();
+                self.prefs.sftp_session_timeout = sanitize_uint(&val, 600);
+                if self.prefs.sftp_session_timeout == "0" {
+                    self.prefs.sftp_session_timeout = "1".into();
                 }
                 self.persist_setting(
                     "sftp_session_timeout",
-                    &self.setting_sftp_session_timeout,
+                    &self.prefs.sftp_session_timeout,
                 );
             }
             SettingsMessage::SettingSftpOpTimeoutChanged(val) => {
-                self.setting_sftp_op_timeout = sanitize_uint(&val, 600);
-                if self.setting_sftp_op_timeout == "0" {
-                    self.setting_sftp_op_timeout = "1".into();
+                self.prefs.sftp_op_timeout = sanitize_uint(&val, 600);
+                if self.prefs.sftp_op_timeout == "0" {
+                    self.prefs.sftp_op_timeout = "1".into();
                 }
                 // Apply live to both panes' active SFTP clients so the
                 // user doesn't have to reconnect to feel the change.
@@ -762,25 +762,25 @@ impl Oryxis {
                 if let Some(client) = &self.sftp.right.client {
                     client.set_op_timeout(to);
                 }
-                self.persist_setting("sftp_op_timeout", &self.setting_sftp_op_timeout);
+                self.persist_setting("sftp_op_timeout", &self.prefs.sftp_op_timeout);
             }
             SettingsMessage::SettingToggleAutoReconnect => {
-                self.setting_auto_reconnect = !self.setting_auto_reconnect;
+                self.prefs.auto_reconnect = !self.prefs.auto_reconnect;
                 self.persist_setting(
                     "auto_reconnect",
-                    if self.setting_auto_reconnect { "true" } else { "false" },
+                    if self.prefs.auto_reconnect { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingMaxReconnectChanged(val) => {
-                self.setting_max_reconnect_attempts = sanitize_uint(&val, 100);
+                self.prefs.max_reconnect_attempts = sanitize_uint(&val, 100);
                 self.persist_setting(
                     "max_reconnect_attempts",
-                    &self.setting_max_reconnect_attempts,
+                    &self.prefs.max_reconnect_attempts,
                 );
             }
             SettingsMessage::SettingAutoLockChanged(val) => {
-                self.setting_auto_lock_minutes = sanitize_uint(&val, 1440);
-                self.persist_setting("auto_lock_minutes", &self.setting_auto_lock_minutes);
+                self.prefs.auto_lock_minutes = sanitize_uint(&val, 1440);
+                self.persist_setting("auto_lock_minutes", &self.prefs.auto_lock_minutes);
             }
             SettingsMessage::AutoLockTick => {
                 // Idle check. Guarded on Unlocked so a tick racing the
@@ -788,7 +788,7 @@ impl Oryxis {
                 // (the subscription only mounts then, but the setting can
                 // change between mount and fire).
                 let minutes = self
-                    .setting_auto_lock_minutes
+                    .prefs.auto_lock_minutes
                     .parse::<u64>()
                     .ok()
                     .filter(|m| *m > 0);
@@ -831,11 +831,11 @@ impl Oryxis {
                             .map(|id| Task::done(Message::Ssh(SshMessage::SshDisconnected(id)))),
                     );
                 }
-                if !self.setting_auto_reconnect {
+                if !self.prefs.auto_reconnect {
                     // fall through, nothing to do
                 } else {
                     let max_attempts: u32 =
-                        self.setting_max_reconnect_attempts.parse().unwrap_or(5);
+                        self.prefs.max_reconnect_attempts.parse().unwrap_or(5);
                     // Find the first disconnected SSH tab whose counter is under the limit.
                     // Only reconnect one per tick to avoid thrashing; next tick picks up
                     // the next candidate.

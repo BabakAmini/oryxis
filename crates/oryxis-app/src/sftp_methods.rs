@@ -116,7 +116,7 @@ impl Oryxis {
     /// SFTP transfer slots to spin up. Falls back to `2` if the user
     /// typed garbage; clamped to `[1, 8]` to keep the channel pool sane.
     pub(crate) fn sftp_concurrency(&self) -> u8 {
-        self.setting_sftp_concurrency
+        self.prefs.sftp_concurrency
             .parse::<u8>()
             .unwrap_or(2)
             .clamp(1, 8)
@@ -128,16 +128,16 @@ impl Oryxis {
     }
 
     pub(crate) fn sftp_connect_timeout(&self) -> std::time::Duration {
-        Self::parse_secs(&self.setting_sftp_connect_timeout, 15)
+        Self::parse_secs(&self.prefs.sftp_connect_timeout, 15)
     }
     pub(crate) fn sftp_auth_timeout(&self) -> std::time::Duration {
-        Self::parse_secs(&self.setting_sftp_auth_timeout, 30)
+        Self::parse_secs(&self.prefs.sftp_auth_timeout, 30)
     }
     pub(crate) fn sftp_session_timeout(&self) -> std::time::Duration {
-        Self::parse_secs(&self.setting_sftp_session_timeout, 10)
+        Self::parse_secs(&self.prefs.sftp_session_timeout, 10)
     }
     pub(crate) fn sftp_op_timeout(&self) -> std::time::Duration {
-        Self::parse_secs(&self.setting_sftp_op_timeout, 30)
+        Self::parse_secs(&self.prefs.sftp_op_timeout, 30)
     }
 
     /// Build the ordered list of paths currently shown in a pane
@@ -619,7 +619,7 @@ impl Oryxis {
             .and_then(|i| self.tabs.get(i))
             .map(|t| if t.chat_visible { self.chat_ui.sidebar_width } else { 0.0 })
             .unwrap_or(0.0);
-        if self.setting_terminal_sidebar_left {
+        if self.prefs.terminal_sidebar_left {
             (w, 0.0)
         } else {
             (0.0, w)

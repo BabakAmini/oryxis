@@ -51,10 +51,10 @@ impl Oryxis {
             SettingsMessage::SettingRendererBackendChanged(mode) => {
                 // No-op if the pick didn't change (re-selecting the same
                 // option shouldn't nag about a restart).
-                if mode == self.setting_renderer_backend {
+                if mode == self.prefs.renderer_backend {
                     return Ok(Task::none());
                 }
-                self.setting_renderer_backend = mode.clone();
+                self.prefs.renderer_backend = mode.clone();
                 self.persist_setting("renderer_backend", &mode);
                 // The backend is read once at process start, so the change
                 // only takes effect on the next launch. Offer to restart
@@ -77,16 +77,16 @@ impl Oryxis {
                 self.relaunch_self();
             }
             SettingsMessage::SettingToggleDebugLogging => {
-                if self.setting_debug_logging {
+                if self.prefs.debug_logging {
                     // Emitted before the sink closes so the file records
                     // its own switch-off.
                     tracing::info!("debug logging disabled from Settings");
                     crate::logging::disable();
-                    self.setting_debug_logging = false;
+                    self.prefs.debug_logging = false;
                 } else {
                     match crate::logging::enable() {
                         Ok(path) => {
-                            self.setting_debug_logging = true;
+                            self.prefs.debug_logging = true;
                             tracing::info!("debug logging enabled -> {}", path.display());
                         }
                         Err(e) => {
@@ -101,7 +101,7 @@ impl Oryxis {
                 }
                 self.persist_setting(
                     "debug_logging",
-                    if self.setting_debug_logging { "true" } else { "false" },
+                    if self.prefs.debug_logging { "true" } else { "false" },
                 );
             }
             SettingsMessage::DownloadMirrorPicked(which) => {

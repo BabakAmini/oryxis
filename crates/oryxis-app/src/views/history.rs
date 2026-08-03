@@ -532,9 +532,9 @@ impl Oryxis {
                 .with_mouse_reporting(false)
                 .with_font_size(self.terminal_font_size)
                 .with_font_name(&self.terminal_font_name)
-                .with_copy_on_select(self.setting_copy_on_select)
-                .with_right_click_copy(self.setting_right_click_copy)
-                .with_right_click_action(self.setting_terminal_right_click.to_widget())
+                .with_copy_on_select(self.prefs.copy_on_select)
+                .with_right_click_copy(self.prefs.right_click_copy)
+                .with_right_click_action(self.prefs.terminal_right_click.to_widget())
                 .with_terminal_chords(self.terminal_chord_resolver())
                 // A recording has no live edge to snap back to, and the
                 // "reset on output" snap must not fight the open-at-top
@@ -544,19 +544,19 @@ impl Oryxis {
                 // player never writes to a PTY, which is where the app
                 // queues that snap (issue #111).
                 .with_reset_scroll_on_output(false)
-                .with_bold_is_bright(self.setting_bold_is_bright)
-                .with_keyword_highlight(self.setting_keyword_highlight)
-                .with_performance(self.setting_performance_mode)
+                .with_bold_is_bright(self.prefs.bold_is_bright)
+                .with_keyword_highlight(self.prefs.keyword_highlight)
+                .with_performance(self.prefs.performance_mode)
                 .with_privacy(mask)
                 .with_privacy_terms(&self.privacy_terms())
                 .with_privacy_classes(self.privacy_classes())
-                .with_smart_contrast(self.setting_smart_contrast)
-                .with_word_delimiters(&self.setting_word_delimiters);
+                .with_smart_contrast(self.prefs.smart_contrast)
+                .with_word_delimiters(&self.prefs.word_delimiters);
             // Right-click scheme = Menu: the widget has no menu of its
             // own, so wire the read-only transcript context menu (Copy /
             // Copy All). The Paste and Extend schemes copy a live
             // selection without a menu, so they need no wiring here.
-            let term_view = if self.setting_terminal_right_click
+            let term_view = if self.prefs.terminal_right_click
                 == crate::util::RightClickMode::Menu
             {
                 term_view.on_context_menu(|x, y, sel| {
@@ -619,7 +619,7 @@ impl Oryxis {
             if let Some(idx) = viewed_idx {
                 // Play pairs with full-detail recording, same gate as
                 // the row menu (owner call 2026-07-04).
-                if self.setting_session_log_full {
+                if self.prefs.session_log_full {
                     header_items.push(viewer_header_btn(
                         iced_fonts::lucide::play()
                             .size(11)
@@ -857,7 +857,7 @@ impl Oryxis {
         // the global accent.
         let icon_style = crate::widgets::resolve_host_icon_style(
             conn.and_then(|c| c.icon_style.as_deref()),
-            &self.setting_default_host_icon,
+            &self.prefs.default_host_icon,
         );
         let detected_os = conn.and_then(|c| c.detected_os.as_deref());
         let (glyph, default_color) = crate::os_icon::resolve_icon(

@@ -17,7 +17,7 @@ impl Oryxis {
         let debug_col = column![
             self.nav_toggle_row(
                 t("debug_logging"),
-                self.setting_debug_logging,
+                self.prefs.debug_logging,
                 Message::Settings(SettingsMessage::SettingToggleDebugLogging),
             ),
             Space::new().height(4),
@@ -50,7 +50,7 @@ impl Oryxis {
             Space::new().height(16),
             self.nav_toggle_row(
                 t("perf_overlay"),
-                self.setting_perf_overlay,
+                self.prefs.perf_overlay,
                 Message::Settings(SettingsMessage::SettingTogglePerfOverlay),
             ),
             Space::new().height(4),

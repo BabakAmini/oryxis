@@ -38,15 +38,15 @@ impl Oryxis {
     /// fixed pinned group, then the scrolling tab list with `+`; `⋯`
     /// joins a docked footer once the list overflows the viewport.
     pub(crate) fn view_side_tab_strip(&self) -> Element<'_, Message> {
-        let hide_top_bar = self.setting_side_hide_top_bar;
-        let pins_top = self.setting_pinned_tabs_top_bar;
-        let compact_pins = self.setting_pinned_tab_style == "compact";
+        let hide_top_bar = self.prefs.side_hide_top_bar;
+        let pins_top = self.prefs.pinned_tabs_top_bar;
+        let compact_pins = self.prefs.pinned_tab_style == "compact";
         let solid_fill =
-            self.setting_tab_fill_style == "solid" || self.setting_performance_mode;
+            self.prefs.tab_fill_style == "solid" || self.prefs.performance_mode;
         let dragging_any = self.tab_drag.map(|d| d.active).unwrap_or(false);
         let ctx = StripCtx {
             privacy_terms: self.privacy_terms(),
-            close_on_right: self.setting_tab_close_button_side == "right",
+            close_on_right: self.prefs.tab_close_button_side == "right",
             compact_pins,
             solid_fill,
             dragging_any,
@@ -236,7 +236,7 @@ impl Oryxis {
         // horizontal bars wash along their leading edge), fading toward
         // the status bar; same gate and tint as `tab_bar_background`.
         let bar_base = OryxisColors::t().bg_sidebar;
-        let bar_bg = if self.setting_tab_accent_wash {
+        let bar_bg = if self.prefs.tab_accent_wash {
             let washed = crate::theme::mix(bar_base, self.top_accent_tint(), 0.16);
             Background::Gradient(iced::Gradient::Linear(
                 iced::gradient::Linear::new(iced::Radians(std::f32::consts::PI))

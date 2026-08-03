@@ -89,7 +89,7 @@ impl Oryxis {
         // the user can't accidentally make it unusable.
         if let Some((start_x, start_width)) = self.chat_ui.sidebar_drag {
             let delta = pos.x - start_x;
-            let signed = if self.setting_terminal_sidebar_left { delta } else { -delta };
+            let signed = if self.prefs.terminal_sidebar_left { delta } else { -delta };
             let new_width = (start_width + signed).clamp(260.0, 700.0);
             self.chat_ui.sidebar_width = new_width;
         }
@@ -369,7 +369,7 @@ impl Oryxis {
         // leave a taskbar slot). Everywhere else and when
         // the toggle is off we fall through to the real
         // iced::window::minimize call.
-        if self.setting_minimize_to_tray && cfg!(target_os = "windows") {
+        if self.prefs.minimize_to_tray && cfg!(target_os = "windows") {
             self.is_window_hidden = true;
             // Reveal the icon in the same frame the window vanishes.
             // The tray heartbeat would also get there via the signature,
@@ -408,7 +408,7 @@ impl Oryxis {
         // other platforms the helper is a no-op so we fall
         // through to a real close. Default (off) closes for
         // everyone.
-        if self.setting_close_to_tray && cfg!(target_os = "windows") {
+        if self.prefs.close_to_tray && cfg!(target_os = "windows") {
             self.is_window_hidden = true;
             // Same instant-reveal as the minimize path: the icon is the
             // only way back once the window is hidden.

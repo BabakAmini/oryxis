@@ -31,7 +31,7 @@ impl Oryxis {
     /// when set and non-empty, else the OS Downloads dir, else
     /// `~/.oryxis/downloads`. Created on demand.
     fn zmodem_download_dir(&self) -> std::path::PathBuf {
-        let configured = self.setting_zmodem_download_dir.trim();
+        let configured = self.prefs.zmodem_download_dir.trim();
         if !configured.is_empty() {
             return std::path::PathBuf::from(configured);
         }
@@ -311,13 +311,13 @@ impl Oryxis {
             ZmodemMessage::ZmodemDownloadDirPicked(dir) => {
                 if let Some(dir) = dir {
                     self.persist_setting("zmodem_download_dir", &dir);
-                    self.setting_zmodem_download_dir = dir;
+                    self.prefs.zmodem_download_dir = dir;
                 }
                 Task::none()
             }
             ZmodemMessage::ClearZmodemDownloadDir => {
                 self.persist_setting("zmodem_download_dir", "");
-                self.setting_zmodem_download_dir = String::new();
+                self.prefs.zmodem_download_dir = String::new();
                 Task::none()
             }
             ZmodemMessage::ZmodemCancel(pane_id) => {

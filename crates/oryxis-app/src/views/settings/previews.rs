@@ -27,19 +27,19 @@ impl Oryxis {
         // before the accent renders as text or fill.
         let text_accent =
             crate::theme::readable_accent_on(accent, OryxisColors::t().bg_sidebar);
-        let label_color = if self.setting_tab_accent_text {
+        let label_color = if self.prefs.tab_accent_text {
             text_accent
         } else {
             OryxisColors::t().text_primary
         };
-        let solid = self.setting_tab_fill_style == "solid";
+        let solid = self.prefs.tab_fill_style == "solid";
         // Reuse the real strip's fill helper so the preview can never
         // drift from what `tab_bar.rs` actually paints.
         let active_bg = crate::views::tab_bar::active_tab_bg(text_accent, solid);
         // Connection status dot: the same green "connected" cue. Only
         // present (with its trailing gap) when the dot setting is on.
         let mut active_row: Vec<Element<'_, Message>> = Vec::new();
-        if self.setting_show_tab_status_dot {
+        if self.prefs.show_tab_status_dot {
             active_row.push(
                 container(Space::new().width(6).height(6))
                     .style(|_| container::Style {
@@ -67,7 +67,7 @@ impl Oryxis {
         .padding(Padding { top: 7.0, right: 12.0, bottom: 7.0, left: 12.0 });
         // Bottom hairline: 2 px accent when the underline tint is on,
         // else the neutral 1 px chrome border (mirrors `view_main`).
-        let (line_h, line_color) = if self.setting_tab_accent_line {
+        let (line_h, line_color) = if self.prefs.tab_accent_line {
             (2.0_f32, accent)
         } else {
             (1.0_f32, OryxisColors::t().border)
@@ -79,7 +79,7 @@ impl Oryxis {
             });
         // Top-bar wash, identical direction + mix to the real strip.
         let bar_base = OryxisColors::t().bg_sidebar;
-        let bar_bg: Background = if self.setting_tab_accent_wash {
+        let bar_bg: Background = if self.prefs.tab_accent_wash {
             let washed = crate::theme::mix(bar_base, accent, 0.16);
             Background::Gradient(iced::Gradient::Linear(
                 iced::gradient::Linear::new(iced::Radians(std::f32::consts::FRAC_PI_2))
@@ -133,13 +133,13 @@ impl Oryxis {
         // Same spacer placement as the real bar: `status_bar_align_left`
         // parks the content on the PHYSICAL left edge (not flipped by
         // RTL, see `view_status_bar`), else the cluster trails.
-        let align_left = self.setting_status_bar_align_left;
+        let align_left = self.prefs.status_bar_align_left;
         let spacer_leads = align_left && crate::i18n::is_rtl_layout();
         let mut items: Vec<Element<'_, Message>> = Vec::new();
         if spacer_leads {
             items.push(Space::new().width(Length::Fill).into());
         }
-        if self.setting_status_show_connection {
+        if self.prefs.status_show_connection {
             items.push(
                 text(format!(
                     "● production-web, {}",
@@ -156,19 +156,19 @@ impl Oryxis {
         if !align_left {
             items.push(Space::new().width(Length::Fill).into());
         }
-        if self.setting_status_show_latency {
+        if self.prefs.status_show_latency {
             items.push(vital(crate::i18n::t("status_latency").into(), "23 ms"));
             items.push(Space::new().width(12).into());
         }
-        if self.setting_status_show_dimensions {
+        if self.prefs.status_show_dimensions {
             items.push(vital(crate::i18n::t("status_dimensions").into(), "120×32"));
             items.push(Space::new().width(12).into());
         }
-        if self.setting_status_show_cwd {
+        if self.prefs.status_show_cwd {
             items.push(vital(crate::i18n::t("status_cwd").into(), "~/projects/api"));
             items.push(Space::new().width(12).into());
         }
-        if self.setting_monitor_status_bar {
+        if self.prefs.monitor_status_bar {
             items.push(vital(crate::i18n::t("monitor_cpu").into(), "12%"));
             items.push(Space::new().width(12).into());
             items.push(vital(crate::i18n::t("monitor_mem").into(), "38%"));
@@ -176,7 +176,7 @@ impl Oryxis {
             items.push(vital(crate::i18n::t("monitor_net").into(), "↓1.2M/s ↑340K/s"));
             items.push(Space::new().width(12).into());
         }
-        if self.setting_status_show_version {
+        if self.prefs.status_show_version {
             items.push(
                 text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
                     .size(12)
@@ -207,7 +207,7 @@ impl Oryxis {
     /// name / address are literal demo content (like the font preview).
     pub(crate) fn card_appearance_preview(&self) -> Element<'_, Message> {
         let accent = OryxisColors::t().accent;
-        let style = crate::widgets::resolve_host_icon_style(None, &self.setting_default_host_icon);
+        let style = crate::widgets::resolve_host_icon_style(None, &self.prefs.default_host_icon);
         let icon = crate::widgets::host_icon(
             style,
             accent,
@@ -218,7 +218,7 @@ impl Oryxis {
         let mut text_col = column![
             text("production-web").size(13).color(OryxisColors::t().text_primary),
         ];
-        if self.setting_show_host_address {
+        if self.prefs.show_host_address {
             text_col = text_col
                 .push(Space::new().height(2))
                 .push(
@@ -247,7 +247,7 @@ impl Oryxis {
             ..Default::default()
         });
         let card_el: Element<'_, Message> = card.into();
-        if self.setting_card_accent_glass {
+        if self.prefs.card_accent_glass {
             crate::widgets::card_accent_wash(card_el, accent)
         } else {
             card_el

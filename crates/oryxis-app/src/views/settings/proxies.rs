@@ -89,7 +89,7 @@ impl Oryxis {
             // subtitle column in the middle, action buttons trailing.
             let proxy_style = crate::widgets::resolve_host_icon_style(
                 None,
-                &self.setting_default_host_icon,
+                &self.prefs.default_host_icon,
             );
             let glyph_el: Element<'_, Message> = iced_fonts::lucide::globe()
                 .size(16)

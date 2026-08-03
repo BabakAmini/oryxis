@@ -12,67 +12,67 @@ impl Oryxis {
     ) -> Result<Task<Message>, SettingsMessage> {
         match message {
             SettingsMessage::ToggleDefaultAgentForwarding => {
-                self.setting_default_agent_forwarding = !self.setting_default_agent_forwarding;
+                self.prefs.default_agent_forwarding = !self.prefs.default_agent_forwarding;
                 self.persist_setting(
                     "default_agent_forwarding",
-                    if self.setting_default_agent_forwarding { "true" } else { "false" },
+                    if self.prefs.default_agent_forwarding { "true" } else { "false" },
                 );
             }
             SettingsMessage::DefaultPortChanged(val) => {
-                self.setting_default_port = sanitize_uint(&val, 65_535);
-                self.persist_setting("default_port", &self.setting_default_port);
+                self.prefs.default_port = sanitize_uint(&val, 65_535);
+                self.persist_setting("default_port", &self.prefs.default_port);
             }
             SettingsMessage::DefaultKeepaliveChanged(val) => {
                 // Empty stays empty (= inherit the global keepalive); otherwise
                 // digits capped at 1 day.
-                self.setting_default_keepalive = if val.trim().is_empty() {
+                self.prefs.default_keepalive = if val.trim().is_empty() {
                     String::new()
                 } else {
                     sanitize_uint(&val, 86_400)
                 };
-                self.persist_setting("default_keepalive", &self.setting_default_keepalive);
+                self.persist_setting("default_keepalive", &self.prefs.default_keepalive);
             }
             SettingsMessage::DefaultTerminalTypeChanged(val) => {
-                self.setting_default_terminal_type = val;
-                self.persist_setting("default_terminal_type", &self.setting_default_terminal_type);
+                self.prefs.default_terminal_type = val;
+                self.persist_setting("default_terminal_type", &self.prefs.default_terminal_type);
             }
             SettingsMessage::DefaultUsernameChanged(val) => {
-                self.setting_default_username = val;
-                self.persist_setting("default_username", &self.setting_default_username);
+                self.prefs.default_username = val;
+                self.persist_setting("default_username", &self.prefs.default_username);
             }
             SettingsMessage::DefaultAuthMethodChanged(val) => {
-                self.setting_default_auth_method = crate::util::auth_method_from_label(&val);
+                self.prefs.default_auth_method = crate::util::auth_method_from_label(&val);
                 self.persist_setting(
                     "default_auth_method",
-                    &crate::util::auth_method_to_setting(&self.setting_default_auth_method),
+                    &crate::util::auth_method_to_setting(&self.prefs.default_auth_method),
                 );
             }
             SettingsMessage::DefaultIdentityChanged(val) => {
                 // The picker emits a saved identity's label or the localized
                 // "(none)" sentinel; map back to the stable UUID.
-                self.setting_default_identity_id = if val == crate::i18n::t("new_default_none") {
+                self.prefs.default_identity_id = if val == crate::i18n::t("new_default_none") {
                     None
                 } else {
                     self.identities.iter().find(|i| i.label == val).map(|i| i.id)
                 };
                 self.persist_setting(
                     "default_identity_id",
-                    &self.setting_default_identity_id.map(|id| id.to_string()).unwrap_or_default(),
+                    &self.prefs.default_identity_id.map(|id| id.to_string()).unwrap_or_default(),
                 );
             }
             SettingsMessage::DefaultKeyChanged(val) => {
-                self.setting_default_key_id = if val == crate::i18n::t("new_default_none") {
+                self.prefs.default_key_id = if val == crate::i18n::t("new_default_none") {
                     None
                 } else {
                     self.keys.iter().find(|k| k.label == val).map(|k| k.id)
                 };
                 self.persist_setting(
                     "default_key_id",
-                    &self.setting_default_key_id.map(|id| id.to_string()).unwrap_or_default(),
+                    &self.prefs.default_key_id.map(|id| id.to_string()).unwrap_or_default(),
                 );
             }
             SettingsMessage::DefaultGroupChanged(val) => {
-                self.setting_default_group_id = if val == crate::i18n::t("new_default_none") {
+                self.prefs.default_group_id = if val == crate::i18n::t("new_default_none") {
                     None
                 } else {
                     // The picker lists breadcrumb paths (subgroups are
@@ -86,13 +86,13 @@ impl Oryxis {
                 };
                 self.persist_setting(
                     "default_group_id",
-                    &self.setting_default_group_id.map(|id| id.to_string()).unwrap_or_default(),
+                    &self.prefs.default_group_id.map(|id| id.to_string()).unwrap_or_default(),
                 );
             }
             SettingsMessage::DefaultProxyChanged(val) => {
                 // Default proxy is a saved Proxy Identity reference; inline
                 // proxies are per-host by nature and aren't defaulted.
-                self.setting_default_proxy_identity_id =
+                self.prefs.default_proxy_identity_id =
                     if val == crate::i18n::t("new_default_none") {
                         None
                     } else {
@@ -101,63 +101,63 @@ impl Oryxis {
                 self.persist_setting(
                     "default_proxy_identity_id",
                     &self
-                        .setting_default_proxy_identity_id
+                        .prefs.default_proxy_identity_id
                         .map(|id| id.to_string())
                         .unwrap_or_default(),
                 );
             }
             SettingsMessage::ToggleDefaultMcpEnabled => {
-                self.setting_default_mcp_enabled = !self.setting_default_mcp_enabled;
+                self.prefs.default_mcp_enabled = !self.prefs.default_mcp_enabled;
                 self.persist_setting(
                     "default_mcp_enabled",
-                    if self.setting_default_mcp_enabled { "true" } else { "false" },
+                    if self.prefs.default_mcp_enabled { "true" } else { "false" },
                 );
             }
             SettingsMessage::DefaultEncodingChanged(val) => {
                 // "UTF-8" maps to None (no override), like the host editor.
-                self.setting_default_encoding = if val == "UTF-8" { None } else { Some(val) };
+                self.prefs.default_encoding = if val == "UTF-8" { None } else { Some(val) };
                 self.persist_setting(
                     "default_encoding",
-                    self.setting_default_encoding.as_deref().unwrap_or(""),
+                    self.prefs.default_encoding.as_deref().unwrap_or(""),
                 );
             }
             SettingsMessage::DefaultAddEnvVar => {
                 // A fresh blank row, persisted on the first keystroke (a
                 // blank-key row is dropped by `env_vars_to_setting`).
-                self.setting_default_env_vars.push(crate::state::EnvVarForm::default());
+                self.prefs.default_env_vars.push(crate::state::EnvVarForm::default());
             }
             SettingsMessage::DefaultRemoveEnvVar(idx) => {
-                if idx < self.setting_default_env_vars.len() {
-                    self.setting_default_env_vars.remove(idx);
+                if idx < self.prefs.default_env_vars.len() {
+                    self.prefs.default_env_vars.remove(idx);
                 }
                 self.persist_setting(
                     "default_env_vars",
-                    &crate::util::env_vars_to_setting(&self.setting_default_env_vars),
+                    &crate::util::env_vars_to_setting(&self.prefs.default_env_vars),
                 );
             }
             SettingsMessage::DefaultEnvVarKeyChanged(idx, val) => {
-                if let Some(e) = self.setting_default_env_vars.get_mut(idx) {
+                if let Some(e) = self.prefs.default_env_vars.get_mut(idx) {
                     e.key = val;
                 }
                 self.persist_setting(
                     "default_env_vars",
-                    &crate::util::env_vars_to_setting(&self.setting_default_env_vars),
+                    &crate::util::env_vars_to_setting(&self.prefs.default_env_vars),
                 );
             }
             SettingsMessage::DefaultEnvVarValueChanged(idx, val) => {
-                if let Some(e) = self.setting_default_env_vars.get_mut(idx) {
+                if let Some(e) = self.prefs.default_env_vars.get_mut(idx) {
                     e.value = val;
                 }
                 self.persist_setting(
                     "default_env_vars",
-                    &crate::util::env_vars_to_setting(&self.setting_default_env_vars),
+                    &crate::util::env_vars_to_setting(&self.prefs.default_env_vars),
                 );
             }
             SettingsMessage::ToggleDefaultsCollapsed => {
-                self.setting_defaults_collapsed = !self.setting_defaults_collapsed;
+                self.prefs.defaults_collapsed = !self.prefs.defaults_collapsed;
                 self.persist_setting(
                     "defaults_collapsed",
-                    if self.setting_defaults_collapsed { "true" } else { "false" },
+                    if self.prefs.defaults_collapsed { "true" } else { "false" },
                 );
             }
             m => return Err(m),

@@ -101,14 +101,14 @@ impl Oryxis {
     pub(super) fn hp_row_monitor(&self, is_ssh: bool) -> Element<'_, Message> {
         // The per-host opt-in only exists once the monitoring feature is
         // enabled in Features & Plugins.
-        if !is_ssh || !self.setting_host_monitoring {
+        if !is_ssh || !self.prefs.host_monitoring {
             return empty();
         }
         // "Enable for all hosts" forces this host on: the toggle renders
         // locked (no press, muted "On", no keyboard slot) with a hint that
         // it is controlled globally, so the state is honest but the user
         // isn't led to click a control that does nothing.
-        let locked = self.setting_monitor_all_hosts;
+        let locked = self.prefs.monitor_all_hosts;
         let on = locked || self.editor_form.monitor_enabled;
 
         let toggle: Element<'_, Message> = {

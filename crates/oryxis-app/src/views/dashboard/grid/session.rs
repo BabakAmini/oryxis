@@ -28,7 +28,7 @@ impl Oryxis {
             .unwrap_or(BrandIcon::Glyph(iced_fonts::lucide::boxes()));
         let host_style = crate::widgets::resolve_host_icon_style(
             None,
-            &self.setting_default_host_icon,
+            &self.prefs.default_host_icon,
         );
         let icon_box = crate::widgets::host_icon(
             host_style,

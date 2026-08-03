@@ -319,7 +319,7 @@ impl Oryxis {
                     column![
                         self.nav_toggle_row(
                             crate::biometric::bio_setting_label(),
-                            self.setting_biometric_unlock_enabled,
+                            self.prefs.biometric_unlock_enabled,
                             Message::Vault(VaultMessage::ToggleBiometricUnlock),
                         ),
                         Space::new().height(4),
@@ -455,7 +455,7 @@ impl Oryxis {
                 t("auto_lock_minutes"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-security-auto-lock")),
                 10.0,
-                text_input("0", &self.setting_auto_lock_minutes)
+                text_input("0", &self.prefs.auto_lock_minutes)
                     .id(iced::widget::Id::new("set-security-auto-lock"))
                     .on_input(|v| Message::Settings(SettingsMessage::SettingAutoLockChanged(v)))
                     .padding(10)
@@ -614,7 +614,7 @@ impl Oryxis {
     /// connection-history toggle and the retention picker, one
     /// logging theme in a single card.
     fn security_logging_card(&self) -> Element<'_, Message> {
-        let session_logging_enabled = self.setting_session_logging;
+        let session_logging_enabled = self.prefs.session_logging;
         let mut session_logging_rows = column![
             self.nav_toggle_row(
                 crate::i18n::t("session_logging"),
@@ -633,7 +633,7 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("session_log_full"),
-                    self.setting_session_log_full,
+                    self.prefs.session_log_full,
                     Message::Settings(SettingsMessage::SettingToggleSessionLogFull),
                 ))
                 .push(Space::new().height(4))
@@ -644,7 +644,7 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("session_log_compress"),
-                    self.setting_session_log_compress,
+                    self.prefs.session_log_compress,
                     Message::Settings(SettingsMessage::SettingToggleSessionLogCompress),
                 ))
                 .push(Space::new().height(4))
@@ -660,7 +660,7 @@ impl Oryxis {
             .push(Space::new().height(16))
             .push(self.nav_toggle_row(
                 crate::i18n::t("connection_history"),
-                self.setting_connection_history,
+                self.prefs.connection_history,
                 Message::Settings(SettingsMessage::SettingToggleConnectionHistory),
             ))
             .push(Space::new().height(4))
@@ -677,7 +677,7 @@ impl Oryxis {
         let retention_selected = RETENTION_CODES
             .iter()
             .copied()
-            .find(|c| *c == self.setting_logs_retention)
+            .find(|c| *c == self.prefs.logs_retention)
             .unwrap_or("off");
         // Left/Right cycle the retention codes without opening the
         // dropdown (non-standard picker layout: label above, list

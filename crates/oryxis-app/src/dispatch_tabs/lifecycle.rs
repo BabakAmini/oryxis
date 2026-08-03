@@ -479,7 +479,7 @@ impl Oryxis {
     /// starts, a PTY that refuses to spawn); this covers the one we can.
     fn arm_tab_placement(&mut self, source_id: uuid::Uuid) {
         use crate::state::{PendingTabPlacement, TabPlacement};
-        let placement = TabPlacement::from_setting(&self.setting_duplicate_tab_position);
+        let placement = TabPlacement::from_setting(&self.prefs.duplicate_tab_position);
         // Appending IS what an unarmed spawn does, so leave it unarmed
         // and there is nothing that can go stale.
         if placement == TabPlacement::End {

@@ -36,7 +36,7 @@ impl Oryxis {
             crate::views::tab_bar::tab_bar_pos(),
             self.mouse_position,
             self.window_size,
-            self.setting_pinned_tabs_top_bar && !self.setting_side_hide_top_bar,
+            self.prefs.pinned_tabs_top_bar && !self.prefs.side_hide_top_bar,
         )
     }
 

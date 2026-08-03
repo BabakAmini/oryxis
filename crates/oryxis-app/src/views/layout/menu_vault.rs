@@ -766,7 +766,7 @@ impl Oryxis {
                 }
                 // View toggle (grid <-> list) only when the grid
                 // shows more than one column.
-                let (icon, label) = if self.setting_host_list_view {
+                let (icon, label) = if self.prefs.host_list_view {
                     (
                         iced_fonts::lucide::layout_grid(),
                         crate::i18n::t("toolbar_view_grid"),

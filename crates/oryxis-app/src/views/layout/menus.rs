@@ -402,7 +402,7 @@ impl Oryxis {
         let dots_x = (8.0 + strip_left + chip + inline_w)
             .min((self.window_size.width - strip_right - 206.0).max(0.0));
         let side_hidden_bar = crate::views::tab_bar::tab_bar_pos().is_side()
-            && self.setting_side_hide_top_bar;
+            && self.prefs.side_hide_top_bar;
         let pinned = container(panel)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -666,7 +666,7 @@ impl Oryxis {
         // shifts it past the strip band (otherwise the panel opens in
         // the opposite corner of the window, detached from its button).
         let strip_pos = crate::views::tab_bar::tab_bar_pos();
-        let in_strip_header = self.setting_side_hide_top_bar && strip_pos.is_side();
+        let in_strip_header = self.prefs.side_hide_top_bar && strip_pos.is_side();
         let (align, pad) = if in_strip_header {
             let inset = crate::views::tab_bar::SIDE_STRIP_WIDTH + 8.0;
             if strip_pos == crate::views::tab_bar::TabBarPos::Right {

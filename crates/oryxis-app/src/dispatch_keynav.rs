@@ -323,7 +323,7 @@ impl Oryxis {
         use keyboard::key::Named;
         let items = self.keynav.subnav_items.borrow().clone();
         // The Settings sections sidebar is always a vertical list.
-        let vertical = self.setting_nav_orientation == "vertical"
+        let vertical = self.prefs.nav_orientation == "vertical"
             || self.active_view == View::Settings;
         let rtl = crate::i18n::is_rtl_layout();
         let new = match (named, vertical) {
@@ -413,7 +413,7 @@ impl Oryxis {
         match zone {
             FocusZone::Content => self.keynav_scroll_content_to(item),
             FocusZone::SubNav => {
-                let vertical = self.setting_nav_orientation == "vertical"
+                let vertical = self.prefs.nav_orientation == "vertical"
                     || self.active_view == View::Settings;
                 if vertical {
                     self.show_subnav_overflow = false;
@@ -771,7 +771,7 @@ impl Oryxis {
     /// Proxies and Known Hosts are true 1-D lists.
     fn content_list_mode(&self) -> bool {
         match self.active_view {
-            View::Dashboard => self.setting_host_list_view,
+            View::Dashboard => self.prefs.host_list_view,
             View::Keys | View::Snippets | View::Cloud | View::PortForwarding => false,
             // Settings rows and the remaining vault views are
             // single-column lists.
@@ -787,7 +787,7 @@ impl Oryxis {
         let (id, row_h) = match self.active_view {
             View::Dashboard => (
                 "dashboard-grid-scroll",
-                if self.setting_host_list_view { 56.0 } else { 60.0 },
+                if self.prefs.host_list_view { 56.0 } else { 60.0 },
             ),
             View::Keys => ("keys-grid-scroll", 60.0),
             View::Snippets => ("snippets-grid-scroll", 60.0),

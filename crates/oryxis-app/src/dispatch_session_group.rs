@@ -442,8 +442,8 @@ impl Oryxis {
                 _ => None,
             })
             .and_then(|id| self.connections.iter().find(|c| c.id == id))
-            .map(|c| c.sidebar_auto_open.unwrap_or(self.setting_sidebar_auto_open))
-            .unwrap_or(self.setting_sidebar_auto_open);
+            .map(|c| c.sidebar_auto_open.unwrap_or(self.prefs.sidebar_auto_open))
+            .unwrap_or(self.prefs.sidebar_auto_open);
         let tab_idx = self.tabs.len();
         self.tabs.push(tab);
         self.active_tab = Some(tab_idx);

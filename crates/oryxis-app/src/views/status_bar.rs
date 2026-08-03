@@ -54,13 +54,13 @@ impl Oryxis {
         // this lever must not ride `dir_row`'s logical reversal: under RTL
         // the flexible spacer enters the vector on the opposite (leading)
         // side, which the reversal then lands on the physical right.
-        let align_left = self.setting_status_bar_align_left;
+        let align_left = self.prefs.status_bar_align_left;
         let spacer_leads = align_left && crate::i18n::is_rtl_layout();
         let mut items: Vec<Element<'_, Message>> = Vec::new();
         if spacer_leads {
             items.push(Space::new().width(Length::Fill).into());
         }
-        if self.setting_status_show_connection {
+        if self.prefs.status_show_connection {
             items.push(text(status_text).size(12).color(status_color).into());
             // Leading-aligned: keep a gap between the label and the cluster
             // that the flexible spacer used to provide.
@@ -77,7 +77,7 @@ impl Oryxis {
         // and individually toggleable, so the bar only carries what the
         // user asked for. Muted labels, so they read as ambient info.
         if let Some(pane) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active()) {
-            if self.setting_status_show_latency
+            if self.prefs.status_show_latency
                 && let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
                 && let Some(rtt) = ssh.net_quality().last_rtt
             {
@@ -88,7 +88,7 @@ impl Oryxis {
                 ));
                 items.push(Space::new().width(12).into());
             }
-            if self.setting_status_show_dimensions
+            if self.prefs.status_show_dimensions
                 && let Ok(term) = pane.terminal.lock()
             {
                 let (c, r) = (term.cols(), term.rows());
@@ -101,7 +101,7 @@ impl Oryxis {
                     items.push(Space::new().width(12).into());
                 }
             }
-            if self.setting_status_show_cwd
+            if self.prefs.status_show_cwd
                 && let Some(cwd) = pane.cwd.as_deref().filter(|c| !c.is_empty())
             {
                 // Privacy Mode redacts the path like the connection label
@@ -158,8 +158,8 @@ impl Oryxis {
         // samples the sidebar Monitor tab renders, condensed to one line.
         // Behind its own setting AND the host's monitoring opt-in, so it
         // costs nothing until the user asks for both.
-        if self.setting_host_monitoring
-            && self.setting_monitor_status_bar
+        if self.prefs.host_monitoring
+            && self.prefs.monitor_status_bar
             && let Some(conn_id) = self.monitor_pane_connection()
             // Effective opt-in, not just "a series exists": after the
             // host (or the all-hosts toggle) opts out the probing stops
@@ -290,7 +290,7 @@ impl Oryxis {
         }
         // The version is opt-out too; hidden it leaves the trailing edge
         // clean.
-        if self.setting_status_show_version {
+        if self.prefs.status_show_version {
             items.push(
                 text(concat!("Oryxis v", env!("CARGO_PKG_VERSION")))
                     .size(12)

@@ -40,12 +40,12 @@ impl Oryxis {
         // slim chrome bar (burger + drag area + window buttons), so
         // the titlebar affordances stay where every OS puts them.
         let tab_pos =
-            crate::views::tab_bar::TabBarPos::from_setting(&self.setting_tab_bar_position);
+            crate::views::tab_bar::TabBarPos::from_setting(&self.prefs.tab_bar_position);
         let bottom_tabs = tab_pos == crate::views::tab_bar::TabBarPos::Bottom;
         let side_tabs = tab_pos.is_side();
         // The side dock can hide the top bar entirely (`side_hide_top_bar`):
         // the titlebar contract moves into the strip's header row.
-        let side_hidden_bar = side_tabs && self.setting_side_hide_top_bar;
+        let side_hidden_bar = side_tabs && self.prefs.side_hide_top_bar;
         let tab_bar: Element<'_, Message> = if immersive || side_hidden_bar {
             Space::new().into()
         } else if bottom_tabs || side_tabs {
@@ -59,7 +59,7 @@ impl Oryxis {
         // because the side dock's full-height mode moves it inside the
         // content column instead of the window-wide bottom slot.
         let mut status_bar: Option<Element<'_, Message>> =
-            (self.setting_show_status_bar && !immersive).then(|| self.view_status_bar());
+            (self.prefs.show_status_bar && !immersive).then(|| self.view_status_bar());
 
         // Tab-bar bottom hairline. When a connection tab is active and
         // it has a per-host accent color, paint the hairline 2 px and
@@ -68,7 +68,7 @@ impl Oryxis {
         // without a per-host color, and the neutral border for non-
         // connection screens so settings / dashboard don't look like
         // they belong to whichever host happened to be open last.
-        let accent_tint: Option<Color> = if self.setting_tab_accent_line {
+        let accent_tint: Option<Color> = if self.prefs.tab_accent_line {
             // Run the host colour through the same contrast validator the
             // tab text uses: a near-background brand (AlmaLinux black on a
             // dark theme, a pale one on a light theme) would paint an
@@ -116,7 +116,7 @@ impl Oryxis {
         // Vault contextual nav: shown only when the Home area is active.
         // On Sftp / Settings / a connection tab it's hidden.
         let in_vault_area = self.in_vault_area();
-        let vertical_rail = self.setting_nav_orientation == "vertical";
+        let vertical_rail = self.prefs.nav_orientation == "vertical";
         // Horizontal pill strip pinned above the content. The hidden
         // placeholder is a Shrink Space on purpose: a zero-FIXED Space
         // is void-filtered out of the column and the content would
@@ -238,7 +238,7 @@ impl Oryxis {
                 // Full-height strip: the status bar moves inside the
                 // content column, so the strip runs to the window's
                 // bottom edge instead of sitting on a window-wide bar.
-                if self.setting_side_full_height
+                if self.prefs.side_full_height
                     && let Some(sb) = status_bar.take()
                 {
                     slot_inner_status = sb;

@@ -94,7 +94,7 @@ impl Oryxis {
                     toggle_row_desc(
                         crate::i18n::t("feature_monitoring"),
                         crate::i18n::t("feature_monitoring_desc"),
-                        self.setting_host_monitoring,
+                        self.prefs.host_monitoring,
                         Message::Settings(SettingsMessage::SettingToggleHostMonitoring),
                     ),
                 ),

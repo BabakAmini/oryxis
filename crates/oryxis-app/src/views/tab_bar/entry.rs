@@ -220,7 +220,7 @@ impl Oryxis {
             } else if ctx.compact_pins && tab.pinned {
                 return sftp_pinned_chip(idx, is_active, badge_accent, host_accent, ctx.solid_fill, number);
             }
-            return sftp_session_tab(idx, &display_label, is_active, width, badge_accent, host_accent, self.setting_tab_accent_text, tab.pinned, ctx.solid_fill, number);
+            return sftp_session_tab(idx, &display_label, is_active, width, badge_accent, host_accent, self.prefs.tab_accent_text, tab.pinned, ctx.solid_fill, number);
         }
         let tab = &self.tabs[idx];
         let is_active = active_idx == Some(idx);
@@ -319,7 +319,7 @@ impl Oryxis {
         // "disconnected" in the user's mental model. Local-shell
         // tabs (no SSH session, not labeled disconnected) get no
         // dot, the OS badge already says what they are.
-        let status_dot: Option<Color> = if self.setting_show_tab_status_dot {
+        let status_dot: Option<Color> = if self.prefs.show_tab_status_dot {
             let is_connecting = self.connecting.as_ref().map(|cp| cp.tab_idx) == Some(idx);
             let is_disconnected = tab.label.ends_with(" (disconnected)");
             let is_remote = tab.active().session.is_some();
@@ -343,7 +343,7 @@ impl Oryxis {
         // visible from the strip, not just once you switch back to it.
         let attention_dot: Option<Color> = if tab.broadcast && !is_active {
             Some(OryxisColors::t().warning)
-        } else if self.setting_smart_tabs {
+        } else if self.prefs.smart_tabs {
             tab.pane_grid
                 .panes
                 .values()
@@ -401,7 +401,7 @@ impl Oryxis {
         //
         // Privacy Mode masks it in blocks and reveals on hover, exactly
         // like the card address, rather than redacting it as a label.
-        let tab_address: Option<String> = if self.setting_show_tab_host_address
+        let tab_address: Option<String> = if self.prefs.show_tab_host_address
             && tab.custom_name.is_none()
         {
             self.pane_origin_connection(tab.active().id).map(|c| {
@@ -459,7 +459,7 @@ impl Oryxis {
                 tab_badge_color,
                 status_dot,
                 attention_dot,
-                self.setting_tab_accent_text,
+                self.prefs.tab_accent_text,
                 ctx.solid_fill,
                 files_mode,
                 number,
@@ -498,7 +498,7 @@ impl Oryxis {
                 status_dot,
                 attention_dot,
                 tab_accent,
-                self.setting_tab_accent_text,
+                self.prefs.tab_accent_text,
                 host_icon_style,
                 tab_icon,
                 tab_badge_color,
@@ -553,7 +553,7 @@ impl Oryxis {
                 .unwrap_or_else(|| OryxisColors::t().accent);
             let ghost_w = if compact { CHIP_W } else { drag_uniform_w };
             Some((
-                drag_ghost(base_label, detected_os, compact, ghost_w, accent, self.setting_tab_accent_text, sg_icon, sg_color),
+                drag_ghost(base_label, detected_os, compact, ghost_w, accent, self.prefs.tab_accent_text, sg_icon, sg_color),
                 ghost_w,
             ))
         } else if let Some(sftp_tab) = self.sftp_tabs.iter().find(|t| t.id == drag.from_id) {
@@ -589,7 +589,7 @@ impl Oryxis {
                     ghost_w,
                     badge_accent,
                     accent,
-                    self.setting_tab_accent_text,
+                    self.prefs.tab_accent_text,
                 ),
                 ghost_w,
             ))

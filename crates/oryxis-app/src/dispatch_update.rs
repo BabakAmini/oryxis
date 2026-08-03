@@ -41,14 +41,14 @@ impl Oryxis {
         }
         match message {
             UpdateMessage::SettingToggleAutoCheckUpdates => {
-                self.setting_auto_check_updates = !self.setting_auto_check_updates;
+                self.prefs.auto_check_updates = !self.prefs.auto_check_updates;
                 self.persist_setting(
                     "auto_check_updates",
-                    if self.setting_auto_check_updates { "true" } else { "false" },
+                    if self.prefs.auto_check_updates { "true" } else { "false" },
                 );
             }
             UpdateMessage::SettingUpdateChannelChanged(channel) => {
-                self.setting_update_channel = channel;
+                self.prefs.update_channel = channel;
                 self.persist_setting("update_channel", channel.as_setting());
                 // A channel switch invalidates any "skip this version" so
                 // the user is offered the other stream's build right away.
@@ -71,7 +71,7 @@ impl Oryxis {
                 );
             }
             UpdateMessage::CheckForUpdate => {
-                if !self.setting_auto_check_updates {
+                if !self.prefs.auto_check_updates {
                     return Task::none();
                 }
                 // Also respect a persisted "skip this version" so we never
@@ -81,7 +81,7 @@ impl Oryxis {
                     .as_ref()
                     .and_then(|v| v.get_setting("skipped_update_version").ok().flatten());
                 return Task::perform(
-                    crate::update::check_latest_release(self.setting_update_channel),
+                    crate::update::check_latest_release(self.prefs.update_channel),
                     move |res| {
                         match res {
                             Ok(Some(info)) if Some(&info.version) != skipped.as_ref() => {
@@ -120,7 +120,7 @@ impl Oryxis {
                     let _ = vault.set_setting("skipped_update_version", "");
                 }
                 return Task::perform(
-                    crate::update::check_latest_release(self.setting_update_channel),
+                    crate::update::check_latest_release(self.prefs.update_channel),
                     |res| match res {
                         Ok(info) => Message::Update(UpdateMessage::UpdateCheckResult(info)),
                         Err(e) => Message::Update(UpdateMessage::UpdateCheckFailed(e.to_string())),

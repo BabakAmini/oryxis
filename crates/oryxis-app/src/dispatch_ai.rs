@@ -531,7 +531,7 @@ impl Oryxis {
                     // applying the legacy Chat->Snippets fallback so the
                     // remembered tab survives a temporary loss of its gate.
                     use crate::state::TerminalSidebarTab;
-                    if let Some(default) = self.setting_sidebar_default_tab {
+                    if let Some(default) = self.prefs.sidebar_default_tab {
                         self.terminal_sidebar_tab =
                             self.resolve_available_sidebar_tab(default);
                     } else if !self.ai.enabled

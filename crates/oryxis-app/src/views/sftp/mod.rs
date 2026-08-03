@@ -257,7 +257,7 @@ impl Oryxis {
         let rail = self.vault_rail_width() + self.side_strip_left_offset();
         let view_top = if self.window_fullscreen
             || (crate::views::tab_bar::tab_bar_pos().is_side()
-                && self.setting_side_hide_top_bar)
+                && self.prefs.side_hide_top_bar)
         {
             0.0
         } else {
@@ -1130,7 +1130,7 @@ impl Oryxis {
             // picker row matches the dashboard card for the same host.
             let badge_style = crate::widgets::resolve_host_icon_style(
                 conn.icon_style.as_deref(),
-                &self.setting_default_host_icon,
+                &self.prefs.default_host_icon,
             );
             let badge_color = conn.custom_color.as_deref()
                 .or(conn.color.as_deref())

@@ -91,7 +91,7 @@ impl Oryxis {
     /// has a master password to store (a passwordless vault has nothing to
     /// gate).
     pub(crate) fn biometric_unlock_offered(&self) -> bool {
-        self.setting_biometric_unlock_enabled
+        self.prefs.biometric_unlock_enabled
             && self.biometric_available
             && self.vault_ui.has_user_password
     }
@@ -126,7 +126,7 @@ impl Oryxis {
         }
         match self.biometric_vault().map(|bv| bv.enroll(master_password)) {
             Some(Ok(())) => {
-                self.setting_biometric_unlock_enabled = true;
+                self.prefs.biometric_unlock_enabled = true;
                 self.persist_setting("biometric_unlock_enabled", "true");
                 None
             }
@@ -149,7 +149,7 @@ impl Oryxis {
     /// user password (the caller has already established one when
     /// enrolling).
     fn biometric_unlock_enabled_and_available(&self) -> bool {
-        self.setting_biometric_unlock_enabled && self.biometric_available
+        self.prefs.biometric_unlock_enabled && self.biometric_available
     }
 }
 

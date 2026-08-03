@@ -437,7 +437,7 @@ impl Oryxis {
             .max(0.0);
         // List mode forces a single column; otherwise the grid reflows
         // responsively to the available width.
-        let cols = if self.setting_host_list_view {
+        let cols = if self.prefs.host_list_view {
             1
         } else {
             card_grid_columns(available, CARD_WIDTH, 12.0)
@@ -486,7 +486,7 @@ impl Oryxis {
         // Per the `card_accent_glass` setting: glass on → each card gets
         // the soft per-colour wash; off → cards stay pure (just the
         // element, no overlay).
-        let glass = self.setting_card_accent_glass;
+        let glass = self.prefs.card_accent_glass;
         let selected = match self.keynav.selected_in(crate::keynav::FocusZone::Content) {
             Some(crate::keynav::NavItem::Dash(d)) => Some(d),
             _ => None,
@@ -495,7 +495,7 @@ impl Oryxis {
         // List mode (cols == 1) renders History-style rows: full-width
         // rounded cards with a small gap, applied uniformly to groups and
         // hosts. Grid mode keeps the roomier 12px gutters.
-        let gap = if self.setting_host_list_view { 8.0 } else { 12.0 };
+        let gap = if self.prefs.host_list_view { 8.0 } else { 12.0 };
 
         // Record the keyboard-navigation order as visual rows (groups rows
         // then hosts rows, each chunked to the column count) so the key

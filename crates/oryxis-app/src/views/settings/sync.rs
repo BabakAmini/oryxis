@@ -64,7 +64,7 @@ impl Oryxis {
             .and_then(|id| self.connections.iter().find(|c| c.id == id));
         let host_trigger_inner: Element<'_, Message> = if let Some(c) = selected_conn {
             dir_row(vec![
-                host_badge(c, &self.setting_default_host_icon, 22.0),
+                host_badge(c, &self.prefs.default_host_icon, 22.0),
                 Space::new().width(10).into(),
                 text(c.label.clone())
                     .size(13)

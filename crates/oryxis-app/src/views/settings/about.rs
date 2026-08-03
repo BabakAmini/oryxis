@@ -176,7 +176,7 @@ impl Oryxis {
         if crate::packaged::is_packaged() {
             return Space::new().into();
         }
-        let auto_update_enabled = self.setting_auto_check_updates;
+        let auto_update_enabled = self.prefs.auto_check_updates;
         let auto_update_toggle = self.nav_toggle_row(
             crate::i18n::t("auto_check_updates"),
             auto_update_enabled,
@@ -187,7 +187,7 @@ impl Oryxis {
         // nav_pick_row.
         let (channel_prev, channel_next) = crate::keynav::slots::cycle_pair(
             &crate::update::UPDATE_CHANNELS,
-            &self.setting_update_channel,
+            &self.prefs.update_channel,
             |v| Message::Update(UpdateMessage::SettingUpdateChannelChanged(v)),
         );
         let channel_picker = self.settings_nav_slot_labeled(
@@ -195,7 +195,7 @@ impl Oryxis {
             crate::keynav::RowAction::picker(channel_prev, channel_next),
             10.0,
             pick_list(
-                Some(self.setting_update_channel),
+                Some(self.prefs.update_channel),
                 crate::update::UPDATE_CHANNELS.to_vec(),
                 |c: &crate::update::UpdateChannel| match c {
                     crate::update::UpdateChannel::Stable => t("update_channel_stable").to_string(),
@@ -268,7 +268,7 @@ impl Oryxis {
         // Bleeding-edge warning, only while the nightly channel is
         // selected, so stable users don't see scary copy.
         let channel_note: Element<'_, Message> =
-            if self.setting_update_channel == crate::update::UpdateChannel::Nightly {
+            if self.prefs.update_channel == crate::update::UpdateChannel::Nightly {
                 container(
                     text(t("update_channel_nightly_warning"))
                         .size(11)

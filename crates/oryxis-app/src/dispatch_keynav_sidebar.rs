@@ -78,7 +78,7 @@ impl Oryxis {
             .and_then(|t| t.active().session.as_ref().and_then(|s| s.ssh()))
             .is_some();
         let files_available = self.sftp_enabled && has_ssh;
-        let monitor_available = self.setting_host_monitoring && has_ssh;
+        let monitor_available = self.prefs.host_monitoring && has_ssh;
         match want {
             TerminalSidebarTab::Chat if !self.ai.enabled => TerminalSidebarTab::Snippets,
             TerminalSidebarTab::Files if !files_available => TerminalSidebarTab::Snippets,
@@ -108,7 +108,7 @@ impl Oryxis {
         // leaked keys into the PTY.
         let strip_left = self.side_strip_left_offset();
         let strip_right = self.side_strip_reserve() - strip_left;
-        if self.setting_terminal_sidebar_left {
+        if self.prefs.terminal_sidebar_left {
             self.mouse_position.x > strip_left
                 && self.mouse_position.x < strip_left + self.chat_ui.sidebar_width
         } else {
@@ -515,7 +515,7 @@ impl Oryxis {
         // Monitor joins the cycle only when the feature is on and an SSH
         // session is live (its per-host opt-in is offered inside the tab),
         // next to Files.
-        if self.setting_host_monitoring
+        if self.prefs.host_monitoring
             && self
                 .active_tab
                 .and_then(|idx| self.tabs.get(idx))

@@ -550,7 +550,7 @@ impl Oryxis {
             // different question from "keep it up", and it left a manually
             // started forward silently dead after a network blip while
             // every terminal tab climbed back on its own.
-            PfRetryCause::Dropped => self.setting_auto_reconnect || is_auto,
+            PfRetryCause::Dropped => self.prefs.auto_reconnect || is_auto,
             // A start the user just watched fail shows its error instead
             // of looping behind their back. Only an auto_start rule, whose
             // attempt nobody is watching, retries from here.

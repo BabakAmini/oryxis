@@ -325,7 +325,7 @@ impl Oryxis {
     /// has monitoring enabled. `None` for local / ephemeral panes, hosts
     /// that never opted in, and dead sessions.
     pub(crate) fn monitor_target(&self) -> Option<(Uuid, std::sync::Arc<oryxis_ssh::SshSession>)> {
-        if !self.setting_host_monitoring {
+        if !self.prefs.host_monitoring {
             return None;
         }
         let conn_id = self.monitor_pane_connection()?;
@@ -344,7 +344,7 @@ impl Oryxis {
     /// RENDER as well as the probing (a lingering series must not keep
     /// painting frozen vitals as if they were live).
     pub(crate) fn monitor_host_opted_in(&self, conn_id: &Uuid) -> bool {
-        self.setting_monitor_all_hosts
+        self.prefs.monitor_all_hosts
             || self
                 .connections
                 .iter()
@@ -365,7 +365,7 @@ impl Oryxis {
     /// Effective probe interval: the configured value, floored so a
     /// typo (or an empty field mid-edit) can't hammer the host.
     pub(crate) fn monitor_interval_secs(&self) -> u64 {
-        self.setting_monitor_interval
+        self.prefs.monitor_interval
             .trim()
             .parse::<u64>()
             .ok()

@@ -232,10 +232,10 @@ impl Oryxis {
         // lock keeps live sessions but must stop reading the host, or
         // the locked screen would still be gathering (and discarding)
         // telemetry behind the lock screen.
-        if self.setting_host_monitoring
+        if self.prefs.host_monitoring
             && self.vault_ui.state == crate::state::VaultState::Unlocked
             && (self.monitor_tab_visible()
-                || (self.setting_monitor_status_bar && self.setting_show_status_bar))
+                || (self.prefs.monitor_status_bar && self.prefs.show_status_bar))
             && self.monitor_target().is_some()
         {
             subs.push(
@@ -250,8 +250,8 @@ impl Oryxis {
         // updates WITHOUT emitting a Message, so on an idle terminal the
         // bar would freeze on the last value forever. A light tick
         // matching the probe cadence re-renders it while visible.
-        if self.setting_show_status_bar
-            && self.setting_status_show_latency
+        if self.prefs.show_status_bar
+            && self.prefs.status_show_latency
             && self.vault_ui.state == crate::state::VaultState::Unlocked
             && self
                 .active_tab
@@ -394,9 +394,9 @@ impl Oryxis {
         // background API calls. Interval reads the persisted setting
         // and falls back to 30 min on any parse failure so a malformed
         // value doesn't pin the ticker at 1 ms.
-        if self.setting_cloud_auto_refresh_enabled && !self.cloud_profiles.is_empty() {
+        if self.prefs.cloud_auto_refresh_enabled && !self.cloud_profiles.is_empty() {
             let minutes = self
-                .setting_cloud_auto_refresh_interval_minutes
+                .prefs.cloud_auto_refresh_interval_minutes
                 .parse::<u64>()
                 .ok()
                 .filter(|m| *m > 0)
@@ -466,7 +466,7 @@ impl Oryxis {
         // elapsed-time comparison against `last_user_activity`.
         if self.vault_ui.state == crate::state::VaultState::Unlocked
             && self
-                .setting_auto_lock_minutes
+                .prefs.auto_lock_minutes
                 .parse::<u64>()
                 .ok()
                 .filter(|m| *m > 0)

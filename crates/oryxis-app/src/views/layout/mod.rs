@@ -41,7 +41,7 @@ impl Oryxis {
         card: Element<'a, Message>,
         color: Color,
     ) -> Element<'a, Message> {
-        if self.setting_card_accent_glass {
+        if self.prefs.card_accent_glass {
             crate::widgets::card_accent_wash(card, color)
         } else {
             card
@@ -110,8 +110,8 @@ impl Oryxis {
     /// area. The single source the content-width / pane-split math reads
     /// instead of the retired sidebar-collapse width.
     pub(crate) fn vault_rail_width(&self) -> f32 {
-        if self.in_vault_area() && self.setting_nav_orientation == "vertical" {
-            if self.setting_nav_rail_expanded {
+        if self.in_vault_area() && self.prefs.nav_orientation == "vertical" {
+            if self.prefs.nav_rail_expanded {
                 crate::app::NAV_RAIL_WIDTH_EXPANDED
             } else {
                 crate::app::SIDEBAR_WIDTH_COLLAPSED
@@ -201,7 +201,7 @@ impl Oryxis {
     /// `tab_accent_color` setting's `"host"` default); false pins every
     /// strip accent (fill, wash, hairline, text) to the app accent.
     pub(crate) fn host_accent_enabled(&self) -> bool {
-        self.setting_tab_accent_color != "app"
+        self.prefs.tab_accent_color != "app"
     }
 
     /// The accent colour the top bar "breathes": the active tab's

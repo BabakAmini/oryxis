@@ -277,9 +277,9 @@ impl Oryxis {
                 new_tab.chat_visible = match origin {
                     crate::state::ProgressOrigin::Saved(_) => conn
                         .sidebar_auto_open
-                        .unwrap_or(self.setting_sidebar_auto_open),
+                        .unwrap_or(self.prefs.sidebar_auto_open),
                     crate::state::ProgressOrigin::Quick(_) => {
-                        self.setting_sidebar_auto_open
+                        self.prefs.sidebar_auto_open
                     }
                 };
                 // C5: resolve this host's terminal quirks once, on the hot

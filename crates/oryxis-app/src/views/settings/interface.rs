@@ -15,7 +15,7 @@ impl Oryxis {
     fn tab_number_slot_offset_notice(&self) -> Element<'_, Message> {
         use crate::views::tab_bar::TabNumberStyle;
         if self.tab_number_style() == TabNumberStyle::Off
-            || !self.setting_tab_slot_includes_home
+            || !self.prefs.tab_slot_includes_home
         {
             return Space::new().into();
         }
@@ -60,7 +60,7 @@ impl Oryxis {
                 .iter()
                 .map(|l| l.code().to_string()),
         );
-        let active_lang_token = if self.setting_language_choice == "auto" {
+        let active_lang_token = if self.prefs.language_choice == "auto" {
             "auto".to_string()
         } else {
             // Normalize through the resolver so a stale persisted code
@@ -121,7 +121,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("nav_orientation"),
                 layout_options,
-                self.setting_nav_orientation.clone(),
+                self.prefs.nav_orientation.clone(),
                 |s: &String| {
                     crate::i18n::t(if s == "vertical" {
                         "nav_orientation_vertical"
@@ -164,7 +164,7 @@ impl Oryxis {
             Space::new().height(12),
             self.nav_toggle_row(
                 crate::i18n::t("show_host_address_label"),
-                self.setting_show_host_address,
+                self.prefs.show_host_address,
                 Message::Settings(SettingsMessage::ToggleShowHostAddress),
             ),
             Space::new().height(4),
@@ -174,7 +174,7 @@ impl Oryxis {
             Space::new().height(12),
             self.nav_toggle_row(
                 crate::i18n::t("card_accent_glass_label"),
-                self.setting_card_accent_glass,
+                self.prefs.card_accent_glass,
                 Message::Settings(SettingsMessage::ToggleCardAccentGlass),
             ),
             Space::new().height(4),
@@ -187,7 +187,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("default_host_icon"),
                 icon_options,
-                self.setting_default_host_icon.clone(),
+                self.prefs.default_host_icon.clone(),
                 |s: &String| {
                     let key = match s.as_str() {
                         "square" => "icon_square",
@@ -228,7 +228,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("close_button_position"),
                 close_options,
-                self.setting_tab_close_button_side.clone(),
+                self.prefs.tab_close_button_side.clone(),
                 |s: &String| {
                     crate::i18n::t(if s == "right" {
                         "close_position_right"
@@ -244,7 +244,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("pinned_tab_style"),
                 vec!["compact".to_string(), "full".to_string()],
-                self.setting_pinned_tab_style.clone(),
+                self.prefs.pinned_tab_style.clone(),
                 |s: &String| {
                     crate::i18n::t(if s == "full" {
                         "pinned_tab_style_full"
@@ -260,7 +260,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("tab_number_style"),
                 vec!["off".to_string(), "prefix".to_string(), "icon".to_string()],
-                self.setting_tab_number_style.clone(),
+                self.prefs.tab_number_style.clone(),
                 |s: &String| {
                     crate::i18n::t(match s.as_str() {
                         "prefix" => "tab_number_style_prefix",
@@ -286,7 +286,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("duplicate_tab_position"),
                 vec!["next".to_string(), "end".to_string(), "start".to_string()],
-                self.setting_duplicate_tab_position.clone(),
+                self.prefs.duplicate_tab_position.clone(),
                 |s: &String| {
                     crate::i18n::t(match s.as_str() {
                         "end" => "duplicate_tab_position_end",
@@ -301,7 +301,7 @@ impl Oryxis {
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("show_tab_host_address_label"),
-                self.setting_show_tab_host_address,
+                self.prefs.show_tab_host_address,
                 Message::Settings(SettingsMessage::ToggleShowTabHostAddress),
             ),
             Space::new().height(4),
@@ -311,20 +311,20 @@ impl Oryxis {
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("show_tab_status_dot"),
-                self.setting_show_tab_status_dot,
+                self.prefs.show_tab_status_dot,
                 Message::Settings(SettingsMessage::SettingToggleShowTabStatusDot),
             ),
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_text"),
-                self.setting_tab_accent_text,
+                self.prefs.tab_accent_text,
                 Message::Settings(SettingsMessage::SettingToggleTabAccentText),
             ),
             Space::new().height(8),
             self.nav_pick_row(
                 crate::i18n::t("tab_accent_color"),
                 vec!["host".to_string(), "app".to_string()],
-                self.setting_tab_accent_color.clone(),
+                self.prefs.tab_accent_color.clone(),
                 |s: &String| {
                     crate::i18n::t(if s == "app" {
                         "tab_accent_color_app"
@@ -340,7 +340,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("tab_fill_style"),
                 fill_options,
-                self.setting_tab_fill_style.clone(),
+                self.prefs.tab_fill_style.clone(),
                 |s: &String| {
                     crate::i18n::t(if s == "solid" {
                         "tab_fill_solid"
@@ -367,7 +367,7 @@ impl Oryxis {
                     "left".to_string(),
                     "right".to_string(),
                 ],
-                self.setting_tab_bar_position.clone(),
+                self.prefs.tab_bar_position.clone(),
                 |s: &String| {
                     crate::i18n::t(match s.as_str() {
                         "bottom" => "tab_bar_position_bottom",
@@ -392,7 +392,7 @@ impl Oryxis {
                     "border".to_string(),
                     "underline".to_string(),
                 ],
-                self.setting_inactive_tab_style.clone(),
+                self.prefs.inactive_tab_style.clone(),
                 |s: &String| {
                     crate::i18n::t(match s.as_str() {
                         "border" => "inactive_tab_style_border",
@@ -412,7 +412,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("tab_width_mode"),
                 vec!["adaptive".to_string(), "uniform".to_string()],
-                self.setting_tab_width_mode.clone(),
+                self.prefs.tab_width_mode.clone(),
                 |s: &String| {
                     crate::i18n::t(match s.as_str() {
                         "uniform" => "tab_width_mode_uniform",
@@ -431,12 +431,12 @@ impl Oryxis {
             // is hidden while it cannot apply.
             self.tab_uniform_size_row(),
         ];
-        if matches!(self.setting_tab_bar_position.as_str(), "left" | "right") {
+        if matches!(self.prefs.tab_bar_position.as_str(), "left" | "right") {
             top_bar_col = top_bar_col
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("pinned_tabs_top_bar"),
-                    self.setting_pinned_tabs_top_bar,
+                    self.prefs.pinned_tabs_top_bar,
                     Message::Settings(SettingsMessage::SettingTogglePinnedTabsTopBar),
                 ))
                 .push(Space::new().height(4))
@@ -448,7 +448,7 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("side_hide_top_bar"),
-                    self.setting_side_hide_top_bar,
+                    self.prefs.side_hide_top_bar,
                     Message::Settings(SettingsMessage::SettingToggleSideHideTopBar),
                 ))
                 .push(Space::new().height(4))
@@ -460,7 +460,7 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(self.nav_toggle_row(
                     crate::i18n::t("side_full_height"),
-                    self.setting_side_full_height,
+                    self.prefs.side_full_height,
                     Message::Settings(SettingsMessage::SettingToggleSideFullHeight),
                 ))
                 .push(Space::new().height(4))
@@ -474,13 +474,13 @@ impl Oryxis {
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_line"),
-                self.setting_tab_accent_line,
+                self.prefs.tab_accent_line,
                 Message::Settings(SettingsMessage::SettingToggleTabAccentLine),
             ),
             Space::new().height(8),
             self.nav_toggle_row(
                 crate::i18n::t("tab_accent_wash"),
-                self.setting_tab_accent_wash,
+                self.prefs.tab_accent_wash,
                 Message::Settings(SettingsMessage::SettingToggleTabAccentWash),
             ),
         ]));
@@ -490,42 +490,42 @@ impl Oryxis {
         // status bar" read as a top-bar knob).
         let mut status_bar_col = column![self.nav_toggle_row(
             crate::i18n::t("show_status_bar"),
-            self.setting_show_status_bar,
+            self.prefs.show_status_bar,
             Message::Settings(SettingsMessage::SettingToggleShowStatusBar),
         )];
         // Per-element visibility, shown only while the bar itself is on
         // (moot otherwise): connection text, version, and the optional
         // latency / terminal-size / cwd segments.
-        if self.setting_show_status_bar {
+        if self.prefs.show_status_bar {
             for (label, on, msg) in [
                 (
                     "status_show_connection",
-                    self.setting_status_show_connection,
+                    self.prefs.status_show_connection,
                     SettingsMessage::SettingToggleStatusConnection,
                 ),
                 (
                     "status_show_version",
-                    self.setting_status_show_version,
+                    self.prefs.status_show_version,
                     SettingsMessage::SettingToggleStatusVersion,
                 ),
                 (
                     "status_show_latency",
-                    self.setting_status_show_latency,
+                    self.prefs.status_show_latency,
                     SettingsMessage::SettingToggleStatusLatency,
                 ),
                 (
                     "status_show_dimensions",
-                    self.setting_status_show_dimensions,
+                    self.prefs.status_show_dimensions,
                     SettingsMessage::SettingToggleStatusDimensions,
                 ),
                 (
                     "status_show_cwd",
-                    self.setting_status_show_cwd,
+                    self.prefs.status_show_cwd,
                     SettingsMessage::SettingToggleStatusCwd,
                 ),
                 (
                     "status_bar_align_left",
-                    self.setting_status_bar_align_left,
+                    self.prefs.status_bar_align_left,
                     SettingsMessage::SettingToggleStatusAlignLeft,
                 ),
             ] {
@@ -574,7 +574,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("renderer_backend"),
                 renderer_options,
-                self.setting_renderer_backend.clone(),
+                self.prefs.renderer_backend.clone(),
                 |s: &String| {
                     let key = match s.as_str() {
                         "opengl" => "renderer_opengl",
@@ -598,7 +598,7 @@ impl Oryxis {
             Space::new().height(12),
             self.nav_toggle_row(
                 crate::i18n::t("performance_mode"),
-                self.setting_performance_mode,
+                self.prefs.performance_mode,
                 Message::Settings(SettingsMessage::SettingTogglePerformanceMode),
             ),
             Space::new().height(4),
@@ -616,7 +616,7 @@ impl Oryxis {
                     .iter()
                     .map(|m| crate::i18n::t(m.label_key()).to_string())
                     .collect::<Vec<_>>(),
-                crate::i18n::t(self.setting_hint_mode.label_key()).to_string(),
+                crate::i18n::t(self.prefs.hint_mode.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
                 |v| Message::Settings(SettingsMessage::HintModeChanged(v)),
@@ -640,7 +640,7 @@ impl Oryxis {
                 Space::new().height(8),
                 self.nav_toggle_row(
                     crate::i18n::t("close_to_tray"),
-                    self.setting_close_to_tray,
+                    self.prefs.close_to_tray,
                     Message::Settings(SettingsMessage::SettingToggleCloseToTray),
                 ),
                 Space::new().height(4),
@@ -650,7 +650,7 @@ impl Oryxis {
                 Space::new().height(10),
                 self.nav_toggle_row(
                     crate::i18n::t("minimize_to_tray"),
-                    self.setting_minimize_to_tray,
+                    self.prefs.minimize_to_tray,
                     Message::Settings(SettingsMessage::SettingToggleMinimizeToTray),
                 ),
                 Space::new().height(4),
@@ -911,7 +911,7 @@ impl Oryxis {
     /// adaptive mode, following the rule that an inapplicable setting
     /// shows no UI at all rather than a dead control.
     fn tab_uniform_size_row(&self) -> Element<'_, Message> {
-        if self.setting_tab_width_mode != "uniform" {
+        if self.prefs.tab_width_mode != "uniform" {
             return Space::new().into();
         }
         column![
@@ -919,7 +919,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("tab_uniform_size"),
                 vec!["small".to_string(), "medium".to_string(), "large".to_string()],
-                self.setting_tab_uniform_size.clone(),
+                self.prefs.tab_uniform_size.clone(),
                 |s: &String| {
                     crate::i18n::t(match s.as_str() {
                         "small" => "tab_uniform_size_small",

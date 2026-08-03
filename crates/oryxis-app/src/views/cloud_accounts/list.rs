@@ -222,7 +222,7 @@ impl Oryxis {
                 // instead of a one-off bordered surface box.
                 let host_style = crate::widgets::resolve_host_icon_style(
                     None,
-                    &self.setting_default_host_icon,
+                    &self.prefs.default_host_icon,
                 );
                 let icon_box = crate::widgets::host_icon(
                     host_style,
@@ -396,7 +396,7 @@ impl Oryxis {
         self.keynav_settings_reset();
         let refresh_interval_input = text_input(
             "30",
-            &self.setting_cloud_auto_refresh_interval_minutes,
+            &self.prefs.cloud_auto_refresh_interval_minutes,
         )
         .id(iced::widget::Id::new("set-cloud-refresh-interval"))
         .on_input(|v| Message::Settings(SettingsMessage::SettingCloudAutoRefreshIntervalChanged(v)))
@@ -406,7 +406,7 @@ impl Oryxis {
         .align_x(dir_align_x());
         let orphan_days_input = text_input(
             "7",
-            &self.setting_cloud_orphan_archive_days,
+            &self.prefs.cloud_orphan_archive_days,
         )
         .id(iced::widget::Id::new("set-cloud-orphan-days"))
         .on_input(|v| Message::Settings(SettingsMessage::SettingCloudOrphanArchiveDaysChanged(v)))
@@ -418,7 +418,7 @@ impl Oryxis {
             // Title dropped (redundant with the settings nav label).
             self.nav_toggle_row(
                 t("settings_cloud_auto_refresh"),
-                self.setting_cloud_auto_refresh_enabled,
+                self.prefs.cloud_auto_refresh_enabled,
                 Message::Settings(SettingsMessage::SettingCloudAutoRefreshToggle),
             ),
             Space::new().height(8),
@@ -441,7 +441,7 @@ impl Oryxis {
             Space::new().height(14),
             self.nav_toggle_row(
                 t("settings_cloud_auto_archive"),
-                self.setting_cloud_auto_archive_orphans,
+                self.prefs.cloud_auto_archive_orphans,
                 Message::Settings(SettingsMessage::SettingCloudAutoArchiveToggle),
             ),
             Space::new().height(8),

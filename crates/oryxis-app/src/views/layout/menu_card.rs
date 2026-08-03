@@ -32,7 +32,7 @@ impl Oryxis {
             // Replay actions (in-app player, .cast export) pair with
             // full-detail recording; with simple logs they are hidden
             // (owner call 2026-07-04), not just degraded.
-            if self.setting_session_log_full {
+            if self.prefs.session_log_full {
                 if include_play {
                     col = col.push(self.menu_item(
                         iced_fonts::lucide::play(),

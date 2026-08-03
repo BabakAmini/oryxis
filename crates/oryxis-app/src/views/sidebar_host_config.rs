@@ -147,11 +147,11 @@ impl Oryxis {
             Space::new().height(4),
             font_pick,
             Space::new().height(12),
-            toggle("bold_bright", self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
+            toggle("bold_bright", self.prefs.bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(8),
-            toggle("keyword_highlight", self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
+            toggle("keyword_highlight", self.prefs.keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(8),
-            toggle("smart_contrast", self.setting_smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
+            toggle("smart_contrast", self.prefs.smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
         ]
         .width(Length::Fill)
         .into()

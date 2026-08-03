@@ -359,7 +359,7 @@ impl Oryxis {
             dir_row(vec![
                 self.keynav_toolbar_ring(
                     crate::keynav::ToolbarItem::ViewToggle,
-                    crate::widgets::host_view_toggle_button(self.setting_host_list_view),
+                    crate::widgets::host_view_toggle_button(self.prefs.host_list_view),
                 ),
                 Space::new().width(6).into(),
             ])

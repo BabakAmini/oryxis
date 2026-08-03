@@ -59,9 +59,9 @@ impl Oryxis {
         // careful paste parks multi-line text; the paste guard parks
         // suspicious CONTENT (bidi/invisible chars, raw control bytes,
         // curl|sh one-liners, homograph tokens) even on one line.
-        if (self.setting_careful_paste
+        if (self.prefs.careful_paste
             && (text.contains('\n') || text.contains('\r')))
-            || (self.setting_paste_guard
+            || (self.prefs.paste_guard
                 && !crate::paste_guard::paste_warnings(text).is_empty())
         {
             self.pending_paste = Some((tab_idx, text.to_string()));

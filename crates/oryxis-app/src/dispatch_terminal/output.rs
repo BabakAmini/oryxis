@@ -206,8 +206,8 @@ impl Oryxis {
     fn flush_session_logs_inner(&mut self, final_flush: bool) {
         // Full detail = timed segments + resize events (.cast export);
         // simple = one untimed chunk per flush, the plain log of old.
-        let full = self.setting_session_log_full;
-        let compress = self.setting_session_log_compress;
+        let full = self.prefs.session_log_full;
+        let compress = self.prefs.session_log_compress;
         // Replay rows per pane, in stream order (chunks interleaved
         // with resizes; see `session_log_rows`).
         let mut pending: Vec<(uuid::Uuid, PendingSessionRow)> = Vec::new();
@@ -407,20 +407,20 @@ impl Oryxis {
                 let mut schedule_flush: Option<std::time::Duration> = None;
                 // Snapshot the (Copy) bell mode before borrowing self.tabs; the
                 // bell action runs while the pane is borrowed.
-                let bell_mode = self.setting_bell_mode;
+                let bell_mode = self.prefs.bell_mode;
                 // Notification policy + focus snapshot before the tabs borrow.
-                let notif_mode = self.setting_notification_mode;
+                let notif_mode = self.prefs.notification_mode;
                 let win_focused = self.window_focused;
                 let mut flash_pane: Option<uuid::Uuid> = None;
                 // (pane label, OSC 9 body). The label rides along so the
                 // body can be redacted under Privacy Mode at delivery time
                 // (resolved after the tabs borrow ends, like smart tabs).
                 let mut pending_notification: Option<(String, String)> = None;
-                let capture_enabled = self.setting_command_history;
-                let log_full = self.setting_session_log_full;
+                let capture_enabled = self.prefs.command_history;
+                let log_full = self.prefs.session_log_full;
                 // Smart tabs: policy snapshots taken before the tabs borrow.
-                let smart_enabled = self.setting_smart_tabs;
-                let smart_long = self.setting_smart_long_secs;
+                let smart_enabled = self.prefs.smart_tabs;
+                let smart_long = self.prefs.smart_long_secs;
                 let active_tab = self.active_tab;
                 // "Watched" needs the terminal view on screen: an active
                 // tab is invisible while the user sits in the Dashboard /

@@ -43,14 +43,14 @@ impl Oryxis {
         conn: Option<&oryxis_core::models::connection::Connection>,
     ) -> bool {
         conn.and_then(|c| c.session_logging)
-            .unwrap_or(self.setting_session_logging)
+            .unwrap_or(self.prefs.session_logging)
     }
 
     /// Whether connection events (connect / disconnect / auth failure /
     /// error) should be written to the vault log. Gated by the global
     /// `connection_history` setting (off by default).
     pub(crate) fn should_record_history(&self) -> bool {
-        self.setting_connection_history
+        self.prefs.connection_history
     }
 
     /// Dispatch an SSH-lifecycle `Message` to the matching submodule
@@ -248,7 +248,7 @@ impl Oryxis {
                     // the user's own PROMPT_COMMAND still runs. The setup
                     // block erases its own echo (see OSC7_PROMPT_INJECT),
                     // so nothing is left on screen.
-                    if self.setting_sftp_force_osc7
+                    if self.prefs.sftp_force_osc7
                         && let Some(ssh) = session.ssh()
                     {
                         if let Err(e) =
@@ -292,7 +292,7 @@ impl Oryxis {
                         //   - and the user hasn't set a custom icon override.
                         // OS detection execs over SSH; Telnet panes skip it
                         // (their icon stays the generic server glyph).
-                        if self.setting_os_detection
+                        if self.prefs.os_detection
                             && os_unknown
                             && !has_custom
                             && let Some(ssh) = session.ssh()

@@ -18,7 +18,7 @@ impl Oryxis {
                     .iter()
                     .find(|m| crate::i18n::t(m.label_key()) == name)
                 {
-                    self.setting_bell_mode = *mode;
+                    self.prefs.bell_mode = *mode;
                     self.persist_setting("terminal_bell_mode", mode.code());
                 }
             }
@@ -28,7 +28,7 @@ impl Oryxis {
                     .iter()
                     .find(|m| crate::i18n::t(m.label_key()) == name)
                 {
-                    self.setting_clipboard_access = *mode;
+                    self.prefs.clipboard_access = *mode;
                     self.persist_setting("terminal_clipboard_access", mode.code());
                     let (cw, cr) = mode.flags();
                     oryxis_terminal::set_clipboard_access(cw, cr);
@@ -40,20 +40,20 @@ impl Oryxis {
                     .iter()
                     .find(|m| crate::i18n::t(m.label_key()) == name)
                 {
-                    self.setting_notification_mode = *mode;
+                    self.prefs.notification_mode = *mode;
                     self.persist_setting("terminal_notification", mode.code());
                 }
             }
             SettingsMessage::SettingToggleSmartTabs => {
-                self.setting_smart_tabs = !self.setting_smart_tabs;
+                self.prefs.smart_tabs = !self.prefs.smart_tabs;
                 self.persist_setting(
                     "smart_tabs",
-                    if self.setting_smart_tabs { "true" } else { "false" },
+                    if self.prefs.smart_tabs { "true" } else { "false" },
                 );
                 // Turning it off retires any attention already raised;
                 // stale dots surviving the toggle would contradict the
                 // "all its UI hidden when off" rule.
-                if !self.setting_smart_tabs {
+                if !self.prefs.smart_tabs {
                     for tab in &mut self.tabs {
                         for pane in tab.pane_grid.panes.values_mut() {
                             pane.attention = None;
@@ -68,7 +68,7 @@ impl Oryxis {
                     .into_iter()
                     .find(|(_, l)| *l == label)
                 {
-                    self.setting_smart_long_secs = secs;
+                    self.prefs.smart_long_secs = secs;
                     self.persist_setting("smart_tabs_long_seconds", &secs.to_string());
                 }
             }
@@ -91,17 +91,17 @@ impl Oryxis {
                 self.persist_setting("terminal_font_name", &self.terminal_font_name);
             }
             SettingsMessage::ToggleCopyOnSelect => {
-                self.setting_copy_on_select = !self.setting_copy_on_select;
+                self.prefs.copy_on_select = !self.prefs.copy_on_select;
                 self.persist_setting(
                     "copy_on_select",
-                    if self.setting_copy_on_select { "true" } else { "false" },
+                    if self.prefs.copy_on_select { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleRightClickCopy => {
-                self.setting_right_click_copy = !self.setting_right_click_copy;
+                self.prefs.right_click_copy = !self.prefs.right_click_copy;
                 self.persist_setting(
                     "right_click_copy",
-                    if self.setting_right_click_copy { "true" } else { "false" },
+                    if self.prefs.right_click_copy { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleMiddleClickPaste => {
@@ -112,10 +112,10 @@ impl Oryxis {
                 return Ok(self.set_middle_click_paste(on));
             }
             SettingsMessage::SettingSftpDefaultEditorChanged(v) => {
-                self.setting_sftp_default_editor = v;
+                self.prefs.sftp_default_editor = v;
                 self.persist_setting(
                     "sftp_default_editor",
-                    &self.setting_sftp_default_editor.clone(),
+                    &self.prefs.sftp_default_editor.clone(),
                 );
             }
             SettingsMessage::SettingSftpDefaultEditorBrowse => {
@@ -138,34 +138,34 @@ impl Oryxis {
             }
             SettingsMessage::SettingSftpDefaultEditorPicked(result) => {
                 if let Ok(path) = result {
-                    self.setting_sftp_default_editor = path;
+                    self.prefs.sftp_default_editor = path;
                     self.persist_setting(
                         "sftp_default_editor",
-                        &self.setting_sftp_default_editor.clone(),
+                        &self.prefs.sftp_default_editor.clone(),
                     );
                 }
                 // "cancelled" / thread errors stay silent: the user just
                 // closed the dialog.
             }
             SettingsMessage::ToggleSftpEditAutosave => {
-                self.setting_sftp_edit_autosave = !self.setting_sftp_edit_autosave;
+                self.prefs.sftp_edit_autosave = !self.prefs.sftp_edit_autosave;
                 self.persist_setting(
                     "sftp_edit_autosave",
-                    if self.setting_sftp_edit_autosave { "true" } else { "false" },
+                    if self.prefs.sftp_edit_autosave { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleSftpAskDownloadDir => {
-                self.setting_sftp_ask_download_dir = !self.setting_sftp_ask_download_dir;
+                self.prefs.sftp_ask_download_dir = !self.prefs.sftp_ask_download_dir;
                 self.persist_setting(
                     "sftp_ask_download_dir",
-                    if self.setting_sftp_ask_download_dir { "true" } else { "false" },
+                    if self.prefs.sftp_ask_download_dir { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleSftpForceOsc7 => {
-                self.setting_sftp_force_osc7 = !self.setting_sftp_force_osc7;
+                self.prefs.sftp_force_osc7 = !self.prefs.sftp_force_osc7;
                 self.persist_setting(
                     "sftp_force_osc7",
-                    if self.setting_sftp_force_osc7 { "true" } else { "false" },
+                    if self.prefs.sftp_force_osc7 { "true" } else { "false" },
                 );
                 // Enabling it applies to LIVE sessions right away (the
                 // per-connect inject only covers future connects): the
@@ -173,7 +173,7 @@ impl Oryxis {
                 // every already-connected SSH pane not yet injected; the
                 // next prompt then emits OSC 7 and the sidebar snaps to
                 // the real cwd.
-                if self.setting_sftp_force_osc7 {
+                if self.prefs.sftp_force_osc7 {
                     for tab in &mut self.tabs {
                         for pane in tab.pane_grid.panes.values_mut() {
                             if pane.osc7_injected {
@@ -196,7 +196,7 @@ impl Oryxis {
                     .iter()
                     .find(|m| crate::i18n::t(m.label_key()) == name)
                 {
-                    self.setting_terminal_right_click = *mode;
+                    self.prefs.terminal_right_click = *mode;
                     self.persist_setting("terminal_right_click", mode.code());
                 }
             }
@@ -206,44 +206,44 @@ impl Oryxis {
                 // tab label sets it. Match against the translated labels,
                 // like the right-click picker.
                 if name == crate::i18n::t("sidebar_default_last") {
-                    self.setting_sidebar_default_tab = None;
+                    self.prefs.sidebar_default_tab = None;
                     self.persist_setting("sidebar_default_tab", "last");
                 } else if let Some(tab) = TerminalSidebarTab::ALL
                     .into_iter()
                     .find(|t| crate::i18n::t(t.label_key()) == name)
                 {
-                    self.setting_sidebar_default_tab = Some(tab);
+                    self.prefs.sidebar_default_tab = Some(tab);
                     self.persist_setting("sidebar_default_tab", tab.code());
                 }
             }
             SettingsMessage::ToggleScrollbackResetKeypress => {
-                self.setting_scrollback_reset_keypress = !self.setting_scrollback_reset_keypress;
+                self.prefs.scrollback_reset_keypress = !self.prefs.scrollback_reset_keypress;
                 self.persist_setting(
                     "scrollback_reset_keypress",
-                    if self.setting_scrollback_reset_keypress { "true" } else { "false" },
+                    if self.prefs.scrollback_reset_keypress { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleScrollbackResetOutput => {
-                self.setting_scrollback_reset_output = !self.setting_scrollback_reset_output;
+                self.prefs.scrollback_reset_output = !self.prefs.scrollback_reset_output;
                 self.persist_setting(
                     "scrollback_reset_output",
-                    if self.setting_scrollback_reset_output { "true" } else { "false" },
+                    if self.prefs.scrollback_reset_output { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleCarefulPaste => {
-                self.setting_careful_paste = !self.setting_careful_paste;
+                self.prefs.careful_paste = !self.prefs.careful_paste;
                 // Turning the guard off releases nothing: a parked paste
                 // (dialog open) still needs its explicit confirm/cancel.
                 self.persist_setting(
                     "careful_paste",
-                    if self.setting_careful_paste { "true" } else { "false" },
+                    if self.prefs.careful_paste { "true" } else { "false" },
                 );
             }
             SettingsMessage::TogglePasteGuard => {
-                self.setting_paste_guard = !self.setting_paste_guard;
+                self.prefs.paste_guard = !self.prefs.paste_guard;
                 self.persist_setting(
                     "paste_guard",
-                    if self.setting_paste_guard { "true" } else { "false" },
+                    if self.prefs.paste_guard { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleTerminalAutoTitle => {
@@ -252,10 +252,10 @@ impl Oryxis {
                 self.persist_setting("terminal_auto_title", if on { "true" } else { "false" });
             }
             SettingsMessage::TogglePaneBorderInactive => {
-                self.setting_pane_border_inactive = !self.setting_pane_border_inactive;
+                self.prefs.pane_border_inactive = !self.prefs.pane_border_inactive;
                 self.persist_setting(
                     "pane_border_inactive",
-                    if self.setting_pane_border_inactive { "true" } else { "false" },
+                    if self.prefs.pane_border_inactive { "true" } else { "false" },
                 );
             }
             SettingsMessage::OpenTerminalThemeGallery => {
@@ -271,28 +271,28 @@ impl Oryxis {
                 self.show_ui_theme_gallery = false;
             }
             SettingsMessage::PaneGapChanged(v) => {
-                self.setting_pane_gap = v.clone();
+                self.prefs.pane_gap = v.clone();
                 self.persist_setting("pane_gap", &v);
             }
             SettingsMessage::ToggleBoldIsBright => {
-                self.setting_bold_is_bright = !self.setting_bold_is_bright;
+                self.prefs.bold_is_bright = !self.prefs.bold_is_bright;
                 self.persist_setting(
                     "bold_is_bright",
-                    if self.setting_bold_is_bright { "true" } else { "false" },
+                    if self.prefs.bold_is_bright { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleKeywordHighlight => {
-                self.setting_keyword_highlight = !self.setting_keyword_highlight;
+                self.prefs.keyword_highlight = !self.prefs.keyword_highlight;
                 self.persist_setting(
                     "keyword_highlight",
-                    if self.setting_keyword_highlight { "true" } else { "false" },
+                    if self.prefs.keyword_highlight { "true" } else { "false" },
                 );
             }
             SettingsMessage::ToggleCommandHistory => {
-                self.setting_command_history = !self.setting_command_history;
+                self.prefs.command_history = !self.prefs.command_history;
                 self.persist_setting(
                     "command_history",
-                    if self.setting_command_history { "true" } else { "false" },
+                    if self.prefs.command_history { "true" } else { "false" },
                 );
             }
             SettingsMessage::CopyShellIntegrationSnippet => {
@@ -326,39 +326,39 @@ impl Oryxis {
                 use crate::i18n::t;
                 use crate::util::HintMode;
                 if let Some(mode) = HintMode::ALL.iter().find(|m| t(m.label_key()) == name) {
-                    self.setting_hint_mode = *mode;
+                    self.prefs.hint_mode = *mode;
                     self.persist_setting("terminal_hint_mode", mode.code());
                 }
             }
             SettingsMessage::ToggleSmartContrast => {
-                self.setting_smart_contrast = !self.setting_smart_contrast;
+                self.prefs.smart_contrast = !self.prefs.smart_contrast;
                 self.persist_setting(
                     "smart_contrast",
-                    if self.setting_smart_contrast { "true" } else { "false" },
+                    if self.prefs.smart_contrast { "true" } else { "false" },
                 );
             }
             SettingsMessage::SettingScrollbackChanged(val) => {
                 // Cap at 1M rows, alacritty allocates lazily but >1M is
                 // both unreasonable and a foot-gun for memory pressure.
-                self.setting_scrollback_rows = sanitize_uint(&val, 1_000_000);
-                self.persist_setting("scrollback_rows", &self.setting_scrollback_rows);
+                self.prefs.scrollback_rows = sanitize_uint(&val, 1_000_000);
+                self.persist_setting("scrollback_rows", &self.prefs.scrollback_rows);
                 // Applies to terminals opened after this point; existing
                 // sessions keep their current buffer.
                 oryxis_terminal::set_default_scrollback(resolve_scrollback_rows(
-                    &self.setting_scrollback_rows,
+                    &self.prefs.scrollback_rows,
                 ));
             }
             SettingsMessage::SettingWordDelimitersChanged(val) => {
                 // Free-text: any character may delimit a word. Stored as
                 // typed; the widget syncs it into the terminal backend on
                 // the next double-click. Empty is allowed (no delimiters).
-                self.setting_word_delimiters = val;
-                self.persist_setting("word_delimiters", &self.setting_word_delimiters);
+                self.prefs.word_delimiters = val;
+                self.persist_setting("word_delimiters", &self.prefs.word_delimiters);
             }
             SettingsMessage::SettingResetWordDelimiters => {
-                self.setting_word_delimiters =
+                self.prefs.word_delimiters =
                     oryxis_terminal::DEFAULT_WORD_DELIMITERS.to_string();
-                self.persist_setting("word_delimiters", &self.setting_word_delimiters);
+                self.persist_setting("word_delimiters", &self.prefs.word_delimiters);
             }
             m => return Err(m),
         }

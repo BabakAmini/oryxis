@@ -38,7 +38,7 @@ pub(super) fn sync_host_picker_modal(app: &Oryxis) -> Element<'_, Message> {
             || c.label.to_lowercase().contains(&q)
             || c.hostname.to_lowercase().contains(&q)
     }) {
-        let badge = host_badge(conn, &app.setting_default_host_icon, 24.0);
+        let badge = host_badge(conn, &app.prefs.default_host_icon, 24.0);
         let row_btn = button(
             dir_row(vec![
                 badge,

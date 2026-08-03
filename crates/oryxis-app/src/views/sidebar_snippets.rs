@@ -91,7 +91,7 @@ impl Oryxis {
             // Tag filter: only snippets sharing a tag with the focused
             // host. Accent-lit while active (chat_header_btn pins the
             // muted color, so the active state gets its own chrome).
-            let filter_active = self.setting_snippet_tag_filter;
+            let filter_active = self.prefs.snippet_tag_filter;
             let filter_btn: Element<'_, Message> = button(
                 container(iced_fonts::lucide::tag().size(13).color(if filter_active {
                     c.accent
@@ -241,7 +241,7 @@ impl Oryxis {
                         .group
                         .as_ref()
                         .is_some_and(|g| g.to_lowercase().contains(&needle));
-                let tags_ok = !self.setting_snippet_tag_filter
+                let tags_ok = !self.prefs.snippet_tag_filter
                     || match &host_tags {
                         Some(ht) => snip
                             .tags

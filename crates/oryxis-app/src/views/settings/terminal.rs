@@ -22,11 +22,11 @@ impl Oryxis {
             .filter(|t| match t {
                 STab::Chat => self.ai.enabled,
                 STab::Files => self.sftp_enabled,
-                STab::Monitor => self.setting_host_monitoring,
+                STab::Monitor => self.prefs.host_monitoring,
                 _ => true,
             })
             .collect();
-        if let Some(sel) = self.setting_sidebar_default_tab
+        if let Some(sel) = self.prefs.sidebar_default_tab
             && !tabs.contains(&sel)
         {
             tabs.push(sel);
@@ -34,7 +34,7 @@ impl Oryxis {
         let last = crate::i18n::t("sidebar_default_last").to_string();
         let mut options = vec![last.clone()];
         options.extend(tabs.iter().map(|t| crate::i18n::t(t.label_key()).to_string()));
-        let selected = match self.setting_sidebar_default_tab {
+        let selected = match self.prefs.sidebar_default_tab {
             None => last,
             Some(t) => crate::i18n::t(t.label_key()).to_string(),
         };
@@ -56,7 +56,7 @@ impl Oryxis {
     }
 
     fn smart_tabs_threshold_row(&self) -> Element<'_, Message> {
-        if !self.setting_smart_tabs {
+        if !self.prefs.smart_tabs {
             return Space::new().into();
         }
         column![
@@ -67,7 +67,7 @@ impl Oryxis {
                     .into_iter()
                     .map(|(_, l)| l)
                     .collect::<Vec<_>>(),
-                crate::smart_tabs::threshold_label(self.setting_smart_long_secs),
+                crate::smart_tabs::threshold_label(self.prefs.smart_long_secs),
                 |s: &String| s.clone(),
                 200.0,
                 |v| Message::Settings(SettingsMessage::SmartTabsThresholdChanged(v)),
@@ -84,7 +84,7 @@ impl Oryxis {
     /// does nothing while nothing is being captured, and a control that
     /// cannot matter yet is noise. Nested like the command-log folder row.
     fn shell_integration_row(&self) -> Element<'_, Message> {
-        if !self.setting_command_history {
+        if !self.prefs.command_history {
             return Space::new().into();
         }
         let indent = if crate::i18n::is_rtl_layout() {
@@ -143,7 +143,7 @@ impl Oryxis {
     /// `~/.oryxis/command-history/`) with a Change button, indented
     /// like the other nested sub-options.
     fn command_history_dir_row(&self) -> Element<'_, Message> {
-        if !self.setting_command_history_file {
+        if !self.prefs.command_history_file {
             return Space::new().into();
         }
         let indent = if crate::i18n::is_rtl_layout() {
@@ -328,7 +328,7 @@ impl Oryxis {
     }
 
     fn default_download_dir_row(&self) -> Element<'_, Message> {
-        let configured = self.setting_zmodem_download_dir.trim();
+        let configured = self.prefs.zmodem_download_dir.trim();
         let shown = if configured.is_empty() {
             dirs::download_dir()
                 .map(|p| p.display().to_string())
@@ -387,19 +387,19 @@ impl Oryxis {
         // in its on-screen position.
         self.keynav_settings_reset();
         let mut toggles_col: iced::widget::Column<'_, Message> = column![
-            self.nav_toggle_row(crate::i18n::t("copy_on_select"), self.setting_copy_on_select, Message::Settings(SettingsMessage::ToggleCopyOnSelect)),
+            self.nav_toggle_row(crate::i18n::t("copy_on_select"), self.prefs.copy_on_select, Message::Settings(SettingsMessage::ToggleCopyOnSelect)),
         ];
         // Right-click scheme (PuTTY's Context menu / Paste / Extend). The
         // single authority for the gesture.
         let rc_is_paste =
-            self.setting_terminal_right_click == crate::util::RightClickMode::Paste;
+            self.prefs.terminal_right_click == crate::util::RightClickMode::Paste;
         toggles_col = toggles_col.push(Space::new().height(10)).push(self.nav_pick_row(
             crate::i18n::t("terminal_right_click"),
             crate::util::RightClickMode::ALL
                 .iter()
                 .map(|m| crate::i18n::t(m.label_key()).to_string())
                 .collect::<Vec<_>>(),
-            crate::i18n::t(self.setting_terminal_right_click.label_key()).to_string(),
+            crate::i18n::t(self.prefs.terminal_right_click.label_key()).to_string(),
             |s: &String| s.clone(),
             200.0,
             |v| Message::Settings(SettingsMessage::TerminalRightClickChanged(v)),
@@ -407,7 +407,7 @@ impl Oryxis {
         // "Copy on right-click" is a sub-option of copy-on-select, and
         // only meaningful when the right-click scheme is Paste (Menu and
         // Extend repurpose the gesture entirely). Hidden otherwise.
-        if self.setting_copy_on_select && rc_is_paste {
+        if self.prefs.copy_on_select && rc_is_paste {
             let indent = if crate::i18n::is_rtl_layout() {
                 Padding { right: 22.0, ..Padding::ZERO }
             } else {
@@ -418,7 +418,7 @@ impl Oryxis {
                 .push(
                     container(self.nav_toggle_row(
                         crate::i18n::t("copy_requires_right_click"),
-                        self.setting_right_click_copy,
+                        self.prefs.right_click_copy,
                         Message::Settings(SettingsMessage::ToggleRightClickCopy),
                     ))
                     .padding(indent),
@@ -446,7 +446,7 @@ impl Oryxis {
             .push(Space::new().height(10))
             .push(self.nav_toggle_row(
                 crate::i18n::t("careful_paste_label"),
-                self.setting_careful_paste,
+                self.prefs.careful_paste,
                 Message::Settings(SettingsMessage::ToggleCarefulPaste),
             ))
             .push(Space::new().height(4))
@@ -462,7 +462,7 @@ impl Oryxis {
             .push(Space::new().height(10))
             .push(self.nav_toggle_row(
                 crate::i18n::t("paste_guard_label"),
-                self.setting_paste_guard,
+                self.prefs.paste_guard,
                 Message::Settings(SettingsMessage::TogglePasteGuard),
             ))
             .push(Space::new().height(4))
@@ -487,7 +487,7 @@ impl Oryxis {
                     t("word_delimiters"),
                     crate::keynav::RowAction::input(iced::widget::Id::new("set-terminal-word-delimiters")),
                     10.0,
-                    text_input(oryxis_terminal::DEFAULT_WORD_DELIMITERS, &self.setting_word_delimiters)
+                    text_input(oryxis_terminal::DEFAULT_WORD_DELIMITERS, &self.prefs.word_delimiters)
                         .id(iced::widget::Id::new("set-terminal-word-delimiters"))
                         .on_input(|v| Message::Settings(SettingsMessage::SettingWordDelimitersChanged(v)))
                         .padding(10)
@@ -519,7 +519,7 @@ impl Oryxis {
                 t("scrollback"),
                 crate::keynav::RowAction::input(iced::widget::Id::new("set-terminal-scrollback")),
                 10.0,
-                text_input("10000", &self.setting_scrollback_rows)
+                text_input("10000", &self.prefs.scrollback_rows)
                     .id(iced::widget::Id::new("set-terminal-scrollback"))
                     .on_input(|v| Message::Settings(SettingsMessage::SettingScrollbackChanged(v)))
                     .padding(10)
@@ -533,13 +533,13 @@ impl Oryxis {
             Space::new().height(12),
             self.nav_toggle_row(
                 crate::i18n::t("scrollback_reset_keypress"),
-                self.setting_scrollback_reset_keypress,
+                self.prefs.scrollback_reset_keypress,
                 Message::Settings(SettingsMessage::ToggleScrollbackResetKeypress),
             ),
             Space::new().height(10),
             self.nav_toggle_row(
                 crate::i18n::t("scrollback_reset_output"),
-                self.setting_scrollback_reset_output,
+                self.prefs.scrollback_reset_output,
                 Message::Settings(SettingsMessage::ToggleScrollbackResetOutput),
             ),
         ];
@@ -568,11 +568,11 @@ impl Oryxis {
         // Appearance: what the grid LOOKS like. Font blocks and the theme
         // picker join this card below.
         let appearance_col = column![
-            self.nav_toggle_row(crate::i18n::t("bold_bright"), self.setting_bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
+            self.nav_toggle_row(crate::i18n::t("bold_bright"), self.prefs.bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.setting_keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
+            self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.prefs.keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.setting_smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
+            self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.prefs.smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
         ];
 
         // Notifications: everything whose job is to GET YOUR ATTENTION.
@@ -586,7 +586,7 @@ impl Oryxis {
                     .iter()
                     .map(|m| crate::i18n::t(m.label_key()).to_string())
                     .collect::<Vec<_>>(),
-                crate::i18n::t(self.setting_bell_mode.label_key()).to_string(),
+                crate::i18n::t(self.prefs.bell_mode.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
                 |v| Message::Settings(SettingsMessage::BellModeChanged(v)),
@@ -598,13 +598,13 @@ impl Oryxis {
                     .iter()
                     .map(|m| crate::i18n::t(m.label_key()).to_string())
                     .collect::<Vec<_>>(),
-                crate::i18n::t(self.setting_notification_mode.label_key()).to_string(),
+                crate::i18n::t(self.prefs.notification_mode.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
                 |v| Message::Settings(SettingsMessage::NotificationModeChanged(v)),
             ),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.setting_smart_tabs, Message::Settings(SettingsMessage::SettingToggleSmartTabs)),
+            self.nav_toggle_row(crate::i18n::t("smart_tabs"), self.prefs.smart_tabs, Message::Settings(SettingsMessage::SettingToggleSmartTabs)),
             self.smart_tabs_threshold_row(),
         ];
 
@@ -618,7 +618,7 @@ impl Oryxis {
                     .iter()
                     .map(|m| crate::i18n::t(m.label_key()).to_string())
                     .collect::<Vec<_>>(),
-                crate::i18n::t(self.setting_clipboard_access.label_key()).to_string(),
+                crate::i18n::t(self.prefs.clipboard_access.label_key()).to_string(),
                 |s: &String| s.clone(),
                 200.0,
                 |v| Message::Settings(SettingsMessage::ClipboardAccessChanged(v)),
@@ -626,10 +626,10 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("terminal_auto_title"), crate::state::auto_title_enabled(), Message::Settings(SettingsMessage::ToggleTerminalAutoTitle)),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.setting_command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
+            self.nav_toggle_row(crate::i18n::t("command_history_capture"), self.prefs.command_history, Message::Settings(SettingsMessage::ToggleCommandHistory)),
             self.shell_integration_row(),
             Space::new().height(10),
-            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.setting_command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
+            self.nav_toggle_row(crate::i18n::t("cmd_history_file"), self.prefs.command_history_file, Message::CommandHistory(CommandHistoryMessage::ToggleCommandHistoryFile)),
             self.command_history_dir_row(),
         ];
 
@@ -638,7 +638,7 @@ impl Oryxis {
         let sidebar_col = column![
             self.nav_toggle_row(
                 crate::i18n::t("terminal_sidebar_left"),
-                self.setting_terminal_sidebar_left,
+                self.prefs.terminal_sidebar_left,
                 Message::Settings(SettingsMessage::SettingToggleTerminalSidebarLeft),
             ),
             Space::new().height(4),
@@ -648,7 +648,7 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(
                 crate::i18n::t("sidebar_auto_open"),
-                self.setting_sidebar_auto_open,
+                self.prefs.sidebar_auto_open,
                 Message::Settings(SettingsMessage::SettingToggleSidebarAutoOpen),
             ),
             Space::new().height(4),
@@ -881,7 +881,7 @@ impl Oryxis {
             self.nav_pick_row(
                 crate::i18n::t("pane_gap"),
                 vec!["0".into(), "4".into(), "8".into(), "12".into()],
-                self.setting_pane_gap.clone(),
+                self.prefs.pane_gap.clone(),
                 |v| {
                     if v == "0" {
                         crate::i18n::t("pane_gap_none").to_string()
@@ -895,7 +895,7 @@ impl Oryxis {
             Space::new().height(10),
             self.nav_toggle_row(
                 crate::i18n::t("pane_border_inactive"),
-                self.setting_pane_border_inactive,
+                self.prefs.pane_border_inactive,
                 Message::Settings(SettingsMessage::TogglePaneBorderInactive),
             ),
         ]);
