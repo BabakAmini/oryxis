@@ -303,3 +303,61 @@
         unfocused.on_event(&mut ws, &ev, bounds(), cursor);
         assert!(ws.selection.is_none(), "the pane being left drops its highlight");
     }
+
+    /// A key event carrying `key`, with no modifiers: enough for the
+    /// chord arm, which resolves through the app's matcher rather than
+    /// reading the modifiers itself.
+    fn key_press(key: keyboard::Key) -> iced::Event {
+        iced::Event::Keyboard(keyboard::Event::KeyPressed {
+            key: key.clone(),
+            modified_key: key.clone(),
+            physical_key: keyboard::key::Physical::Unidentified(
+                keyboard::key::NativeCode::Unidentified,
+            ),
+            location: keyboard::Location::Standard,
+            modifiers: keyboard::Modifiers::empty(),
+            text: None,
+            repeat: false,
+        })
+    }
+
+    /// The session player renders its stage unfocused (its keys are the
+    /// transport, so it must not take the "typing clears the highlight"
+    /// path), which used to mean its chords never fired either: a
+    /// recording could be selected with the mouse but not copied from
+    /// the keyboard. `with_chords_unfocused` is the opt-in for a surface
+    /// that is the only terminal on screen.
+    #[test]
+    fn chords_fire_unfocused_when_the_surface_opts_in() {
+        let (view, mut ws) = view_and_state();
+        let view = view
+            .focused(false)
+            .with_terminal_chords(Box::new(|_, _| Some(TerminalChordAction::SelectAll)))
+            .with_chords_unfocused(true);
+        view.on_event(
+            &mut ws,
+            &key_press(keyboard::Key::Character("a".into())),
+            bounds(),
+            mouse::Cursor::Unavailable,
+        );
+        assert!(ws.selection.is_some(), "select-all must reach the replay");
+    }
+
+    /// The other side of the same gate: without the opt-in an unfocused
+    /// widget ignores the chords. Key events reach every widget in the
+    /// tree, so this is what keeps a three-way split from running the
+    /// copy chord three times.
+    #[test]
+    fn chords_stay_focus_gated_by_default() {
+        let (view, mut ws) = view_and_state();
+        let view = view
+            .focused(false)
+            .with_terminal_chords(Box::new(|_, _| Some(TerminalChordAction::SelectAll)));
+        view.on_event(
+            &mut ws,
+            &key_press(keyboard::Key::Character("a".into())),
+            bounds(),
+            mouse::Cursor::Unavailable,
+        );
+        assert!(ws.selection.is_none(), "an unfocused pane declines the chord");
+    }

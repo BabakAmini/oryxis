@@ -6,6 +6,7 @@ impl<Message> TerminalView<Message> {
         Self {
             state,
             chords: None,
+            chords_unfocused: false,
             font_size,
             cell_width: cell_advance(Font::MONOSPACE, font_size),
             cell_height: font_size * 1.15,
@@ -97,6 +98,14 @@ impl<Message> TerminalView<Message> {
     /// scrollback paging. See [`ChordResolver`].
     pub fn with_terminal_chords(mut self, resolver: ChordResolver) -> Self {
         self.chords = Some(resolver);
+        self
+    }
+
+    /// Let the chords fire on a widget that is never rendered focused
+    /// (see the `chords_unfocused` field). Only correct for a surface
+    /// that is the only terminal on screen.
+    pub fn with_chords_unfocused(mut self, on: bool) -> Self {
+        self.chords_unfocused = on;
         self
     }
 

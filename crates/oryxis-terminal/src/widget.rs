@@ -432,6 +432,14 @@ pub struct TerminalView<Message = ()> {
     /// falls back to no chords at all (the harness and any other caller
     /// that doesn't wire the binding table).
     chords: Option<ChordResolver>,
+    /// Fire those chords even though this widget is never rendered
+    /// focused. Key events reach every widget in the tree, and the
+    /// focus gate is what keeps a three-way split from copying three
+    /// times, so this is only correct on a surface that is the ONLY
+    /// terminal on screen: the session player, whose keys are transport
+    /// controls (Space, seek, speed) rather than terminal input, which
+    /// is why it cannot simply claim focus instead.
+    chords_unfocused: bool,
     font_size: f32,
     cell_width: f32,
     cell_height: f32,

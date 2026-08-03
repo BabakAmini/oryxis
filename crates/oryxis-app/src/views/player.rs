@@ -13,11 +13,23 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, canvas, column, container, scrollable, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use oryxis_terminal::widget::TerminalView;
+use oryxis_terminal::widget::{ChordResolver, TerminalChordAction, TerminalView};
 
 use crate::app::{HistoryMessage, PlayerMessage, Message, Oryxis};
 use crate::state::SessionPlayer;
 use crate::theme::OryxisColors;
+
+/// The user's terminal chords, minus the ones a recording cannot honour.
+/// Copy, Select All and the scrollback paging all read the buffer, so
+/// they apply unchanged; pasting the PRIMARY selection would consume the
+/// highlight and hand the text to a backend that has no PTY, so that one
+/// chord is declined instead of half-working.
+fn replay_chords(base: ChordResolver) -> ChordResolver {
+    Box::new(move |key, modifiers| match base(key, modifiers) {
+        Some(TerminalChordAction::PasteSelection) => None,
+        other => other,
+    })
+}
 
 impl Oryxis {
     pub(crate) fn view_session_player<'a>(
@@ -178,7 +190,20 @@ impl Oryxis {
                 // No mouse-tracking reports ever leave a replay (there
                 // is nothing to receive them); selection/copy stay
                 // local.
+                //
+                // Unfocused on purpose, and not for the reports (those
+                // are off below): the keys over this surface are the
+                // transport (Space, seek, speed), so the widget's
+                // "typing clears the highlight" rule must not apply, or
+                // seeking after a selection would drop it. The chords
+                // still fire, through `with_chords_unfocused`: nothing
+                // else on screen is a terminal while the player is up
+                // (it is mutually exclusive with the transcript viewer,
+                // and the History view has no live pane), so the focus
+                // gate has no ambiguity left to resolve here.
                 .focused(false)
+                .with_terminal_chords(replay_chords(self.terminal_chord_resolver()))
+                .with_chords_unfocused(true)
                 .with_mouse_reporting(false)
                 .with_font_size(font_size)
                 .with_font_name(&self.terminal_font_name)

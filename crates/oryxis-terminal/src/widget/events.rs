@@ -1220,7 +1220,7 @@ where
             // selection out from under a copy, and snap the view straight
             // back to the live edge after a page-up.
             iced::Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. })
-                if self.focused
+                if (self.focused || self.chords_unfocused)
                     && self
                         .chords
                         .as_ref()
