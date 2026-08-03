@@ -486,3 +486,93 @@ impl Oryxis {
     }
 
 }
+
+impl Oryxis {
+    /// The window-chrome arms of the tabs domain.
+    ///
+    /// They live beside the handlers they call rather than in a
+    /// module of their own: every one of these is one line into a
+    /// `handle_window_*` defined above.
+    pub(super) fn handle_tabs_window(&mut self, message: TabsMessage) -> Task<Message> {
+        match message {
+            TabsMessage::MouseMoved(pos) => return self.handle_mouse_moved(pos),
+            TabsMessage::WindowResized(size) => return self.handle_window_resized(size),
+            TabsMessage::WindowMoved(pos) => {
+                // Same skip rule as the windowed-size tracking above:
+                // maximize / fullscreen park the window at the monitor
+                // origin, and the optimistic flags flip before that
+                // Moved event arrives. The second filter drops the
+                // (-32000, -32000) sentinel Windows reports for
+                // minimized windows (scaled by DPI when converted to
+                // logical, hence the generous threshold: no real
+                // monitor layout puts a window beyond -8000 on both
+                // axes at once).
+                let minimized_sentinel = pos.x <= -8000.0 && pos.y <= -8000.0;
+                if !self.window_maximized
+                    && !self.window_fullscreen
+                    && !minimized_sentinel
+                {
+                    self.window_windowed_pos = Some(pos);
+                }
+            }
+            TabsMessage::WindowEnsureOnScreen => return self.handle_window_ensure_on_screen(),
+            TabsMessage::WindowFocusChanged(focused) => return self.handle_window_focus_changed(focused),
+            TabsMessage::WindowDrag => {
+                if !self.consume_window_press() {
+                    return Task::none();
+                }
+                return iced::window::latest().then(|id_opt| match id_opt {
+                    Some(id) => iced::window::drag(id),
+                    None => Task::none(),
+                });
+            }
+            TabsMessage::WindowResizeDrag(direction) => {
+                // Ignore resize requests while maximized, the window has no
+                // borders to grab and the OS will reject/misbehave on WinIt.
+                if self.window_maximized {
+                    return Task::none();
+                }
+                if !self.consume_window_press() {
+                    return Task::none();
+                }
+                return iced::window::latest().then(move |id_opt| match id_opt {
+                    Some(id) => iced::window::drag_resize(id, direction),
+                    None => Task::none(),
+                });
+            }
+            TabsMessage::WindowExpandVertical => return self.handle_window_expand_vertical(),
+            TabsMessage::WindowMinimize => return self.handle_window_minimize(),
+            TabsMessage::WindowMaximizeToggle => {
+                self.window_maximized = !self.window_maximized;
+                // Cheap write, and it keeps the restored state accurate
+                // even when the process later dies without reaching an
+                // exit path (OS shutdown, kill).
+                self.persist_window_geometry();
+                return iced::window::latest().then(|id_opt| match id_opt {
+                    Some(id) => iced::window::toggle_maximize(id),
+                    None => Task::none(),
+                });
+            }
+            TabsMessage::WindowClose => return self.handle_window_close(),
+            TabsMessage::WindowFullscreenToggle => return self.handle_window_fullscreen_toggle(),
+            TabsMessage::FullscreenHintHide => {
+                self.fullscreen_hint_visible = false;
+            }
+            TabsMessage::SpawnNewWindow => {
+                // Burger menu fires this. Drop both the context-menu
+                // overlay AND the burger panel itself so the menu
+                // doesn't linger on top of the freshly-spawned window.
+                // The burger lives in its own `show_burger_menu` flag
+                // (not `OverlayState`), so clearing `self.overlay`
+                // alone wasn't enough.
+                self.overlay = None;
+                self.panels.burger_menu = false;
+                self.spawn_oryxis_child(None);
+            }
+            // Routed here by the parent; anything else is a
+            // grouping mistake, not a runtime case.
+            _ => {}
+        }
+        Task::none()
+    }
+}
