@@ -997,6 +997,7 @@ impl VaultStore {
         for (table, id_col, col) in [
             ("connections", "id", "password"),
             ("connections", "id", "proxy_password"),
+            ("connections", "id", "totp_secret"),
             ("keys", "id", "private_key"),
             ("identities", "id", "password"),
             ("proxy_identities", "id", "password"),
