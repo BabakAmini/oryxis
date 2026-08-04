@@ -95,6 +95,18 @@ impl Oryxis {
         if !terminal_on_screen {
             return Task::none();
         }
+        // The connect progress paints over the focused tab's panes
+        // (`view_content` gates on the same `connecting_here`), so a
+        // drop while it is up has no visible pane to land in; without
+        // this check it would type into (or SFTP toward) a surface the
+        // user cannot see.
+        let connecting_here = self
+            .connecting
+            .as_ref()
+            .is_some_and(|cp| Some(cp.tab_idx) == self.active_tab);
+        if connecting_here {
+            return Task::none();
+        }
         let Some(tab_idx) = self.active_tab else {
             return Task::none();
         };
