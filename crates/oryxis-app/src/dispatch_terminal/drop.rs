@@ -85,8 +85,12 @@ impl Oryxis {
         // other view) on screen there is no pane under the cursor, and
         // uploading into a BACKGROUND tab is the #106 behavior this
         // replaces. The SFTP surfaces already claimed their drops
-        // upstream.
-        if self.active_view != crate::state::View::Terminal {
+        // upstream. Terminal content is on screen when the active view
+        // is Terminal, or when the Dashboard shows a focused session tab.
+        let terminal_on_screen = self.active_view == crate::state::View::Terminal
+            || (self.active_tab.is_some()
+                && self.active_view == crate::state::View::Dashboard);
+        if !terminal_on_screen {
             return Task::none();
         }
         let Some(tab_idx) = self.active_tab else {
