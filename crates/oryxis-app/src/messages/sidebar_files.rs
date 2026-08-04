@@ -29,6 +29,9 @@ pub enum SidebarFilesMessage {
     SidebarFilesError(Uuid, u64, String),
     SidebarFilesRowHovered(usize),
     SidebarFilesRowUnhovered,
+    /// Left-click on a row: single-click selects it (highlight); a quick
+    /// double-click on a directory enters it.
+    SidebarFilesSelectRow(String, bool),
     /// Right-click on a sidebar Files row: open its context menu
     /// (full path + is_dir), anchored at the cursor.
     ShowSidebarFilesRowMenu(String, bool),

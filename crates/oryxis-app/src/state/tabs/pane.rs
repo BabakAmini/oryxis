@@ -204,6 +204,12 @@ pub(crate) struct PaneFiles {
     pub nav_replay: bool,
     /// Whether the path combo-box dropdown is open.
     pub path_history_open: bool,
+    /// Full remote path of the currently selected row, if any.
+    /// Cleared on navigation / mount / disconnect.
+    pub selected: Option<String>,
+    /// Timestamp + path of the last single click, for double-click
+    /// detection (matching the SFTP pane's rule).
+    pub last_click: Option<(std::time::Instant, String)>,
 }
 
 impl PaneFiles {
@@ -235,6 +241,8 @@ impl PaneFiles {
         // end of it.
         self.path_history.clear();
         self.path_history_open = false;
+        self.selected = None;
+        self.last_click = None;
     }
 
     /// Record an adopted directory in the combo-box history: most

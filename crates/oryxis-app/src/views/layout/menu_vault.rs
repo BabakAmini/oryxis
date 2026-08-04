@@ -38,7 +38,7 @@ impl Oryxis {
             // sidebar's own channel.
             items = items.push(self.menu_item(
                 iced_fonts::lucide::pencil(),
-                crate::i18n::t("edit"),
+                crate::i18n::t("sftp_open_edit"),
                 Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEdit(path.clone())),
                 secondary,
             ));

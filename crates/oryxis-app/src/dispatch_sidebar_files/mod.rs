@@ -173,6 +173,7 @@ impl Oryxis {
             m @ (
                 SidebarFilesMessage::SidebarFilesRowHovered(..)
                 | SidebarFilesMessage::SidebarFilesRowUnhovered
+                | SidebarFilesMessage::SidebarFilesSelectRow(..)
                 | SidebarFilesMessage::SidebarFilesToggleFollow
                 | SidebarFilesMessage::SidebarFilesToggleHidden
                 | SidebarFilesMessage::SidebarFilesRefresh

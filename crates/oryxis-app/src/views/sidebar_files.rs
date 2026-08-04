@@ -3,8 +3,10 @@
 //! host header, the host is the tab's own; just the current path, the
 //! follow-cwd pin, hidden/refresh/expand actions and the entry list.
 //! Rows follow the History tab's conventions: hover-revealed floating
-//! action, click = primary (folders navigate, files copy their path),
-//! all recorded into the sidebar keynav layer.
+//! Copy path action, click = select (double-click folder = enter),
+//! all recorded into the sidebar keynav layer. The keynav slot keeps
+//! the direct action (folders navigate, files copy their path): the
+//! ring has no double-press gesture, so Enter must not need one.
 
 use iced::border::Radius;
 use iced::widget::{column, container, text, MouseArea, Space};
@@ -250,15 +252,20 @@ impl Oryxis {
                 ));
                 pos += 1;
             }
-            // ".." row, hidden at the root.
+            // ".." row, hidden at the root. Going up stays a single
+            // click (and a single Enter): there is nothing on the
+            // parent row worth selecting first.
             if let Some(parent) = files_parent_dir(&files.path) {
+                let up = Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(parent));
                 list = list.push(self.files_row(
                     "..",
                     true,
                     false,
                     0,
-                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(parent)),
+                    up.clone(),
+                    up,
                     None,
+                    false,
                     pos,
                 ));
                 pos += 1;
@@ -311,21 +318,28 @@ impl Oryxis {
                     pos += 1;
                     continue;
                 }
-                let primary = if entry.is_dir {
+                let press = Message::SidebarFiles(SidebarFilesMessage::SidebarFilesSelectRow(
+                    full.clone(),
+                    entry.is_dir,
+                ));
+                // The ring's Enter skips the selection step: folders
+                // navigate, files copy their path (with the toast as
+                // feedback), as before click-select existed.
+                let key_activate = if entry.is_dir {
                     Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(full.clone()))
                 } else {
-                    // Files: the row's primary is Copy path (toast
-                    // feedback); heavier actions live in the context
-                    // menu (right-click) and the full SFTP session.
                     Message::Sftp(SftpMessage::SftpCopyPath(full.clone()))
                 };
+                let is_selected = files.selected.as_deref() == Some(full.as_str());
                 list = list.push(self.files_row(
                     &entry.name,
                     entry.is_dir,
                     entry.is_symlink,
                     entry.size,
-                    primary,
+                    press,
+                    key_activate,
                     Some(full),
+                    is_selected,
                     pos,
                 ));
                 pos += 1;
@@ -370,10 +384,11 @@ impl Oryxis {
         }
     }
 
-    /// One browser row, recorded into the sidebar keynav layer (Enter =
-    /// the row's primary: folders navigate, files copy their path).
-    /// `full_path` enables the hover-revealed Copy path action; the
-    /// ".." row has none.
+    /// One browser row. A mouse press fires `press` (select; a quick
+    /// second press on a folder enters it), while the keynav slot
+    /// records `key_activate` (Enter = the direct action: folders
+    /// navigate, files copy their path). `full_path` enables the
+    /// hover-revealed Copy path action; the ".." row has none.
     #[allow(clippy::too_many_arguments)]
     fn files_row<'a>(
         &'a self,
@@ -381,8 +396,10 @@ impl Oryxis {
         is_dir: bool,
         is_symlink: bool,
         size: u64,
-        primary: Message,
+        press: Message,
+        key_activate: Message,
         full_path: Option<String>,
+        selected: bool,
         pos: usize,
     ) -> Element<'a, Message> {
         let c = OryxisColors::t();
@@ -414,10 +431,17 @@ impl Oryxis {
         let card = container(dir_row(cells).align_y(iced::Alignment::Center))
             .padding(Padding { top: 6.0, right: 10.0, bottom: 6.0, left: 10.0 })
             .width(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(6.0), ..Default::default() },
-                ..Default::default()
+            .style(move |_| {
+                let bg = if selected {
+                    Color { a: 0.20, ..OryxisColors::t().accent }
+                } else {
+                    OryxisColors::t().bg_surface
+                };
+                container::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(6.0), ..Default::default() },
+                    ..Default::default()
+                }
             });
 
         // Hover-revealed floating Copy path (the card-action convention;
@@ -449,7 +473,7 @@ impl Oryxis {
         let mut area = MouseArea::new(row_el)
             .on_enter(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowHovered(pos)))
             .on_exit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowUnhovered))
-            .on_press(primary.clone())
+            .on_press(press)
             .interaction(iced::mouse::Interaction::Pointer);
         // Right-click opens the row's context menu (Open / Open SFTP
         // session here / Copy path / Copy name); the ".." row has none.
@@ -459,7 +483,7 @@ impl Oryxis {
         }
 
         self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::list_button(primary),
+            crate::keynav::SidebarRow::list_button(key_activate),
             TerminalSidebarTab::Files,
             6.0,
             area.into(),

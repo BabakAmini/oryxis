@@ -5,7 +5,12 @@
 //! `SidebarFilesNavigate` is the one place that unpins the OSC 7
 //! follow, so manual navigation wins until the pin is re-enabled.
 
+use std::time::Duration;
+
 use super::*;
+
+/// Double-click window, matching the SFTP pane's constant.
+const DOUBLE_CLICK_WINDOW: Duration = Duration::from_millis(500);
 
 impl Oryxis {
     pub(super) fn handle_sidebar_files_navigate(
@@ -18,6 +23,26 @@ impl Oryxis {
             }
             SidebarFilesMessage::SidebarFilesRowUnhovered => {
                 self.hover.files_row = None;
+            }
+            SidebarFilesMessage::SidebarFilesSelectRow(path, is_dir) => {
+                // Single-click selects the row (highlight); double-click
+                // on a directory enters it, matching the SFTP pane's rule.
+                let Some(pane) = self.active_pane_mut() else {
+                    return Task::none();
+                };
+                let now = std::time::Instant::now();
+                let is_double = pane.files.last_click.as_ref().is_some_and(
+                    |(t, p)| p == &path && now.duration_since(*t) < DOUBLE_CLICK_WINDOW,
+                );
+                pane.files.last_click = Some((now, path.clone()));
+                pane.files.selected = Some(path.clone());
+                if is_double && is_dir {
+                    pane.files.last_click = None;
+                    pane.files.selected = None;
+                    return self.update(Message::SidebarFiles(
+                        SidebarFilesMessage::SidebarFilesNavigate(path),
+                    ));
+                }
             }
             SidebarFilesMessage::SidebarFilesToggleFollow => {
                 if let Some(pane) = self.active_pane_mut() {
@@ -39,6 +64,9 @@ impl Oryxis {
                     return Task::none();
                 };
                 pane.files.error = None;
+                // The selection is deliberately kept: the rows stay on
+                // screen while the re-list is in flight, and the prune
+                // on arrival keeps it only if its entry survived.
                 match (&pane.files.client, pane.files.path.is_empty()) {
                     // Mounted: re-list the current directory.
                     (Some(client), false) => {
@@ -54,7 +82,8 @@ impl Oryxis {
                 }
             }
             SidebarFilesMessage::SidebarFilesNavigate(path) => {
-                // Also fired from the row context menu; dismiss it.
+                // Also fired from the row context menu and the
+                // ".." row; dismiss the overlay and clear selection.
                 self.overlay = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Task::none();
@@ -97,6 +126,8 @@ impl Oryxis {
                 pane.files.entries.clear();
                 pane.files.loading = true;
                 pane.files.error = None;
+                pane.files.selected = None;
+                pane.files.last_click = None;
                 // Rapid clicks race their listings; the stamp makes the
                 // LATEST navigation win regardless of completion order.
                 let seq = pane.files.next_req();
