@@ -103,10 +103,15 @@ impl SshEngine {
                     match handle.authenticate_password(username, pw).await {
                         Ok(res) => match res.into() {
                             StepVerdict::Accepted => return Ok(true),
+                            // The key rejected (or skipped) at step 1 is
+                            // re-offered: sshd only advertises the methods
+                            // that are NEXT in an `AuthenticationMethods`
+                            // list, so a `password,publickey` server refuses
+                            // the out-of-order key first and wants it now.
                             StepVerdict::Partial(remaining) => {
                                 return self
                                     .finish_partial_auth(
-                                        handle, username, remaining, None, None, Some(pw),
+                                        handle, username, remaining, key_material, None, Some(pw),
                                     )
                                     .await;
                             }
@@ -125,10 +130,12 @@ impl SshEngine {
                     tracing::info!("Auto: trying keyboard-interactive auth for {}", username);
                     match self.try_keyboard_interactive(handle, username, Some(pw), false).await? {
                         KbiOutcome::Success => return Ok(true),
+                        // Same out-of-order rule as the password arm above:
+                        // the step-1 key may be what the server wants next.
                         KbiOutcome::Partial(remaining) => {
                             return self
                                 .finish_partial_auth(
-                                    handle, username, remaining, None, None, Some(pw),
+                                    handle, username, remaining, key_material, None, Some(pw),
                                 )
                                 .await;
                         }
@@ -147,7 +154,7 @@ impl SshEngine {
                         KbiOutcome::Partial(remaining) => {
                             return self
                                 .finish_partial_auth(
-                                    handle, username, remaining, None, password, password,
+                                    handle, username, remaining, key_material, password, password,
                                 )
                                 .await;
                         }
@@ -183,7 +190,7 @@ impl SshEngine {
                                                     handle,
                                                     username,
                                                     remaining,
-                                                    None,
+                                                    key_material,
                                                     None,
                                                     Some(&pw),
                                                 )
@@ -262,10 +269,12 @@ impl SshEngine {
                     let res = handle.authenticate_password(username, pw).await?;
                     match res.into() {
                         StepVerdict::Accepted => return Ok(true),
+                        // Re-offer the rejected key: on a `password,publickey`
+                        // server the step-1 refusal was order, not verdict.
                         StepVerdict::Partial(remaining) => {
                             return self
                                 .finish_partial_auth(
-                                    handle, username, remaining, None, None, Some(pw),
+                                    handle, username, remaining, Some(km), None, Some(pw),
                                 )
                                 .await;
                         }
@@ -522,8 +531,10 @@ impl SshEngine {
             ))
         };
 
-        // One keyboard-interactive run per continuation: a second one
-        // would re-ask (or autofill) a factor the server just refused.
+        // Keyboard-interactive is consumed by a REJECTED run (a second
+        // one would re-ask, or autofill, a factor the server just
+        // refused) and re-armed by a partially-accepted one (the server
+        // wants another, distinct KBI factor next).
         let mut kbi_available = true;
 
         for _ in 0..MAX_STEPS {
@@ -556,7 +567,16 @@ impl SshEngine {
                 // 2FA modal when no TOTP secret is stored) is not.
                 match self.try_keyboard_interactive(handle, username, kbi_pw, true).await? {
                     KbiOutcome::Success => StepVerdict::Accepted,
-                    KbiOutcome::Partial(next) => StepVerdict::Partial(next),
+                    // This exchange was ACCEPTED and the server asked for
+                    // more: a follow-up keyboard-interactive is a new
+                    // factor (`AuthenticationMethods
+                    // keyboard-interactive,keyboard-interactive`), not a
+                    // re-ask of a refused one, so re-arm it. MAX_STEPS
+                    // still bounds the chain.
+                    KbiOutcome::Partial(next) => {
+                        kbi_available = true;
+                        StepVerdict::Partial(next)
+                    }
                     KbiOutcome::Rejected => StepVerdict::Rejected,
                     KbiOutcome::Cancelled => {
                         return Err(SshError::Key("Authentication cancelled".into()));

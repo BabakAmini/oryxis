@@ -28,6 +28,17 @@ impl Oryxis {
                 self.connecting = None;
                 // A parked identity/key switch dies with its connect.
                 self.pending_auth_switch = None;
+                // So does a parked KBI prompt (same sweep EditFromProgress
+                // does): left behind, it would render as the port-forward
+                // KBI overlay on the Dashboard once `connecting` is None.
+                if self.pending_kbi_prompt.is_some() {
+                    self.pending_kbi_prompt = None;
+                    self.pending_kbi_quick = None;
+                    self.kbi_inputs.clear();
+                    if let Some(ref tx) = self.kbi_response_tx {
+                        let _ = tx.try_send(None);
+                    }
+                }
                 self.active_tab = None;
                 self.active_view = View::Dashboard;
             }

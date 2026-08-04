@@ -108,6 +108,99 @@ impl russh::server::Handler for TwoFactorHandler {
     }
 }
 
+/// Per-connection handler chaining THREE keyboard-interactive factors
+/// (`AuthenticationMethods keyboard-interactive,keyboard-interactive,
+/// keyboard-interactive` in sshd terms): password, TOTP code, then an
+/// approval word, each stage ending in a wire-visible partial success
+/// until the last accepts. Exercises the continuation's KBI re-arm (a
+/// partially-ACCEPTED exchange must allow another; only a rejected one
+/// consumes the method).
+struct ThreeStageHandler {
+    stage: u8,
+}
+
+impl russh::server::Handler for ThreeStageHandler {
+    type Error = russh::Error;
+
+    async fn auth_keyboard_interactive<'a>(
+        &'a mut self,
+        user: &str,
+        _submethods: &str,
+        response: Option<Response<'a>>,
+    ) -> Result<Auth, Self::Error> {
+        if user != TEST_USER {
+            return Ok(Auth::reject());
+        }
+        let Some(resp) = response else {
+            let prompt = match self.stage {
+                0 => "Password: ",
+                1 => "Verification code: ",
+                _ => "Approval word: ",
+            };
+            return Ok(Auth::Partial {
+                name: Cow::Borrowed("Chained factors"),
+                instructions: Cow::Borrowed(""),
+                prompts: Cow::Owned(vec![(Cow::Borrowed(prompt), false)]),
+            });
+        };
+        let answers: Vec<String> = resp
+            .map(|bytes| String::from_utf8_lossy(&bytes).to_string())
+            .collect();
+        let answer = answers.first().map(String::as_str).unwrap_or_default();
+        let ok = match self.stage {
+            0 => answer == TEST_PASS,
+            1 => totp_code_ok(answer),
+            _ => answer == "approved",
+        };
+        if !ok {
+            return Ok(Auth::reject());
+        }
+        if self.stage >= 2 {
+            return Ok(Auth::Accept);
+        }
+        self.stage += 1;
+        Ok(Auth::Reject {
+            proceed_with_methods: Some(MethodSet::from(
+                &[MethodKind::KeyboardInteractive][..],
+            )),
+            partial_success: true,
+        })
+    }
+}
+
+/// Spawn the loopback three-stage server; same accept-loop shape as
+/// [`spawn_two_factor_server`], fresh stage state per connection.
+async fn spawn_three_stage_server() -> u16 {
+    use russh::keys::PrivateKey;
+
+    let mut config = russh::server::Config::default();
+    config
+        .keys
+        .push(PrivateKey::from_openssh(HARNESS_HOST_KEY).expect("parse host key"));
+    config.auth_rejection_time = Duration::ZERO;
+    config.auth_rejection_time_initial = Some(Duration::ZERO);
+    let config = Arc::new(config);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("bind loopback");
+    let port = listener.local_addr().expect("local_addr").port();
+
+    tokio::spawn(async move {
+        while let Ok((socket, _)) = listener.accept().await {
+            let config = config.clone();
+            tokio::spawn(async move {
+                let handler = ThreeStageHandler { stage: 0 };
+                if let Ok(running) = russh::server::run_stream(config, socket, handler).await {
+                    let _ = running.await;
+                }
+            });
+        }
+    });
+
+    port
+}
+
 /// Spawn the loopback two-factor server; returns the bound port. Loops
 /// on accept with a fresh handler (fresh factor state) per connection.
 async fn spawn_two_factor_server() -> u16 {
@@ -221,6 +314,54 @@ async fn first_factor_then_prompted_code_authenticates() {
         .do_authenticate(&mut handle, &conn, None, None)
         .await
         .expect("first factor + prompted code must authenticate");
+}
+
+/// A server chaining a SECOND keyboard-interactive factor after a
+/// partially-accepted one: the continuation must re-arm KBI after a
+/// partial acceptance (only a REJECTED run consumes the method), so
+/// all three prompts surface and the auth completes. Without the
+/// re-arm the third exchange never runs and the connect dies with the
+/// "additional authentication" error despite every answer being right.
+#[tokio::test]
+async fn chained_kbi_factors_authenticate() {
+    let port = spawn_three_stage_server().await;
+    let conn = loopback_conn(port);
+
+    let (tx, mut rx) = tokio::sync::mpsc::channel(4);
+    let kbi_tx: KbiAskSender = tx;
+    tokio::spawn(async move {
+        while let Some((query, resp_tx)) = rx.recv().await {
+            let answers: Vec<String> = query
+                .prompts
+                .iter()
+                .map(|p| {
+                    if p.prompt.contains("Password") {
+                        TEST_PASS.to_string()
+                    } else if p.prompt.contains("Verification code") {
+                        Totp::parse(TOTP_SECRET).expect("fixture parses").code_now()
+                    } else {
+                        assert!(
+                            p.prompt.contains("Approval word"),
+                            "unexpected prompt surfaced to the UI: {}",
+                            p.prompt,
+                        );
+                        "approved".to_string()
+                    }
+                })
+                .collect();
+            let _ = resp_tx.send(Some(answers));
+        }
+    });
+    let engine = engine().with_kbi_ask(kbi_tx);
+
+    let mut handle = engine
+        .establish_transport(&conn, None)
+        .await
+        .expect("transport");
+    engine
+        .do_authenticate(&mut handle, &conn, None, None)
+        .await
+        .expect("three chained keyboard-interactive factors must authenticate");
 }
 
 /// No second-factor source at all (no secret, no UI): the auth must

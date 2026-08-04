@@ -133,6 +133,20 @@ impl Oryxis {
                 if let Some(ref mut progress) = self.connecting {
                     progress.failed = true;
                     progress.logs.push((progress.step, format!("Error: {}", err)));
+                    // The connect is dead, so a KBI modal parked on it is an
+                    // orphan: its oneshot is gone (submits would vanish
+                    // silently) and the progress card's KBI branch renders
+                    // OVER the failure timeline, hiding the real error
+                    // (blanket auth timeout with the 2FA form open). Drop it
+                    // and answer any waiting bridge.
+                    if self.pending_kbi_prompt.is_some() {
+                        self.pending_kbi_prompt = None;
+                        self.pending_kbi_quick = None;
+                        self.kbi_inputs.clear();
+                        if let Some(ref tx) = self.kbi_response_tx {
+                            let _ = tx.try_send(None);
+                        }
+                    }
                 } else {
                     self.host_panel_error = Some(format!("SSH: {}", err));
                 }
