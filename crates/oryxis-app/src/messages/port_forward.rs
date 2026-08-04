@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 use uuid::Uuid;
-use oryxis_ssh::{ForwardSession};
+use oryxis_ssh::{ForwardConn, ForwardSession};
 use oryxis_core::models::port_forward_rule::ForwardKind;
 
 #[derive(Debug, Clone)]
@@ -30,7 +30,17 @@ pub enum PortForwardMessage {
     StartPortForward(Uuid),
     /// Toggle a rule off: drops its `ForwardSession` (cancels the tunnel).
     StopPortForward(Uuid),
-    /// Result of a `StartPortForward` connect attempt.
+    /// The shared per-host forward connection came up (or failed), keyed
+    /// by the HOST's connection id. On success every rule queued for that
+    /// host attaches onto it; on failure they all fail together (one dial,
+    /// one error). See `dispatch_port_forwards::PfHostConn`.
+    PortForwardConnReady(Uuid, Result<ForwardConn, String>),
+    /// The shared-connection dial for a host ended with neither a
+    /// connection nor a surfaced error (the legacy-algorithm dialog took
+    /// over): unwinds the queued rules' in-flight state so the dialog's
+    /// retry can start over.
+    PortForwardConnAborted(Uuid),
+    /// Result of a `StartPortForward` attach attempt (rule id).
     PortForwardStarted(Uuid, Result<Arc<ForwardSession>, String>),
     /// Periodic liveness sweep; drops forwards whose connection died.
     PortForwardLivenessTick,

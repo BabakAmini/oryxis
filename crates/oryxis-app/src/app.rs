@@ -765,6 +765,15 @@ pub struct Oryxis {
     /// `ForwardSession` cancels its tasks.
     pub(crate) active_forwards:
         std::collections::HashMap<Uuid, std::sync::Arc<oryxis_ssh::ForwardSession>>,
+    /// One shared, PTY-less SSH connection per HOST carrying every live
+    /// forward to it (issue #126): rules attach as channels instead of
+    /// each dialing its own connection. Keyed by the host's connection
+    /// id. `Connecting` queues rules toggled on while the dial is in
+    /// flight; the entry is dropped when the last forward of that host
+    /// stops (which closes the SSH connection). See
+    /// `dispatch_port_forwards::PfHostConn`.
+    pub(crate) forward_conns:
+        std::collections::HashMap<Uuid, crate::dispatch_port_forwards::PfHostConn>,
     /// Live RDP/VNC-over-SSH tunnels, keyed by the host's connection id.
     /// A managed `-L` forward paired with its launch generation. The tunnel
     /// self-closes once the desktop client disconnects and it goes idle (see

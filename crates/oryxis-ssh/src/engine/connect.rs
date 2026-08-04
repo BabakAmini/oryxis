@@ -203,14 +203,6 @@ impl SshEngine {
         })
     }
 
-    /// Open a standalone port forward (no PTY). Runs the same transport +
-    /// auth ladder as a terminal connect, then binds the forward listener
-    /// instead of requesting a shell. The returned `ForwardSession` holds
-    /// the connection open until cancelled.
-    ///
-    /// Consumes `self` because a remote (`-R`) forward must install the
-    /// inbound-channel sink on the handler *before* the transport (and thus
-    /// the handler) is created.
     /// Open a `-L` forward on an OS-assigned ephemeral local port and
     /// report the port back, so a caller (the RDP/VNC launcher) can
     /// point a client at `127.0.0.1:<port>` with no bind race: the
@@ -266,128 +258,58 @@ impl SshEngine {
                 cancel_tx,
                 _tasks: vec![task],
                 remote_bind: None,
+                remote_route: None,
             },
             local_port,
         ))
     }
 
-    pub async fn connect_forward(
+    /// Establish a dedicated, PTY-less SSH connection for the port
+    /// forwards of one host, with no rule attached yet. Runs the same
+    /// transport + auth ladder as a terminal connect; rules then attach
+    /// via `ForwardConn::attach`, each as channels multiplexed on this
+    /// single connection (issue #126), the way OpenSSH stacks
+    /// `-L`/`-R`/`-D` flags on one `ssh` invocation.
+    ///
+    /// Consumes `self` because the `-R` routing table must be installed
+    /// on the handler *before* the transport (and thus the handler) is
+    /// created — and any rule kind may attach later, so it is always
+    /// installed.
+    pub async fn connect_forward_conn(
         mut self,
+        connection: &Connection,
+        password: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
+        resolver: Option<&ConnectionResolver>,
+    ) -> Result<ForwardConn, SshError> {
+        let routes: RemoteRouteMap = Arc::default();
+        self.remote_routes = Some(Arc::clone(&routes));
+        let mut handle = self.establish_transport(connection, resolver).await?;
+        self.do_authenticate(&mut handle, connection, password, key_material)
+            .await?;
+        Ok(ForwardConn {
+            handle: Arc::new(tokio::sync::Mutex::new(handle.0)),
+            remote_routes: routes,
+        })
+    }
+
+    /// One-shot convenience: open a forward connection and attach a single
+    /// rule. The returned `ForwardSession` holds the connection open until
+    /// cancelled. Callers that may run several rules against the same host
+    /// should hold the `ForwardConn` from `connect_forward_conn` and
+    /// attach each rule instead of calling this repeatedly.
+    pub async fn connect_forward(
+        self,
         connection: &Connection,
         password: Option<&str>,
         key_material: Option<KeyMaterial<'_>>,
         rule: &PortForwardRule,
         resolver: Option<&ConnectionResolver>,
     ) -> Result<ForwardSession, SshError> {
-        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
-        let cancel_tx = Arc::new(cancel_tx);
-
-        // Remote forwards need the handler to route inbound `forwarded-tcpip`
-        // channels, so wire the sink before `establish_transport` builds it.
-        let remote_rx = if rule.kind == ForwardKind::Remote {
-            let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
-            self.forwarded_channel_sink = Some(tx);
-            Some(rx)
-        } else {
-            None
-        };
-
-        let mut handle = self.establish_transport(connection, resolver).await?;
-        self.do_authenticate(&mut handle, connection, password, key_material)
+        let conn = self
+            .connect_forward_conn(connection, password, key_material, resolver)
             .await?;
-        let shared = Arc::new(tokio::sync::Mutex::new(handle.0));
-
-        match rule.kind {
-            ForwardKind::Local => {
-                let listener =
-                    bind_forward_listener(&rule.listen_host, rule.listen_port).await?;
-                let task = spawn_local_forward_task(
-                    listener,
-                    Arc::clone(&shared),
-                    rule.target_host.clone(),
-                    rule.target_port,
-                    rule.listen_port,
-                    cancel_rx,
-                );
-                tracing::info!(
-                    "forward(-L) {}:{} -> {}:{} up",
-                    rule.listen_host, rule.listen_port, rule.target_host, rule.target_port
-                );
-                Ok(ForwardSession {
-                    handle: shared,
-                    cancel_tx,
-                    _tasks: vec![task],
-                    remote_bind: None,
-                })
-            }
-            ForwardKind::Remote => {
-                // Ask the server to listen on `listen_host:listen_port` and
-                // tunnel inbound connections back to us. A denied request
-                // (e.g. `AllowTcpForwarding no`) fails the toggle.
-                {
-                    let h = shared.lock().await;
-                    h.tcpip_forward(rule.listen_host.clone(), rule.listen_port as u32)
-                        .await
-                        .map_err(|e| {
-                            SshError::Channel(format!("remote forward request denied: {e}"))
-                        })?;
-                }
-                let mut rx = remote_rx.expect("remote sink set above for -R");
-                let target_host = rule.target_host.clone();
-                let target_port = rule.target_port;
-                let mut cancel = cancel_rx;
-                let task = tokio::spawn(async move {
-                    loop {
-                        tokio::select! {
-                            _ = cancel.changed() => break,
-                            ch = rx.recv() => match ch {
-                                Some(channel) => {
-                                    let th = target_host.clone();
-                                    let child_cancel = cancel.clone();
-                                    tokio::spawn(async move {
-                                        bridge_channel_to_target(
-                                            channel, th, target_port, child_cancel,
-                                        )
-                                        .await;
-                                    });
-                                }
-                                None => break,
-                            },
-                        }
-                    }
-                });
-                tracing::info!(
-                    "forward(-R) server {}:{} -> local {}:{} up",
-                    rule.listen_host, rule.listen_port, rule.target_host, rule.target_port
-                );
-                Ok(ForwardSession {
-                    handle: shared,
-                    cancel_tx,
-                    _tasks: vec![task],
-                    remote_bind: Some((rule.listen_host.clone(), rule.listen_port)),
-                })
-            }
-            ForwardKind::Dynamic => {
-                let listener =
-                    bind_forward_listener(&rule.listen_host, rule.listen_port).await?;
-                let task = spawn_dynamic_forward_task(
-                    listener,
-                    Arc::clone(&shared),
-                    rule.listen_port,
-                    cancel_rx,
-                );
-                tracing::info!(
-                    "forward(-D) SOCKS5 {}:{} up",
-                    rule.listen_host, rule.listen_port
-                );
-                Ok(ForwardSession {
-                    handle: shared,
-                    cancel_tx,
-                    _tasks: vec![task],
-                    remote_bind: None,
-                })
-            }
-        }
+        conn.attach(rule).await
     }
 
     // -----------------------------------------------------------------------

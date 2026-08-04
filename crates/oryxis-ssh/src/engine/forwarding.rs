@@ -10,6 +10,50 @@ pub struct SshHandle(pub(crate) client::Handle<ClientHandler>);
 
 pub(crate) type SharedHandle = Arc<tokio::sync::Mutex<client::Handle<ClientHandler>>>;
 
+/// The routing table proper: (bind address, bind port) as requested via
+/// `tcpip_forward` -> the drain of the `-R` rule that owns that
+/// server-side listener.
+pub(crate) type RemoteRoutes = std::collections::HashMap<
+    (String, u16),
+    tokio::sync::mpsc::UnboundedSender<russh::Channel<russh::client::Msg>>,
+>;
+
+/// Shared routing table for inbound `forwarded-tcpip` channels on a
+/// forward connection. A std `Mutex` on purpose: every access is a tiny
+/// lookup/edit with no await while held, and `ForwardSession`'s (sync)
+/// `Drop` must be able to remove its route.
+pub(crate) type RemoteRouteMap = Arc<std::sync::Mutex<RemoteRoutes>>;
+
+/// Lock a `RemoteRouteMap`, riding through poison (the map holds plain
+/// data; a panicked holder can't leave it inconsistent).
+pub(crate) fn lock_routes(routes: &RemoteRouteMap) -> std::sync::MutexGuard<'_, RemoteRoutes> {
+    match routes.lock() {
+        Ok(g) => g,
+        Err(poison) => poison.into_inner(),
+    }
+}
+
+/// Pick the route for an inbound `forwarded-tcpip` channel. Exact
+/// (address, port) match first; when the server echoes a normalized
+/// bind address that doesn't literally match the request (some sshds
+/// answer `localhost` binds with an IP, or `""` with `0.0.0.0`), fall
+/// back to the port alone as long as it identifies exactly one route,
+/// so the fallback can never cross-wire two rules.
+pub(crate) fn route_lookup<V: Clone>(
+    routes: &std::collections::HashMap<(String, u16), V>,
+    addr: &str,
+    port: u16,
+) -> Option<V> {
+    if let Some(v) = routes.get(&(addr.to_string(), port)) {
+        return Some(v.clone());
+    }
+    let mut by_port = routes.iter().filter(|((_, p), _)| *p == port);
+    match (by_port.next(), by_port.next()) {
+        (Some((_, v)), None) => Some(v.clone()),
+        _ => None,
+    }
+}
+
 /// Bind local TCP listeners for port forwards, validating all ports upfront.
 /// Returns the bound listeners (actual forwarding starts after PTY session opens).
 pub(crate) async fn bind_port_forward_listeners(
@@ -123,6 +167,10 @@ pub struct ForwardSession {
     /// For `-R` only: the server-side bind that must be released with
     /// `cancel_tcpip_forward` on stop. `None` for `-L` / `-D`.
     pub(crate) remote_bind: Option<(String, u16)>,
+    /// For `-R` on a shared connection: this rule's entry in the
+    /// connection's routing table, removed on cancel/drop so a later
+    /// rule can reclaim the bind. `None` for `-L` / `-D`.
+    pub(crate) remote_route: Option<(RemoteRouteMap, (String, u16))>,
 }
 
 impl ForwardSession {
@@ -140,9 +188,20 @@ impl ForwardSession {
     /// ask the server to release its listener. Idempotent.
     pub async fn cancel(&self) {
         let _ = self.cancel_tx.send(true);
+        self.remove_remote_route();
         if let Some((host, port)) = &self.remote_bind {
             let handle = self.handle.lock().await;
             let _ = handle.cancel_tcpip_forward(host.clone(), *port as u32).await;
+        }
+    }
+
+    /// Unregister this rule's `-R` route from the shared connection's
+    /// routing table (no-op for `-L` / `-D`). Runs before the server-side
+    /// release so a channel racing the teardown is rejected, not routed
+    /// into a drain that is going away.
+    fn remove_remote_route(&self) {
+        if let Some((routes, key)) = &self.remote_route {
+            lock_routes(routes).remove(key);
         }
     }
 
@@ -161,6 +220,169 @@ impl Drop for ForwardSession {
         // even if `cancel()` was never awaited. The `-R` server-side release
         // needs an await, so callers that care should `cancel().await` first.
         let _ = self.cancel_tx.send(true);
+        self.remove_remote_route();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Shared forward connection (issue #126)
+// ---------------------------------------------------------------------------
+
+/// A PTY-less SSH connection dedicated to the port forwards of one host.
+/// Any mix of rules attaches onto it: each `-L` / `-D` listener opens its
+/// `direct-tcpip` channels on this handle, and each `-R` rule registers a
+/// route in `remote_routes` so inbound `forwarded-tcpip` channels reach
+/// the right drain. This is what lets N rules to the same host cost one
+/// SSH connection instead of N (issue #126), the same multiplexing OpenSSH
+/// does for `ssh -L .. -L .. -R ..`.
+///
+/// Cheap to clone (both fields are `Arc`s). The SSH connection closes when
+/// the last clone and the last attached `ForwardSession` are dropped.
+#[derive(Clone)]
+pub struct ForwardConn {
+    pub(crate) handle: SharedHandle,
+    pub(crate) remote_routes: RemoteRouteMap,
+}
+
+impl ForwardConn {
+    /// Whether the underlying SSH connection is still up. Same `try_lock`
+    /// reasoning as `ForwardSession::is_alive`: a busy lock means the
+    /// connection is being used, i.e. alive.
+    pub fn is_alive(&self) -> bool {
+        match self.handle.try_lock() {
+            Ok(h) => !h.is_closed(),
+            Err(_) => true,
+        }
+    }
+
+    /// Attach one rule to this connection: bind its local listener
+    /// (`-L` / `-D`) or request the server-side bind (`-R`), and spawn the
+    /// bridging tasks. The returned `ForwardSession` rides this shared
+    /// connection; cancelling it tears down only this rule's listener and
+    /// tasks, never the connection or its sibling forwards.
+    pub async fn attach(&self, rule: &PortForwardRule) -> Result<ForwardSession, SshError> {
+        let (cancel_tx, cancel_rx) = tokio::sync::watch::channel(false);
+        let cancel_tx = Arc::new(cancel_tx);
+
+        match rule.kind {
+            ForwardKind::Local => {
+                let listener =
+                    bind_forward_listener(&rule.listen_host, rule.listen_port).await?;
+                let task = spawn_local_forward_task(
+                    listener,
+                    Arc::clone(&self.handle),
+                    rule.target_host.clone(),
+                    rule.target_port,
+                    rule.listen_port,
+                    cancel_rx,
+                );
+                tracing::info!(
+                    "forward(-L) {}:{} -> {}:{} up",
+                    rule.listen_host, rule.listen_port, rule.target_host, rule.target_port
+                );
+                Ok(ForwardSession {
+                    handle: Arc::clone(&self.handle),
+                    cancel_tx,
+                    _tasks: vec![task],
+                    remote_bind: None,
+                    remote_route: None,
+                })
+            }
+            ForwardKind::Remote => {
+                let key = (rule.listen_host.clone(), rule.listen_port);
+                let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
+                {
+                    // Register the route BEFORE asking the server, so a
+                    // channel arriving the instant the bind lands already
+                    // has somewhere to go.
+                    let mut routes = lock_routes(&self.remote_routes);
+                    if routes.contains_key(&key) {
+                        return Err(SshError::Channel(format!(
+                            "remote forward {}:{} is already active on this connection",
+                            key.0, key.1
+                        )));
+                    }
+                    routes.insert(key.clone(), tx);
+                }
+                // Ask the server to listen on `listen_host:listen_port` and
+                // tunnel inbound connections back to us. A denied request
+                // (e.g. `AllowTcpForwarding no`) fails the toggle.
+                let requested = {
+                    let h = self.handle.lock().await;
+                    h.tcpip_forward(rule.listen_host.clone(), rule.listen_port as u32)
+                        .await
+                };
+                if let Err(e) = requested {
+                    lock_routes(&self.remote_routes).remove(&key);
+                    return Err(SshError::Channel(format!(
+                        "remote forward request denied: {e}"
+                    )));
+                }
+                let target_host = rule.target_host.clone();
+                let target_port = rule.target_port;
+                let mut cancel = cancel_rx;
+                let task = tokio::spawn(async move {
+                    loop {
+                        tokio::select! {
+                            _ = cancel.changed() => break,
+                            ch = rx.recv() => match ch {
+                                Some(channel) => {
+                                    let th = target_host.clone();
+                                    let child_cancel = cancel.clone();
+                                    tokio::spawn(async move {
+                                        bridge_channel_to_target(
+                                            channel, th, target_port, child_cancel,
+                                        )
+                                        .await;
+                                    });
+                                }
+                                None => break,
+                            },
+                        }
+                    }
+                });
+                tracing::info!(
+                    "forward(-R) server {}:{} -> local {}:{} up",
+                    rule.listen_host, rule.listen_port, rule.target_host, rule.target_port
+                );
+                Ok(ForwardSession {
+                    handle: Arc::clone(&self.handle),
+                    cancel_tx,
+                    _tasks: vec![task],
+                    remote_bind: Some(key.clone()),
+                    remote_route: Some((Arc::clone(&self.remote_routes), key)),
+                })
+            }
+            ForwardKind::Dynamic => {
+                let listener =
+                    bind_forward_listener(&rule.listen_host, rule.listen_port).await?;
+                let task = spawn_dynamic_forward_task(
+                    listener,
+                    Arc::clone(&self.handle),
+                    rule.listen_port,
+                    cancel_rx,
+                );
+                tracing::info!(
+                    "forward(-D) SOCKS5 {}:{} up",
+                    rule.listen_host, rule.listen_port
+                );
+                Ok(ForwardSession {
+                    handle: Arc::clone(&self.handle),
+                    cancel_tx,
+                    _tasks: vec![task],
+                    remote_bind: None,
+                    remote_route: None,
+                })
+            }
+        }
+    }
+}
+
+impl std::fmt::Debug for ForwardConn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ForwardConn")
+            .field("alive", &self.is_alive())
+            .finish()
     }
 }
 
@@ -582,5 +804,53 @@ pub(crate) async fn bridge_socks5(
         _ = cancel.changed() => {}
         r = c2t => { if let Err(e) = r { tracing::debug!("socks5 channel->tcp: {}", e); } }
         r = t2c => { if let Err(e) = r { tracing::debug!("socks5 tcp->channel: {}", e); } }
+    }
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::route_lookup;
+    use std::collections::HashMap;
+
+    fn map(entries: &[(&str, u16, u32)]) -> HashMap<(String, u16), u32> {
+        entries
+            .iter()
+            .map(|(h, p, v)| ((h.to_string(), *p), *v))
+            .collect()
+    }
+
+    #[test]
+    fn exact_address_and_port_wins() {
+        // Two rules on the same port, different bind addresses: the
+        // exact match must pick the right one, never the port fallback.
+        let m = map(&[("127.0.0.1", 8080, 1), ("192.168.0.5", 8080, 2)]);
+        assert_eq!(route_lookup(&m, "127.0.0.1", 8080), Some(1));
+        assert_eq!(route_lookup(&m, "192.168.0.5", 8080), Some(2));
+    }
+
+    #[test]
+    fn normalized_address_falls_back_to_unique_port() {
+        // Some sshds echo a normalized bind address (`localhost` answered
+        // as an IP, `""` as `0.0.0.0`); a port held by exactly one rule
+        // still routes.
+        let m = map(&[("localhost", 9000, 1), ("127.0.0.1", 9100, 2)]);
+        assert_eq!(route_lookup(&m, "::1", 9000), Some(1));
+        assert_eq!(route_lookup(&m, "0.0.0.0", 9100), Some(2));
+    }
+
+    #[test]
+    fn ambiguous_port_never_cross_wires() {
+        // The fallback must refuse when two rules share the port: routing
+        // a channel to the wrong rule's target would be worse than
+        // rejecting the open.
+        let m = map(&[("127.0.0.1", 8080, 1), ("192.168.0.5", 8080, 2)]);
+        assert_eq!(route_lookup(&m, "10.0.0.1", 8080), None);
+    }
+
+    #[test]
+    fn unknown_port_is_rejected() {
+        let m = map(&[("127.0.0.1", 8080, 1)]);
+        assert_eq!(route_lookup(&m, "127.0.0.1", 9999), None);
+        assert_eq!(route_lookup::<u32>(&HashMap::new(), "127.0.0.1", 8080), None);
     }
 }

@@ -23,12 +23,13 @@ pub(crate) struct ClientHandler {
     /// *rejected* rather than blindly TOFU-accepted. Lets a backgrounded
     /// forward fail to off instead of silently trusting a new key.
     pub(crate) strict_host_key: bool,
-    /// For remote (`-R`) forwards only: where to hand off inbound
-    /// `forwarded-tcpip` channels the server opens. The drain task in
-    /// `connect_forward` bridges each one to the rule's local target. When
-    /// `None`, the handler drops such channels (we never asked for them).
-    pub(crate) forwarded_channel_sink:
-        Option<tokio::sync::mpsc::UnboundedSender<russh::Channel<russh::client::Msg>>>,
+    /// For forward connections only: the routing table that delivers
+    /// inbound `forwarded-tcpip` channels (the server side of `-R` rules)
+    /// to the drain of the rule that requested that bind. Several `-R`
+    /// rules can share one connection, so the handler routes by the
+    /// (address, port) the server reports. When `None`, the handler drops
+    /// such channels (we never asked for them).
+    pub(crate) remote_routes: Option<RemoteRouteMap>,
     /// Where pre-auth banners (RFC 4252 §5.4: legal notices, MFA
     /// instructions) go so the UI can show them. `None` (headless
     /// callers: port forwards, MCP) logs and drops them.
@@ -51,7 +52,7 @@ impl ClientHandler {
             x11: None,
             x11_cancel: tokio::sync::watch::channel(false).0,
             strict_host_key: false,
-            forwarded_channel_sink: None,
+            remote_routes: None,
             banner_tx: None,
         }
     }
@@ -188,10 +189,19 @@ impl client::Handler for ClientHandler {
         reply: russh::client::ChannelOpenHandle,
         _session: &mut client::Session,
     ) -> Result<(), Self::Error> {
-        // Inbound channel for a remote (`-R`) forward. Hand it to the drain
-        // task that bridges to the local target; if we have no sink, we
-        // never requested a remote forward, so decline it.
-        match &self.forwarded_channel_sink {
+        // Inbound channel for a remote (`-R`) forward. Route it to the
+        // drain of the rule that owns this bind; several rules can share
+        // one connection, so the (address, port) the server reports picks
+        // the drain. No routing table = we never requested a remote
+        // forward; no route = no rule owns that bind. Decline both.
+        let sink = self.remote_routes.as_ref().and_then(|routes| {
+            route_lookup(
+                &lock_routes(routes),
+                connected_address,
+                connected_port as u16,
+            )
+        });
+        match sink {
             Some(sink) => {
                 // Confirm before the handoff: the drain task reads the
                 // channel as soon as it arrives.

@@ -1,11 +1,13 @@
 //! `Oryxis::handle_port_forwards`, match arms for the standalone port
 //! forward entity: CRUD on `PortForwardRule`, and the runtime on/off
-//! toggle that opens / tears down a dedicated PTY-less SSH session.
+//! toggle. Every forward to one host rides a single shared PTY-less SSH
+//! connection (`PfHostConn`, issue #126): the first rule dials, later
+//! rules attach as channels, and the connection closes when the host's
+//! last forward stops.
 //!
 //! Kept separate from `dispatch_ssh.rs` (terminal sessions) so the two
-//! lifecycles don't tangle. A forward holds its connection open with no
-//! shell; turning it off drops the `ForwardSession`, which cancels the
-//! tunnel.
+//! lifecycles don't tangle. Turning a rule off drops its
+//! `ForwardSession`, which cancels only that rule's tunnel.
 
 // Domain handlers return `Err(Message)` to pass an unclaimed message
 // back up the chain. See the note in `dispatch_ssh.rs`.
@@ -20,19 +22,37 @@ use uuid::Uuid;
 
 use oryxis_core::models::connection::{AuthMethod, Connection};
 use oryxis_core::models::port_forward_rule::PortForwardRule;
-use oryxis_ssh::{ConnectionResolver, ForwardSession, HostKeyQuery, SshEngine};
+use oryxis_ssh::{ConnectionResolver, ForwardConn, HostKeyQuery, SshEngine};
 
 use crate::app::{SshMessage, PortForwardMessage, Message, Oryxis};
 
-/// Items streamed out of an interactive (manual-toggle) forward connect:
+/// Items streamed out of an interactive (manual-toggle) forward dial:
 /// either a host-key question for the UI modal, or the final result.
 enum PfStreamMsg {
     HostKey(HostKeyQuery),
-    Done(Result<Arc<ForwardSession>, String>),
+    Done(Result<ForwardConn, String>),
     NoCommonAlgo {
         category: oryxis_ssh::NegCategory,
         server_offers: Vec<String>,
     },
+    /// The dial ended without a connection and without a `Done` error to
+    /// surface (the legacy-algorithm dialog owns the UX). Unwinds the
+    /// in-flight bookkeeping so the dialog's retry isn't blocked by the
+    /// double-start guard.
+    Aborted,
+}
+
+/// Runtime state of a host's shared forward connection (issue #126).
+/// Every live forward to one host multiplexes its channels over a single
+/// PTY-less SSH connection, the way OpenSSH stacks `-L`/`-R`/`-D` flags
+/// on one invocation, instead of each rule dialing its own.
+#[derive(Debug)]
+pub(crate) enum PfHostConn {
+    /// A dial for this host is in flight; rules toggled on meanwhile
+    /// queue here and attach when `PortForwardConnReady` lands.
+    Connecting { pending: Vec<Uuid> },
+    /// The connection is up; further rules attach onto it immediately.
+    Up(ForwardConn),
 }
 
 /// Retry bookkeeping for an `auto_start` forward that is down. `next_at` is
@@ -203,6 +223,9 @@ impl Oryxis {
                         self.panels.port_forward_panel = false;
                         self.load_data_from_vault();
                     }
+                    // Last forward of its host gone: close the shared
+                    // connection too.
+                    self.pf_gc_host_conns();
                 }
             }
 
@@ -221,6 +244,11 @@ impl Oryxis {
                 // just the local tasks that Drop would stop. Dropping the
                 // last `Arc` afterwards tears the rest down.
                 if let Some(session) = self.active_forwards.remove(&id) {
+                    // Last forward of its host: drop the shared connection
+                    // so toggling everything off really disconnects. The
+                    // session keeps its own handle clone, so the awaited
+                    // `cancel()` below still reaches the server.
+                    self.pf_gc_host_conns();
                     return Task::perform(
                         async move { session.cancel().await },
                         |_| Message::PortForward(PortForwardMessage::PortForwardLivenessTick),
@@ -247,7 +275,20 @@ impl Oryxis {
                             self.port_forward_retry.remove(&id);
                             self.port_forward_form.error = None;
                         } else {
-                            drop(session);
+                            // Honor the stop/delete that raced the attach:
+                            // release the rule's listener (and, for `-R`,
+                            // the server-side bind) with a real cancel, and
+                            // drop the shared connection when this was the
+                            // host's last forward.
+                            self.pf_gc_host_conns();
+                            return Task::perform(
+                                async move { session.cancel().await },
+                                |_| {
+                                    Message::PortForward(
+                                        PortForwardMessage::PortForwardLivenessTick,
+                                    )
+                                },
+                            );
                         }
                     }
                     Err(e) => {
@@ -264,7 +305,32 @@ impl Oryxis {
                         if !already_retrying {
                             self.port_forward_form.error = Some(e);
                         }
+                        // A failed attach may leave the shared connection
+                        // with no forwards on it; don't let it idle.
+                        self.pf_gc_host_conns();
                     }
+                }
+            }
+            PortForwardMessage::PortForwardConnReady(host_id, res) => {
+                return self.handle_port_forward_conn_ready(host_id, res);
+            }
+            PortForwardMessage::PortForwardConnAborted(host_id) => {
+                // The dial ended without a connection and without an error
+                // to surface (the legacy-algorithm dialog owns the UX).
+                // Unwind the in-flight bookkeeping so the dialog's retry
+                // passes the double-start guard instead of hitting a stuck
+                // "starting" id, and queued siblings stop spinning.
+                match self.forward_conns.remove(&host_id) {
+                    Some(PfHostConn::Connecting { pending }) => {
+                        for rid in pending {
+                            self.port_forward_starting.remove(&rid);
+                        }
+                    }
+                    // A stray abort must not drop a live connection.
+                    Some(up) => {
+                        self.forward_conns.insert(host_id, up);
+                    }
+                    None => {}
                 }
             }
             PortForwardMessage::PortForwardLivenessTick => {
@@ -284,6 +350,10 @@ impl Oryxis {
                     self.pf_mark_retry_pending(id, PfRetryCause::Dropped);
                     tracing::info!("port forward {id} connection dropped, toggled off");
                 }
+                // Shared connections whose forwards all died (they share
+                // the handle, so they die together) go with them; a retry
+                // then dials fresh instead of attaching to a corpse.
+                self.pf_gc_host_conns();
             }
             PortForwardMessage::PortForwardRetryTick => {
                 return self.handle_port_forward_retry_tick();
@@ -357,8 +427,11 @@ impl Oryxis {
         }
     }
 
-    /// Open a dedicated PTY-less SSH session for the rule and bind its
-    /// listener.
+    /// Bring a rule up on its host's SHARED forward connection: every
+    /// forward to one host multiplexes channels over a single PTY-less
+    /// SSH session (issue #126). The first rule dials; rules toggled on
+    /// while that dial is in flight queue behind it; later rules attach
+    /// onto the live connection with no transport or auth at all.
     ///
     /// Host-key policy splits on `boot_auto_start`: a boot/unlock auto-start
     /// runs **known-only** (strict, silent), so a host whose key isn't
@@ -370,13 +443,39 @@ impl Oryxis {
         if self.active_forwards.contains_key(&id) || self.port_forward_starting.contains(&id) {
             return Task::none();
         }
-        let Some(rule) = self.port_forward_rules.iter().find(|r| r.id == id).cloned() else {
+        let Some(rule) = self.port_forward_rules.iter().find(|r| r.id == id) else {
             return Task::none();
         };
+        let host_id = rule.host_id;
+        let rule_label = rule.label.clone();
+
+        match self.forward_conns.get_mut(&host_id) {
+            // Already connected: attach this rule as one more channel.
+            Some(PfHostConn::Up(fconn)) if fconn.is_alive() => {
+                let fconn = fconn.clone();
+                self.port_forward_starting.insert(id);
+                return self.attach_port_forward_task(fconn, id);
+            }
+            // The connection died since its last forward: dial fresh below.
+            Some(PfHostConn::Up(_)) => {
+                self.forward_conns.remove(&host_id);
+            }
+            // A dial for this host is already in flight: queue behind it;
+            // `PortForwardConnReady` attaches everything at once.
+            Some(PfHostConn::Connecting { pending }) => {
+                if !pending.contains(&id) {
+                    pending.push(id);
+                }
+                self.port_forward_starting.insert(id);
+                return Task::none();
+            }
+            None => {}
+        }
+
         let Some(mut conn) = self
             .connections
             .iter()
-            .find(|c| c.id == rule.host_id)
+            .find(|c| c.id == host_id)
             .cloned()
         else {
             self.port_forward_form.error = Some(crate::i18n::t("pf_err_host").to_string());
@@ -399,9 +498,13 @@ impl Oryxis {
         let host_key_check = self.build_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
         self.port_forward_starting.insert(id);
+        // This rule opens the dial; siblings toggled on meanwhile queue
+        // behind it and everything attaches on `PortForwardConnReady`.
+        self.forward_conns
+            .insert(host_id, PfHostConn::Connecting { pending: vec![id] });
 
         if boot_auto_start {
-            tracing::info!("auto-starting port forward {} ({})", rule.label, id);
+            tracing::info!("auto-starting port forward {} ({})", rule_label, id);
             return Task::perform(
                 async move {
                     let engine = SshEngine::new()
@@ -419,20 +522,20 @@ impl Oryxis {
                             conn.host_key_algorithms.clone(),
                         );
                     engine
-                        .connect_forward(
+                        .connect_forward_conn(
                             &conn,
                             password.as_deref(),
                             private_key
                                 .as_deref()
                                 .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
-                            &rule,
                             resolver.as_ref(),
                         )
                         .await
-                        .map(Arc::new)
                         .map_err(|e| e.to_string())
                 },
-                move |res| Message::PortForward(PortForwardMessage::PortForwardStarted(id, res)),
+                move |res| {
+                    Message::PortForward(PortForwardMessage::PortForwardConnReady(host_id, res))
+                },
             );
         }
 
@@ -476,19 +579,18 @@ impl Oryxis {
             });
 
             match engine
-                .connect_forward(
+                .connect_forward_conn(
                     &conn,
                     password.as_deref(),
                     private_key
                         .as_deref()
                         .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref())),
-                    &rule,
                     resolver.as_ref(),
                 )
                 .await
             {
-                Ok(session) => {
-                    let _ = sender.send(PfStreamMsg::Done(Ok(Arc::new(session)))).await;
+                Ok(fconn) => {
+                    let _ = sender.send(PfStreamMsg::Done(Ok(fconn))).await;
                 }
                 Err(e) => {
                     if let Some(nf) = e.negotiation_failure() {
@@ -498,6 +600,9 @@ impl Oryxis {
                                 server_offers: nf.server_offers,
                             })
                             .await;
+                        // The dialog owns the UX from here; unwind the
+                        // in-flight bookkeeping so its retry can redial.
+                        let _ = sender.send(PfStreamMsg::Aborted).await;
                     } else {
                         let _ = sender.send(PfStreamMsg::Done(Err(e.to_string()))).await;
                     }
@@ -507,14 +612,119 @@ impl Oryxis {
 
         Task::stream(stream).map(move |m| match m {
             PfStreamMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
-            PfStreamMsg::Done(r) => Message::PortForward(PortForwardMessage::PortForwardStarted(id, r)),
+            PfStreamMsg::Done(r) => {
+                Message::PortForward(PortForwardMessage::PortForwardConnReady(pf_conn_id, r))
+            }
             PfStreamMsg::NoCommonAlgo { category, server_offers } => Message::Ssh(SshMessage::SshNoCommonAlgo {
                 conn_id: pf_conn_id,
                 category,
                 server_offers,
                 retry: Box::new(Message::PortForward(PortForwardMessage::StartPortForward(id))),
             }),
+            PfStreamMsg::Aborted => {
+                Message::PortForward(PortForwardMessage::PortForwardConnAborted(pf_conn_id))
+            }
         })
+    }
+
+    /// Task that attaches a rule onto its host's live shared connection:
+    /// binds the listener / requests the server-side bind and reports back
+    /// as `PortForwardStarted`, exactly like a dedicated dial used to. A
+    /// rule deleted while queued has already left `port_forward_starting`,
+    /// so the silent no-op is correct.
+    fn attach_port_forward_task(&self, fconn: ForwardConn, id: Uuid) -> Task<Message> {
+        let Some(rule) = self.port_forward_rules.iter().find(|r| r.id == id).cloned() else {
+            return Task::none();
+        };
+        Task::perform(
+            async move {
+                fconn
+                    .attach(&rule)
+                    .await
+                    .map(Arc::new)
+                    .map_err(|e| e.to_string())
+            },
+            move |res| Message::PortForward(PortForwardMessage::PortForwardStarted(id, res)),
+        )
+    }
+
+    /// The shared dial for `host_id` settled: on success, store the live
+    /// connection and attach every rule that queued while it was in
+    /// flight; on failure, fan the one error out to each queued rule so
+    /// all of them get the exact `PortForwardStarted(Err)` bookkeeping
+    /// (error surface, retry ladder) a dedicated dial would have given.
+    fn handle_port_forward_conn_ready(
+        &mut self,
+        host_id: Uuid,
+        res: Result<ForwardConn, String>,
+    ) -> Task<Message> {
+        let pending = match self.forward_conns.remove(&host_id) {
+            Some(PfHostConn::Connecting { pending }) => pending,
+            // One dial per host at a time, so this can only be a stray
+            // late completion; keep whatever state superseded it.
+            Some(up @ PfHostConn::Up(_)) => {
+                self.forward_conns.insert(host_id, up);
+                Vec::new()
+            }
+            None => Vec::new(),
+        };
+        match res {
+            Ok(fconn) => {
+                // Only rules still wanted: a stop or delete during the dial
+                // pulls the id from `port_forward_starting`, which is the
+                // record of intent here.
+                let due: Vec<Uuid> = pending
+                    .into_iter()
+                    .filter(|rid| self.port_forward_starting.contains(rid))
+                    .collect();
+                if due.is_empty() {
+                    // Everyone gave up while dialing: let the fresh
+                    // connection drop and close.
+                    return Task::none();
+                }
+                let tasks: Vec<Task<Message>> = due
+                    .iter()
+                    .map(|rid| self.attach_port_forward_task(fconn.clone(), *rid))
+                    .collect();
+                self.forward_conns.insert(host_id, PfHostConn::Up(fconn));
+                Task::batch(tasks)
+            }
+            Err(e) => {
+                // Same still-wanted filter as the Ok arm: a rule stopped
+                // mid-dial already left `port_forward_starting`, and
+                // handing it a failure now would re-arm the retry ladder
+                // the stop just cleared.
+                Task::batch(
+                    pending
+                        .into_iter()
+                        .filter(|rid| self.port_forward_starting.contains(rid))
+                        .map(|rid| {
+                            Task::done(Message::PortForward(
+                                PortForwardMessage::PortForwardStarted(rid, Err(e.clone())),
+                            ))
+                        }),
+                )
+            }
+        }
+    }
+
+    /// Drop the shared connection of any host that no longer has a live
+    /// or starting forward: the last toggle-off must close the SSH
+    /// connection, not leave it idling. `Connecting` entries are exempt,
+    /// their `PortForwardConnReady` is still in flight and settles them.
+    fn pf_gc_host_conns(&mut self) {
+        let rules = &self.port_forward_rules;
+        let active = &self.active_forwards;
+        let starting = &self.port_forward_starting;
+        self.forward_conns.retain(|host_id, state| match state {
+            PfHostConn::Connecting { .. } => true,
+            PfHostConn::Up(_) => {
+                let on_this_host = |rid: &Uuid| {
+                    rules.iter().any(|r| r.id == *rid && r.host_id == *host_id)
+                };
+                active.keys().any(&on_this_host) || starting.iter().any(on_this_host)
+            }
+        });
     }
 
     /// Start every rule marked `auto_start`. Called once after the vault is

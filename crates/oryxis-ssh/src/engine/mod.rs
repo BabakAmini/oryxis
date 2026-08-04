@@ -189,11 +189,11 @@ pub struct SshEngine {
     /// Off by default so saved Auto hosts keep the documented
     /// never-prompts behavior; only ad-hoc quick connects opt in.
     auto_interactive_fallback: bool,
-    /// Set only for remote (`-R`) forwards. Propagated to the handler so
-    /// inbound `forwarded-tcpip` channels reach the drain task. See
-    /// `ClientHandler::forwarded_channel_sink`.
-    forwarded_channel_sink:
-        Option<tokio::sync::mpsc::UnboundedSender<russh::Channel<russh::client::Msg>>>,
+    /// Set only for forward connections (`connect_forward_conn`).
+    /// Propagated to the handler so inbound `forwarded-tcpip` channels
+    /// are routed to the `-R` rule that owns each bind. See
+    /// `ClientHandler::remote_routes`.
+    remote_routes: Option<RemoteRouteMap>,
     /// Sink for pre-auth banners (RFC 4252 §5.4). See
     /// `ClientHandler::banner_tx`.
     banner_tx: Option<tokio::sync::mpsc::UnboundedSender<String>>,

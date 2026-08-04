@@ -467,6 +467,7 @@ impl Oryxis {
                 pending_snippet_vars: None,
                 port_forward_rules: Vec::new(),
                 active_forwards: std::collections::HashMap::new(),
+                forward_conns: std::collections::HashMap::new(),
                 remote_desktop_forwards: std::collections::HashMap::new(),
                 remote_desktop_seq: 0,
                 remote_desktop_enabled: false,

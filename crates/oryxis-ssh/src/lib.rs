@@ -8,6 +8,6 @@ mod sftp_harness;
 #[cfg(test)]
 mod legacy_cipher_tests;
 
-pub use engine::{agent_key_census, ConnectionResolver, ExecResult, ForwardSession, HostKeyAskSender, HostKeyCheckCallback, HostKeyQuery, HostKeyStatus, KbiAskSender, KbiPromptField, KbiQuery, KeyMaterial, NegCategory, NegotiationFailure, NetQualitySnapshot, SshEngine, SshError, SshHandle, SshSession, TermFallback};
+pub use engine::{agent_key_census, ConnectionResolver, ExecResult, ForwardConn, ForwardSession, HostKeyAskSender, HostKeyCheckCallback, HostKeyQuery, HostKeyStatus, KbiAskSender, KbiPromptField, KbiQuery, KeyMaterial, NegCategory, NegotiationFailure, NetQualitySnapshot, SshEngine, SshError, SshHandle, SshSession, TermFallback};
 pub use sftp::{RemoteRangedFile, SftpClient, SftpEntry};
 pub use x11::{X11Forwarding, X11Target};

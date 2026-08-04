@@ -493,6 +493,158 @@ async fn local_forward_tunnels_and_frees_listener_on_cancel() {
 
 #[tokio::test]
 #[ignore = "requires Docker, run with --ignored"]
+async fn shared_connection_carries_multiple_forwards() {
+    use testcontainers::core::ExecCommand;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    const MARKER: &str = "HELLO-VIA-SHARED-CONN";
+
+    // Two predictable local ports for the `-L` rules.
+    let (port_a, port_b) = {
+        let a = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("probe bind");
+        let b = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("probe bind");
+        (
+            a.local_addr().expect("probe addr").port(),
+            b.local_addr().expect("probe addr").port(),
+        )
+    };
+    // Local target + server-side port for the `-R` rule.
+    let target = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+        .await
+        .expect("target bind");
+    let target_port = target.local_addr().expect("target addr").port();
+    tokio::spawn(async move {
+        while let Ok((mut sock, _)) = target.accept().await {
+            let _ = sock.write_all(MARKER.as_bytes()).await;
+            let _ = sock.flush().await;
+            let _ = sock.shutdown().await;
+        }
+    });
+    let server_port = {
+        let probe = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .expect("probe bind");
+        probe.local_addr().expect("probe addr").port()
+    };
+
+    let (conn, password, container) = start_sshd(false).await;
+    container
+        .exec(ExecCommand::new([
+            "sh",
+            "-c",
+            "sed -i 's/AllowTcpForwarding no/AllowTcpForwarding yes/' \
+             /config/sshd/sshd_config /etc/ssh/sshd_config 2>/dev/null; \
+             pkill -HUP sshd 2>/dev/null; true",
+        ]))
+        .await
+        .expect("enable tcp forwarding");
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // ONE dial for the host (issue #126); every rule attaches onto it.
+    let engine = engine();
+    let fconn = engine
+        .connect_forward_conn(&conn, Some(&password), None, None)
+        .await
+        .expect("shared forward connection up");
+    assert!(fconn.is_alive());
+
+    let mut rule_a = PortForwardRule::new("a", ForwardKind::Local, uuid::Uuid::new_v4());
+    rule_a.listen_host = "127.0.0.1".into();
+    rule_a.listen_port = port_a;
+    rule_a.target_host = "127.0.0.1".into();
+    rule_a.target_port = 2222;
+    let mut rule_b = rule_a.clone();
+    rule_b.id = uuid::Uuid::new_v4();
+    rule_b.listen_port = port_b;
+    let mut rule_r = PortForwardRule::new("r", ForwardKind::Remote, uuid::Uuid::new_v4());
+    rule_r.listen_host = "127.0.0.1".into();
+    rule_r.listen_port = server_port;
+    rule_r.target_host = "127.0.0.1".into();
+    rule_r.target_port = target_port;
+
+    let session_a = fconn.attach(&rule_a).await.expect("-L a up");
+    let session_b = fconn.attach(&rule_b).await.expect("-L b up");
+    let session_r = fconn.attach(&rule_r).await.expect("-R up");
+
+    // Both `-L` listeners tunnel over the one connection.
+    for port in [port_a, port_b] {
+        let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port))
+            .await
+            .expect("connect to forwarded port");
+        let mut buf = [0u8; 64];
+        let n = tokio::time::timeout(Duration::from_secs(15), stream.read(&mut buf))
+            .await
+            .expect("read banner within timeout")
+            .expect("read banner");
+        let banner = String::from_utf8_lossy(&buf[..n]);
+        assert!(
+            banner.starts_with("SSH-2.0"),
+            "expected tunneled SSH banner on {port}, got: {banner:?}"
+        );
+    }
+
+    // The `-R` bind routes inbound channels to ITS drain (the demux by
+    // (address, port)), not to a sibling's.
+    let mut exec = container
+        .exec(ExecCommand::new([
+            "sh",
+            "-c",
+            &format!("nc -w 5 127.0.0.1 {server_port}"),
+        ]))
+        .await
+        .expect("exec nc");
+    let out = exec.stdout_to_vec().await.expect("nc stdout");
+    let got = String::from_utf8_lossy(&out);
+    assert!(
+        got.contains(MARKER),
+        "expected the local target marker via the shared -R, got: {got:?}"
+    );
+
+    // Cancelling one rule tears down only ITS listener; siblings keep
+    // tunneling on the same connection.
+    session_a.cancel().await;
+    drop(session_a);
+    let freed = {
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            if tokio::net::TcpListener::bind(("127.0.0.1", port_a))
+                .await
+                .is_ok()
+            {
+                break true;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                break false;
+            }
+            tokio::time::sleep(Duration::from_millis(100)).await;
+        }
+    };
+    assert!(freed, "port {port_a} was not freed after cancelling rule a");
+
+    let mut stream = tokio::net::TcpStream::connect(("127.0.0.1", port_b))
+        .await
+        .expect("connect to surviving forward");
+    let mut buf = [0u8; 64];
+    let n = tokio::time::timeout(Duration::from_secs(15), stream.read(&mut buf))
+        .await
+        .expect("read banner within timeout")
+        .expect("read banner");
+    assert!(
+        String::from_utf8_lossy(&buf[..n]).starts_with("SSH-2.0"),
+        "sibling forward must survive a rule's cancel"
+    );
+    assert!(session_b.is_alive());
+
+    session_r.cancel().await;
+    session_b.cancel().await;
+}
+
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
 async fn remote_forward_delivers_inbound_to_local_target() {
     use testcontainers::core::ExecCommand;
     use tokio::io::AsyncWriteExt;

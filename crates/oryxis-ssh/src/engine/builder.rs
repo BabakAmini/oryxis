@@ -33,7 +33,7 @@ impl SshEngine {
             algo_host_keys: None,
             strict_host_key: false,
             auto_interactive_fallback: false,
-            forwarded_channel_sink: None,
+            remote_routes: None,
             banner_tx: None,
             pinned_agent_key: None,
         }
@@ -374,7 +374,7 @@ impl SshEngine {
             // tab can't leave a live socket to the local X server.
             x11_cancel: tokio::sync::watch::channel(false).0,
             strict_host_key: self.strict_host_key,
-            forwarded_channel_sink: self.forwarded_channel_sink.clone(),
+            remote_routes: self.remote_routes.clone(),
             banner_tx: self.banner_tx.clone(),
         }
     }
