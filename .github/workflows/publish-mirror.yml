@@ -68,6 +68,12 @@ jobs:
           gh release download "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --dir "assets/releases/$TAG"
+          # Debug-symbol assets stay on GitHub only. The mirror exists so
+          # blocked networks can still RUN and UPDATE the app; symbols are
+          # a one-off diagnostic download, and mirroring hundreds of MB of
+          # DWARF on every push to main would dominate the bucket.
+          rm -f "assets/releases/$TAG"/*-debug.tar.xz \
+                "assets/releases/$TAG"/*-debug.tar.xz.sig
           ls -la "assets/releases/$TAG"
 
       - name: Snapshot release metadata

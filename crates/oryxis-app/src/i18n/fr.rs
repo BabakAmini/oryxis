@@ -820,6 +820,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Terminé",
         "debug_logging" => "Journal de débogage",
         "debug_logging_desc" => "Écrit les diagnostics de l'application dans un fichier journal pour aider à analyser les problèmes. Les mots de passe et les clés ne sont jamais journalisés. Joignez le fichier lors du signalement d'un problème.",
+        "debug_logging_forced" => "Maintenu actif par l'option --debug-log de la ligne de commande : impossible de le désactiver pour cette session.",
         "debug_log_file" => "Fichier journal",
         "debug_log_clear" => "Vider le journal",
         "debug_log_cleared" => "Fichier journal vidé",

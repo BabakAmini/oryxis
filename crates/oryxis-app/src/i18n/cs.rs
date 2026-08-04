@@ -982,6 +982,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Hotovo",
         "debug_logging" => "Ladicí protokolování",
         "debug_logging_desc" => "Zapisuje diagnostiku aplikace do souboru protokolu pro vyšetřování problémů. Hesla ani klíče se nikdy nezaznamenávají. Při hlášení problému soubor přiložte.",
+        "debug_logging_forced" => "Ponecháno zapnuté volbou příkazového řádku --debug-log: v této relaci je nelze vypnout.",
         "debug_log_file" => "Soubor protokolu",
         "debug_log_clear" => "Vymazat protokol",
         "debug_log_cleared" => "Soubor protokolu vymazán",

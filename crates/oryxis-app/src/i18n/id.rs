@@ -976,6 +976,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Selesai",
         "debug_logging" => "Log debug",
         "debug_logging_desc" => "Menulis diagnostik aplikasi ke file log untuk membantu menyelidiki masalah. Kata sandi dan kunci tidak pernah dicatat. Lampirkan file saat melaporkan masalah.",
+        "debug_logging_forced" => "Tetap aktif karena opsi baris perintah --debug-log: tidak dapat dimatikan pada sesi ini.",
         "debug_log_file" => "File log",
         "debug_log_clear" => "Bersihkan log",
         "debug_log_cleared" => "File log dibersihkan",

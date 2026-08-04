@@ -106,6 +106,7 @@ wgpu = "29"
 tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+tracing-appender = { workspace = true }
 tokio-stream = { workspace = true }
 uuid = { workspace = true }
 regex = { workspace = true }

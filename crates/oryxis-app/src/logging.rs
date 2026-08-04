@@ -19,6 +19,17 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 /// relaxed load while the feature is off (the common case).
 static ENABLED: AtomicBool = AtomicBool::new(false);
 
+/// Set by the `--debug-log` command-line flag: logging stays on for the
+/// whole process and the Settings toggle cannot switch it off.
+///
+/// The reason is a real diagnostic session (issue #104): the reporter
+/// armed the toggle, used the app for 49 seconds, switched it off, and
+/// only then hit the freezes we were instrumenting for, so the log came
+/// back empty. A flag that outlives the toggle takes that failure mode
+/// out of the loop. The persisted `debug_logging` setting is untouched,
+/// so the next launch without the flag behaves as the user left it.
+static FORCED: AtomicBool = AtomicBool::new(false);
+
 /// The open log file while enabled. A single guarded handle (instead of
 /// reopening per write) so enable/disable/clear and the tracing layer
 /// never race on a half-open file.
@@ -48,6 +59,19 @@ fn rotated_path(path: &Path) -> PathBuf {
 
 pub(crate) fn is_enabled() -> bool {
     ENABLED.load(Ordering::Relaxed)
+}
+
+/// Whether `--debug-log` pinned logging on for this process.
+pub(crate) fn is_forced() -> bool {
+    FORCED.load(Ordering::Relaxed)
+}
+
+/// [`enable`] plus the pin that makes [`disable`] a no-op for the rest
+/// of the process. Called from `main.rs` when `--debug-log` is present.
+pub(crate) fn force_enable() -> io::Result<PathBuf> {
+    let path = enable()?;
+    FORCED.store(true, Ordering::Relaxed);
+    Ok(path)
 }
 
 /// Open (or create) the log file, write a session header and start
@@ -86,7 +110,14 @@ fn rotate_if_oversized(path: &Path, max_bytes: u64) {
 
 /// Stop forwarding events and close the file. The file itself stays on
 /// disk so it can still be attached to an issue after switching off.
+///
+/// No-op under `--debug-log`: the flag is the stronger statement of
+/// intent, and a diagnostic session that can be switched off by an
+/// errant click is the exact failure this flag exists to prevent.
 pub(crate) fn disable() {
+    if is_forced() {
+        return;
+    }
     ENABLED.store(false, Ordering::Relaxed);
     if let Some(mut file) = sink().take() {
         let _ = file.flush();
@@ -223,6 +254,14 @@ pub(crate) fn environment_report(renderer: Option<&(String, String)>) -> String 
             }
             _ => lines.push(format!("Display: {session}")),
         }
+        // Implicit Vulkan layers (MangoHud, vkBasalt, vendor overlays)
+        // inject into every Vulkan process, this one included, and are a
+        // documented source of presentation stalls that read as app
+        // freezes (#104). Naming them here turns "do you run an
+        // overlay?" from a support question into a fact already on file.
+        if let Some(layers) = vulkan_layers_line() {
+            lines.push(format!("Vulkan implicit layers: {layers}"));
+        }
     }
     #[cfg(target_os = "windows")]
     lines.push(format!(
@@ -234,6 +273,103 @@ pub(crate) fn environment_report(renderer: Option<&(String, String)>) -> String 
     }
     lines.push(format!("Language: {}", crate::i18n::Language::active().code()));
     lines.join("\n")
+}
+
+/// The installed Vulkan implicit layers as one comma-joined line,
+/// resolved once per process (the report renders on every frame of the
+/// Settings view, and the loader only reads manifests at instance
+/// creation anyway, so live changes would not affect this process).
+/// `None` when no manifests exist, the common case, so the report
+/// omits the line entirely rather than printing "none".
+#[cfg(target_os = "linux")]
+fn vulkan_layers_line() -> Option<&'static str> {
+    static LINE: OnceLock<Option<String>> = OnceLock::new();
+    LINE.get_or_init(|| {
+        // The Vulkan-Loader implicit-layer search path (data dirs +
+        // sysconf dirs + the per-user XDG homes). Missing dirs skip.
+        let mut roots: Vec<PathBuf> = vec![
+            PathBuf::from("/usr/share/vulkan/implicit_layer.d"),
+            PathBuf::from("/usr/local/share/vulkan/implicit_layer.d"),
+            PathBuf::from("/etc/vulkan/implicit_layer.d"),
+        ];
+        if let Some(home) = dirs::home_dir() {
+            roots.push(home.join(".local/share/vulkan/implicit_layer.d"));
+            roots.push(home.join(".config/vulkan/implicit_layer.d"));
+        }
+        let mut layers: Vec<String> = Vec::new();
+        for root in roots {
+            let Ok(entries) = std::fs::read_dir(&root) else {
+                continue;
+            };
+            for entry in entries.flatten() {
+                let path = entry.path();
+                if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                    continue;
+                }
+                let Ok(text) = std::fs::read_to_string(&path) else {
+                    continue;
+                };
+                for layer in
+                    parse_layer_manifest(&text, |var| std::env::var_os(var).is_some())
+                {
+                    // The same manifest often exists in more than one
+                    // root (distro package + local install).
+                    if !layers.contains(&layer) {
+                        layers.push(layer);
+                    }
+                }
+            }
+        }
+        // Explicit layers forced onto every instance from the
+        // environment are just as relevant as the implicit set.
+        if let Ok(forced) = std::env::var("VK_INSTANCE_LAYERS")
+            && !forced.is_empty()
+        {
+            layers.push(format!("VK_INSTANCE_LAYERS={forced}"));
+        }
+        (!layers.is_empty()).then(|| layers.join(", "))
+    })
+    .as_deref()
+}
+
+/// Layer names out of one implicit-layer manifest, each marked
+/// "(inactive)" when its environment gate keeps the loader from
+/// injecting it. Loader semantics, best-effort: an implicit layer is
+/// on by default, `enable_environment` restricts it to sessions where
+/// that variable is set, and `disable_environment` wins over both.
+/// The env lookup comes in as a closure so tests control it.
+#[cfg(any(target_os = "linux", test))]
+fn parse_layer_manifest(text: &str, env_is_set: impl Fn(&str) -> bool) -> Vec<String> {
+    let Ok(manifest) = serde_json::from_str::<serde_json::Value>(text) else {
+        return Vec::new();
+    };
+    // Manifests carry either one `layer` object or a `layers` array.
+    let single = manifest.get("layer").into_iter();
+    let multi = manifest
+        .get("layers")
+        .and_then(|l| l.as_array())
+        .into_iter()
+        .flatten();
+    let mut out = Vec::new();
+    for layer in single.chain(multi) {
+        let Some(name) = layer.get("name").and_then(|n| n.as_str()) else {
+            continue;
+        };
+        let env_key = |key: &str| {
+            layer
+                .get(key)
+                .and_then(|m| m.as_object())
+                .and_then(|m| m.keys().next().cloned())
+        };
+        let enabled = env_key("enable_environment").is_none_or(|var| env_is_set(&var));
+        let disabled = env_key("disable_environment").is_some_and(|var| env_is_set(&var));
+        if enabled && !disabled {
+            out.push(name.to_string());
+        } else {
+            out.push(format!("{name} (inactive)"));
+        }
+    }
+    out
 }
 
 /// OS name + version + arch, resolved once per process (`os_info::get`
@@ -317,6 +453,26 @@ mod tests {
         DebugFileWriter.write_all(b"after-disable\n").unwrap();
         assert_eq!(before, std::fs::read_to_string(&path).unwrap());
 
+        // Under --debug-log the sink is pinned: the Settings toggle
+        // routes through disable(), which must not be able to end a
+        // diagnostic session (issue #104, where the reporter switched
+        // the log off before the freezes we were instrumenting for).
+        assert!(!is_forced());
+        enable_at(&path).unwrap();
+        FORCED.store(true, Ordering::Relaxed);
+        disable();
+        assert!(is_enabled(), "--debug-log must survive disable()");
+        DebugFileWriter.write_all(b"after-forced-disable\n").unwrap();
+        DebugFileWriter.flush().unwrap();
+        assert!(std::fs::read_to_string(&path).unwrap().contains("after-forced-disable"));
+
+        // Unpinned again, disable() behaves normally. Restored before
+        // the test ends so the process-global statics don't leak into
+        // whatever runs next.
+        FORCED.store(false, Ordering::Relaxed);
+        disable();
+        assert!(!is_enabled());
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -339,6 +495,46 @@ mod tests {
         assert_eq!(std::fs::read(&path).unwrap(), b"abc");
 
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn layer_manifest_names_and_env_gates() {
+        // MangoHud-style manifest: enable_environment gates injection.
+        let mangohud = r#"{
+            "file_format_version": "1.0.0",
+            "layer": {
+                "name": "VK_LAYER_MANGOHUD_overlay",
+                "enable_environment": {"MANGOHUD": "1"},
+                "disable_environment": {"DISABLE_MANGOHUD": "1"}
+            }
+        }"#;
+        // Gate variable unset: present but not injected.
+        assert_eq!(
+            parse_layer_manifest(mangohud, |_| false),
+            vec!["VK_LAYER_MANGOHUD_overlay (inactive)"]
+        );
+        // Gate set: injected into every Vulkan process.
+        assert_eq!(
+            parse_layer_manifest(mangohud, |var| var == "MANGOHUD"),
+            vec!["VK_LAYER_MANGOHUD_overlay"]
+        );
+        // Disable wins over enable.
+        assert_eq!(
+            parse_layer_manifest(mangohud, |_| true),
+            vec!["VK_LAYER_MANGOHUD_overlay (inactive)"]
+        );
+
+        // No env gates at all (vkBasalt-style): active by default, and
+        // the `layers` array form parses the same as `layer`.
+        let plain = r#"{"layers": [{"name": "VK_LAYER_VKBASALT_post_processing"}]}"#;
+        assert_eq!(
+            parse_layer_manifest(plain, |_| false),
+            vec!["VK_LAYER_VKBASALT_post_processing"]
+        );
+
+        // Garbage input degrades to nothing, never a panic.
+        assert!(parse_layer_manifest("not json", |_| false).is_empty());
+        assert!(parse_layer_manifest("{}", |_| false).is_empty());
     }
 
     #[test]

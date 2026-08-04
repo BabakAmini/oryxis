@@ -976,6 +976,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "완료",
         "debug_logging" => "디버그 로깅",
         "debug_logging_desc" => "문제 조사에 도움이 되도록 앱 진단 정보를 로그 파일에 기록합니다. 비밀번호와 키는 절대 기록되지 않습니다. 문제를 보고할 때 이 파일을 첨부하세요.",
+        "debug_logging_forced" => "명령줄 옵션 --debug-log 로 켜진 상태로 고정됩니다. 이 세션에서는 끌 수 없습니다.",
         "debug_log_file" => "로그 파일",
         "debug_log_clear" => "로그 지우기",
         "debug_log_cleared" => "로그 파일을 지웠습니다",

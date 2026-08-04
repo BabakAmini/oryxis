@@ -811,6 +811,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Fatto",
         "debug_logging" => "Log di debug",
         "debug_logging_desc" => "Scrive la diagnostica dell'app in un file di log per aiutare a indagare sui problemi. Password e chiavi non vengono mai registrate. Allega il file quando segnali un problema.",
+        "debug_logging_forced" => "Mantenuto attivo dall'opzione --debug-log della riga di comando: non può essere disattivato in questa sessione.",
         "debug_log_file" => "File di log",
         "debug_log_clear" => "Svuota log",
         "debug_log_cleared" => "File di log svuotato",

@@ -68,21 +68,40 @@ jobs:
             ~/.cargo/git/
             target/
           key: linux-x86-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release -p oryxis-app
+      - run: cargo build --profile release-with-symbols -p oryxis-app
+      # Split debuginfo out of the binary, then strip it. What ships
+      # carries no more symbols than `strip = true` left it, plus one
+      # added `.gnu_debuglink` section naming its symbol file; what is
+      # NEW is that the symbols survive as their own asset, so a `gdb`
+      # backtrace from the field can be resolved instead of printing
+      # `??` (issue #104). gdb checks the debuglink CRC, so the pair
+      # only works together: whoever collects a stack downloads the
+      # binary and its `-debug.tar.xz` in the same sitting, because
+      # `nightly-latest` is replaced on every push to main.
+      - name: Split debug symbols
+        run: |
+          set -euo pipefail
+          BIN=target/release-with-symbols/oryxis
+          objcopy --only-keep-debug "$BIN" oryxis.debug
+          objcopy --strip-all --add-gnu-debuglink=oryxis.debug "$BIN" oryxis-stripped
+          # -T0: xz defaults to one thread, and a release DWARF blob
+          # is big enough for that to cost minutes of nightly time.
+          XZ_OPT=-T0 tar cJf oryxis-nightly-linux-x86_64-debug.tar.xz oryxis.debug
       - name: Package tarball + bare binary
         run: |
           mkdir -p dist
-          cp target/release/oryxis dist/
+          cp oryxis-stripped dist/oryxis
           cp README.md resources/logo_64.png resources/oryxis.desktop dist/
           cd dist && tar czf ../oryxis-nightly-linux-x86_64.tar.gz *
           # Bare binary asset for in-app self-update (no installer for nightly).
-          cd .. && cp target/release/oryxis oryxis-nightly-linux-x86_64.bin
+          cd .. && cp oryxis-stripped oryxis-nightly-linux-x86_64.bin
       - uses: actions/upload-artifact@v7
         with:
           name: oryxis-nightly-linux-x86_64
           path: |
             oryxis-nightly-linux-x86_64.tar.gz
             oryxis-nightly-linux-x86_64.bin
+            oryxis-nightly-linux-x86_64-debug.tar.xz
 
   build-linux-arm:
     name: Linux ARM64
@@ -102,20 +121,31 @@ jobs:
             ~/.cargo/git/
             target/
           key: linux-arm-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release -p oryxis-app
+      - run: cargo build --profile release-with-symbols -p oryxis-app
+      # Same split as the x86_64 job above; see the comment there.
+      - name: Split debug symbols
+        run: |
+          set -euo pipefail
+          BIN=target/release-with-symbols/oryxis
+          objcopy --only-keep-debug "$BIN" oryxis.debug
+          objcopy --strip-all --add-gnu-debuglink=oryxis.debug "$BIN" oryxis-stripped
+          # -T0: xz defaults to one thread, and a release DWARF blob
+          # is big enough for that to cost minutes of nightly time.
+          XZ_OPT=-T0 tar cJf oryxis-nightly-linux-aarch64-debug.tar.xz oryxis.debug
       - name: Package tarball + bare binary
         run: |
           mkdir -p dist
-          cp target/release/oryxis dist/
+          cp oryxis-stripped dist/oryxis
           cp README.md resources/logo_64.png resources/oryxis.desktop dist/
           cd dist && tar czf ../oryxis-nightly-linux-aarch64.tar.gz *
-          cd .. && cp target/release/oryxis oryxis-nightly-linux-aarch64.bin
+          cd .. && cp oryxis-stripped oryxis-nightly-linux-aarch64.bin
       - uses: actions/upload-artifact@v7
         with:
           name: oryxis-nightly-linux-aarch64
           path: |
             oryxis-nightly-linux-aarch64.tar.gz
             oryxis-nightly-linux-aarch64.bin
+            oryxis-nightly-linux-aarch64-debug.tar.xz
 
   build-macos-arm:
     name: macOS Apple Silicon

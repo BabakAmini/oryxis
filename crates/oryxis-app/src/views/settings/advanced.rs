@@ -14,14 +14,19 @@ impl Oryxis {
         let log_path = crate::logging::log_path()
             .map(|p| p.display().to_string())
             .unwrap_or_else(|| "-".to_string());
+        // Under `--debug-log` the sink is pinned on for the whole run, so
+        // the row reports the flag instead of the usual description and
+        // the toggle answers with the same sentence (see the handler).
+        let forced = crate::logging::is_forced();
+        let debug_desc = if forced { "debug_logging_forced" } else { "debug_logging_desc" };
         let debug_col = column![
             self.nav_toggle_row(
                 t("debug_logging"),
-                self.prefs.debug_logging,
+                self.prefs.debug_logging || forced,
                 Message::Settings(SettingsMessage::SettingToggleDebugLogging),
             ),
             Space::new().height(4),
-            text(t("debug_logging_desc")).size(11).color(OryxisColors::t().text_muted),
+            text(t(debug_desc)).size(11).color(OryxisColors::t().text_muted),
             Space::new().height(12),
             settings_row(t("debug_log_file"), log_path),
             Space::new().height(8),

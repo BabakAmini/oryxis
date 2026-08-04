@@ -976,6 +976,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Xong",
         "debug_logging" => "Ghi log gỡ lỗi",
         "debug_logging_desc" => "Ghi chẩn đoán ứng dụng vào tệp log để hỗ trợ điều tra sự cố. Mật khẩu và khóa không bao giờ được ghi lại. Đính kèm tệp khi báo cáo sự cố.",
+        "debug_logging_forced" => "Được giữ bật bởi tùy chọn dòng lệnh --debug-log: không thể tắt trong phiên này.",
         "debug_log_file" => "Tệp log",
         "debug_log_clear" => "Xóa log",
         "debug_log_cleared" => "Đã xóa tệp log",

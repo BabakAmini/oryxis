@@ -817,6 +817,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Hecho",
         "debug_logging" => "Registro de depuración",
         "debug_logging_desc" => "Guarda diagnósticos de la aplicación en un archivo de registro para ayudar a investigar problemas. Las contraseñas y claves nunca se registran. Adjunta el archivo al informar de un problema.",
+        "debug_logging_forced" => "Mantenido activo por el parámetro --debug-log de la línea de comandos: no se puede desactivar en esta sesión.",
         "debug_log_file" => "Archivo de registro",
         "debug_log_clear" => "Vaciar registro",
         "debug_log_cleared" => "Archivo de registro vaciado",

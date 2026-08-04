@@ -77,6 +77,13 @@ impl Oryxis {
                 self.relaunch_self();
             }
             SettingsMessage::SettingToggleDebugLogging => {
+                if crate::logging::is_forced() {
+                    // --debug-log pinned the sink on. Say so instead of
+                    // flipping a switch that `logging::disable` ignores,
+                    // which would leave the row lying about the state.
+                    self.set_toast(crate::i18n::t("debug_logging_forced").to_string());
+                    return Ok(toast_clear_task());
+                }
                 if self.prefs.debug_logging {
                     // Emitted before the sink closes so the file records
                     // its own switch-off.

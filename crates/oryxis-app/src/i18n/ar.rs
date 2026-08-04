@@ -994,6 +994,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "تم",
         "debug_logging" => "سجل التصحيح",
         "debug_logging_desc" => "يكتب تشخيصات التطبيق في ملف سجل للمساعدة في تحرّي المشكلات. لا تُسجَّل كلمات المرور والمفاتيح أبدًا. أرفق الملف عند الإبلاغ عن مشكلة.",
+        "debug_logging_forced" => "مُفعّل بواسطة خيار سطر الأوامر ‎--debug-log‎: لا يمكن إيقافه في هذه الجلسة.",
         "debug_log_file" => "ملف السجل",
         "debug_log_clear" => "مسح السجل",
         "debug_log_cleared" => "تم مسح ملف السجل",

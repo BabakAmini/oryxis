@@ -811,6 +811,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Fertig",
         "debug_logging" => "Debug-Protokoll",
         "debug_logging_desc" => "Schreibt App-Diagnosen in eine Protokolldatei, um die Untersuchung von Problemen zu erleichtern. Passwörter und Schlüssel werden nie protokolliert. Hängen Sie die Datei an, wenn Sie ein Problem melden.",
+        "debug_logging_forced" => "Durch die Befehlszeilenoption --debug-log aktiv gehalten: In dieser Sitzung nicht abschaltbar.",
         "debug_log_file" => "Protokolldatei",
         "debug_log_clear" => "Protokoll leeren",
         "debug_log_cleared" => "Protokolldatei geleert",

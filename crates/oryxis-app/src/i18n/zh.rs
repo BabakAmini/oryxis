@@ -820,6 +820,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "完成",
         "debug_logging" => "调试日志",
         "debug_logging_desc" => "将应用诊断信息写入日志文件以帮助排查问题。绝不会记录密码和密钥。报告问题时请附上该文件。",
+        "debug_logging_forced" => "由命令行参数 --debug-log 保持开启：本次会话无法关闭。",
         "debug_log_file" => "日志文件",
         "debug_log_clear" => "清空日志",
         "debug_log_cleared" => "日志文件已清空",

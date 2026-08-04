@@ -98,6 +98,7 @@ toml = "0.8"
 uuid = { version = "1", features = ["v4", "serde"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 thiserror = "2"
 chrono = { version = "0.4", features = ["serde"] }
 regex = "1"
@@ -135,10 +136,29 @@ opt-level = 3
 lto = "thin"
 strip = true
 
-[profile.release-with-split-debuginfo-packed] 
+[profile.release-with-split-debuginfo-packed]
 inherits = "release"
 debug = "line-tables-only"
 split-debuginfo = "packed"
+
+# Linux counterpart of the Windows `.pdb` build above. `strip = true` on
+# the release profile is what turned the one field gdb backtrace we ever
+# got for issue #104 into 30 threads of `??`, with no way back: nightly
+# assets roll, so the binary those addresses belonged to was gone hours
+# later. The nightly Linux jobs build with this profile and split the
+# result with objcopy: the published binary carries no more symbols than
+# `strip = true` left it (only an added `.gnu_debuglink` naming its
+# symbol file), and the symbols ride along as their own asset.
+# `line-tables-only` buys file:line on top of the function names in
+# `.symtab` without the size of full DWARF.
+#
+# gdb validates the debuglink CRC, so a symbols file from a DIFFERENT
+# nightly is refused rather than silently misread. Whoever collects a
+# stack has to grab the binary and its `-debug.tar.xz` in one sitting.
+[profile.release-with-symbols]
+inherits = "release"
+strip = false
+debug = "line-tables-only"
 
 # zmodem2 from our fork's serial-robustness branch: PR #5 (flow control
 # + manual file acceptance/resume + ZSINIT handling) plus PR #6 (corrupt

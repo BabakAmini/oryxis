@@ -94,6 +94,12 @@ impl Oryxis {
         };
         let mut cmd = std::process::Command::new(exe);
         cmd.arg("--relaunch");
+        // A diagnostic session started with --debug-log must not lose its
+        // log across a renderer-change restart: that restart is exactly
+        // the kind of event the log is being kept for.
+        if crate::logging::is_forced() {
+            cmd.arg("--debug-log");
+        }
         let inherit = self.master_password.is_some();
         if inherit {
             cmd.arg("--inherit-vault");

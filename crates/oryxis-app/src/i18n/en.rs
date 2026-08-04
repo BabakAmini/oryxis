@@ -983,6 +983,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "done" => "Done",
         "debug_logging" => "Debug logging",
         "debug_logging_desc" => "Write app diagnostics to a log file to help investigate problems. Passwords and keys are never logged. Attach the file when reporting an issue.",
+        "debug_logging_forced" => "Kept on by the --debug-log command-line flag: it cannot be switched off for this session.",
         "debug_log_file" => "Log file",
         "debug_log_clear" => "Clear log",
         "debug_log_cleared" => "Log file cleared",

@@ -976,6 +976,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Bitti",
         "debug_logging" => "Hata ayıklama günlüğü",
         "debug_logging_desc" => "Sorunları incelemeye yardımcı olmak için uygulama tanılamalarını bir günlük dosyasına yazar. Parolalar ve anahtarlar asla kaydedilmez. Sorun bildirirken dosyayı ekleyin.",
+        "debug_logging_forced" => "--debug-log komut satırı seçeneğiyle açık tutuluyor: bu oturumda kapatılamaz.",
         "debug_log_file" => "Günlük dosyası",
         "debug_log_clear" => "Günlüğü temizle",
         "debug_log_cleared" => "Günlük dosyası temizlendi",

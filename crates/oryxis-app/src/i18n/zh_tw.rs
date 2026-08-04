@@ -820,6 +820,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "完成",
         "debug_logging" => "偵錯記錄",
         "debug_logging_desc" => "將應用程式診斷資訊寫入記錄檔以協助疑難排解。絕不會記錄密碼和金鑰。回報問題時請附上該檔案。",
+        "debug_logging_forced" => "由命令列參數 --debug-log 保持開啟：本次工作階段無法關閉。",
         "debug_log_file" => "記錄檔",
         "debug_log_clear" => "清空記錄",
         "debug_log_cleared" => "記錄檔已清空",

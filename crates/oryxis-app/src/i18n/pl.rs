@@ -982,6 +982,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Gotowe",
         "debug_logging" => "Logowanie diagnostyczne",
         "debug_logging_desc" => "Zapisuje diagnostykę aplikacji do pliku dziennika, aby pomóc w badaniu problemów. Hasła i klucze nigdy nie są zapisywane. Dołącz plik przy zgłaszaniu problemu.",
+        "debug_logging_forced" => "Utrzymywane włączone przez opcję wiersza poleceń --debug-log: nie można go wyłączyć w tej sesji.",
         "debug_log_file" => "Plik dziennika",
         "debug_log_clear" => "Wyczyść dziennik",
         "debug_log_cleared" => "Plik dziennika wyczyszczony",

@@ -820,6 +820,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "完了",
         "debug_logging" => "デバッグログ",
         "debug_logging_desc" => "問題の調査に役立つ診断情報をログファイルに書き込みます。パスワードや鍵は記録されません。問題を報告する際はこのファイルを添付してください。",
+        "debug_logging_forced" => "コマンドライン引数 --debug-log によって有効に固定されています。このセッションではオフにできません。",
         "debug_log_file" => "ログファイル",
         "debug_log_clear" => "ログを消去",
         "debug_log_cleared" => "ログファイルを消去しました",

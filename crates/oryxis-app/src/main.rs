@@ -204,6 +204,10 @@ fn main() -> iced::Result {
     let mut window_position = window::Position::Default;
     let mut window_maximized = false;
     let mut window_fullscreen = false;
+    // Read straight off the argv here rather than in the flag loop far
+    // below: the debug sink has to be armed before the vault read, so
+    // the whole boot is captured.
+    let force_debug_log = std::env::args().skip(1).any(|a| a == "--debug-log");
     if let Ok(vault) = oryxis_vault::VaultStore::open_default() {
         renderer_mode = vault.get_setting("renderer_backend").ok().flatten();
         if let (Some(w), Some(h)) = (
@@ -250,13 +254,21 @@ fn main() -> iced::Result {
             .flatten()
             .as_deref()
             == Some("true");
-        // Debug logging (Settings > Advanced). Armed before the tracing
-        // subscriber below is built so the earliest boot lines land in
-        // the file too; same unlocked settings read as the renderer knob.
-        if let Ok(Some(v)) = vault.get_setting("debug_logging")
-            && v == "true"
-            && let Err(e) = logging::enable()
-        {
+        // Debug logging (Settings > Advanced, or `--debug-log`). Armed
+        // before the tracing subscriber below is built so the earliest
+        // boot lines land in the file too; same unlocked settings read
+        // as the renderer knob. The flag wins over the stored setting
+        // and pins the sink on for the whole process (see
+        // `logging::force_enable`), which is what makes a diagnostic
+        // session survive the user toggling Settings mid-run.
+        let armed = if force_debug_log {
+            logging::force_enable().map(|_| ())
+        } else if vault.get_setting("debug_logging").ok().flatten().as_deref() == Some("true") {
+            logging::enable().map(|_| ())
+        } else {
+            Ok(())
+        };
+        if let Err(e) = armed {
             eprintln!("oryxis: failed to enable debug logging: {e}");
         }
     }
@@ -297,6 +309,41 @@ fn main() -> iced::Result {
         }
     }
 
+    // Game overlays and capture tools (MangoHud, vkBasalt, OBS's
+    // vkcapture) ship as implicit Vulkan layers: the loader injects them
+    // into EVERY Vulkan process on the machine, an SSH client included,
+    // where they hook swapchain presentation for a HUD nobody asked for
+    // and become a real stall/crash surface (#104's environment is a
+    // gaming distro). Opt this process out, by name, on two levels:
+    // VK_LOADER_LAYERS_DISABLE (loader >= 1.3.234) blocks them at the
+    // loader, and the layers' own documented disable_environment
+    // switches cover older loaders (MangoHud and vkBasalt have stable
+    // ones; OBS relies on the loader glob). Deliberately NOT a blanket
+    // `~implicit~`: VK_LAYER_MESA_device_select and VK_LAYER_NV_optimus
+    // are load-bearing for GPU selection on hybrid-graphics machines.
+    // A user who set VK_LOADER_LAYERS_DISABLE themselves keeps their
+    // policy untouched, and the loader's VK_LOADER_LAYERS_ENABLE still
+    // force-enables a layer over our list, so both escape hatches
+    // survive. Same single-threaded SAFETY contract as the renderer
+    // set_var block above (nothing has spawned a thread yet).
+    let vulkan_layer_note: Option<&str> =
+        if std::env::var_os("VK_LOADER_LAYERS_DISABLE").is_some() {
+            Some("VK_LOADER_LAYERS_DISABLE preset by the user; overlay-layer opt-out left alone")
+        } else {
+            unsafe {
+                std::env::set_var(
+                    "VK_LOADER_LAYERS_DISABLE",
+                    "VK_LAYER_MANGOHUD_overlay*,VK_LAYER_VKBASALT*,VK_LAYER_OBS_vkcapture*",
+                );
+            }
+            for var in ["DISABLE_MANGOHUD", "DISABLE_VKBASALT"] {
+                if std::env::var_os(var).is_none() {
+                    unsafe { std::env::set_var(var, "1") };
+                }
+            }
+            Some("game-overlay Vulkan layers opted out for this process (MangoHud, vkBasalt, OBS vkcapture)")
+        };
+
     // Self-heal a renderer crash on GPU/driver stacks that can't satisfy
     // iced_wgpu's shader capabilities (VMs, old drivers, software Vulkan):
     // catch the wgpu panic and relaunch with a safer backend. Installed after
@@ -316,6 +363,10 @@ fn main() -> iced::Result {
     //                          renderer-change restart); wait briefly for
     //                          the old single-instance mutex to release so
     //                          we boot as primary, not as a tray-less child
+    //   --debug-log          : force the debug log file on for this whole
+    //                          run, overriding (and un-overridable by) the
+    //                          Settings toggle. Read far above, before the
+    //                          vault, so boot lines are captured too.
     let mut args = std::env::args().skip(1);
     let mut inherit_vault = false;
     let mut relaunching = false;
@@ -394,6 +445,17 @@ fn main() -> iced::Result {
         }
     }
 
+    // Stdout is a PTY when the app is launched from a terminal, and a
+    // synchronous write to a PTY that stopped draining (Ctrl+S, a
+    // paused scrollback, a suspended terminal) BLOCKS the writing
+    // thread once the kernel buffer fills. tracing events are written
+    // on the emitting thread, which for most of our events is the UI
+    // thread, so a wedged stdout would freeze the whole app. Route the
+    // stdout layer through tracing-appender's worker thread instead: a
+    // blocked stdout at worst drops log lines (lossy by default),
+    // never the UI. The guard flushes buffered lines when main returns.
+    let (stdout_writer, _stdout_log_guard) =
+        tracing_appender::non_blocking(std::io::stdout());
     tracing_subscriber::registry()
         // `arboard` logs a WARN on every clipboard op when the Wayland
         // data-control protocol is unavailable (common under WSL / some
@@ -404,7 +466,10 @@ fn main() -> iced::Result {
         // In harness mode stdout belongs to the driving protocol (the
         // REPL's `== ` lines, MCP's JSON-RPC messages), so logs go to
         // stderr there; the normal app keeps stdout.
-        .with((!harness_active).then(tracing_subscriber::fmt::layer))
+        .with(
+            (!harness_active)
+                .then(|| tracing_subscriber::fmt::layer().with_writer(stdout_writer)),
+        )
         .with(harness_active.then(|| {
             tracing_subscriber::fmt::layer().with_writer(std::io::stderr)
         }))
@@ -424,6 +489,12 @@ fn main() -> iced::Result {
         // Deferred from the probe above, which runs before the
         // subscriber exists.
         tracing::info!("renderer auto-probe: {note}");
+    }
+    if let Some(note) = vulkan_layer_note {
+        // Deferred like the probe note; lands in the debug log next to
+        // the environment header, so a report tells whether an overlay
+        // could have been injected at all.
+        tracing::info!("vulkan layers: {note}");
     }
 
     // Single-instance + multi-window IPC roles. The first process to

@@ -982,6 +982,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "סיום",
         "debug_logging" => "תיעוד דיבאג",
         "debug_logging_desc" => "כתיבת אבחוני אפליקציה לקובץ יומן כדי לעזור בחקירת בעיות. סיסמאות ומפתחות לעולם לא נרשמים. צרפו את הקובץ כשמדווחים על בעיה.",
+        "debug_logging_forced" => "נשאר פעיל בגלל דגל שורת הפקודה ‎--debug-log‎: לא ניתן לכבות אותו בהפעלה הזו.",
         "debug_log_file" => "קובץ יומן",
         "debug_log_clear" => "ניקוי יומן",
         "debug_log_cleared" => "קובץ היומן נוקה",

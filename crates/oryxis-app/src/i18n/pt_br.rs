@@ -946,6 +946,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "done" => "Concluído",
         "debug_logging" => "Log de depuração",
         "debug_logging_desc" => "Grava diagnósticos do app em um arquivo de log para ajudar a investigar problemas. Senhas e chaves nunca são registradas. Anexe o arquivo ao relatar um problema.",
+        "debug_logging_forced" => "Mantido ligado pelo parâmetro --debug-log da linha de comando: não pode ser desligado nesta sessão.",
         "debug_log_file" => "Arquivo de log",
         "debug_log_clear" => "Limpar log",
         "debug_log_cleared" => "Arquivo de log limpo",
