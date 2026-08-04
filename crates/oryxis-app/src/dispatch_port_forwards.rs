@@ -215,7 +215,7 @@ impl Oryxis {
                 if let Some(rule) = self.port_forward_rules.get(idx) {
                     let id = rule.id;
                     // Tear down a live forward before the rule disappears.
-                    self.active_forwards.remove(&id);
+                    let session = self.active_forwards.remove(&id);
                     self.port_forward_starting.remove(&id);
                     self.port_forward_retry.remove(&id);
                     if let Some(vault) = &self.vault {
@@ -226,6 +226,22 @@ impl Oryxis {
                     // Last forward of its host gone: close the shared
                     // connection too.
                     self.pf_gc_host_conns();
+                    // Await `cancel()` like StopPortForward does: a deleted
+                    // `-R` rule must release its server-side listener via
+                    // `cancel_tcpip_forward`, because the shared connection
+                    // may stay up for sibling rules and then Drop alone
+                    // leaves the remote bind occupied (re-creating the rule
+                    // would hit EADDRINUSE on the server).
+                    if let Some(session) = session {
+                        return Task::perform(
+                            async move { session.cancel().await },
+                            |_| {
+                                Message::PortForward(
+                                    PortForwardMessage::PortForwardLivenessTick,
+                                )
+                            },
+                        );
+                    }
                 }
             }
 
@@ -292,18 +308,24 @@ impl Oryxis {
                         }
                     }
                     Err(e) => {
-                        // First/foreground failure surfaces the error. An
-                        // auto_start rule additionally enters the retry loop
-                        // so a transient failure (SSH key not loaded yet,
-                        // network down) self-heals instead of staying dead.
-                        let already_retrying = self.port_forward_retry.contains_key(&id);
-                        self.pf_mark_retry_pending(id, PfRetryCause::StartFailed);
-                        // Stay silent on background retries: the amber
-                        // "Retrying…" chip already carries the signal, and the
-                        // single shared error field would otherwise clobber
-                        // across rows on every tick.
-                        if !already_retrying {
-                            self.port_forward_form.error = Some(e);
+                        // Same rule as the Ok arm: a stop or delete that
+                        // landed while the attach was in flight already
+                        // cleared the retry entry, and re-arming it here
+                        // would resurrect a forward the user turned off.
+                        if was_starting {
+                            // First/foreground failure surfaces the error. An
+                            // auto_start rule additionally enters the retry loop
+                            // so a transient failure (SSH key not loaded yet,
+                            // network down) self-heals instead of staying dead.
+                            let already_retrying = self.port_forward_retry.contains_key(&id);
+                            self.pf_mark_retry_pending(id, PfRetryCause::StartFailed);
+                            // Stay silent on background retries: the amber
+                            // "Retrying…" chip already carries the signal, and the
+                            // single shared error field would otherwise clobber
+                            // across rows on every tick.
+                            if !already_retrying {
+                                self.port_forward_form.error = Some(e);
+                            }
                         }
                         // A failed attach may leave the shared connection
                         // with no forwards on it; don't let it idle.
@@ -322,8 +344,15 @@ impl Oryxis {
                 // "starting" id, and queued siblings stop spinning.
                 match self.forward_conns.remove(&host_id) {
                     Some(PfHostConn::Connecting { pending }) => {
-                        for rid in pending {
-                            self.port_forward_starting.remove(&rid);
+                        for rid in &pending {
+                            self.port_forward_starting.remove(rid);
+                        }
+                        // Remember the queue for the dialog's retry
+                        // (`PortForwardHostRetry`): manual siblings have no
+                        // retry-ladder entry to bring them back, so without
+                        // this they would silently stay off.
+                        if !pending.is_empty() {
+                            self.pf_aborted_pending.insert(host_id, pending);
                         }
                     }
                     // A stray abort must not drop a live connection.
@@ -332,6 +361,23 @@ impl Oryxis {
                     }
                     None => {}
                 }
+            }
+            PortForwardMessage::PortForwardHostRetry(host_id, initiator) => {
+                // The legacy-algorithm dialog's retry: restart the whole
+                // queue that the abort unwound, initiator first so it opens
+                // the dial and the siblings queue behind it (the double-start
+                // guard in `start_port_forward` skips anything already back).
+                let mut ids = self
+                    .pf_aborted_pending
+                    .remove(&host_id)
+                    .unwrap_or_default();
+                ids.retain(|rid| *rid != initiator);
+                ids.insert(0, initiator);
+                return Task::batch(ids.into_iter().map(|rid| {
+                    Task::done(Message::PortForward(
+                        PortForwardMessage::StartPortForward(rid),
+                    ))
+                }));
             }
             PortForwardMessage::PortForwardLivenessTick => {
                 // Drop forwards whose underlying connection has died so the
@@ -502,6 +548,10 @@ impl Oryxis {
         // behind it and everything attaches on `PortForwardConnReady`.
         self.forward_conns
             .insert(host_id, PfHostConn::Connecting { pending: vec![id] });
+        // A fresh dial supersedes any queue stranded by an earlier
+        // legacy-algorithm abort; drop it so a later dialog retry can't
+        // resurrect rules the user has since left off.
+        self.pf_aborted_pending.remove(&host_id);
 
         if boot_auto_start {
             tracing::info!("auto-starting port forward {} ({})", rule_label, id);
@@ -619,7 +669,7 @@ impl Oryxis {
                 conn_id: pf_conn_id,
                 category,
                 server_offers,
-                retry: Box::new(Message::PortForward(PortForwardMessage::StartPortForward(id))),
+                retry: Box::new(Message::PortForward(PortForwardMessage::PortForwardHostRetry(pf_conn_id, id))),
             }),
             PfStreamMsg::Aborted => {
                 Message::PortForward(PortForwardMessage::PortForwardConnAborted(pf_conn_id))

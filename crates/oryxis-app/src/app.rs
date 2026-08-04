@@ -774,6 +774,11 @@ pub struct Oryxis {
     /// `dispatch_port_forwards::PfHostConn`.
     pub(crate) forward_conns:
         std::collections::HashMap<Uuid, crate::dispatch_port_forwards::PfHostConn>,
+    /// Rules that were queued behind a shared dial the legacy-algorithm
+    /// dialog aborted, keyed by host id. Consumed by the dialog's retry
+    /// (`PortForwardHostRetry`) so the whole queue restarts together;
+    /// discarded when a fresh dial for the host starts any other way.
+    pub(crate) pf_aborted_pending: std::collections::HashMap<Uuid, Vec<Uuid>>,
     /// Live RDP/VNC-over-SSH tunnels, keyed by the host's connection id.
     /// A managed `-L` forward paired with its launch generation. The tunnel
     /// self-closes once the desktop client disconnects and it goes idle (see

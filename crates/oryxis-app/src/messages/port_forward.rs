@@ -40,6 +40,12 @@ pub enum PortForwardMessage {
     /// over): unwinds the queued rules' in-flight state so the dialog's
     /// retry can start over.
     PortForwardConnAborted(Uuid),
+    /// The legacy-algorithm dialog's retry for a shared dial (host id,
+    /// initiating rule id): restarts the initiator AND every sibling
+    /// rule that was queued behind the aborted dial, so a manual rule
+    /// toggled on mid-dial rides the retried connection instead of
+    /// silently staying off.
+    PortForwardHostRetry(Uuid, Uuid),
     /// Result of a `StartPortForward` attach attempt (rule id).
     PortForwardStarted(Uuid, Result<Arc<ForwardSession>, String>),
     /// Periodic liveness sweep; drops forwards whose connection died.
