@@ -85,8 +85,14 @@ impl Oryxis {
         // other view) on screen there is no pane under the cursor, and
         // uploading into a BACKGROUND tab is the #106 behavior this
         // replaces. The SFTP surfaces already claimed their drops
-        // upstream.
-        if self.active_view != crate::state::View::Terminal {
+        // upstream. "Visible" mirrors `view_content`: a focused session
+        // tab renders the terminal under ANY view tag (closing a chip,
+        // Close Others or Reconnect focus a tab without touching
+        // `active_view`), so the gate is the same expression the
+        // keyboard / mouse / palette routers use, not a per-view check.
+        let terminal_on_screen = self.active_view == crate::state::View::Terminal
+            || self.active_tab.is_some();
+        if !terminal_on_screen {
             return Task::none();
         }
         let Some(tab_idx) = self.active_tab else {
