@@ -175,6 +175,11 @@ pub enum SftpMessage {
     /// vertical offset (px) and the visible viewport height (px). Stored so
     /// keyboard navigation only scrolls when the cursor reaches an edge.
     SftpListScrolled(crate::state::SftpPaneSide, f32, f32),
+    /// The overflow layout's outer horizontal scrollable panned: carries
+    /// the side and the new absolute horizontal offset (px). Stored so
+    /// draw-time (content-space) rects, e.g. the Menu-key row anchor, can
+    /// be mapped back to the screen while the columns are panned.
+    SftpListPanned(crate::state::SftpPaneSide, f32),
     SftpStartNewEntry(crate::state::SftpPaneSide, crate::state::SftpEntryKind),
     SftpNewEntryInput(String),
     SftpNewEntryCommit,

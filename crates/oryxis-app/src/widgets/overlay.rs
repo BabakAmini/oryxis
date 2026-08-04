@@ -139,6 +139,152 @@ pub(crate) fn bounds_reporter<'a, Message: 'a>(
     })
 }
 
+/// Shared cell type for `press_hit_reporter`: holds the value of the
+/// last wrapper a left press landed on, consumed with `take()` by the
+/// press handler so a stale hit can never outlive its press.
+pub(crate) type PressHitCell<T> = std::rc::Rc<std::cell::RefCell<Option<T>>>;
+
+/// Build a fresh, empty `PressHitCell` ready to be cloned into
+/// `press_hit_reporter` wrappers and held in app state for later takes.
+pub(crate) fn new_press_hit_cell<T>() -> PressHitCell<T> {
+    std::rc::Rc::new(std::cell::RefCell::new(None))
+}
+
+/// Wraps `content` and writes `value` into `cell` whenever a left mouse
+/// press lands inside the widget's on-screen bounds. The test runs in
+/// `update`, where every ancestor scrollable hands its children a cursor
+/// already translated into their content space (and levitated while the
+/// cursor is outside the viewport or over a scrollbar), so the answer
+/// stays correct with the content scrolled, panned or clipped.
+/// `bounds_reporter` cannot give that answer: `draw` receives
+/// content-space bounds while the scroll translation lives in the
+/// renderer, so a rect recorded there drifts from the screen by exactly
+/// the scroll offset (issue #127). Everything delegates to the inner
+/// widget, so behaviour is otherwise identical to the unwrapped child.
+pub(crate) fn press_hit_reporter<'a, Message: 'a, T: Clone + 'a>(
+    content: impl Into<Element<'a, Message>>,
+    cell: PressHitCell<T>,
+    value: T,
+) -> Element<'a, Message> {
+    use iced::advanced::widget::{tree, Operation, Tree, Widget};
+    use iced::advanced::{layout, mouse, overlay, renderer, Layout, Shell};
+    use iced::{Event, Length as L, Rectangle, Size, Vector};
+
+    struct PressHitReporter<'a, Message, T> {
+        content: Element<'a, Message>,
+        cell: PressHitCell<T>,
+        value: T,
+    }
+
+    impl<Message, T: Clone> Widget<Message, Theme, iced::Renderer> for PressHitReporter<'_, Message, T> {
+        fn tag(&self) -> tree::Tag {
+            self.content.as_widget().tag()
+        }
+        fn state(&self) -> tree::State {
+            self.content.as_widget().state()
+        }
+        fn diff(&mut self, tree: &mut Tree) {
+            self.content.as_widget_mut().diff(tree);
+        }
+        fn size(&self) -> Size<L> {
+            self.content.as_widget().size()
+        }
+        fn layout(
+            &mut self,
+            tree: &mut Tree,
+            renderer: &iced::Renderer,
+            limits: &layout::Limits,
+        ) -> layout::Node {
+            self.content
+                .as_widget_mut()
+                .layout(tree, renderer, limits)
+        }
+        fn draw(
+            &self,
+            tree: &Tree,
+            renderer: &mut iced::Renderer,
+            theme: &Theme,
+            style: &renderer::Style,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            viewport: &Rectangle,
+        ) {
+            self.content
+                .as_widget()
+                .draw(tree, renderer, theme, style, layout, cursor, viewport);
+        }
+        fn operate(
+            &mut self,
+            tree: &mut Tree,
+            layout: Layout<'_>,
+            renderer: &iced::Renderer,
+            operation: &mut dyn Operation,
+        ) {
+            self.content
+                .as_widget_mut()
+                .operate(tree, layout, renderer, operation);
+        }
+        fn update(
+            &mut self,
+            tree: &mut Tree,
+            event: &Event,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            renderer: &iced::Renderer,
+            shell: &mut Shell<'_, Message>,
+            viewport: &Rectangle,
+        ) {
+            // Record BEFORE delegating: the child (a button) captures the
+            // press, but capture doesn't erase the event and rows don't
+            // overlap, so at most one wrapper writes per press.
+            if matches!(
+                event,
+                Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
+            ) && cursor.is_over(layout.bounds())
+            {
+                *self.cell.borrow_mut() = Some(self.value.clone());
+            }
+            self.content.as_widget_mut().update(
+                tree, event, layout, cursor, renderer, shell, viewport,
+            );
+        }
+        fn mouse_interaction(
+            &self,
+            tree: &Tree,
+            layout: Layout<'_>,
+            cursor: mouse::Cursor,
+            viewport: &Rectangle,
+            renderer: &iced::Renderer,
+        ) -> mouse::Interaction {
+            self.content
+                .as_widget()
+                .mouse_interaction(tree, layout, cursor, viewport, renderer)
+        }
+        fn overlay<'b>(
+            &'b mut self,
+            tree: &'b mut Tree,
+            layout: Layout<'b>,
+            renderer: &iced::Renderer,
+            viewport: &Rectangle,
+            translation: Vector,
+        ) -> Option<overlay::Element<'b, Message, Theme, iced::Renderer>> {
+            self.content.as_widget_mut().overlay(
+                tree,
+                layout,
+                renderer,
+                viewport,
+                translation,
+            )
+        }
+    }
+
+    Element::new(PressHitReporter {
+        content: content.into(),
+        cell,
+        value,
+    })
+}
+
 /// Transparent decorator that announces its laid-out bounds under `id`
 /// via the standard `container()` operation hook during `operate` (NOT
 /// draw). A scroll-into-view operation can then find the row's layout

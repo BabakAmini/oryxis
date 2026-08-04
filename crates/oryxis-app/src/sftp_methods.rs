@@ -504,12 +504,16 @@ impl Oryxis {
     pub(crate) fn sftp_open_focus_row_menu(&mut self) -> Task<Message> {
         let side = self.sftp.focused_side;
         // Both the focused entry and the `..` row report their bounds via a
-        // `bounds_reporter`, so this is the last-drawn cursor rect. Anchor
-        // just inside the leading edge and drop from the bottom so the menu
+        // `bounds_reporter`, so this is the last-drawn cursor rect. It was
+        // recorded during draw, which under a scrollable happens in content
+        // space (the scroll translation lives in the renderer), so map it
+        // back to the screen with the pane's tracked offsets. Anchor just
+        // inside the leading edge and drop from the bottom so the menu
         // opens below the row, like a right-click at that spot.
         let bounds = self.sftp.focus_row_bounds.get();
-        let x = bounds.x + 8.0;
-        let y = bounds.y + bounds.height;
+        let pane = self.sftp.pane(side);
+        let x = bounds.x + 8.0 - pane.list_pan_x.get();
+        let y = bounds.y + bounds.height - pane.list_scroll_y;
         let target = self
             .sftp
             .selected_rows

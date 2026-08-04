@@ -340,9 +340,12 @@ impl Oryxis {
     /// the remote SFTP browser. The header always renders the
     /// host-picker chip; for a Local pane it reads "Local", for a remote
     /// pane it reads the mounted host label.
-    /// Record a row's identity and wrap it so its drawn rect lands in a
-    /// cell the press handler can hit-test. Rows are recorded in render
-    /// order, which is the order they appear on screen.
+    /// Wrap a row so a left press landing inside its on-screen bounds
+    /// writes the row's identity into `row_press`, where the press
+    /// handler takes it to arm a drag. The test happens in the widget
+    /// `update`, where scrollables translate the cursor into content
+    /// space, so it stays correct with the list scrolled or panned
+    /// (issue #127: draw-time rects recorded here did not).
     fn record_sftp_row_hit<'a>(
         &self,
         side: SftpPaneSide,
@@ -350,22 +353,16 @@ impl Oryxis {
         is_dir: bool,
         row: Element<'a, Message>,
     ) -> Element<'a, Message> {
-        let cell = crate::widgets::new_bounds_cell();
-        self.sftp.row_hits.borrow_mut().push(crate::state::SftpRowHit {
-            side,
-            path: path.to_string(),
-            is_dir,
-            bounds: cell.clone(),
-        });
-        crate::widgets::bounds_reporter(row, cell)
+        crate::widgets::press_hit_reporter(
+            row,
+            self.sftp.row_press.clone(),
+            (side, path.to_string(), is_dir),
+        )
     }
 
     fn view_sftp_pane(&self, side: SftpPaneSide) -> Element<'_, Message> {
         let pane = self.sftp.pane(side);
         let is_remote = pane.is_remote;
-        // Drop this side's row rects; they are re-recorded below in render
-        // order. The other pane's stay, since it is not being rebuilt here.
-        self.sftp.row_hits.borrow_mut().retain(|h| h.side != side);
         // Resolve the column layout from this pane's on-screen width (the
         // content area split by the divider ratio). When the visible columns
         // overflow, the layout switches the rows to a fixed width and the list
@@ -390,6 +387,12 @@ impl Oryxis {
         let col_widths = pane.columns.width;
         let cols_total = cols_total_width(&ordered_cols, col_widths);
         let layout = ColLayout::resolve(cols_total, pane_avail);
+        // The outer horizontal scrollable exists only in the overflow
+        // layout; leaving that layout drops the widget (and its scroll
+        // state), so the tracked pan must not survive it either.
+        if !layout.overflow {
+            pane.list_pan_x.set(0.0);
+        }
         let col_drag = self
             .sftp_chrome.col_drag
             .filter(|d| d.side == side && d.active)

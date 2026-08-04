@@ -378,6 +378,9 @@ impl Oryxis {
                 pane.list_scroll_y = offset_y;
                 pane.list_viewport_h = viewport_h;
             }
+            SftpMessage::SftpListPanned(side, offset_x) => {
+                self.sftp.pane(side).list_pan_x.set(offset_x);
+            }
             m => return Err(m),
         }
         Ok(Task::none())

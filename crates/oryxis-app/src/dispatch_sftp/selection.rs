@@ -261,6 +261,12 @@ impl Oryxis {
                 return Ok(Task::done(Message::Sftp(SftpMessage::SftpStartRename(side, path))));
             }
             SftpMessage::SftpMouseLeftPressed => {
+                // Consume the row identity this press's `press_hit_reporter`
+                // wrapper recorded (if any) FIRST, before any early return
+                // below: this message fires exactly once per press, so a
+                // value left behind by a bailed-out press would otherwise
+                // be mistaken for the next press's hit.
+                let pressed_row = self.sftp.row_press.borrow_mut().take();
                 // Any physical click leaves keyboard-selection mode: the
                 // mouse took over, a lingering ring would just be noise.
                 // Also drops the modal-layer selection so a menu closed
@@ -365,31 +371,22 @@ impl Oryxis {
                         return Ok(self.commit_rename());
                     }
                 }
-                // Which row the press landed on, by GEOMETRY. `hovered_row`
-                // is only the fallback now: it is hover state, so a
-                // truncated name's tooltip overlay drops it (the reason an
-                // arm was once bolted onto the row button's on_press, which
-                // fires on RELEASE and so can never help a drag), and iced
+                // Which row the press landed on, recorded by the row's
+                // `press_hit_reporter` wrapper at press time. `hovered_row`
+                // is only the fallback: it is hover state, so a truncated
+                // name's tooltip overlay drops it (the reason an arm was
+                // once bolted onto the row button's on_press, which fires
+                // on RELEASE and so can never help a drag), and iced
                 // publishes enter / exit in tree order, which reorders it.
-                // The rects come from the same `bounds_reporter` cells the
-                // OS-drop router hit-tests, so this answer does not depend
-                // on hover at all.
-                let hit = self
-                    .sftp
-                    .row_hits
-                    .borrow()
-                    .iter()
-                    .find(|h| {
-                        let r = h.bounds.get();
-                        r.width > 0.0
-                            && r.height > 0.0
-                            && self.mouse_position.x >= r.x
-                            && self.mouse_position.x <= r.x + r.width
-                            && self.mouse_position.y >= r.y
-                            && self.mouse_position.y <= r.y + r.height
-                    })
-                    .map(|h| (h.side, h.path.clone(), h.is_dir));
-                if let Some((side, path, is_dir)) = hit.or_else(|| self.sftp.hovered_row.clone()) {
+                // Draw-time rects were no good either: under a scrollable
+                // they are content-space while the mouse is screen-space,
+                // so a scrolled list dragged the wrong row by exactly the
+                // scroll offset (issue #127). The press-time test happens
+                // where iced itself translates the cursor, so it depends
+                // on neither hover nor tracked offsets.
+                if let Some((side, path, is_dir)) =
+                    pressed_row.or_else(|| self.sftp.hovered_row.clone())
+                {
                     self.arm_sftp_row_drag(side, path, is_dir);
                 }
             }

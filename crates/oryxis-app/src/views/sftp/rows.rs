@@ -282,6 +282,11 @@ pub(crate) fn sftp_list_scrollable<'a>(
             .width(Length::Fill)
             .height(Length::Fill)
             .direction(scrollable::Direction::Horizontal(scrollable::Scrollbar::new()))
+            // Track the pan so draw-space rects (the Menu-key row anchor)
+            // can be mapped back to the screen while columns are panned.
+            .on_scroll(move |vp: scrollable::Viewport| {
+                Message::Sftp(SftpMessage::SftpListPanned(side, vp.absolute_offset().x))
+            })
             .into()
     } else {
         scrollable(col)

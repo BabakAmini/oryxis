@@ -256,6 +256,7 @@ impl Oryxis {
             | SftpMessage::SftpCancelEditPath
             | SftpMessage::SftpSort(..)
             | SftpMessage::SftpListScrolled(..)
+            | SftpMessage::SftpListPanned(..)
             | SftpMessage::SftpLocalListed(..)) => self
                 .handle_sftp_listing(m)
                 .unwrap_or_else(crate::dispatch::unrouted),

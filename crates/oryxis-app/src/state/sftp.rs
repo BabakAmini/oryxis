@@ -95,6 +95,13 @@ pub(crate) struct PaneState {
     /// also from `on_scroll`. `0.0` until the first scroll event (then the
     /// nav falls back to proportional snapping).
     pub list_viewport_h: f32,
+    /// Last known absolute horizontal offset (px) of the overflow
+    /// layout's outer scrollable, fed from its `on_scroll`. Used to map
+    /// draw-time (content-space) rects back to the screen while the
+    /// columns are panned; `Cell` so `view()` can zero it when the
+    /// overflow layout (and with it the scrollable's own state) goes
+    /// away, otherwise a stale pan would survive a window resize.
+    pub list_pan_x: std::cell::Cell<f32>,
     /// Virtual zip-browse mode. While `Some`, the pane's entry list
     /// shows the INSIDE of a zip archive (listed from its central
     /// directory over ranged reads, nothing extracted) and the pane
@@ -296,15 +303,6 @@ impl std::fmt::Debug for ZipIndexedPayload {
 /// always a remote host. When both panes are remote, a transfer between
 /// them uses the server-to-server relay primitive instead of
 /// upload/download.
-/// One rendered SFTP row's identity plus the cell its drawn rect lands in.
-#[derive(Debug, Clone)]
-pub(crate) struct SftpRowHit {
-    pub side: SftpPaneSide,
-    pub path: String,
-    pub is_dir: bool,
-    pub bounds: crate::widgets::BoundsCell,
-}
-
 pub(crate) struct SftpState {
     /// Left pane, Local by default.
     pub left: PaneState,
@@ -343,16 +341,20 @@ pub(crate) struct SftpState {
     /// consumed by both the OS drop target picker and the internal
     /// drag-drop release handler.
     pub hovered_row: Option<(SftpPaneSide, String, bool)>,
-    /// Every rendered row's rect, recorded during `view()` and filled by a
-    /// `bounds_reporter` on each draw.
+    /// Identity of the row the current left press landed on, written by
+    /// each row's `press_hit_reporter` wrapper and taken (consumed) by
+    /// `SftpMouseLeftPressed`, which fires once per press.
     ///
-    /// Hit-testing a press against these is what makes grabbing a row
-    /// deterministic. `hovered_row` cannot do that job: it is hover state
-    /// maintained by MouseArea enter / exit, so a truncated name's tooltip
-    /// overlay drops it and iced publishing transitions in tree order
-    /// reorders it. Geometry has neither problem, and it is the approach
-    /// the OS-drop router and the tab-to-pane drop already use.
-    pub row_hits: std::cell::RefCell<Vec<SftpRowHit>>,
+    /// This is what makes grabbing a row for a drag deterministic.
+    /// `hovered_row` cannot do that job: it is hover state maintained by
+    /// MouseArea enter / exit, so a truncated name's tooltip overlay
+    /// drops it and iced publishing transitions in tree order reorders
+    /// it. Draw-time rects (`bounds_reporter`) cannot either: under a
+    /// scrollable they are content-space while the mouse is screen-space,
+    /// so a scrolled list hit the wrong row by exactly the scroll offset
+    /// (issue #127). The press-time test happens where iced itself
+    /// translates the cursor, so it is immune to both failure modes.
+    pub row_press: crate::widgets::PressHitCell<(SftpPaneSide, String, bool)>,
     /// In-progress internal drag (file/folder being dragged from one
     /// pane to the other). Spans the press → drop window.
     pub drag: Option<SftpInternalDrag>,
@@ -523,7 +525,7 @@ impl Default for SftpState {
             drop_active: false,
             pending_drops: Vec::new(),
             hovered_row: None,
-            row_hits: std::cell::RefCell::new(Vec::new()),
+            row_press: crate::widgets::new_press_hit_cell(),
             drag: None,
             transfer: None,
             upload_dest_override: None,
