@@ -22,14 +22,16 @@ use uuid::Uuid;
 
 use oryxis_core::models::connection::{AuthMethod, Connection};
 use oryxis_core::models::port_forward_rule::PortForwardRule;
-use oryxis_ssh::{ConnectionResolver, ForwardConn, HostKeyQuery, SshEngine};
+use oryxis_ssh::{ConnectionResolver, ForwardConn, HostKeyQuery, KbiQuery, SshEngine};
 
 use crate::app::{SshMessage, PortForwardMessage, Message, Oryxis};
 
 /// Items streamed out of an interactive (manual-toggle) forward dial:
-/// either a host-key question for the UI modal, or the final result.
+/// a host-key or keyboard-interactive (2FA) question for the UI
+/// modals, or the final result.
 enum PfStreamMsg {
     HostKey(HostKeyQuery),
+    Kbi(KbiQuery),
     Done(Result<ForwardConn, String>),
     NoCommonAlgo {
         category: oryxis_ssh::NegCategory,
@@ -483,8 +485,10 @@ impl Oryxis {
     /// runs **known-only** (strict, silent), so a host whose key isn't
     /// already trusted just fails to off instead of popping a modal storm
     /// before the window is even ready. A manual toggle, by contrast, wires
-    /// the same host-key prompt the terminal uses, so the user can trust a
-    /// new key on the spot.
+    /// the same host-key and keyboard-interactive (2FA) prompts the
+    /// terminal uses, so the user can trust a new key or answer an OTP
+    /// challenge on the spot; boot auto-starts stay silent and rely on the
+    /// stored TOTP secret's autofill alone.
     pub(crate) fn start_port_forward(&mut self, id: Uuid, boot_auto_start: bool) -> Task<Message> {
         if self.active_forwards.contains_key(&id) || self.port_forward_starting.contains(&id) {
             return Task::none();
@@ -600,6 +604,21 @@ impl Oryxis {
         let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
         self.host_key_response_tx = Some(hk_resp_tx);
 
+        // Keyboard-interactive bridge, same shape: a 2FA server whose OTP
+        // round the TOTP autofill can't answer (no stored secret, or a
+        // rejected code) surfaces the shared `SshKbi*` modal instead of
+        // failing with "additional authentication could not be completed"
+        // (issue #126 follow-up). Single shared response slot, same
+        // documented limitation as the remote-desktop launch: a manual
+        // toggle is a foreground, one-at-a-time user action.
+        let (kbi_ask_tx, mut kbi_ask_rx) = tokio::sync::mpsc::channel::<(
+            KbiQuery,
+            tokio::sync::oneshot::Sender<Option<Vec<String>>>,
+        )>(1);
+        let (kbi_resp_tx, mut kbi_resp_rx) =
+            tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
+        self.kbi_response_tx = Some(kbi_resp_tx);
+
         // Captured for the map closure (conn moves into the producer); the
         // retry re-runs this same port-forward start.
         let pf_conn_id = conn.id;
@@ -607,7 +626,12 @@ impl Oryxis {
             let engine = SshEngine::new()
                 .with_host_key_check(host_key_check)
                 .with_host_key_ask(hk_ask_tx)
+                .with_kbi_ask(kbi_ask_tx)
                 .with_totp_secret(totp_secret.as_deref())
+                .with_password_prompt_labels(
+                    crate::i18n::t("auth_password_prompt_title").to_string(),
+                    crate::i18n::t("password").to_string(),
+                )
                 .with_keepalive(keepalive)
                 .with_address_family(conn.address_family)
                 .with_rekey_limit_mb(conn.rekey_limit_mb)
@@ -625,6 +649,15 @@ impl Oryxis {
                     let _ = sender_clone.send(PfStreamMsg::HostKey(query)).await;
                     let accepted = hk_resp_rx.recv().await.unwrap_or(false);
                     let _ = resp_tx.send(accepted);
+                }
+            });
+
+            let mut kbi_sender = sender.clone();
+            let _kbi_bridge = tokio::spawn(async move {
+                while let Some((query, resp_tx)) = kbi_ask_rx.recv().await {
+                    let _ = kbi_sender.send(PfStreamMsg::Kbi(query)).await;
+                    let answers = kbi_resp_rx.recv().await.unwrap_or(None);
+                    let _ = resp_tx.send(answers);
                 }
             });
 
@@ -662,6 +695,7 @@ impl Oryxis {
 
         Task::stream(stream).map(move |m| match m {
             PfStreamMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
+            PfStreamMsg::Kbi(q) => Message::Ssh(SshMessage::SshKbiPrompt(None, q)),
             PfStreamMsg::Done(r) => {
                 Message::PortForward(PortForwardMessage::PortForwardConnReady(pf_conn_id, r))
             }
