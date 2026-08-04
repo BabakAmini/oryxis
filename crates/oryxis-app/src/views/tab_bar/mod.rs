@@ -559,11 +559,6 @@ impl Oryxis {
         // single solid fill.
         let solid_fill = self.prefs.tab_fill_style == "solid" || self.prefs.performance_mode;
 
-        // The navigation areas live as top-level tabs before the
-        // connection tabs (see `home_area_tab` for the selection family
-        // and why Settings stays out).
-        tab_items.push(self.home_area_tab(solid_fill));
-
         // Terminal and SFTP tabs share one strip, pinned-first across BOTH
         // kinds (so an unpinned SFTP tab never jumps ahead of a pinned
         // terminal). `false` = terminal index into `self.tabs`, `true` = SFTP
@@ -708,6 +703,11 @@ impl Oryxis {
             // 1 px breather between the burger and the first area tab (home).
             leading.push(Space::new().width(1).height(TAB_HEIGHT).into());
         }
+        // The navigation areas live as top-level tabs before the
+        // connection tabs (see `home_area_tab` for the selection family
+        // and why Settings stays out).
+        leading.push(self.home_area_tab(solid_fill));
+        leading.push(Space::new().width(TAB_SPACING).height(TAB_HEIGHT).into());
         leading.push(tab_strip);
         if let Some(plus) = docked_plus {
             leading.push(plus);
