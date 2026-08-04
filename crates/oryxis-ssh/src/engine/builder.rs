@@ -214,7 +214,7 @@ impl SshEngine {
         self
     }
 
-    /// Override the authentication-phase timeout (default 30s).
+    /// Override the authentication-phase timeout (default 120s).
     pub fn with_auth_timeout(mut self, t: std::time::Duration) -> Self {
         self.auth_timeout = t;
         self

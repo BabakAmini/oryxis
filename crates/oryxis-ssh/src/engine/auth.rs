@@ -1,5 +1,7 @@
 use super::*;
 
+use russh::{MethodKind, MethodSet};
+
 impl SshEngine {
     // -----------------------------------------------------------------------
     // Authentication
@@ -54,8 +56,15 @@ impl SshEngine {
                     tried.push("publickey");
                     tracing::info!("Auto: trying publickey auth for {}", username);
                     match self.try_publickey_auth(handle, username, km).await {
-                        Ok(true) => return Ok(true),
-                        Ok(false) => tracing::info!("Auto: publickey rejected"),
+                        Ok(StepVerdict::Accepted) => return Ok(true),
+                        Ok(StepVerdict::Partial(remaining)) => {
+                            return self
+                                .finish_partial_auth(
+                                    handle, username, remaining, None, password, password,
+                                )
+                                .await;
+                        }
+                        Ok(StepVerdict::Rejected) => tracing::info!("Auto: publickey rejected"),
                         Err(e) => tracing::info!("Auto: publickey error: {}", e),
                     }
                 }
@@ -65,6 +74,13 @@ impl SshEngine {
                 tracing::info!("Auto: trying agent auth for {}", username);
                 match self.auth_via_agent(handle, username).await {
                     Ok(AgentAuthOutcome::Authenticated) => return Ok(true),
+                    Ok(AgentAuthOutcome::Partial(remaining)) => {
+                        return self
+                            .finish_partial_auth(
+                                handle, username, remaining, None, password, password,
+                            )
+                            .await;
+                    }
                     Ok(AgentAuthOutcome::NoMatch(tally)) => {
                         tracing::info!("Auto: agent had no matching keys ({tally})")
                     }
@@ -85,8 +101,17 @@ impl SshEngine {
                     tried.push("password");
                     tracing::info!("Auto: trying password auth for {}", username);
                     match handle.authenticate_password(username, pw).await {
-                        Ok(res) if res.success() => return Ok(true),
-                        Ok(_) => tracing::info!("Auto: password rejected"),
+                        Ok(res) => match res.into() {
+                            StepVerdict::Accepted => return Ok(true),
+                            StepVerdict::Partial(remaining) => {
+                                return self
+                                    .finish_partial_auth(
+                                        handle, username, remaining, None, None, Some(pw),
+                                    )
+                                    .await;
+                            }
+                            StepVerdict::Rejected => tracing::info!("Auto: password rejected"),
+                        },
                         Err(e) => tracing::info!("Auto: password error: {}", e),
                     }
 
@@ -98,11 +123,16 @@ impl SshEngine {
                     // quick-connect opt-in below is the one exception.
                     tried.push("keyboard-interactive");
                     tracing::info!("Auto: trying keyboard-interactive auth for {}", username);
-                    if matches!(
-                        self.try_keyboard_interactive(handle, username, Some(pw), false).await?,
-                        KbiOutcome::Success
-                    ) {
-                        return Ok(true);
+                    match self.try_keyboard_interactive(handle, username, Some(pw), false).await? {
+                        KbiOutcome::Success => return Ok(true),
+                        KbiOutcome::Partial(remaining) => {
+                            return self
+                                .finish_partial_auth(
+                                    handle, username, remaining, None, None, Some(pw),
+                                )
+                                .await;
+                        }
+                        KbiOutcome::Rejected | KbiOutcome::Cancelled => {}
                     }
                 }
 
@@ -114,6 +144,13 @@ impl SshEngine {
                     tracing::info!("Auto: trying prompted keyboard-interactive auth for {}", username);
                     match self.try_keyboard_interactive(handle, username, password, true).await? {
                         KbiOutcome::Success => return Ok(true),
+                        KbiOutcome::Partial(remaining) => {
+                            return self
+                                .finish_partial_auth(
+                                    handle, username, remaining, None, password, password,
+                                )
+                                .await;
+                        }
                         // An explicit cancel ends the attempt; chaining a
                         // second modal after it would fight the user.
                         KbiOutcome::Cancelled => {
@@ -138,8 +175,21 @@ impl SshEngine {
                                             self.auth_timeout.as_secs()
                                         ))
                                     })??;
-                                    if res.success() {
-                                        return Ok(true);
+                                    match res.into() {
+                                        StepVerdict::Accepted => return Ok(true),
+                                        StepVerdict::Partial(remaining) => {
+                                            return self
+                                                .finish_partial_auth(
+                                                    handle,
+                                                    username,
+                                                    remaining,
+                                                    None,
+                                                    None,
+                                                    Some(&pw),
+                                                )
+                                                .await;
+                                        }
+                                        StepVerdict::Rejected => {}
                                     }
                                 }
                                 None => {
@@ -162,10 +212,25 @@ impl SshEngine {
                 let pw = password.ok_or(SshError::AuthFailed)?;
                 tracing::info!("Trying password auth for {}", username);
                 let res = handle.authenticate_password(username, pw).await?;
-                if !res.success() {
-                    return Err(SshError::Key("Password rejected by server".into()));
+                match res.into() {
+                    StepVerdict::Accepted => Ok(true),
+                    // The password was CORRECT; the server wants a second
+                    // factor (TOTP over keyboard-interactive, issue #125).
+                    StepVerdict::Partial(remaining) => {
+                        self.finish_partial_auth(
+                            handle,
+                            username,
+                            remaining,
+                            key_material,
+                            None,
+                            Some(pw),
+                        )
+                        .await
+                    }
+                    StepVerdict::Rejected => {
+                        Err(SshError::Key("Password rejected by server".into()))
+                    }
                 }
-                Ok(true)
             }
             AuthMethod::Key => {
                 let km = key_material
@@ -177,16 +242,34 @@ impl SshEngine {
                 let km = KeyMaterial::plain(km.private_pem);
 
                 tracing::info!("Trying publickey auth for {}", username);
-                if self.try_publickey_auth(handle, username, km).await? {
-                    return Ok(true);
+                match self.try_publickey_auth(handle, username, km).await? {
+                    StepVerdict::Accepted => return Ok(true),
+                    // The key was CORRECT; the server wants another factor
+                    // (key + TOTP, key + password, issue #125).
+                    StepVerdict::Partial(remaining) => {
+                        return self
+                            .finish_partial_auth(
+                                handle, username, remaining, None, password, password,
+                            )
+                            .await;
+                    }
+                    StepVerdict::Rejected => {}
                 }
 
                 // Key was rejected, try password as fallback if available
                 if let Some(pw) = password {
                     tracing::info!("Key rejected, trying password fallback for {}", username);
                     let res = handle.authenticate_password(username, pw).await?;
-                    if res.success() {
-                        return Ok(true);
+                    match res.into() {
+                        StepVerdict::Accepted => return Ok(true),
+                        StepVerdict::Partial(remaining) => {
+                            return self
+                                .finish_partial_auth(
+                                    handle, username, remaining, None, None, Some(pw),
+                                )
+                                .await;
+                        }
+                        StepVerdict::Rejected => {}
                     }
                     return Err(SshError::Key("Both key and password rejected by server".into()));
                 }
@@ -233,21 +316,45 @@ impl SshEngine {
                 let res = handle
                     .authenticate_openssh_cert(username, private_key, *cert)
                     .await?;
-                if !res.success() {
-                    return Err(SshError::Key("Certificate rejected by server".into()));
+                match res.into() {
+                    StepVerdict::Accepted => Ok(true),
+                    StepVerdict::Partial(remaining) => {
+                        self.finish_partial_auth(
+                            handle, username, remaining, None, password, password,
+                        )
+                        .await
+                    }
+                    StepVerdict::Rejected => {
+                        Err(SshError::Key("Certificate rejected by server".into()))
+                    }
                 }
-                Ok(true)
             }
             AuthMethod::Agent => {
                 tracing::info!("Trying agent auth for {}", username);
                 match self.auth_via_agent(handle, username).await {
                     Ok(AgentAuthOutcome::Authenticated) => Ok(true),
+                    // An agent key was accepted as the first factor; the
+                    // server requires more (issue #125).
+                    Ok(AgentAuthOutcome::Partial(remaining)) => {
+                        self.finish_partial_auth(
+                            handle, username, remaining, None, password, password,
+                        )
+                        .await
+                    }
                     Ok(AgentAuthOutcome::NoMatch(tally)) => {
                         if let Some(pw) = password {
                             tracing::info!("Agent auth failed, trying password for {}", username);
                             let res = handle.authenticate_password(username, pw).await?;
-                            if res.success() {
-                                return Ok(true);
+                            match res.into() {
+                                StepVerdict::Accepted => return Ok(true),
+                                StepVerdict::Partial(remaining) => {
+                                    return self
+                                        .finish_partial_auth(
+                                            handle, username, remaining, None, None, Some(pw),
+                                        )
+                                        .await;
+                                }
+                                StepVerdict::Rejected => {}
                             }
                         }
                         Err(SshError::Key(format!(
@@ -263,8 +370,16 @@ impl SshEngine {
                         if let Some(pw) = password {
                             tracing::info!("Agent unavailable ({}), trying password for {}", e, username);
                             let res = handle.authenticate_password(username, pw).await?;
-                            if res.success() {
-                                return Ok(true);
+                            match res.into() {
+                                StepVerdict::Accepted => return Ok(true),
+                                StepVerdict::Partial(remaining) => {
+                                    return self
+                                        .finish_partial_auth(
+                                            handle, username, remaining, None, None, Some(pw),
+                                        )
+                                        .await;
+                                }
+                                StepVerdict::Rejected => {}
                             }
                         }
                         Err(e)
@@ -275,6 +390,14 @@ impl SshEngine {
                 tracing::info!("Trying keyboard-interactive auth for {}", username);
                 match self.try_keyboard_interactive(handle, username, password, true).await? {
                     KbiOutcome::Success => Ok(true),
+                    // The exchange was accepted; the server wants another
+                    // method on top (issue #125).
+                    KbiOutcome::Partial(remaining) => {
+                        self.finish_partial_auth(
+                            handle, username, remaining, key_material, password, password,
+                        )
+                        .await
+                    }
                     // Rejection and cancel both surfaced the same error
                     // before the outcome split; keep that behavior.
                     KbiOutcome::Rejected | KbiOutcome::Cancelled => {
@@ -302,12 +425,161 @@ impl SshEngine {
                         self.auth_timeout.as_secs()
                     ))
                 })??;
-                if !res.success() {
-                    return Err(SshError::Key("Password rejected by server".into()));
+                match res.into() {
+                    StepVerdict::Accepted => Ok(true),
+                    StepVerdict::Partial(remaining) => {
+                        self.finish_partial_auth(
+                            handle,
+                            username,
+                            remaining,
+                            key_material,
+                            None,
+                            Some(&pw),
+                        )
+                        .await
+                    }
+                    StepVerdict::Rejected => {
+                        Err(SshError::Key("Password rejected by server".into()))
+                    }
                 }
-                Ok(true)
             }
         }
+    }
+
+    /// Run the RFC 4252 partial-success continuation and convert "ran out
+    /// of answerable methods" into the user-facing error, so every
+    /// `do_auth` branch can `return self.finish_partial_auth(..)` after a
+    /// partial success. `Ok(true)` is the only `Ok` this ever returns.
+    #[allow(clippy::too_many_arguments)]
+    async fn finish_partial_auth(
+        &self,
+        handle: &mut client::Handle<ClientHandler>,
+        username: &str,
+        remaining: MethodSet,
+        unused_key: Option<KeyMaterial<'_>>,
+        unused_password: Option<&str>,
+        kbi_pw: Option<&str>,
+    ) -> Result<bool, SshError> {
+        tracing::info!(
+            "Server accepted the first auth factor for {}, requires more: {:?}",
+            username,
+            remaining.iter().map(<&str>::from).collect::<Vec<_>>(),
+        );
+        if self
+            .continue_partial_auth(handle, username, remaining, unused_key, unused_password, kbi_pw)
+            .await?
+        {
+            return Ok(true);
+        }
+        Err(SshError::Key(format!(
+            "The server accepted the first authentication factor for \"{}\" but requires \
+             additional authentication (2FA) that could not be completed",
+            username,
+        )))
+    }
+
+    /// Drive an authentication the server accepted PARTIALLY (RFC 4252
+    /// partial success: the offered factor was correct, more are
+    /// required; sshd `AuthenticationMethods`, Bitvise compound auth,
+    /// issue #125). Each round offers whichever remaining method still
+    /// has an unconsumed answer, silent ones first:
+    ///
+    /// - `publickey` with `unused_key`;
+    /// - `password` with `unused_password`;
+    /// - `keyboard-interactive`, answered by the TOTP autofill, then the
+    ///   UI modal, then `kbi_pw` (the `try_keyboard_interactive` order).
+    ///
+    /// The UI prompt is deliberately allowed here even for saved
+    /// non-Interactive hosts: unlike the silent `Auto` tail (where a
+    /// modal after a REJECTED password would be a surprise), the server
+    /// has verified the first factor and explicitly demands another, so
+    /// prompting is the only alternative to an unusable host. This is
+    /// what OpenSSH does for `password,keyboard-interactive` servers.
+    ///
+    /// Returns `Ok(true)` on full authentication, `Ok(false)` once the
+    /// server's remaining set carries nothing more we can answer. Each
+    /// network exchange is individually bounded (callers outside the
+    /// blanket auth timeout, e.g. `Interactive`, still park unbounded
+    /// only on human input).
+    async fn continue_partial_auth(
+        &self,
+        handle: &mut client::Handle<ClientHandler>,
+        username: &str,
+        mut remaining: MethodSet,
+        mut unused_key: Option<KeyMaterial<'_>>,
+        mut unused_password: Option<&str>,
+        kbi_pw: Option<&str>,
+    ) -> Result<bool, SshError> {
+        // Backstop against a server that answers every step with yet
+        // another partial success. Real chains are 2-3 factors deep.
+        const MAX_STEPS: usize = 5;
+
+        let net_timeout = self.auth_timeout;
+        let net_err = || {
+            SshError::ConnectionFailed(format!(
+                "auth exchange timed out after {}s",
+                net_timeout.as_secs()
+            ))
+        };
+
+        // One keyboard-interactive run per continuation: a second one
+        // would re-ask (or autofill) a factor the server just refused.
+        let mut kbi_available = true;
+
+        for _ in 0..MAX_STEPS {
+            let verdict = if remaining.contains(&MethodKind::PublicKey) && unused_key.is_some() {
+                let km = unused_key.take().expect("checked is_some");
+                tracing::info!("Partial success: continuing with publickey for {}", username);
+                tokio::time::timeout(
+                    net_timeout,
+                    self.try_publickey_auth(handle, username, km),
+                )
+                .await
+                .map_err(|_| net_err())??
+            } else if remaining.contains(&MethodKind::Password) && unused_password.is_some() {
+                let pw = unused_password.take().expect("checked is_some");
+                tracing::info!("Partial success: continuing with password for {}", username);
+                let res = tokio::time::timeout(
+                    net_timeout,
+                    handle.authenticate_password(username, pw),
+                )
+                .await
+                .map_err(|_| net_err())??;
+                StepVerdict::from(res)
+            } else if remaining.contains(&MethodKind::KeyboardInteractive) && kbi_available {
+                kbi_available = false;
+                tracing::info!(
+                    "Partial success: continuing with keyboard-interactive for {}",
+                    username
+                );
+                // Network rounds are bounded inside; the human wait (the
+                // 2FA modal when no TOTP secret is stored) is not.
+                match self.try_keyboard_interactive(handle, username, kbi_pw, true).await? {
+                    KbiOutcome::Success => StepVerdict::Accepted,
+                    KbiOutcome::Partial(next) => StepVerdict::Partial(next),
+                    KbiOutcome::Rejected => StepVerdict::Rejected,
+                    KbiOutcome::Cancelled => {
+                        return Err(SshError::Key("Authentication cancelled".into()));
+                    }
+                }
+            } else {
+                return Ok(false);
+            };
+            match verdict {
+                StepVerdict::Accepted => return Ok(true),
+                // The server's follow-up set replaces ours wholesale;
+                // it is authoritative about what may come next.
+                StepVerdict::Partial(next) => remaining = next,
+                // Rejection consumed the credential it was tried with;
+                // the loop moves on to the next answerable method.
+                StepVerdict::Rejected => {}
+            }
+        }
+        tracing::warn!(
+            "partial-success auth exceeded {} continuation steps, giving up",
+            MAX_STEPS
+        );
+        Ok(false)
     }
 
     /// Ask the UI for a password once, for `AuthMethod::PasswordPrompt`.
@@ -355,7 +627,7 @@ impl SshEngine {
         handle: &mut client::Handle<ClientHandler>,
         username: &str,
         material: KeyMaterial<'_>,
-    ) -> Result<bool, SshError> {
+    ) -> Result<StepVerdict, SshError> {
         let private_key = russh::keys::decode_secret_key(material.private_pem, None)
             .map_err(|e| SshError::Key(format!("Failed to decode key: {}", e)))?;
         let private_key = Arc::new(private_key);
@@ -373,11 +645,15 @@ impl SshEngine {
                 .try_certificate_auth(handle, username, &private_key, cert_line)
                 .await?
             {
-                Some(true) => return Ok(true),
+                // Accepted outright, or accepted as a first factor with
+                // more required: both end the publickey attempt (falling
+                // through to the bare key after a partial success would
+                // offer a credential the server did not ask for).
+                Some(v @ (StepVerdict::Accepted | StepVerdict::Partial(_))) => return Ok(v),
                 // Offered but the server rejected the cert, or the cert was
                 // unusable: fall through to the bare key (OpenSSH treats
                 // the cert and the plain key as separate identities).
-                Some(false) | None => {
+                Some(StepVerdict::Rejected) | None => {
                     tracing::info!("Falling back to bare public key for {}", username);
                 }
             }
@@ -391,12 +667,12 @@ impl SshEngine {
         };
         let key = PrivateKeyWithHashAlg::new(private_key, hash);
         let res = handle.authenticate_publickey(username, key).await?;
-        Ok(res.success())
+        Ok(res.into())
     }
 
     /// Offer an OpenSSH certificate during publickey auth. Returns:
-    /// - `Ok(Some(true))` the server accepted the certificate;
-    /// - `Ok(Some(false))` offered, but the server rejected it;
+    /// - `Ok(Some(verdict))` the offer reached the server (accepted,
+    ///   rejected, or accepted-partially per RFC 4252);
     /// - `Ok(None)` the cert is unusable (unparseable, or it does not certify
     ///   this key) so the caller should try the bare key;
     /// - `Err(..)` a transport failure (propagated like plain auth).
@@ -409,7 +685,7 @@ impl SshEngine {
         username: &str,
         private_key: &Arc<russh::keys::PrivateKey>,
         cert_line: &str,
-    ) -> Result<Option<bool>, SshError> {
+    ) -> Result<Option<StepVerdict>, SshError> {
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -432,7 +708,7 @@ impl SshEngine {
         let res = handle
             .authenticate_openssh_cert(username, private_key.clone(), *cert)
             .await?;
-        Ok(Some(res.success()))
+        Ok(Some(res.into()))
     }
 
     /// Drive a keyboard-interactive exchange to completion.
@@ -456,7 +732,9 @@ impl SshEngine {
     /// The `Rejected` / `Cancelled` split matters to the quick-connect Auto
     /// fallback: a server refusal may still fall through to a prompted
     /// password attempt, while an explicit user cancel must never chain a
-    /// second modal.
+    /// second modal. `Partial` means the exchange itself was ACCEPTED and
+    /// the server requires one more of the carried methods (RFC 4252
+    /// partial success, issue #125).
     pub(crate) async fn try_keyboard_interactive(
         &self,
         handle: &mut client::Handle<ClientHandler>,
@@ -498,8 +776,17 @@ impl SshEngine {
                 client::KeyboardInteractiveAuthResponse::Success => {
                     return Ok(KbiOutcome::Success);
                 }
-                client::KeyboardInteractiveAuthResponse::Failure { .. } => {
-                    return Ok(KbiOutcome::Rejected);
+                client::KeyboardInteractiveAuthResponse::Failure {
+                    remaining_methods,
+                    partial_success,
+                } => {
+                    // Partial success: the exchange was ACCEPTED, the
+                    // server wants one more method (issue #125).
+                    return Ok(if partial_success {
+                        KbiOutcome::Partial(remaining_methods)
+                    } else {
+                        KbiOutcome::Rejected
+                    });
                 }
                 client::KeyboardInteractiveAuthResponse::InfoRequest {
                     name,
@@ -683,11 +970,15 @@ impl SshEngine {
                 if matching.is_empty() {
                     continue;
                 }
-                if self
+                match self
                     .try_agent_identities(handle, username, matching, &mut agent, &mut offered)
                     .await?
                 {
-                    return Ok(AgentAuthOutcome::Authenticated);
+                    AgentTry::Authenticated => return Ok(AgentAuthOutcome::Authenticated),
+                    AgentTry::Partial(remaining) => {
+                        return Ok(AgentAuthOutcome::Partial(remaining));
+                    }
+                    AgentTry::Exhausted => {}
                 }
             }
         }
@@ -709,11 +1000,15 @@ impl SshEngine {
                     if fresh.is_empty() {
                         continue;
                     }
-                    if self
+                    match self
                         .try_agent_identities(handle, username, fresh, &mut agent, &mut offered)
                         .await?
                     {
-                        return Ok(AgentAuthOutcome::Authenticated);
+                        AgentTry::Authenticated => return Ok(AgentAuthOutcome::Authenticated),
+                        AgentTry::Partial(remaining) => {
+                            return Ok(AgentAuthOutcome::Partial(remaining));
+                        }
+                        AgentTry::Exhausted => {}
                     }
                 }
                 DialStep::ListError(e) => {
@@ -767,7 +1062,7 @@ impl SshEngine {
         identities: Vec<russh::keys::agent::AgentIdentity>,
         agent: &mut S,
         offered: &mut std::collections::HashSet<String>,
-    ) -> Result<bool, SshError>
+    ) -> Result<AgentTry, SshError>
     where
         S: russh::Signer<Error = russh::AgentAuthError>,
     {
@@ -798,8 +1093,16 @@ impl SshEngine {
                     // The server saw this offer: never repeat it from a
                     // later agent (that burns MaxAuthTries).
                     offered.insert(tag);
-                    if res.success() {
-                        return Ok(true);
+                    match res.into() {
+                        StepVerdict::Accepted => return Ok(AgentTry::Authenticated),
+                        // Partial success: this key WAS accepted, the
+                        // server wants another factor. Offering further
+                        // keys would answer a question the server is no
+                        // longer asking; hand the continuation up.
+                        StepVerdict::Partial(remaining) => {
+                            return Ok(AgentTry::Partial(remaining));
+                        }
+                        StepVerdict::Rejected => {}
                     }
                     // A "failure" on a gone transport is a disconnect
                     // (MaxAuthTries exhausted, server gave up), not a
@@ -830,7 +1133,7 @@ impl SshEngine {
                 }
             }
         }
-        Ok(false)
+        Ok(AgentTry::Exhausted)
     }
 
     /// Authenticate and open a PTY session on the handle.
@@ -868,13 +1171,52 @@ impl SshEngine {
     }
 }
 
+/// The server's verdict on one completed auth offer, folding russh's
+/// `AuthResult` and RFC 4252 partial success into a three-way triage.
+/// `Partial` means the offered factor was ACCEPTED but the server
+/// requires more before granting access, carrying the methods it will
+/// take next; treating it as a plain rejection is exactly the bug that
+/// broke 2FA servers (issue #125).
+pub(crate) enum StepVerdict {
+    Accepted,
+    Rejected,
+    Partial(MethodSet),
+}
+
+impl From<client::AuthResult> for StepVerdict {
+    fn from(res: client::AuthResult) -> Self {
+        match res {
+            client::AuthResult::Success => StepVerdict::Accepted,
+            client::AuthResult::Failure { remaining_methods, partial_success } => {
+                if partial_success {
+                    StepVerdict::Partial(remaining_methods)
+                } else {
+                    StepVerdict::Rejected
+                }
+            }
+        }
+    }
+}
+
 /// Result of the multi-agent auth sweep in `auth_via_agent`. `NoMatch`
 /// carries the per-agent key tally (endpoint: N key(s), ...) so the
 /// surfaced error explains WHICH agent had nothing instead of a bare
-/// "no keys matched" (issue #98).
+/// "no keys matched" (issue #98). `Partial` is RFC 4252 partial success:
+/// an agent key was accepted, the server requires more (issue #125).
 pub(crate) enum AgentAuthOutcome {
     Authenticated,
     NoMatch(String),
+    Partial(MethodSet),
+}
+
+/// One agent's roster attempt inside the sweep (`try_agent_identities`).
+/// `Partial` stops the sweep: a key was accepted as the first factor, so
+/// offering more keys would answer a question the server stopped asking.
+enum AgentTry {
+    Authenticated,
+    Partial(MethodSet),
+    /// Every fresh identity was offered and rejected (or skipped).
+    Exhausted,
 }
 
 /// Per-candidate bound on dialing one agent endpoint and listing its

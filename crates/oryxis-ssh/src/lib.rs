@@ -7,6 +7,8 @@ pub mod x11;
 mod sftp_harness;
 #[cfg(test)]
 mod legacy_cipher_tests;
+#[cfg(test)]
+mod partial_auth_tests;
 
 pub use engine::{agent_key_census, ConnectionResolver, ExecResult, ForwardConn, ForwardSession, HostKeyAskSender, HostKeyCheckCallback, HostKeyQuery, HostKeyStatus, KbiAskSender, KbiPromptField, KbiQuery, KeyMaterial, NegCategory, NegotiationFailure, NetQualitySnapshot, SshEngine, SshError, SshHandle, SshSession, TermFallback};
 pub use sftp::{RemoteRangedFile, SftpClient, SftpEntry};

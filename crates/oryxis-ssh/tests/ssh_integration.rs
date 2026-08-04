@@ -139,6 +139,71 @@ async fn pubkey_auth_runs_exec_command() {
     assert_eq!(result.stdout.trim(), TEST_USER);
 }
 
+/// Issue #125 against genuine sshd: `AuthenticationMethods
+/// publickey,password` makes sshd answer the ACCEPTED publickey with
+/// RFC 4252 partial success and demand the password on top. The
+/// pre-fix engine reported that as "Public key rejected by server"; the
+/// continuation must chain the stored password and open a session. The
+/// russh in-process server can't emit partial success on this path
+/// (see `src/partial_auth_tests.rs`), hence real sshd here.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn partial_success_publickey_then_password_against_real_sshd() {
+    use testcontainers::CopyTargetOptions;
+
+    // linuxserver custom-cont-init script: runs after the image's own
+    // init has generated sshd_config, before sshd starts.
+    let script = "#!/bin/bash\n\
+        echo 'AuthenticationMethods publickey,password' >> /config/sshd/sshd_config\n";
+    let container = GenericImage::new("linuxserver/openssh-server", "latest")
+        .with_exposed_port(ContainerPort::Tcp(2222))
+        .with_wait_for(WaitFor::message_on_stdout("[ls.io-init] done."))
+        .with_env_var("PUID", "1000")
+        .with_env_var("PGID", "1000")
+        .with_env_var("PASSWORD_ACCESS", "true")
+        .with_env_var("USER_NAME", TEST_USER)
+        .with_env_var("USER_PASSWORD", TEST_PASS)
+        .with_env_var("SUDO_ACCESS", "false")
+        .with_env_var("PUBLIC_KEY", TEST_PUBKEY)
+        .with_copy_to(
+            CopyTargetOptions::new("/custom-cont-init.d/20-auth-methods.sh").with_mode(0o755),
+            script.as_bytes().to_vec(),
+        )
+        .start()
+        .await
+        .expect("docker daemon must be running");
+    let port = container
+        .get_host_port_ipv4(2222.tcp())
+        .await
+        .expect("port mapping");
+    let host = container.get_host().await.expect("host").to_string();
+    let mut conn = Connection::new("test", host);
+    conn.port = port;
+    conn.username = Some(TEST_USER.to_string());
+    conn.auth_method = AuthMethod::Key;
+
+    let engine = engine();
+    let mut handle = engine
+        .establish_transport(&conn, None)
+        .await
+        .expect("transport");
+    engine
+        .do_authenticate(
+            &mut handle,
+            &conn,
+            Some(TEST_PASS),
+            Some(oryxis_ssh::KeyMaterial::plain(TEST_PRIVKEY)),
+        )
+        .await
+        .expect("publickey partial success + password continuation must authenticate");
+    let result = engine
+        .exec_command(handle, "id -un", Duration::from_secs(20))
+        .await
+        .expect("exec_command");
+    assert_eq!(result.exit_code, 0);
+    assert_eq!(result.stdout.trim(), TEST_USER);
+}
+
 #[tokio::test]
 #[ignore = "requires Docker, run with --ignored"]
 async fn exec_command_propagates_nonzero_exit() {

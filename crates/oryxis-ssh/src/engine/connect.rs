@@ -148,6 +148,12 @@ impl SshEngine {
         // blanket `auth_timeout` is skipped here for both. Auto joins them
         // when the quick-connect interactive fallback can prompt: its tail
         // may park on the same modal.
+        //
+        // The RFC 4252 partial-success continuation can pop the 2FA modal
+        // under any method, but it stays under the blanket: the default
+        // 120s mirrors sshd's LoginGraceTime, i.e. the server would drop
+        // a slower typist anyway, and the TOTP autofill answers the
+        // common case without any human wait at all.
         let may_prompt = self.auto_interactive_fallback && self.kbi_ask_tx.is_some();
         if matches!(
             connection.auth_method,

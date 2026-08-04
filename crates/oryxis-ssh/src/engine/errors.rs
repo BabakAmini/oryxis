@@ -136,8 +136,12 @@ pub type KbiAskSender =
 /// or no answer source was available) and `Cancelled` (the user dismissed
 /// the prompt) are kept apart so callers can fall back to another method
 /// after a refusal without ever re-prompting after an explicit cancel.
+/// `Partial` is RFC 4252 partial success: the exchange itself was
+/// accepted, but the server requires one more of the carried methods
+/// before granting access (issue #125).
 pub(crate) enum KbiOutcome {
     Success,
     Rejected,
     Cancelled,
+    Partial(russh::MethodSet),
 }
