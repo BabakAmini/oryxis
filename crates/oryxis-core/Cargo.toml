@@ -18,3 +18,6 @@ hmac = "0.12"
 sha1 = "0.10"
 sha2 = "0.10"
 data-encoding = "2"
+# Optional regex patterns in login scripts (`login_script` module); the
+# suffix form needs no engine, the escape hatch does.
+regex = { workspace = true }

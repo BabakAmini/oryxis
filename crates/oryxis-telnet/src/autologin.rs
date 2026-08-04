@@ -3,47 +3,71 @@
 //! Telnet has no in-protocol authentication: the server just prints a
 //! `login:` / `Password:` prompt and reads a line. Every GUI client
 //! that "supports" Telnet credentials answers those prompts by
-//! watching the output stream; this module is that watcher, with the
-//! guards that keep it from becoming a credential leak:
+//! watching the output stream; this module is that watcher.
 //!
-//! - each credential is sent AT MOST ONCE per session (a rejected
-//!   password falls through to the user, never a retry loop);
-//! - the watcher disarms after a grace window from connect, so a
-//!   `password:` string scrolling by in a file listing an hour later
-//!   can never trigger an injection;
-//! - the prompt must be the LAST thing on the stream (suffix match on
-//!   the accumulated tail), not merely appear somewhere in a chunk.
+//! The watching itself is not ours any more: it is a two-step
+//! [`oryxis_core::login_script`] run, the same engine the host login
+//! scripts use, so there is ONE implementation of "read the output and
+//! answer it" in the tree and one place where its guards live (window
+//! from connect, fire once per step, prompt must terminate the
+//! stream). This module only supplies the two prompt patterns and the
+//! credentials.
+//!
+//! Both steps are `optional`, which is what preserves the behavior
+//! this file had before the engine existed: gear that goes straight to
+//! `Password:` without ever printing a username prompt still gets its
+//! password, because the engine skips an optional step when a later
+//! one matches.
 //!
 //! The username half is mostly redundant with NEW-ENVIRON `USER`
 //! (which real telnetd consumes to skip the login prompt), but network
 //! appliances rarely speak RFC 1572 and just print `Username:`.
 
+use oryxis_core::login_script::{
+    ExpectPattern, LoginStep, RunnerAction, ScriptRunner, SendPayload, line_bytes,
+};
 use std::time::{Duration, Instant};
 
-/// How much decoded output tail is kept for suffix matching. Prompts
-/// are short; the cap only needs to survive ANSI-heavy redraws.
-const TAIL_CAP: usize = 256;
+/// Prompt patterns, matched case-insensitively against the end of the
+/// ANSI-stripped stream tail. Cover Unix telnetd (`login:`) and the
+/// network-gear dialects (`Username:` on IOS, `User Name:` on some
+/// switches).
+const USERNAME_PROMPTS: &str = r"(?i)(?:login|username|user name|user):$";
+const PASSWORD_PROMPTS: &str = r"(?i)(?:password|passcode):$";
 
 pub struct AutoLogin {
-    username: Option<String>,
-    password: Option<String>,
-    sent_username: bool,
-    sent_password: bool,
-    /// Hard disarm time; after this `observe` never fires again.
-    deadline: Instant,
-    /// Lowercased, ANSI-stripped suffix of everything seen so far.
-    tail: String,
+    runner: ScriptRunner,
 }
 
 impl AutoLogin {
     pub fn new(username: Option<String>, password: Option<String>, window: Duration) -> Self {
+        // Per-step timeout == the window: only the hard disarm ends a
+        // Telnet autologin, since a slow appliance banner is normal and
+        // there is no later step waiting on this one.
+        let timeout_ms = u32::try_from(window.as_millis()).unwrap_or(u32::MAX);
+        let mut steps = Vec::with_capacity(2);
+        if let Some(user) = username {
+            steps.push(LoginStep {
+                expect: Some(ExpectPattern::Regex(USERNAME_PROMPTS.into())),
+                send: SendPayload::Text(user),
+                timeout_ms,
+                optional: true,
+            });
+        }
+        if let Some(pass) = password {
+            steps.push(LoginStep {
+                expect: Some(ExpectPattern::Regex(PASSWORD_PROMPTS.into())),
+                send: SendPayload::Text(pass),
+                timeout_ms,
+                optional: true,
+            });
+        }
         AutoLogin {
-            username,
-            password,
-            sent_username: false,
-            sent_password: false,
-            deadline: Instant::now() + window,
-            tail: String::new(),
+            // The patterns are compile-time constants, so the only
+            // failure mode is a bug in this file, caught by the tests
+            // below rather than at runtime.
+            runner: ScriptRunner::new(&steps, window, Instant::now())
+                .expect("built-in telnet prompt patterns compile"),
         }
     }
 
@@ -51,113 +75,35 @@ impl AutoLogin {
     /// (terminal-level bytes; the caller's input path adds the CR LF
     /// mapping) when the stream currently ends in a matching prompt.
     pub fn observe(&mut self, output: &[u8]) -> Option<Vec<u8>> {
-        if self.exhausted() || Instant::now() > self.deadline {
+        if self.runner.is_done() {
             return None;
         }
-        self.tail.push_str(&strip_ansi_lossy(output).to_lowercase());
-        if self.tail.len() > TAIL_CAP {
-            let cut = self.tail.len() - TAIL_CAP;
-            // Cut on a char boundary; the tail is lossy UTF-8 already.
-            let cut = (cut..self.tail.len())
-                .find(|i| self.tail.is_char_boundary(*i))
-                .unwrap_or(0);
-            self.tail.drain(..cut);
+        self.runner.feed(output);
+        let now = Instant::now();
+        let mut out: Vec<u8> = Vec::new();
+        // Drained to completion so `exhausted` is accurate as soon as
+        // the last credential goes out. Both steps clear the tail when
+        // they fire, so in practice at most one answers a given chunk.
+        while let Some(action) = self.runner.poll(now) {
+            match action {
+                RunnerAction::Send {
+                    payload: SendPayload::Text(text),
+                    ..
+                } => out.extend_from_slice(&line_bytes(&text)),
+                // A Telnet autologin has nothing to report: giving up
+                // quietly and letting the user type is the whole
+                // fallback behavior.
+                RunnerAction::Send { .. } | RunnerAction::Timeout { .. } | RunnerAction::Finished => {}
+            }
         }
-
-        let trimmed = self.tail.trim_end();
-        if !self.sent_username
-            && let Some(user) = &self.username
-            && ends_with_any(trimmed, USERNAME_PROMPTS)
-        {
-            self.sent_username = true;
-            self.tail.clear();
-            let mut line = user.clone().into_bytes();
-            line.push(b'\r');
-            return Some(line);
-        }
-        if !self.sent_password
-            && let Some(pass) = &self.password
-            && ends_with_any(trimmed, PASSWORD_PROMPTS)
-        {
-            self.sent_password = true;
-            self.tail.clear();
-            let mut line = pass.clone().into_bytes();
-            line.push(b'\r');
-            return Some(line);
-        }
-        None
+        (!out.is_empty()).then_some(out)
     }
 
     /// Both credentials spent (or never configured): the caller can
     /// stop routing output through the watcher.
     pub fn exhausted(&self) -> bool {
-        (self.username.is_none() || self.sent_username)
-            && (self.password.is_none() || self.sent_password)
+        self.runner.is_done()
     }
-}
-
-/// Prompt suffixes, matched case-insensitively against the trimmed
-/// stream tail. Cover Unix telnetd (`login:`) and the network-gear
-/// dialects (`Username:` on IOS, `User Name:` on some switches).
-const USERNAME_PROMPTS: &[&str] = &["login:", "username:", "user name:", "user:"];
-const PASSWORD_PROMPTS: &[&str] = &["password:", "passcode:"];
-
-fn ends_with_any(tail: &str, prompts: &[&str]) -> bool {
-    prompts.iter().any(|p| tail.ends_with(p))
-}
-
-/// Drop ANSI escape sequences (CSI, OSC, two-byte ESC forms) and
-/// non-text control bytes so a colored `Username:` still suffix-matches.
-/// Non-ASCII bytes pass through untouched, real prompts are ASCII and
-/// the lossy path only feeds the matcher, never the terminal.
-fn strip_ansi_lossy(data: &[u8]) -> String {
-    let mut out = String::with_capacity(data.len());
-    let mut i = 0;
-    while i < data.len() {
-        match data[i] {
-            0x1b => {
-                i += 1;
-                match data.get(i) {
-                    // CSI: parameters then one final byte in 0x40..=0x7E.
-                    Some(b'[') => {
-                        i += 1;
-                        while i < data.len() && !(0x40..=0x7e).contains(&data[i]) {
-                            i += 1;
-                        }
-                        i += 1;
-                    }
-                    // OSC: runs to BEL or ESC \.
-                    Some(b']') => {
-                        i += 1;
-                        while i < data.len() {
-                            if data[i] == 0x07 {
-                                i += 1;
-                                break;
-                            }
-                            if data[i] == 0x1b && data.get(i + 1) == Some(&b'\\') {
-                                i += 2;
-                                break;
-                            }
-                            i += 1;
-                        }
-                    }
-                    // Two-byte escape (ESC c, ESC =, charset selects...).
-                    Some(_) => i += 1,
-                    None => {}
-                }
-            }
-            b'\r' | b'\n' | b'\t' => {
-                out.push(data[i] as char);
-                i += 1;
-            }
-            c if c < 0x20 || c == 0x7f => i += 1,
-            c => {
-                out.push(c as char);
-                i += 1;
-            }
-        }
-    }
-    out
 }
 
 #[cfg(test)]
@@ -216,6 +162,14 @@ mod tests {
         assert!(al.exhausted());
         assert_eq!(al.observe(b"login: "), None);
         assert_eq!(al.observe(b"Password: "), None);
+    }
+
+    #[test]
+    fn a_password_only_gateway_still_gets_its_password() {
+        // Gear that never prints a username prompt: the optional
+        // username step is skipped rather than blocking the run.
+        let mut al = armed(Some("admin"), Some("pw"));
+        assert_eq!(al.observe(b"Password: "), Some(b"pw\r".to_vec()));
     }
 
     #[test]

@@ -5781,6 +5781,7 @@ dependencies = [
  "data-encoding",
  "dirs",
  "hmac 0.12.1",
+ "regex",
  "serde",
  "serde_json",
  "sha1 0.10.6",
