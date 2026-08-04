@@ -252,7 +252,18 @@ impl Oryxis {
                     .into(),
                 ),
             );
-            column![kind_row, Space::new().height(ROW_GAP), gw_row].into()
+            // Wake-on-LAN MAC: waking the workstation before an RDP/VNC
+            // connect is the classic use, so RD hosts get the row too
+            // (built here so it keynav-records inside the RD block).
+            let mac_row = self.hp_row_mac_address(true);
+            column![
+                kind_row,
+                Space::new().height(ROW_GAP),
+                gw_row,
+                Space::new().height(ROW_GAP),
+                mac_row
+            ]
+            .into()
         } else {
             empty()
         };

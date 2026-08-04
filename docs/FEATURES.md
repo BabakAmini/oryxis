@@ -48,6 +48,9 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **RSA SHA-2 support** (`rsa-sha2-512/256` with SHA-1 fallback),
   step-by-step connection progress, TOFU host key verification, and
   integration tests against real OpenSSH containers.
+- **Wake-on-LAN.** Store a MAC address on any host (any common notation)
+  and wake the machine from the host card's menu with a magic-packet
+  broadcast, before SSH, RDP or anything else can reach it.
 
 ## Telnet, serial & ZMODEM
 

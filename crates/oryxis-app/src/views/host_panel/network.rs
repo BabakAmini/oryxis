@@ -267,6 +267,46 @@ impl Oryxis {
         row_keepalive
     }
 
+    pub(super) fn hp_row_mac_address(&self, show: bool) -> Element<'_, Message> {
+        // Wake-on-LAN MAC (every protocol with a network endpoint; the
+        // serial form hides it). Empty = no MAC, which hides the card's
+        // Wake on LAN action. The placeholder is a MAC literal, not a
+        // translatable string.
+        let row_mac: Element<'_, Message> = if show {
+            container(
+            dir_row(vec![
+                iced_fonts::lucide::zap().size(14).color(OryxisColors::t().text_muted).into(),
+                Space::new().width(10).into(),
+                column![
+                    text(t("host_mac_address")).size(13).color(OryxisColors::t().text_secondary),
+                    Space::new().height(2),
+                    text(t("host_mac_address_desc")).size(11).color(OryxisColors::t().text_muted),
+                ].width(Length::Fill).into(),
+                Space::new().width(12).into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-mac-address")),
+                    10.0,
+                    text_input(
+                        "AA:BB:CC:DD:EE:FF",
+                        &self.editor_form.mac_address,
+                    )
+                        .id(iced::widget::Id::new("editor-mac-address"))
+                        .on_input(|v| Message::Editor(EditorMessage::EditorMacAddressChanged(v)))
+                        .on_submit(Message::Editor(EditorMessage::EditorSave))
+                        .padding(6)
+                        .width(160)
+                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
+                        .into(),
+                ),
+            ]).align_y(iced::Alignment::Center)
+            )
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into()
+        } else {
+            empty()
+        };
+        row_mac
+    }
+
     pub(super) fn hp_row_address_family(&self, is_ssh: bool, is_telnet: bool) -> Element<'_, Message> {
         // Per-host address-family preference (SSH > Network, and the
         // reduced Telnet form: both dial TCP): Auto keeps resolver

@@ -262,9 +262,9 @@ tracks it interactively.
 - **Host tree view:** an mRemoteNG-style tree of groups and hosts as an
   alternative view to the card grid.
 - **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
-  importers plus generic CSV import / export, Wake-on-LAN, and an
-  optional network tools panel (DNS, ping / traceroute, port test,
-  TLS check, WHOIS, RBL).
+  importers plus generic CSV import / export, and an optional network
+  tools panel (DNS, ping / traceroute, port test, TLS check, WHOIS,
+  RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
   import, extra sync snapshot
   backends (private GitHub repo via device code, any WebDAV server;

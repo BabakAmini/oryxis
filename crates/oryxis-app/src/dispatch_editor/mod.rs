@@ -424,6 +424,19 @@ impl Oryxis {
             self.editor_form.keepalive_interval.parse::<u32>().ok()
         };
         conn.auto_title = self.editor_form.auto_title;
+        // Empty == no MAC (hides the card's Wake on LAN action). A
+        // malformed value blocks the save with an inline error instead
+        // of being silently dropped; a valid one is stored canonical
+        // ("AA:BB:CC:DD:EE:FF") whatever notation was typed.
+        let mac_raw = self.editor_form.mac_address.trim();
+        conn.mac_address = if mac_raw.is_empty() {
+            None
+        } else {
+            match crate::wol::parse_mac(mac_raw) {
+                Some(mac) => Some(crate::wol::format_mac(mac)),
+                None => return Err(crate::i18n::t("host_mac_invalid").to_string()),
+            }
+        };
         conn.tags = crate::util::parse_tags(&self.editor_form.tags_text);
         conn.privacy_mode = self.editor_form.privacy_mode;
         conn.sidebar_auto_open = self.editor_form.sidebar_auto_open;
@@ -596,6 +609,7 @@ impl Oryxis {
                 .keepalive_interval
                 .map(|n| n.to_string())
                 .unwrap_or_default(),
+            mac_address: conn.mac_address.clone().unwrap_or_default(),
             auto_title: conn.auto_title,
             tags_text: conn.tags.join(", "),
             cloud_transport: conn
@@ -682,6 +696,7 @@ impl Oryxis {
                 | EditorMessage::EditorPortFwdRemoteHostChanged(..)
                 | EditorMessage::EditorPortFwdRemotePortChanged(..)
                 | EditorMessage::EditorKeepaliveChanged(..)
+                | EditorMessage::EditorMacAddressChanged(..)
             ) => self.handle_editor_network(m),
             m @ (
                 EditorMessage::EditorOpenThemePicker

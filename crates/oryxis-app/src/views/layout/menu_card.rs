@@ -150,6 +150,10 @@ impl Oryxis {
         if has_url {
             items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::History(HistoryMessage::CopyHostSshUrl(idx)), OryxisColors::t().text_secondary));
         }
+        // Wake on LAN: only hosts with a stored MAC (editor > Network).
+        if conn.and_then(|c| c.mac_address.as_deref()).is_some_and(|m| !m.is_empty()) {
+            items = items.push(self.menu_item(iced_fonts::lucide::zap(), crate::i18n::t("wake_on_lan"), Message::History(HistoryMessage::WakeOnLan(idx)), OryxisColors::t().text_secondary));
+        }
         // Remote-desktop host: Connect (above) already launches the
         // desktop; add an explicit Stop while its tunnel is live.
         if is_rd_host

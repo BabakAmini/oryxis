@@ -43,6 +43,12 @@ pub struct Connection {
     /// payloads, and sync / portable export ride the serde field.
     #[serde(default)]
     pub address_family: AddressFamily,
+    /// MAC address for Wake-on-LAN, stored canonical
+    /// ("AA:BB:CC:DD:EE:FF", normalized at editor save). `None` hides
+    /// the card's Wake on LAN action. `#[serde(default)]` -> None on
+    /// legacy payloads; sync / portable export ride the serde field.
+    #[serde(default)]
+    pub mac_address: Option<String>,
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
@@ -289,6 +295,7 @@ impl Connection {
             initial_command: None,
             startup_snippet_id: None,
             keepalive_interval: None,
+            mac_address: None,
             auto_title: None,
             icon_style: None,
             customized_fields: Vec::new(),
@@ -550,6 +557,18 @@ mod tests {
         value.as_object_mut().unwrap().remove("keepalive_interval");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.keepalive_interval, None);
+    }
+
+    /// Same contract for the Wake-on-LAN MAC: a payload written before
+    /// the field existed carries no `mac_address` key and must land as
+    /// `None`, which hides the card action for that host.
+    #[test]
+    fn mac_address_legacy_payload_defaults_to_none() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("mac_address");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.mac_address, None);
     }
 
     /// Same contract for the monitoring opt-in: a payload written before

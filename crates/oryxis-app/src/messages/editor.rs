@@ -25,6 +25,9 @@ pub enum EditorMessage {
     /// "0" == explicitly disabled on this host; any positive integer
     /// is the per-host override in seconds. Sanitized to digits-only.
     EditorKeepaliveChanged(String),
+    /// Wake-on-LAN MAC address as typed. Empty == no MAC (hides the
+    /// card action); validated on save, not per keystroke.
+    EditorMacAddressChanged(String),
     /// Directory a fresh SFTP mount of this host lands in, as typed.
     /// Empty == the login directory (the default).
     EditorSftpInitialPathChanged(String),

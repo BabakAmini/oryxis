@@ -136,6 +136,11 @@ impl Oryxis {
                     n.min(86_400).to_string()
                 };
             }
+            EditorMessage::EditorMacAddressChanged(v) => {
+                // Free text while typing; parse_mac validates on save so
+                // a half-typed MAC doesn't fight the user per keystroke.
+                self.editor_form.mac_address = v;
+            }
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.
             m => return crate::dispatch::unrouted(m),

@@ -229,6 +229,11 @@ pub(crate) struct ConnectionForm {
     /// string while the editor is open so the input field can show
     /// what the user typed; serialized to `Option<u32>` on save.
     pub keepalive_interval: String,
+    /// Wake-on-LAN MAC address as typed. Empty means "no MAC" (the
+    /// card action stays hidden); validated and normalized to the
+    /// canonical colon form on save, a malformed value blocks the save
+    /// with an inline error rather than being dropped silently.
+    pub mac_address: String,
     /// Per-host auto-title (OSC 0/2) override. Mirrors `Connection.auto_title`:
     /// `None` inherits the global setting, `Some(true/false)` forces it on/off
     /// for this host.
@@ -960,6 +965,7 @@ impl Default for ConnectionForm {
             use_totp: false,
             terminal_theme: None,
             keepalive_interval: String::new(),
+            mac_address: String::new(),
             auto_title: None,
             cloud_transport: None,
             icon_style: None,

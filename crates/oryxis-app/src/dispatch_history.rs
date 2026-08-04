@@ -585,6 +585,31 @@ impl Oryxis {
                 return self.update(Message::CopyToClipboard(url));
             }
 
+            HistoryMessage::WakeOnLan(idx) => {
+                // Card action: broadcast the magic packet. The menu only
+                // offers this when a MAC is stored, and saves normalize
+                // it, so a parse failure here means a hand-edited vault
+                // row; surface it rather than silently doing nothing.
+                self.card_context_menu = None;
+                self.overlay = None;
+                let Some(conn) = self.connections.get(idx) else {
+                    return Task::none();
+                };
+                let Some(mac) = conn.mac_address.as_deref().and_then(crate::wol::parse_mac)
+                else {
+                    return self.show_toast(crate::i18n::t("host_mac_invalid").to_string());
+                };
+                return match crate::wol::send(mac) {
+                    Ok(()) => self.show_toast(
+                        crate::i18n::t("wol_sent")
+                            .replace("{mac}", &crate::wol::format_mac(mac)),
+                    ),
+                    Err(e) => self.show_toast(
+                        crate::i18n::t("wol_failed").replace("{error}", &e.to_string()),
+                    ),
+                };
+            }
+
             // -- Content search (commands + recorded output) --
             HistoryMessage::SearchContentToggled => {
                 self.history_search_content = !self.history_search_content;

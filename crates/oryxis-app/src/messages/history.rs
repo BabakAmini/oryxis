@@ -72,6 +72,9 @@ pub enum HistoryMessage {
     /// Copy the canonical ssh:// URL of the host at this index (card
     /// context-menu action).
     CopyHostSshUrl(usize),
+    /// Send the Wake-on-LAN magic packet to the host at this index
+    /// (card context-menu action, shown only when a MAC is stored).
+    WakeOnLan(usize),
     /// Toggle the "search in session content" chip inside the History
     /// search field: matches commands + recorded output on top of the
     /// label/hostname filter.

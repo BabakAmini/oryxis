@@ -110,6 +110,9 @@ impl Oryxis {
         let pf_items = self.hp_pf_items(is_ssh);
         let row_keepalive = self.hp_row_keepalive(is_ssh);
         let row_address_family = self.hp_row_address_family(is_ssh, is_telnet);
+        // Built (= keynav-recorded) right after the address-family row
+        // because that is where it renders in both branches below.
+        let row_mac_address = self.hp_row_mac_address(is_ssh || is_telnet);
         let row_auto_title = self.hp_row_auto_title(is_ssh);
         let algo_overrides: Element<'_, Message> = if is_ssh {
             self.algo_overrides_section()
@@ -266,6 +269,8 @@ impl Oryxis {
                 .push(Space::new().height(ROW_GAP))
                 .push(row_address_family)
                 .push(Space::new().height(ROW_GAP))
+                .push(row_mac_address)
+                .push(Space::new().height(ROW_GAP))
                 .push(row_auto_title)
                 .push(Space::new().height(ROW_GAP))
                 .push(algo_overrides);
@@ -329,6 +334,8 @@ impl Oryxis {
                 // Built after the credential rows, so it records after
                 // them and must render after them too (keynav order).
                 .push(row_address_family)
+                .push(Space::new().height(ROW_GAP))
+                .push(row_mac_address)
                 .push(Space::new().height(GROUP_GAP))
                 .push(cleartext_note);
             panel_section(telnet_col)

@@ -123,6 +123,7 @@ mod update;
 mod util;
 mod views;
 mod widgets;
+mod wol;
 
 use iced::{window, Size};
 use tracing_subscriber::layer::SubscriberExt;
