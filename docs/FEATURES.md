@@ -77,6 +77,14 @@ coming next, see the [Roadmap](../README.md#roadmap).
   editing the temporary host without writing to the vault.
 - Quick connections behave like real tabs (splits, SFTP, port forwards);
   typed credentials are swept on vault lock.
+- **From your shell.** `oryxis user@host[:port]` connects, landing a tab
+  in the window you already have open when one is running.
+- **From a link.** Oryxis registers as the `ssh://` handler, and a
+  clicked link opens the ad-hoc host editor with the target filled in.
+  It deliberately stops there rather than dialing: a web page chooses
+  that payload, so the connection stays your click. (macOS is the
+  exception for now, along with `oryxis://`: LaunchServices delivers
+  URLs as Apple Events rather than arguments.)
 
 ## Remote desktop (RDP / VNC)
 

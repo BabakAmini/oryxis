@@ -1,5 +1,5 @@
-//! `oryxis://` deep links: the OS-registered URL scheme (issue #118's
-//! theme sharing follow-up) and its in-app routing.
+//! OS-registered URL schemes and their in-app routing: `oryxis://`
+//! (issue #118's theme sharing follow-up) and `ssh://` (quick connect).
 //!
 //! Two halves:
 //!
@@ -11,8 +11,16 @@
 //!   an EXISTING confirm surface with the payload prefilled, never on
 //!   a side effect. A theme link opens the import panel (Apply ->
 //!   editor -> Save stays the user's call); a pairing link opens
-//!   Settings > Sync with the join field filled. Nothing installs or
-//!   joins on its own, so a hostile link can at worst open a screen.
+//!   Settings > Sync with the join field filled; an `ssh://` link
+//!   opens the ad-hoc host editor with the target filled in. Nothing
+//!   installs, joins or DIALS on its own, so a hostile link can at
+//!   worst open a screen.
+//!
+//! The `oryxis user@host` CLI form deliberately does NOT ride that
+//! routing: it lands on [`Oryxis::handle_connect_target`] and connects,
+//! because the user typed it in their own shell. The two travel in
+//! separate `tray_ipc` inboxes so a claiming window never has to infer
+//! which launcher wrote a payload.
 //!
 //! Delivery paths into this module:
 //!
@@ -52,6 +60,12 @@ pub enum DeepLink {
     /// same bytes the gallery's Copy button yields. `ui` mirrors the
     /// `oryxis_ui_theme` marker and picks which import panel opens.
     ThemeInstall { json: String, ui: bool },
+    /// `ssh://user@host:port`: the standard SSH URL scheme, which the
+    /// OS hands us when the user clicks one in a browser or a document.
+    /// Carried as the canonical target string; the route PREFILLS the
+    /// ad-hoc host editor rather than dialing, because a web page picks
+    /// this payload (see the CLI positional for the path that connects).
+    SshTarget(String),
 }
 
 /// Parse a raw `oryxis://` URL. `None` means "not ours / malformed":
@@ -66,6 +80,9 @@ pub fn parse(url: &str) -> Option<DeepLink> {
     // end in one (pairing codes are digits, base64url has no `/`), so
     // strip it before the strict parsers see the link.
     let url = url.trim().trim_end_matches('/');
+    if let Some(authority) = url.strip_prefix("ssh://") {
+        return parse_ssh_authority(authority).map(DeepLink::SshTarget);
+    }
     let rest = url.strip_prefix("oryxis://")?;
     if rest.starts_with("pair/") {
         oryxis_sync::parse_pairing_link(url)?;
@@ -82,6 +99,34 @@ pub fn parse(url: &str) -> Option<DeepLink> {
     let obj = value.as_object()?;
     let ui = obj.contains_key("oryxis_ui_theme");
     Some(DeepLink::ThemeInstall { json, ui })
+}
+
+/// The authority of an `ssh://` URL (everything after the scheme) as a
+/// canonical target string, or `None` when it isn't a plain
+/// `[user@]host[:port]`.
+///
+/// Deliberately stricter than a URL library would be, because the input
+/// comes from web pages:
+///
+/// - a path, query or fragment REJECTS the whole URL rather than being
+///   stripped. `ssh://host/../../x` must never be quietly read as
+///   `host`, and OpenSSH's own `ssh://` form has no path anyway.
+/// - percent-encoding rejects too. Decoding could re-shape the target
+///   after validation (`%40` minting a username separator, `%00` and
+///   friends smuggling control characters), and nothing legitimate in a
+///   hostname or username needs it.
+pub fn parse_ssh_authority(authority: &str) -> Option<String> {
+    if authority.is_empty() || authority.contains('%') {
+        return None;
+    }
+    // Reject the delimiters that would start a path / query / fragment.
+    // An IPv6 literal's own brackets and colons are handled by the
+    // target parser; none of these three can appear inside one.
+    if authority.contains('/') || authority.contains('?') || authority.contains('#') {
+        return None;
+    }
+    let target = oryxis_core::ssh_target::SshTarget::parse(authority)?;
+    Some(target.canonical())
 }
 
 impl crate::app::Oryxis {
@@ -128,7 +173,45 @@ impl crate::app::Oryxis {
                 };
                 Task::done(Message::Tabs(TabsMessage::OpenSettingsSection(section)))
             }
+            DeepLink::SshTarget(target) => {
+                // A web page chose this host, so the link lands on the
+                // ad-hoc host editor with the target prefilled and the
+                // Connect / Save footer, never on a dial. Registering
+                // the ephemeral entry first is what `EditQuickHost`
+                // needs; it is the same surface the quick-connect
+                // failure screen's "Edit Host" opens, so no new panel,
+                // i18n or keynav is involved.
+                let Some(conn) = self.quick_connect_target(&target) else {
+                    tracing::warn!("deep link: ssh target no longer offerable");
+                    return Task::none();
+                };
+                let id = conn.id;
+                self.quick_connects
+                    .insert(id, crate::state::QuickConnectEntry::bare(conn));
+                Task::done(Message::Editor(
+                    crate::messages::EditorMessage::EditQuickHost(id),
+                ))
+            }
         }
+    }
+
+    /// Connect straight to a target the USER named locally: the
+    /// `oryxis user@host` CLI form. Unlike the `ssh://` route above,
+    /// the provenance here is the user's own shell, so this dials the
+    /// way `ssh user@host` would; the two paths deliberately never
+    /// share a transport (see `tray_ipc`'s separate inboxes).
+    pub(crate) fn handle_connect_target(&mut self, target: &str) -> Task<Message> {
+        if self.vault_ui.state != crate::state::VaultState::Unlocked {
+            self.pending_connect_target = Some(target.to_string());
+            return Task::none();
+        }
+        let Some(conn) = self.quick_connect_target(target) else {
+            tracing::warn!("cli connect: target not offerable");
+            return Task::none();
+        };
+        Task::done(Message::Ssh(crate::messages::SshMessage::QuickConnect(
+            Box::new(crate::state::QuickConnectEntry::bare(conn)),
+        )))
     }
 
     /// Handle a raw URL claimed from the cross-process inbox while
@@ -169,6 +252,69 @@ mod tests {
         r##"{"name":"Night","author":"a","license":"MIT","background":"#000000"}"##;
     const UI_JSON: &str =
         r#"{"oryxis_ui_theme":1,"name":"Night","author":"a","license":"MIT","colors":{}}"#;
+
+    /// The canonical shapes OpenSSH's own `ssh://` URLs take. A missing
+    /// user resolves against the local account (so the parse must
+    /// succeed even though the canonical string then varies by machine)
+    /// and a missing port means 22.
+    #[test]
+    fn ssh_urls_parse_to_targets() {
+        assert_eq!(
+            parse("ssh://wilson@10.0.0.5:2222"),
+            Some(DeepLink::SshTarget("wilson@10.0.0.5:2222".into()))
+        );
+        assert_eq!(
+            parse("ssh://wilson@example.com"),
+            Some(DeepLink::SshTarget("wilson@example.com".into()))
+        );
+        // IPv6 literals keep their brackets through canonicalization.
+        assert_eq!(
+            parse("ssh://wilson@[::1]:2222"),
+            Some(DeepLink::SshTarget("wilson@[::1]:2222".into()))
+        );
+        // Trailing slash: browsers and the Windows shell add one.
+        assert!(matches!(
+            parse("ssh://wilson@example.com/"),
+            Some(DeepLink::SshTarget(_))
+        ));
+        // No user at all still parses (the target keeps it empty and
+        // the route fills in the local account).
+        assert!(matches!(parse("ssh://example.com"), Some(DeepLink::SshTarget(_))));
+    }
+
+    /// These URLs come from web pages, so anything that could re-shape
+    /// the target after validation is rejected outright rather than
+    /// sanitized: a path must never fold into the hostname, and
+    /// percent-encoding must never mint a `@` or a control character.
+    #[test]
+    fn hostile_ssh_urls_are_rejected() {
+        for url in [
+            "ssh://host/../../etc/passwd",
+            "ssh://host/path",
+            "ssh://user@host?x=1",
+            "ssh://user@host#frag",
+            "ssh://user%40evil.com@host",
+            "ssh://user@host%00",
+            "ssh://%2e%2e/host",
+            "ssh://",
+        ] {
+            assert_eq!(parse(url), None, "should reject: {url}");
+        }
+    }
+
+    /// The structural invariant behind the two-path design: a `ssh://`
+    /// URL parses to the PREFILL route, never to the CLI's dialing one.
+    /// A refactor that collapsed the two would let any web page start
+    /// an outbound SSH connection, which is exactly what the separate
+    /// `tray_ipc` inboxes and this variant exist to prevent.
+    #[test]
+    fn an_ssh_url_never_becomes_a_connect() {
+        let link = parse("ssh://root@evil.example:22").expect("valid shape");
+        assert!(
+            matches!(link, DeepLink::SshTarget(_)),
+            "ssh:// must route to the confirm surface, not a dial"
+        );
+    }
 
     #[test]
     fn theme_link_round_trips() {

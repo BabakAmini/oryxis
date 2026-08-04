@@ -502,16 +502,25 @@ impl Oryxis {
 /// bounds the courier's wait loop, which gives up (and boots its own
 /// window) after 2 s without a claim.
 fn deep_link_stream() -> impl iced::futures::Stream<Item = Message> {
-    iced::futures::stream::unfold(Vec::<String>::new(), |mut queue| async {
+    iced::futures::stream::unfold(Vec::<Message>::new(), |mut queue| async {
         loop {
-            if let Some(url) = queue.pop() {
-                return Some((
-                    Message::Tray(crate::messages::TrayMessage::DeepLink(url)),
-                    queue,
-                ));
+            if let Some(msg) = queue.pop() {
+                return Some((msg, queue));
             }
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            queue = crate::tray_ipc::take_deeplinks();
+            // Two inboxes, two messages: a `ssh://` link prefills a
+            // confirm surface, a CLI target dials. They are drained here
+            // together only because they share a poll interval; the
+            // payloads never mix (see `tray_ipc::connect_dir`).
+            queue = crate::tray_ipc::take_deeplinks()
+                .into_iter()
+                .map(|url| Message::Tray(crate::messages::TrayMessage::DeepLink(url)))
+                .chain(
+                    crate::tray_ipc::take_connects().into_iter().map(|target| {
+                        Message::Tray(crate::messages::TrayMessage::ConnectTarget(target))
+                    }),
+                )
+                .collect();
         }
     })
 }

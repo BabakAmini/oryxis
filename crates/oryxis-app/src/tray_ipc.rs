@@ -97,12 +97,22 @@ fn deeplink_dir() -> Option<PathBuf> {
     runtime_root().map(|p| p.join("deeplink"))
 }
 
+/// Inbox for `oryxis user@host` CLI launches, deliberately SEPARATE
+/// from the deep-link one. The two payloads look identical on the wire
+/// (both are just a target string) but route differently: a CLI target
+/// dials, a `ssh://` link only prefills a confirm surface. Keeping them
+/// in different directories makes provenance structural, so a claiming
+/// window never has to guess which launcher wrote a file.
+fn connect_dir() -> Option<PathBuf> {
+    runtime_root().map(|p| p.join("connect"))
+}
+
 /// Create the runtime subdirectories if missing. Idempotent; the
 /// `create_dir_all` call no-ops on existing paths. Failures are
 /// logged and swallowed because there's nothing useful the caller
 /// can do at the call site (the tray feature degrades gracefully).
 pub fn init_runtime_dirs() {
-    for dir in [instances_dir(), commands_dir(), deeplink_dir()]
+    for dir in [instances_dir(), commands_dir(), deeplink_dir(), connect_dir()]
         .into_iter()
         .flatten()
     {
@@ -362,6 +372,52 @@ pub fn take_deeplinks() -> Vec<String> {
             && let Ok(url) = String::from_utf8(bytes)
         {
             out.push(url);
+        }
+        let _ = fs::remove_file(&claimed);
+    }
+    out
+}
+
+/// Hand a CLI connect target to a running instance. Same courier
+/// protocol as [`write_deeplink`] (caller waits for the file to vanish,
+/// reclaims it on timeout), on the separate inbox that carries the
+/// "the user typed this locally" provenance.
+pub fn write_connect(target: &str) -> Option<PathBuf> {
+    let dir = connect_dir()?;
+    static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = dir.join(format!("{}-{seq}.connect", current_pid()));
+    match write_atomic(&path, target.as_bytes()) {
+        Ok(()) => Some(path),
+        Err(e) => {
+            tracing::warn!("tray_ipc: write connect target {:?}: {e}", path);
+            None
+        }
+    }
+}
+
+/// Claim + consume every pending CLI connect target, with the same
+/// rename-to-claim exactly-once rule as [`take_deeplinks`].
+pub fn take_connects() -> Vec<String> {
+    let Some(dir) = connect_dir() else { return Vec::new() };
+    let entries = match fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("connect") {
+            continue;
+        }
+        let claimed = path.with_extension(format!("claim-{}", current_pid()));
+        if fs::rename(&path, &claimed).is_err() {
+            continue; // another instance won this target
+        }
+        if let Ok(bytes) = fs::read(&claimed)
+            && let Ok(target) = String::from_utf8(bytes)
+        {
+            out.push(target);
         }
         let _ = fs::remove_file(&claimed);
     }

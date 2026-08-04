@@ -170,6 +170,17 @@ Section "Install"
     WriteRegStr HKLM "Software\Classes\oryxis" "URL Protocol" ""
     WriteRegStr HKLM "Software\Classes\oryxis\DefaultIcon" "" '"$INSTDIR\oryxis.exe",0'
     WriteRegStr HKLM "Software\Classes\oryxis\shell\open\command" "" '"$INSTDIR\oryxis.exe" "%1"'
+
+    ; ssh:// URL scheme. Same argv delivery, different route: a clicked
+    ; link only PREFILLS the ad-hoc host editor (a web page chooses the
+    ; payload), while `oryxis user@host` on the command line dials.
+    ; Registered unconditionally: on Windows nothing else claims the
+    ; scheme by default, and a user who installed something that does
+    ; can reassign it in Settings > Apps > Default apps.
+    WriteRegStr HKLM "Software\Classes\ssh" "" "URL:Secure Shell"
+    WriteRegStr HKLM "Software\Classes\ssh" "URL Protocol" ""
+    WriteRegStr HKLM "Software\Classes\ssh\DefaultIcon" "" '"$INSTDIR\oryxis.exe",0'
+    WriteRegStr HKLM "Software\Classes\ssh\shell\open\command" "" '"$INSTDIR\oryxis.exe" "%1"'
 SectionEnd
 
 Section "Uninstall"
@@ -195,4 +206,5 @@ Section "Uninstall"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Oryxis"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe"
     DeleteRegKey HKLM "Software\Classes\oryxis"
+    DeleteRegKey HKLM "Software\Classes\ssh"
 SectionEnd

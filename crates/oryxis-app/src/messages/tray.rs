@@ -31,6 +31,10 @@ pub enum TrayMessage {
     /// launch reaches an already-running instance. Carries the raw
     /// URL; `handle_deep_link_url` parses and routes it.
     DeepLink(String),
+    /// `oryxis user@host` target forwarded by a CLI launcher process
+    /// and claimed from the connect inbox. Separate from `DeepLink`
+    /// because it dials instead of prefilling a confirm surface.
+    ConnectTarget(String),
     /// User clicked "Show Oryxis" in the tray menu, or left-clicked
     /// the tray icon. Bring the main window back from hidden state
     /// and pull it to the foreground.

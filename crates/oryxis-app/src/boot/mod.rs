@@ -27,6 +27,10 @@ impl Oryxis {
         let pending_deep_link = crate::app::PENDING_DEEP_LINK
             .get()
             .and_then(|url| crate::deep_link::parse(url));
+        // `oryxis user@host` with no running instance to forward to.
+        // Already shape-checked in main.rs; routed below once the vault
+        // state is known, and re-stashed by its handler while locked.
+        let pending_connect_target = crate::app::PENDING_CONNECT_TARGET.get().cloned();
         // Inherited master password from the parent's stdin pipe, used
         // to silently unlock the vault below so the user doesn't have to
         // re-type for the spawned window.
@@ -324,6 +328,7 @@ impl Oryxis {
                 folder_delete: None,
                 pending_auto_connect,
                 pending_deep_link,
+                pending_connect_target,
                 // Keep the inherited password in memory only when the
                 // unlock above actually succeeded, otherwise the user is
                 // about to type their own at the lock screen.
@@ -605,6 +610,12 @@ impl Oryxis {
         // lookup needs the loaded connections).
         if let Some(link) = app.pending_deep_link.take() {
             let route = app.handle_deep_link(link);
+            tasks.push(route);
+        }
+        // Same for a CLI target, which `handle_connect_target` likewise
+        // re-stashes while the vault is locked.
+        if let Some(target) = app.pending_connect_target.take() {
+            let route = app.handle_connect_target(&target);
             tasks.push(route);
         }
         // Bring the sync engine up if the vault is already open and the

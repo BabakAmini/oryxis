@@ -27,6 +27,9 @@ pub static AUTO_PASSWORD: OnceLock<String> = OnceLock::new();
 /// instance claimed it (see the deep-link block in `main.rs`). Same
 /// hand-off shape as [`AUTO_CONNECT`]; parsed and routed by boot.
 pub static PENDING_DEEP_LINK: OnceLock<String> = OnceLock::new();
+/// `oryxis user@host` target captured from argv at process start, when
+/// no running instance was there to forward it to.
+pub static PENDING_CONNECT_TARGET: OnceLock<String> = OnceLock::new();
 
 /// True when this process is currently the primary (owns the system
 /// tray icon). Stored as an AtomicBool rather than OnceLock so the
@@ -418,6 +421,11 @@ pub struct Oryxis {
     /// at the lock screen, or one that arrived while soft-locked).
     /// Drained by boot and by the unlock handler, like `--connect`.
     pub(crate) pending_deep_link: Option<crate::deep_link::DeepLink>,
+    /// `oryxis user@host` target waiting for the vault to unlock. Kept
+    /// apart from `pending_deep_link` because the two route differently
+    /// (this one dials, a `ssh://` link only prefills), and merging them
+    /// would make provenance a guess at drain time.
+    pub(crate) pending_connect_target: Option<String>,
     /// Master password retained in memory for spawning child processes
     /// (Duplicate in New Window). Populated after a successful
     /// unlock / setup, cleared if the user explicitly re-locks.

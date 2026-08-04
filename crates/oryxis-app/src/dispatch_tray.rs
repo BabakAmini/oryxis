@@ -20,6 +20,20 @@ impl Oryxis {
             TrayMessage::DeepLink(url) => {
                 return self.handle_deep_link_url(&url);
             }
+            // `oryxis user@host` run while this window was already up.
+            // Dials, unlike the deep-link route: the target came from
+            // the user's own shell, not from a page they clicked.
+            TrayMessage::ConnectTarget(target) => {
+                let route = self.handle_connect_target(&target);
+                #[cfg(target_os = "windows")]
+                {
+                    return Task::batch([Task::done(Message::Tray(TrayMessage::Show)), route]);
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    return route;
+                }
+            }
             // -- System tray --
             TrayMessage::Poll => {
                 // A native minimize verb (taskbar button, Win+Down,

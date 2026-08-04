@@ -372,12 +372,13 @@ fn main() -> iced::Result {
     let mut inherit_vault = false;
     let mut relaunching = false;
     let mut deep_link_url: Option<String> = None;
+    let mut connect_target: Option<String> = None;
     while let Some(flag) = args.next() {
         match flag.as_str() {
-            // OS-registered `oryxis://` scheme launch (deep links:
-            // pairing, theme install). Captured raw here; validated
-            // and possibly forwarded to a running instance below.
-            url if url.starts_with("oryxis://") => {
+            // OS-registered `oryxis://` and `ssh://` scheme launches.
+            // Captured raw here; validated and possibly forwarded to a
+            // running instance below.
+            url if url.starts_with("oryxis://") || url.starts_with("ssh://") => {
                 deep_link_url = Some(flag);
             }
             "--connect" => {
@@ -393,6 +394,21 @@ fn main() -> iced::Result {
             "--relaunch" => {
                 relaunching = true;
             }
+            // `oryxis user@host[:port]`: the CLI quick-connect form.
+            // The `@` is REQUIRED, which is both the documented shape
+            // and what keeps a file manager's `%u` (the desktop entry
+            // passes one) from turning a double-clicked file name into
+            // a connect attempt. Anything starting with `-` is a flag
+            // (or a flag's value, already consumed by its own arm), and
+            // only the first positional counts.
+            positional
+                if connect_target.is_none()
+                    && !positional.starts_with('-')
+                    && positional.contains('@')
+                    && oryxis_core::ssh_target::SshTarget::parse(positional).is_some() =>
+            {
+                connect_target = Some(flag);
+            }
             _ => {}
         }
     }
@@ -402,17 +418,22 @@ fn main() -> iced::Result {
     // without ever booting iced. If nobody claims it (the instance
     // died mid-race, or its build predates the inbox), reclaim the
     // file and boot a window ourselves with the link stashed, so a
-    // click never lands nowhere. Skipped under the harness (sandboxed
-    // $HOME; a test never wants to forward into a real instance).
-    if let Some(url) = deep_link_url.filter(|_| !harness_active) {
+    // click never lands nowhere. The harness skips only the FORWARD:
+    // its $HOME is sandboxed but the runtime dirs are not, so a test
+    // must never hand its URL to the developer's real window, while
+    // still exercising the cold-start route headlessly.
+    if let Some(url) = deep_link_url {
         if deep_link::parse(&url).is_none() {
             // Not ours / malformed: boot normally, exactly like a
             // plain double-click. Tracing isn't up yet.
             eprintln!("oryxis: ignoring malformed deep link");
         } else {
-            tray_ipc::init_runtime_dirs();
             let mut forwarded = false;
-            if tray_ipc::any_live_instance()
+            if !harness_active {
+                tray_ipc::init_runtime_dirs();
+            }
+            if !harness_active
+                && tray_ipc::any_live_instance()
                 && let Some(pending) = tray_ipc::write_deeplink(&url)
             {
                 let mut waited = 0;
@@ -431,6 +452,38 @@ fn main() -> iced::Result {
             }
             let _ = app::PENDING_DEEP_LINK.set(url);
         }
+    }
+    // Same courier dance for a CLI target, on its own inbox so the
+    // claiming window knows this one came from the user's shell (and
+    // therefore dials) rather than from a clicked link.
+    if let Some(target) = connect_target {
+        let mut forwarded = false;
+        // The harness skips only the FORWARD, not the stash: its $HOME
+        // is sandboxed but the runtime dirs are not, so a test must
+        // never hand its target to the developer's real window, while
+        // still exercising the cold-start route headlessly.
+        if !harness_active {
+            tray_ipc::init_runtime_dirs();
+        }
+        if !harness_active
+            && tray_ipc::any_live_instance()
+            && let Some(pending) = tray_ipc::write_connect(&target)
+        {
+            let mut waited = 0;
+            while pending.exists() && waited < 2000 {
+                std::thread::sleep(std::time::Duration::from_millis(100));
+                waited += 100;
+            }
+            if pending.exists() {
+                let _ = std::fs::remove_file(&pending);
+            } else {
+                forwarded = true;
+            }
+        }
+        if forwarded {
+            return Ok(());
+        }
+        let _ = app::PENDING_CONNECT_TARGET.set(target);
     }
     if inherit_vault {
         // Parent writes a single line to our stdin and closes the pipe;

@@ -163,6 +163,12 @@ impl Oryxis {
                                 // replaces the default landing focus.
                                 let route = self.handle_deep_link(link);
                                 unlock_tasks.push(route);
+                            } else if let Some(target) = self.pending_connect_target.take() {
+                                // `oryxis user@host` launched into a locked
+                                // vault: dial now that credentials and
+                                // known_hosts are readable.
+                                let route = self.handle_connect_target(&target);
+                                unlock_tasks.push(route);
                             } else {
                                 // Land on Home with the host search focused
                                 // so the user can type / keyboard-navigate

@@ -7,5 +7,5 @@ Terminal=false
 Type=Application
 Categories=Network;RemoteAccess;
 Keywords=ssh;terminal;remote;
-MimeType=x-scheme-handler/oryxis;
+MimeType=x-scheme-handler/oryxis;x-scheme-handler/ssh;
 StartupWMClass=oryxis

@@ -257,8 +257,6 @@ tracks it interactively.
   IP changes and sleep, with predictive local echo. This would be the
   first open-source mosh client to run natively on Windows (no Cygwin or
   WSL layer).
-- **Quick-connect OS integration:** register as the `ssh://` URL handler
-  and accept `oryxis user@host` on the CLI.
 - **Host tree view:** an mRemoteNG-style tree of groups and hosts as an
   alternative view to the card grid.
 - **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
