@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 시연: 호스트 접속, 스니펫 실행, SFTP 탐색">
 </p>
 
-> 이 문서는 v0.11.0 이후의 영어 README를 번역한 것입니다(2026-07-25 동기화).
+> 이 문서는 v0.12.0 이후의 영어 README를 번역한 것입니다(2026-08-04 동기화).
 > 상세 문서([기능 소개](docs/FEATURES.md), [아키텍처](docs/ARCHITECTURE.md))는 영어로 제공됩니다.
 
 ## Oryxis란?
@@ -119,6 +119,7 @@ UI 언어를 한국어로 바꾸면 Noto Sans KR 글꼴이 자동으로 다운�
   Čeština, Ελληνικά.
 
 전체 기능 목록은 영어 [기능 소개](docs/FEATURES.md)에 있습니다.
+tmux를 사용하시나요? **[tmux에서의 로그와 명령 기록](docs/TMUX.md)**(영어)이 기본으로 동작하는 것과 직접 설치해야 하는 것을 설명합니다.
 
 ## 빠른 시작
 
@@ -149,7 +150,7 @@ ChaCha20-Poly1305), 호스트 키는 TOFU로 고정되며, 동기화 페이로�
 ## 로드맵
 
 Oryxis는 대략 매주 작은 단위로 릴리스하며, 기능은 준비되는 대로
-출시됩니다. 최신 안정 버전은 **v0.11.0**입니다. 전체 이력은
+출시됩니다. 최신 안정 버전은 **v0.12.0**입니다. 전체 이력은
 [CHANGELOG.md](CHANGELOG.md), 인터랙티브 로드맵은
 [로드맵 Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)에서
 볼 수 있습니다. 진행 중인 방향: 네이티브 FIDO2(USB / NFC로 보안

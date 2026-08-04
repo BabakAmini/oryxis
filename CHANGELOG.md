@@ -4,6 +4,277 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0] - 2026-08-04
+
+The workspace and community release. Settings opens as a tab beside
+your sessions, a dragged tab becomes a split pane right where you drop
+it, community themes have a home you can contribute to on GitHub, SFTP
+downloads ask before overwriting, port forwards to one host share a
+single SSH connection, and servers that demand a second factor
+authenticate properly. Under it all, the app state and the largest
+dispatch handlers were rebuilt into small routers, and the debug log
+can no longer record a secret.
+
+### Added
+- **Settings as a tab (#120).** Settings gets a chip in the strip the
+  first time you visit it, so tuning something against live content
+  (tab bar options, terminal theme, status bar segments) is one click
+  back and forth instead of a round trip. The chip drags, reorders and
+  closes like any other tab, each section remembers its scroll
+  position, and closing it returns to the tab you were on. Never
+  pinned, never persisted across restarts.
+- **Community themes (#118).** The repo gains a `themes/` directory
+  anyone can contribute to with a browser-only pull request; a
+  generator builds the gallery index, validates palettes the way the
+  importer does, and labels (never rejects) low-contrast entries. Both
+  in-app theme galleries carry a card that opens the site gallery at
+  <https://oryxis.app/themes>, whose Copy button pastes straight into
+  Import. First contribution: True Black OLED by @AC-Lover, a
+  true-black UI theme for OLED panels with a matching terminal
+  palette. Night Owl and Night Owl Light join the built-in set, and a
+  new contrast test suite holds every shipped palette to a measured
+  floor.
+- **Theme galleries.** The terminal and app theme grids move out of
+  the Settings page into scrollable gallery modals; Settings shows one
+  card, the theme actually in force, and clicking it opens the
+  gallery. Deleting a custom theme now asks first.
+- **Drag a tab into the terminal (#112).** Release a dragged tab over
+  the content area and its sessions merge into the tab showing there;
+  where you release picks the split (a pane's side splits that pane,
+  the grid's outer band lays a full-width pane). The preview shows the
+  half the pane will occupy, a grouped tab moves all its panes, and
+  the source is detached rather than closed so live sessions survive
+  the move.
+- **Tab numbers, duplicate placement and host address (#110).**
+  Optional tab numbers (before the label, or in place of the host
+  icon) with Ctrl+digit counting tabs the way the numbers read;
+  Duplicate Tab lands next to the original (or end / start, your
+  pick) and works on configured local shells; an optional second line
+  shows the host address, formatted like the host cards and masked
+  under Privacy Mode. Labels are now measured and truncated in
+  pixels, so mixed Latin/CJK labels stop overflowing their chip.
+  Based on #110 by @shideqin.
+- **Uniform tab width (#112).** A Tab width mode that sizes every tab
+  to the widest label so the strip stops reflowing when you switch
+  tabs, with a small / medium / large ceiling so one long name cannot
+  decide the width for everyone.
+- **Split-pane pack (#113).** The focused pane gets a visible 2 px
+  accent outline (it was painted under the canvas before); a setting
+  drops the outline on inactive panes; Ctrl+Shift+Z zooms the focused
+  pane to the whole tab, tmux-style, and the zoom follows focus; the
+  seam between panes is the resize handle, with the panes flush and
+  the resize cursor showing over it; an optional pane gap (4 / 8 /
+  12 px) pads the window edge to match.
+- **PRIMARY selection (#106).** Selecting text sets an X11-style
+  PRIMARY buffer separate from the clipboard; middle-click pastes it
+  (falling back to the clipboard when nothing was selected), the new
+  Paste selection action ships on Shift+Insert, and a faint ghost
+  band shows what a PRIMARY paste will insert after the highlight
+  clears. Under copy-on-select the gestures keep reading the
+  clipboard, since there selecting is the copy.
+- **Drag-and-drop upload onto the terminal (#106).** Drop files or
+  folders on a terminal pane to upload them to that pane's host: SFTP
+  on the live connection when the shell's cwd is known (nothing typed
+  into the PTY), ZMODEM as the fallback, quoted paths pasted into a
+  local shell. One progress overlay with cancel covers both
+  transports, and the sidebar Files browser is a drop target too,
+  with its visible directory as the destination.
+- **Mouse buttons as shortcuts.** Middle, Back and Forward buttons
+  bind to actions in Settings > Shortcuts like keyboard chords, with
+  the same capture and conflict flow; middle-click paste is now just
+  a default binding. Back / Forward walk the visited directories in
+  the SFTP panes and the Files sidebar first (#114), and bind freely
+  everywhere else.
+- **Pick the editor where you open the file (#114).** The SFTP row
+  menu grows an "Open with" family: the OS association, the default
+  editor, "Other application..." for this open only (also the first
+  Open with that works on Linux), and "Set default editor..." right
+  there instead of in Settings. The edited copy still confirms before
+  going back up, and reopening lands in the application that already
+  holds the file.
+- **Downloads ask (#114).** A download that finds its name taken
+  raises the same overwrite prompt uploads have always had, with
+  apply-to-remaining; "Download to..." picks a destination for one
+  transfer, and an off-by-default setting makes the plain download
+  action ask every time.
+- **SFTP move (#115).** Move files and folders between hosts: the
+  copy is verified before anything is removed, a move within one host
+  is an instant rename that keeps ownership and timestamps, and a
+  relay onto the same file or into its own subtree is refused.
+- **Sidebar Files interaction (#123, #114).** Click selects with an
+  accent highlight, double-click enters a directory, Copy path keeps
+  the scroll position, and the selection survives a refresh of the
+  same directory. The recent-folders dropdown is now persisted per
+  host, so the history survives closing the host.
+- **Kill the process behind a port (#96).** The Monitor tab's
+  listening-port rows offer Kill process (SIGTERM) and Force kill
+  (SIGKILL) behind a confirmation naming host, port, process, PID and
+  signal. The PID is re-resolved on the host before anything is
+  signalled, sudo escalation is offered only when the user can
+  actually escalate, and the password travels on stdin, never in the
+  command line.
+- **Port forwards, explained on the host.** The host editor's inline
+  forwards section now says what it is (session-scoped, -L only) and
+  lists the standalone rules that travel through this host, live
+  status included, with a button to the Port Forwarding screen. The
+  rule cards get the standard kebab menu and a confirmation before
+  delete (#119).
+- **Command history that survives tmux (#92).** The shell can report
+  its own command lines (the VS Code OSC 633 sequence), which is the
+  only capture path tmux cannot hide. Reported lines are accepted
+  only when they carry a per-vault key: Settings > Terminal has Copy
+  (the snippet with the key baked in) and Rotate, `docs/TMUX.md`
+  documents the setup, and Oryxis never writes to a host's dotfiles.
+- **Linear transcript mode (#92).** A recording that lived on the
+  alternate screen (tmux, vim, pagers) opens in a linear rendering
+  where every repaint is appended in order, instead of a faithful
+  replay that shows one final frame. A header button flips between
+  Linear and Rendered, and both keep selection, copy and search.
+- **Saved AI conversations (#105).** Chat conversations are saved to
+  the vault, encrypted like session recordings, and read back from
+  the History timeline next to the recordings, host-filtered and
+  read-only. Saving is a choice: Settings > AI grows "Save
+  conversations" (on by default), and turning it off stops recording
+  without deleting what is already stored.
+- **AI Reasoning toggle.** Chain-of-thought is billed and never
+  displayed, so it is now off by default where the provider can be
+  told (DeepSeek, Gemini); turning it on restores each provider's own
+  default.
+- **Copy works over a recording.** The player answers the copy,
+  select-all and scrollback-paging chords with your own bindings, so
+  text selected in a replay can leave it.
+- **Keyboard Delete across the vault.** Delete removes the ringed
+  host, group, key, identity, snippet, forward rule, known host or
+  session log through the same confirmation its context menu uses.
+  Cloud accounts and proxy identities, which deleted outright before,
+  gain the confirm for the mouse too.
+- **Microsoft Store.** Oryxis ships as an MSIX package on the
+  Microsoft Store (x64 and arm64). A Store install knows it is one:
+  the self-updater stands down and updates arrive through the Store.
+
+### Changed
+- **Typing snaps back to the live edge (#111).** Scroll up, type, and
+  the view returns to the prompt, matching every modern terminal. Now
+  on by default (vaults that stored "off" stay off), and triggered by
+  bytes actually reaching the PTY, so typing into the sidebar or the
+  AI chat never yanks the terminal out of its scrollback.
+- **Settings > Terminal regrouped.** Appearance kept what is actually
+  appearance; Notifications, Integration, Sidebar and Split panes got
+  their own headers. "ZMODEM download folder" is now "Default
+  download folder" and lives under Behavior.
+- **Forwards to one host share one SSH connection (#126).** Three
+  rules against one host used to cost three transports and three
+  auths on top of the interactive tab; now the first rule dials, the
+  rest attach as channels on the shared handle, and the connection
+  closes when the last forward drops. One dial also means one
+  host-key prompt and one error instead of a storm. Deleting a -R
+  rule releases its server-side bind immediately, the
+  legacy-algorithm dialog's retry restarts every rule it aborted, and
+  a rule stopped while its attach was in flight stays stopped.
+- **Dependency security updates.** russh 0.62.4 / 0.62.5 (GHSA-g9hv,
+  GHSA-5xvq, GHSA-cqjc, GHSA-m65r-rprj-r5rg: pre-auth panics a
+  malicious server could trigger, and channel-data backpressure) and
+  quinn-proto 0.11.15 (GHSA-4w2j-m93h-cj5j, memory exhaustion in the
+  sync transport).
+
+### Fixed
+- **2FA and multi-step auth (#125).** A server that accepts the first
+  factor and requires more (RFC 4252 partial success: sshd
+  `AuthenticationMethods`, Bitvise compound auth) was treated as a
+  rejection. Every auth path now continues the chain, offering
+  whichever remaining method still has an answer; a stored TOTP
+  secret completes the second factor silently, the 2FA modal prompts
+  otherwise. Follow-ups: the step-1 key is re-offered when the server
+  wanted the methods in its own order, chained keyboard-interactive
+  factors work, and a failed connect no longer strands the 2FA prompt
+  on top of the error.
+- **The debug log stops recording secrets.** The stall-diagnostics
+  ring formatted every message, including each keystroke of a
+  password field and pasted clipboard text, into the file users are
+  asked to attach to issues. Secret-bearing payloads now print
+  `<redacted>` by construction, and a structural test keeps them that
+  way.
+- **The Files folder history is encrypted.** The per-host
+  recent-folders list was plain JSON in a table readable without
+  unlocking; it is now encrypted like the rest of the trail, and a
+  plaintext row from an older build is deleted rather than preserved.
+- **Command history cannot be planted.** A reported command line
+  without the vault's key is refused, fail-closed, so nothing a host
+  prints can put a command in your history that you never typed, and
+  a spoof attempt no longer silences real capture.
+- **Closing many tabs tears them down like closing one.** "Close
+  other tabs" and "Close all tabs" skipped the whole teardown, leaving
+  connections, port forwards and AI streams running for tabs nobody
+  could see.
+- **Pending actions follow their tab.** An in-flight paste, a pending
+  pane split and a parked snippet-variables form all resolved their
+  target by position, so a tab closed at the wrong moment could land
+  text, a pane or a running command in another host's session. All
+  three now name the tab by id and drop rather than guess when it is
+  gone.
+- **Tab switching stalls (#104).** One in-flight connect painted its
+  progress screen over every tab, which read as a seconds-long stall;
+  the connect screen is now scoped to its own tab. A mark flood no
+  longer costs O(n) per mark on the UI thread, and Debug logging
+  gains an event-loop stall watchdog that names which layer stopped.
+- **Split-tab repairs (#108).** Closing the first pane of a split no
+  longer leaves the tab wearing the closed pane's name, splitting a
+  pane honors the configured local shells instead of hard-coding the
+  OS default, and a grouped tab's label stops spilling past its chip.
+- **Grabbing an SFTP row to drag it.** The press now hit-tests the
+  drawn row rectangles instead of trusting hover state, which
+  tooltips and event ordering could drop; grabbing a row by its name
+  works as often as grabbing it by its icon.
+- **SFTP guards.** The relay containment check resolves symlinks, a
+  move into the folder the item already sits in is refused instead of
+  silently renaming, and two error lines that were English literals
+  went through i18n in all 23 languages.
+- **A dropped forward climbs back (#101).** A running forward that
+  loses its connection now retries under the same auto-reconnect
+  setting that governs hosts, instead of only auto-start rules ever
+  retrying; and when an ssh-agent gains keys (KeePassXC unlocking),
+  every pending rule retries immediately instead of sitting out a
+  two-minute backoff.
+- **No "New output" toast for the tab on screen.** Alt-tabbing back
+  no longer raises a notification about the very output you are
+  reading.
+- **The find bar fits a narrow pane** instead of clipping its own
+  close button; it sheds the counter and arrows first, and Close is
+  never dropped.
+- **Selection and focus.** A pane drops its highlight when focus
+  leaves it, so a three-way split no longer shows three highlighted
+  blocks; the session player, which is never focused, keeps its
+  selection and honors the right-click scheme; the PRIMARY ghost
+  stands down when the grid scrolls under it.
+- **Progress bars at the extremes (#107).** A weightless bar segment
+  rendered full instead of empty, so a 4.4 GB transfer showed a full
+  bar after 358 KB, the update modal inverted at 0% and 100%, and the
+  monitor gauges read saturated on an idle host. All three share one
+  track widget now, RTL-aware.
+- **screen's title sequence (#88).** RHEL/CentOS prompts under a
+  `screen*` TERM printed `ESC k` payloads into the grid, doubling the
+  prompt and breaking Ctrl+R redraws; the sequence is stripped and
+  surfaced as the window title.
+- **Thinking-mode AI providers (#105).** DeepSeek v4's
+  `reasoning_content` and Gemini's `thoughtSignature` are captured
+  and replayed as their APIs require, so thinking models stop failing
+  with a 400 on the second message and after tool calls.
+- **A retried AI answer replaces the saved one.** Retrying an errored
+  reply no longer leaves the stored conversation ending on the error
+  forever.
+- **A destructive confirm says Cancel (#112),** not "Close" sitting
+  beside "Close group"; closing a grouped tab asks first and names
+  how many sessions are at stake.
+- **Vertical dock polish (#87).** The Underline tab style no longer
+  squeezes inactive chips or draws stray vertical ticks on side
+  docks, and the active-tab gradient paints across the chip instead
+  of fading along it.
+- **Smaller fixes.** The pane-gap setting pads the window edge too;
+  the AI error card fills the sidebar and wraps long payloads; the
+  shortcut-alignment row joins the settings search index; the
+  mouse-gesture placeholder in Shortcuts is readable on accent
+  themes.
+
 ## [0.11.0] - 2026-07-25
 
 The remote-desktop and observability release. Remote GUI applications

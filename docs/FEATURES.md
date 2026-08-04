@@ -9,12 +9,21 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **Auto-authentication.** Tries key, agent, password, and
   keyboard-interactive in order. A "Password prompt" method asks at every
   connection and never writes anything to the vault.
+- **Multi-factor servers.** RFC 4252 partial success is a first-class
+  step: sshd `AuthenticationMethods` chains and Bitvise-style compound
+  auth (password + TOTP, key + password, chained one-time codes)
+  continue through every remaining factor instead of dying on the
+  first. A stored TOTP secret answers the verification-code round
+  silently; without one, the prompt surfaces the way OpenSSH would.
 - **Full SSH pipeline.** Direct, SOCKS4/5, HTTP CONNECT, ProxyCommand,
   multi-hop jump host chaining, and port forwarding via
   [russh](https://github.com/warp-tech/russh).
 - **Standalone port forwarding.** Local (`-L`), Remote (`-R`) and Dynamic
   SOCKS5 (`-D`) forwards live as their own entities with per-row on/off
-  toggles, auto-start at boot, and no terminal required.
+  toggles, auto-start at boot, and no terminal required. Every forward
+  to the same host shares one SSH connection (one transport, one auth),
+  a dropped forward climbs back with the same backoff a host does, and
+  the host's card says which forwards target it.
 - **Authenticated proxies.** SOCKS5 and HTTP CONNECT Basic auth, with proxy
   passwords in their own encrypted column.
 - **Proxy + jump host stacking.** A jump host behind a proxy dials through
@@ -172,12 +181,15 @@ coming next, see the [Roadmap](../README.md#roadmap).
   columns.
 - **Open / Edit, in the background.** Hands a remote file to your OS
   default application, the editor you configured, or the OS "open with"
-  picker, then watches the local copy while you keep browsing: nothing
-  blocks, and each save you make asks whether to send the file back (yes,
-  yes to all, autosave, skip, or stop editing). Reopening a file that is
-  still being edited offers the local copy instead of silently
-  re-downloading over it. A path-history dropdown jumps back to
-  directories you have already visited.
+  picker, chosen right where you open it, then watches the local copy
+  while you keep browsing: nothing blocks, and each save you make asks
+  whether to send the file back (yes, yes to all, autosave, skip, or
+  stop editing). Reopening a file that is still being edited offers the
+  local copy instead of silently re-downloading over it. A path-history
+  dropdown jumps back to directories you have already visited.
+- **Downloads that ask first.** A download about to overwrite says so
+  before a byte moves, and you pick where it lands instead of hunting
+  for a default folder afterwards.
 - **Per-host start folder.** A host can remember where its SFTP mounts
   open, set from the host editor or from any remote folder's context
   menu. A path that stops resolving falls back to the login directory
@@ -185,7 +197,11 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **Files in every SSH tab.** A sidebar Files tab browses over the tab's
   existing connection and follows your shell's working directory as you
   `cd` (shell-integration cwd reporting with a window-title fallback;
-  manual navigation unpins, one click follows again).
+  manual navigation unpins, one click follows again). Rows click-select
+  and double-click to enter, matching the SFTP panes; the recent-folder
+  history is remembered per host across sessions (encrypted like the
+  rest of the trail), and the mouse thumb buttons walk it back and
+  forward on any visible file surface.
 - **Hybrid Files mode.** "Open SFTP session" flips the whole tab into the
   dual-pane manager at the directory you were in, while the PTY keeps
   running underneath; a chip on the tab (or Ctrl+Shift+F) flips back, and
@@ -220,6 +236,9 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **Privacy-aware.** Privacy Mode redaction is applied before terminal
   context reaches the model. Terminal context, smart output capture, and a
   custom system prompt option.
+- **Saving is a choice.** Conversations persist (encrypted, in the
+  vault) only when you opt in; a retried answer replaces the one it
+  corrects instead of stacking a duplicate.
 
 ## MCP server
 
@@ -330,7 +349,12 @@ vulnerability disclosure policy.
 
 - **13 global themes plus custom UI schemes.** Switch the entire UI
   instantly, or build your own (21 colors) with a built-in graphical color
-  picker and live preview.
+  picker and live preview. Both the UI and the terminal pickers open
+  into full gallery modals with live previews instead of cramped grids.
+- **Community themes.** A directory in the repo takes contributed
+  themes (UI, terminal, or a matching pair) by pull request, and a card
+  in both galleries links straight to it; True Black OLED, the first
+  contributed pair, ships with the app.
 - **Per-theme button colors** with WCAG contrast guards enforced in CI.
 - **23 languages.** English, Português, Español, Français, Deutsch,
   Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית,
@@ -415,7 +439,9 @@ vulnerability disclosure policy.
 - **Responsive card grid.** Column count reflows to the available width;
   long labels truncate cleanly.
 - **Multi-tab sessions** with tab overflow, a scrollable strip, and a
-  jump-to modal.
+  jump-to modal. Duplicating a tab lands it right next to the original,
+  tabs can show the host's address under the label, and uniform tab
+  width takes a small / medium / large ceiling.
 - **Tab strip on any edge.** Dock the tabs top, bottom, left or right;
   the side docks turn the strip vertical, can absorb the window chrome
   (burger, Home, window buttons) to reclaim the top bar entirely, and run
@@ -427,6 +453,9 @@ vulnerability disclosure policy.
 - **Configurable status bar.** Every segment is individually
   toggleable, including latency, transfer size, the working directory
   and the host vitals.
+- **Settings as a tab.** Settings opens in the tab strip like any other
+  tab: it keeps its place, survives switching away, and closes like a
+  tab does.
 - **Settings search.** Type in the Settings sidebar and matching rows
   highlight in place with a hit-count badge per section; Enter and
   Shift+Enter step through matches. English terms work in any UI

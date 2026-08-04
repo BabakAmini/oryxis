@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 演示：连接主机、运行代码片段、浏览 SFTP">
 </p>
 
-> 本文档基于 v0.11.0 之后的英文 README 翻译（2026-07-25 同步）。
+> 本文档基于 v0.12.0 之后的英文 README 翻译（2026-08-04 同步）。
 > 详细文档（[功能一览](docs/FEATURES.md)、[架构说明](docs/ARCHITECTURE.md)）为英文。
 
 ## Oryxis 是什么？
@@ -116,6 +116,7 @@ Big5 编码。
   Bahasa Indonesia、Tiếng Việt、Українська、ไทย、हिन्दी、Čeština、Ελληνικά。
 
 完整功能清单见英文[功能一览](docs/FEATURES.md)。
+在用 tmux？**[tmux 下的日志与命令历史](docs/TMUX.md)**（英文）说明了哪些功能开箱即用、哪些需要自行安装。
 
 ## 快速上手
 
@@ -144,7 +145,7 @@ Big5 编码。
 ## 路线图
 
 Oryxis 以大约每周一次的节奏持续发布，功能就绪即上线。最新稳定版为
-**v0.11.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
+**v0.12.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
 [路线图讨论](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推进的方向包括：原生 FIDO2（通过 USB / NFC 直接与安全密钥通信）、
 终端增强（带触发动作的关键字高亮、窗口不透明度）、原生 Mosh 客户端、
