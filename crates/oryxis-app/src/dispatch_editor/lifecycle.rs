@@ -307,40 +307,47 @@ impl Oryxis {
                 self.card_context_menu = None;
                 self.overlay = None;
                 if let Some(conn) = self.connections.get(idx).cloned() {
-                    let mut dup = Connection::new(
-                        format!("{} (copy)", conn.label),
-                        &conn.hostname,
-                    );
-                    // Protocol + its params must carry, or a Telnet/Serial
-                    // host silently duplicates as SSH. Encoding / terminal
-                    // type are host config that applies to all protocols.
-                    dup.protocol = conn.protocol;
-                    dup.serial = conn.serial;
-                    dup.rd_kind = conn.rd_kind;
-                    dup.rd_gateway_id = conn.rd_gateway_id;
-                    dup.address_family = conn.address_family;
-                    dup.encoding = conn.encoding.clone();
-                    dup.terminal_type = conn.terminal_type.clone();
-                    dup.port = conn.port;
-                    dup.username = conn.username.clone();
-                    dup.auth_method = conn.auth_method.clone();
-                    dup.key_id = conn.key_id;
-                    dup.group_id = conn.group_id;
-                    dup.jump_chain = conn.jump_chain.clone();
-                    dup.port_forwards = conn.port_forwards.clone();
-                    dup.proxy = conn.proxy.clone();
-                    dup.tags = conn.tags.clone();
-                    dup.notes = conn.notes.clone();
-                    dup.color = conn.color.clone();
-                    dup.agent_forwarding = conn.agent_forwarding;
-                    dup.x11_forwarding = conn.x11_forwarding;
+                    // Clone, then reset what must NOT carry. The
+                    // previous hand-written copy list had silently
+                    // fallen behind the model (a duplicate lost its
+                    // MAC, startup command, terminal theme, monitoring
+                    // opt-in and keepalive), and every new field would
+                    // have joined that list. Copying by default and
+                    // naming the exceptions is the version that cannot
+                    // drift.
+                    let now = chrono::Utc::now();
+                    let mut dup = conn.clone();
+                    dup.id = uuid::Uuid::new_v4();
+                    dup.label = format!("{} (copy)", conn.label);
+                    dup.created_at = now;
+                    dup.updated_at = now;
+                    // A fresh host has never been used.
+                    dup.last_used = None;
+                    // A cloud-imported host is bound to one discovered
+                    // resource; a copy pointing at the same one would be
+                    // clobbered (or orphaned) by the next refresh, and
+                    // `customized_fields` only means anything next to it.
+                    dup.cloud_ref = None;
+                    dup.customized_fields.clear();
                     if let Some(vault) = &self.vault {
-                        // Copy password and proxy password to the duplicate.
+                        // Secrets live in their own encrypted columns, so
+                        // they are copied explicitly rather than riding
+                        // the clone.
                         let pw = vault.get_connection_password(&conn.id).ok().flatten();
                         let proxy_pw = vault.get_proxy_password(&conn.id).ok().flatten();
+                        let totp = vault.get_connection_totp_secret(&conn.id).ok().flatten();
+                        let target_pw =
+                            vault.get_connection_target_password(&conn.id).ok().flatten();
                         let _ = vault.save_connection(&dup, pw.as_deref());
                         if proxy_pw.is_some() {
                             let _ = vault.set_proxy_password(&dup.id, proxy_pw.as_deref());
+                        }
+                        if totp.is_some() {
+                            let _ = vault.set_connection_totp_secret(&dup.id, totp.as_deref());
+                        }
+                        if target_pw.is_some() {
+                            let _ = vault
+                                .set_connection_target_password(&dup.id, target_pw.as_deref());
                         }
                         self.load_data_from_vault();
                     }
