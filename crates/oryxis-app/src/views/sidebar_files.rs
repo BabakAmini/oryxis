@@ -483,7 +483,7 @@ impl Oryxis {
         }
 
         self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::list_button(key_activate),
+            crate::keynav::SidebarRow::list_button(key_activate).with_anchor(selected),
             TerminalSidebarTab::Files,
             6.0,
             area.into(),

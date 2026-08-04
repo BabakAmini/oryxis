@@ -75,6 +75,11 @@ pub(crate) struct SidebarRow {
     /// (live QA: the ringed Files path row looked like a plain
     /// focused text input).
     pub(crate) list: bool,
+    /// Whether this row is the surface's current mouse selection
+    /// (the Files tab's click-select). The arrow hover-entry lands
+    /// on the anchored row instead of the list edge, so keyboard
+    /// navigation picks up where the mouse left off.
+    pub(crate) anchor: bool,
 }
 
 impl SidebarRow {
@@ -87,6 +92,7 @@ impl SidebarRow {
             delete: Some(delete),
             menu: None,
             list: true,
+            anchor: false,
         }
     }
 
@@ -98,6 +104,7 @@ impl SidebarRow {
             delete: None,
             menu: None,
             list: false,
+            anchor: false,
         }
     }
 
@@ -111,6 +118,7 @@ impl SidebarRow {
             delete: None,
             menu: None,
             list: true,
+            anchor: false,
         }
     }
 
@@ -122,6 +130,7 @@ impl SidebarRow {
             delete: None,
             menu: None,
             list: false,
+            anchor: false,
         }
     }
 
@@ -133,6 +142,7 @@ impl SidebarRow {
             delete: None,
             menu: None,
             list: false,
+            anchor: false,
         }
     }
 
@@ -141,6 +151,13 @@ impl SidebarRow {
     /// popover is mouse-only without this.
     pub(crate) fn with_menu(mut self, msg: Message) -> Self {
         self.menu = Some(msg);
+        self
+    }
+
+    /// Mark this row as the surface's current mouse selection, the
+    /// arrow hover-entry's preferred landing spot.
+    pub(crate) fn with_anchor(mut self, anchor: bool) -> Self {
+        self.anchor = anchor;
         self
     }
 }

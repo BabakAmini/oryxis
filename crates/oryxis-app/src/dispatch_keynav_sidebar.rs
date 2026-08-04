@@ -311,11 +311,17 @@ impl Oryxis {
                         // keypress away from closing the sidebar.
                         let target = {
                             let items = self.keynav.sidebar_items.borrow();
-                            if forward {
-                                items.iter().position(|r| r.list)
-                            } else {
-                                items.iter().rposition(|r| r.list)
-                            }
+                            // A mouse-selected row (the Files tab's
+                            // click-select) anchors the entry: the ring
+                            // picks up where the mouse left off instead
+                            // of starting at the list edge.
+                            items.iter().position(|r| r.anchor).or_else(|| {
+                                if forward {
+                                    items.iter().position(|r| r.list)
+                                } else {
+                                    items.iter().rposition(|r| r.list)
+                                }
+                            })
                         };
                         if let Some(t) = target {
                             self.keynav.sidebar_selected = Some((tab, t));

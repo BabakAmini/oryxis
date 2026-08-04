@@ -27,9 +27,19 @@ impl Oryxis {
             SidebarFilesMessage::SidebarFilesSelectRow(path, is_dir) => {
                 // Single-click selects the row (highlight); double-click
                 // on a directory enters it, matching the SFTP pane's rule.
+                // The click hands the cursor to the mouse: a keynav ring
+                // engaged elsewhere is dropped so Enter can't act on a row
+                // the user just clicked away from (the selection anchors
+                // the next arrow entry right here instead).
+                self.keynav.sidebar_selected = None;
                 let Some(pane) = self.active_pane_mut() else {
                     return Task::none();
                 };
+                // Clicking a row is also the path editor's blur, same
+                // rule as Navigate: close the edit so the header snaps
+                // back to the label + actions.
+                pane.files.path_editing = None;
+                pane.files.path_history_open = false;
                 let now = std::time::Instant::now();
                 let is_double = pane.files.last_click.as_ref().is_some_and(
                     |(t, p)| p == &path && now.duration_since(*t) < DOUBLE_CLICK_WINDOW,
