@@ -62,7 +62,7 @@ impl Oryxis {
     /// skip all of this and leak the live sessions). The caller is
     /// responsible for repointing `active_tab` afterwards (the two
     /// paths land on different tabs). `idx` must be in bounds.
-    fn teardown_tab_at(&mut self, idx: usize) {
+    pub(super) fn teardown_tab_at(&mut self, idx: usize) {
         // Persist recorded output before the tab (and its
         // panes' buffers) are dropped.
         self.flush_session_logs_final();

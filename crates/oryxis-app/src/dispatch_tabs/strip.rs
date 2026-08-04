@@ -27,7 +27,22 @@ impl Oryxis {
                         .as_ref()
                         .and_then(|p| self.tabs.get(p.tab_idx))
                         .map(|t| t._id);
-                    self.tabs.retain(|t| t._id == target_id || t.pinned);
+                    // Tear each one down instead of dropping it: a bare
+                    // `retain` discards the struct while the connect
+                    // stream keeps its own Arc on the session, so the
+                    // channel, the engine tasks and the per-connection
+                    // port forwards all outlive the chip (see
+                    // `close_tab_sessions`). Same reason the recorded
+                    // output has to be flushed and a live AI stream
+                    // aborted first: closing four tabs at once must cost
+                    // exactly what closing them one by one costs.
+                    // Reverse order so each index is still valid when its
+                    // turn comes.
+                    for i in (0..self.tabs.len()).rev() {
+                        if self.tabs[i]._id != target_id && !self.tabs[i].pinned {
+                            self.teardown_tab_at(i);
+                        }
+                    }
                     let new_active = self
                         .tabs
                         .iter()
@@ -45,8 +60,13 @@ impl Oryxis {
                     .as_ref()
                     .and_then(|p| self.tabs.get(p.tab_idx))
                     .map(|t| t._id);
-                // Pinned tabs survive "close all".
-                self.tabs.retain(|t| t.pinned);
+                // Pinned tabs survive "close all". Torn down one by one
+                // for the reason in `CloseOtherTabs` above.
+                for i in (0..self.tabs.len()).rev() {
+                    if !self.tabs[i].pinned {
+                        self.teardown_tab_at(i);
+                    }
+                }
                 if self.tabs.is_empty() {
                     self.active_tab = None;
                     self.clear_terminal_tab_memory();
