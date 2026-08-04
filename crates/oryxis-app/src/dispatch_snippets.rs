@@ -87,6 +87,14 @@ impl Oryxis {
         let Some(tab_idx) = self.snippet_injection_tab() else {
             return;
         };
+        self.inject_snippet_text_into(tab_idx, cmd, run);
+    }
+
+    /// The half of [`Self::inject_snippet_text`] that takes an explicit
+    /// tab, for the parked path: a snippet held in the variables modal
+    /// belongs to the tab it was fired at, not to whatever is active by
+    /// the time the user confirms.
+    fn inject_snippet_text_into(&mut self, tab_idx: usize, cmd: &str, run: bool) {
         let Some(tab) = self.tabs.get(tab_idx) else {
             return;
         };
@@ -117,7 +125,17 @@ impl Oryxis {
             self.inject_snippet_text(&cmd, run);
             return Task::none();
         }
+        // Pin the target now, while it still means the tab the user was
+        // looking at when they fired the snippet (see `target_tab`).
+        let Some(target_tab) = self
+            .snippet_injection_tab()
+            .and_then(|i| self.tabs.get(i))
+            .map(|t| t._id)
+        else {
+            return Task::none();
+        };
         self.pending_snippet_vars = Some(crate::state::PendingSnippetVars {
+            target_tab,
             command: cmd,
             run,
             vars,
@@ -396,7 +414,13 @@ impl Oryxis {
                 if let Some(pending) = self.pending_snippet_vars.take() {
                     let cmd =
                         crate::util::substitute_snippet_vars(&pending.command, &pending.vars);
-                    self.inject_snippet_text(&cmd, pending.run);
+                    // Gone means gone: the tab that asked for this snippet
+                    // was closed while the modal was up, and the nearest
+                    // other tab is a different host. Dropping the send is
+                    // the only safe answer.
+                    if let Some(tab_idx) = self.tab_index_by_id(pending.target_tab) {
+                        self.inject_snippet_text_into(tab_idx, &cmd, pending.run);
+                    }
                 }
             }
             SnippetMessage::CancelSnippetVars => {

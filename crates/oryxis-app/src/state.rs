@@ -94,6 +94,16 @@ pub(crate) struct LocalShellSpec {
 /// filled in (the snippet-variables modal).
 #[derive(Debug, Clone)]
 pub(crate) struct PendingSnippetVars {
+    /// The tab this snippet was fired at, captured when the modal opens.
+    ///
+    /// Resolving the target on CONFIRM instead would read whatever tab is
+    /// active by then, and the modal blocks the user's input, not the
+    /// app's messages: a cloud plugin answering, a background connect
+    /// landing or a session group opening all activate their new tab
+    /// while the user is still filling in the variables. The snippet
+    /// would then run on a host nobody chose, which for a snippet is a
+    /// command actually executed.
+    pub target_tab: uuid::Uuid,
     /// Raw snippet body, substituted on confirm.
     pub command: String,
     /// `true` = run (+ Enter); `false` = paste only.
