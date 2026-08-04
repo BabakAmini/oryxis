@@ -40,8 +40,16 @@ use crate::protocol::{DeltaRef, SyncRecord};
 /// BOTH versions (a v7 client understands every v2 payload) and writes
 /// stamp v3; an old client rejects a v3 blob loudly at this header
 /// instead of silently warn-skipping records it cannot parse.
+///
+/// v4 (protocol v8) is the same kind of schema gate, one level up:
+/// `EntityType` itself gained a variant (`LoginScript`). A record whose
+/// entity type an older build does not know is worse than an unreadable
+/// payload, because the type is what the reader dispatches on, so the
+/// whole record list fails to deserialize rather than one entry. Crypto
+/// is again unchanged, so reads still accept v2 and v3 and writes stamp
+/// v4.
 const SNAPSHOT_MAGIC: &[u8; 6] = b"ORXSNP";
-const SNAPSHOT_VERSION: u16 = 3;
+const SNAPSHOT_VERSION: u16 = 4;
 /// Oldest snapshot version this build still reads (same AEAD layout).
 const SNAPSHOT_MIN_READ_VERSION: u16 = 2;
 const HEADER_LEN: usize = SNAPSHOT_MAGIC.len() + 2;

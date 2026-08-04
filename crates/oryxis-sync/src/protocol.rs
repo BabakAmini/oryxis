@@ -67,7 +67,18 @@ use uuid::Uuid;
 /// v2 snapshots (payload superset) and writes v3, while a v6 device
 /// rejects a v3 blob at the header instead of skipping records inside
 /// it. Future variant additions to synced enums need the same audit.
-pub const PROTOCOL_VERSION: u32 = 7;
+///
+/// v8 is that audit coming due: `EntityType` gained `LoginScript`, and
+/// unlike v7's payload-level variants this one sits in the ENVELOPE
+/// (`ManifestEntry.entity_type` / `SyncRecord.entity_type`). bincode
+/// encodes a variant as a bare u32 index, so a peer that knows ten
+/// variants receiving index ten fails to decode the ENTIRE message, not
+/// the one entry: two peers would go quiet the moment either of them
+/// created a login script, with no error either user could see. The
+/// bump turns that into the same loud handshake reject as every prior
+/// break, and `SNAPSHOT_VERSION` moves 3 -> 4 in lockstep for the same
+/// reason (the snapshot carries `SyncRecord`s).
+pub const PROTOCOL_VERSION: u32 = 8;
 
 /// Entity types that can be synced.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Hash)]
@@ -758,6 +769,38 @@ mod tests {
         assert!(
             !json.contains("\"secret\""),
             "secret field leaked into JSON: {json}"
+        );
+    }
+
+    /// `EntityType` rides the message ENVELOPE, and bincode encodes a
+    /// variant as a bare u32 index, so a peer that does not know an
+    /// index fails to decode the whole message rather than skipping one
+    /// entry. That makes every new variant a wire break, which is why
+    /// `PROTOCOL_VERSION` has to move with it.
+    ///
+    /// This asserts the mechanism (unknown index = hard error) and
+    /// pins the pairing: if `ALL` grows without the version moving, the
+    /// count below stops matching and this fails, which is the reminder
+    /// that peers on the old version would go silently out of sync.
+    #[test]
+    fn a_new_entity_type_is_a_wire_break_and_needs_a_version_bump() {
+        let bytes = bincode::serialize(&EntityType::LoginScript).unwrap();
+        assert_eq!(bytes, vec![10, 0, 0, 0], "variant index is the wire form");
+        let unknown = bincode::deserialize::<EntityType>(&[
+            u8::try_from(EntityType::ALL.len()).unwrap(),
+            0,
+            0,
+            0,
+        ]);
+        assert!(
+            unknown.is_err(),
+            "an unknown variant index must fail loudly, not decode to something"
+        );
+        assert_eq!(
+            (EntityType::ALL.len(), PROTOCOL_VERSION),
+            (11, 8),
+            "adding an EntityType variant is a wire break: bump PROTOCOL_VERSION \
+             (and SNAPSHOT_VERSION in lockstep) and update this pin"
         );
     }
 }
