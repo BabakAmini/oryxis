@@ -358,7 +358,7 @@ mod tests {
     fn autofill_answers_otp_prompt() {
         let totp = test_totp();
         let answers =
-            autofill_kbi_round(Some(&totp), ["Verification code: "], None).unwrap();
+            autofill_kbi_round(Some(&totp), false, ["Verification code: "], None).unwrap();
         assert_eq!(answers.len(), 1);
         assert_eq!(answers[0].len(), 6);
         assert!(answers[0].chars().all(|c| c.is_ascii_digit()));
@@ -369,6 +369,7 @@ mod tests {
         let totp = test_totp();
         let answers = autofill_kbi_round(
             Some(&totp),
+            false,
             ["Password: ", "One-time password (OATH) for `alice':"],
             Some("hunter2"),
         )
@@ -383,6 +384,7 @@ mod tests {
         // Password prompt but no stored password: the user must type it.
         assert!(autofill_kbi_round(
             Some(&totp),
+            false,
             ["Password: ", "Verification code: "],
             None
         )
@@ -390,16 +392,56 @@ mod tests {
         // Unrecognized prompt: never guess.
         assert!(autofill_kbi_round(
             Some(&totp),
+            false,
             ["Enter the name of your first pet: "],
             Some("hunter2")
         )
         .is_none());
         // Password-only round: TOTP autofill is not a password autofill.
         assert!(
-            autofill_kbi_round(Some(&totp), ["Password: "], Some("hunter2")).is_none()
+            autofill_kbi_round(Some(&totp), false, ["Password: "], Some("hunter2"))
+                .is_none()
         );
         // No TOTP configured at all.
-        assert!(autofill_kbi_round(None, ["Verification code: "], Some("pw")).is_none());
+        assert!(
+            autofill_kbi_round(None, false, ["Verification code: "], Some("pw")).is_none()
+        );
+    }
+
+    #[test]
+    fn autofill_bitvise_round_matches_via_context() {
+        // Bitvise (issue #125) carries the OTP keywords in the round's
+        // name/instructions and asks a bare "(account) Enter code:".
+        let totp = test_totp();
+        assert!(round_context_wants_otp(
+            "TOTP authentication",
+            "Get a time-based one time password from your authenticator.",
+        ));
+        let answers =
+            autofill_kbi_round(Some(&totp), true, ["(alice@host) Enter code: "], None)
+                .unwrap();
+        assert_eq!(answers.len(), 1);
+        assert_eq!(answers[0].len(), 6);
+        assert!(answers[0].chars().all(|c| c.is_ascii_digit()));
+    }
+
+    #[test]
+    fn autofill_context_never_widens_without_otp_wording() {
+        let totp = test_totp();
+        // A bare code ask with NO OTP context stays with the user.
+        assert!(
+            autofill_kbi_round(Some(&totp), false, ["Enter code: "], None).is_none()
+        );
+        // OTP context still never answers an unrecognized prompt.
+        assert!(autofill_kbi_round(
+            Some(&totp),
+            true,
+            ["Enter the name of your first pet: "],
+            None
+        )
+        .is_none());
+        // Neutral round metadata does not claim the round.
+        assert!(!round_context_wants_otp("SSH server", "Please authenticate."));
     }
 
     #[test]

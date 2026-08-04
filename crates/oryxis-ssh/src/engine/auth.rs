@@ -820,6 +820,7 @@ impl SshEngine {
             } else {
                 autofill_kbi_round(
                     self.totp.as_ref(),
+                    round_context_wants_otp(&name, &instructions),
                     prompts.iter().map(|p| p.prompt.as_str()),
                     fallback_pw,
                 )
