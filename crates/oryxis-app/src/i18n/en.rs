@@ -1355,6 +1355,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "monitor_load" => "Load",
         "monitor_procs" => "Processes",
         "monitor_net" => "Network",
+        "monitor_gpu" => "GPU",
         "monitor_uptime" => "Uptime",
         "monitor_disk" => "Disks",
         "monitor_sampling" => "Sampling...",

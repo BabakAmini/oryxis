@@ -155,6 +155,10 @@ coming next, see the [Roadmap](../README.md#roadmap).
   channel multiplexed onto the live session. Nothing is installed on the
   server; Linux `/proc` is the primary source with BSD and macOS probe
   fallbacks.
+- **GPU gauges.** Utilization, VRAM and temperature per device, from
+  `nvidia-smi` where it exists and the amdgpu sysfs counters otherwise.
+  The section renders only when the host answers, so machines without a
+  GPU show nothing rather than an empty panel.
 - **Opt-in, twice over.** The whole feature hides behind a Features &
   Plugins toggle, and then per host, so no connection starts probing
   behind your back. "Enable for all hosts" flips it wholesale, and the

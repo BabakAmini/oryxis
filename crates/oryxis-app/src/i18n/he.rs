@@ -1354,6 +1354,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_load" => "עומס",
         "monitor_procs" => "תהליכים",
         "monitor_net" => "רשת",
+        "monitor_gpu" => "GPU",
         "monitor_uptime" => "זמן פעילות",
         "monitor_disk" => "דיסקים",
         "monitor_sampling" => "דוגם...",

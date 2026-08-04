@@ -1348,6 +1348,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_load" => "Beban",
         "monitor_procs" => "Proses",
         "monitor_net" => "Jaringan",
+        "monitor_gpu" => "GPU",
         "monitor_uptime" => "Waktu aktif",
         "monitor_disk" => "Disk",
         "monitor_sampling" => "Mengambil sampel...",

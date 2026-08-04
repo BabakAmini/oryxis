@@ -11,7 +11,7 @@
 //! their field `None` and the rest of the sample intact.
 
 use super::model::{
-    CpuStat, DiskStat, LoadStat, MemStat, NetStat, PortStat, RawSnapshot, Sample,
+    CpuStat, DiskStat, GpuStat, LoadStat, MemStat, NetStat, PortStat, RawSnapshot, Sample,
 };
 use std::time::Instant;
 
@@ -54,6 +54,20 @@ pub(crate) fn linux_probe_command() -> String {
         "cat /proc/uptime 2>/dev/null || { date +%s | sed \"s/^/Now: /\"; \
              sysctl -n kern.boottime 2>/dev/null; }",
         LISTENING_SOCKETS_CMD,
+        // GPU (roadmap: host-monitoring GPU gauges). NVIDIA first:
+        // nvidia-smi answers one CSV line per device, `nounits` so the
+        // fields parse bare (util %, VRAM MiB, temp C), name last since
+        // it is the only field that can contain spaces. Fallback: the
+        // amdgpu sysfs files, one "AMD" line per card that exposes
+        // gpu_busy_percent (the VRAM reads may legitimately fail on
+        // older kernels; the parser treats them as optional). No GPU,
+        // no tools -> empty section -> the sidebar renders nothing.
+        "nvidia-smi --query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu,name \
+             --format=csv,noheader,nounits 2>/dev/null \
+             || for c in /sys/class/drm/card*/device; do \
+                 [ -r \"$c/gpu_busy_percent\" ] && echo \"AMD $(cat \"$c/gpu_busy_percent\") \
+                     $(cat \"$c/mem_info_vram_used\" 2>/dev/null) \
+                     $(cat \"$c/mem_info_vram_total\" 2>/dev/null)\"; done 2>/dev/null",
     ]
     .join(&format!("; echo \"{SEP}\"; "));
     // The exec channel hands the command to the user's LOGIN shell, and
@@ -84,6 +98,7 @@ pub(crate) fn parse_linux(
     let df = sections.next().unwrap_or("");
     let uptime = sections.next().unwrap_or("");
     let sockets = sections.next().unwrap_or("");
+    let gpu = sections.next().unwrap_or("");
 
     let (cpu_total, cpu_idle) = parse_cpu_jiffies(stat)
         .or_else(|| super::probe_bsd::parse_cp_time(stat))
@@ -134,6 +149,7 @@ pub(crate) fn parse_linux(
             let d = parse_df(df);
             if d.is_empty() { super::probe_bsd::parse_df_bsd(df) } else { d }
         },
+        gpus: parse_gpu(gpu),
         ports: parse_listening_ports_any(sockets),
         uptime_secs: parse_uptime(uptime)
             .or_else(|| super::probe_bsd::parse_boottime(uptime)),
@@ -426,6 +442,62 @@ fn parse_process_entry(line: &str) -> Option<(String, Option<u32>)> {
     (!name.is_empty()).then(|| (name.to_string(), Some(pid)))
 }
 
+/// GPU section in either dialect, one device per line.
+///
+/// NVIDIA (`nvidia-smi --format=csv,noheader,nounits`):
+/// `42, 1234, 8192, 65, NVIDIA GeForce RTX 3080` (util %, VRAM used /
+/// total MiB, temp C, name). A field an old driver can't answer prints
+/// `[Not Supported]` / `[N/A]`; only utilization is required, the rest
+/// degrade to `None`. The name is the tail so its own commas (none in
+/// practice) or spaces can't shift the numeric columns.
+///
+/// AMD (our sysfs fallback): `AMD <busy%> [<vram_used> <vram_total>]`
+/// in bytes, VRAM optional (older kernels don't expose the files).
+fn parse_gpu(gpu: &str) -> Vec<GpuStat> {
+    let mut out = Vec::new();
+    for line in gpu.lines() {
+        let line = line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("AMD ") {
+            let mut fields = rest.split_whitespace();
+            let Some(util) = fields.next().and_then(|f| f.parse::<f32>().ok()) else {
+                continue;
+            };
+            let mem_used = fields.next().and_then(|f| f.parse::<u64>().ok());
+            let mem_total = fields.next().and_then(|f| f.parse::<u64>().ok());
+            out.push(GpuStat {
+                name: None,
+                util_pct: util.clamp(0.0, 100.0),
+                // Either both or neither: a used figure against an
+                // unknown total renders as a lie of a gauge.
+                mem_used: mem_total.and(mem_used),
+                mem_total: mem_used.and(mem_total),
+                temp_c: None,
+            });
+            continue;
+        }
+        // NVIDIA CSV row: 4 numeric columns, then the name.
+        let fields: Vec<&str> = line.splitn(5, ',').map(str::trim).collect();
+        if fields.len() < 5 {
+            continue;
+        }
+        let Ok(util) = fields[0].parse::<f32>() else { continue };
+        let mib = |f: &str| f.parse::<u64>().ok().map(|v| v.saturating_mul(1024 * 1024));
+        let mem_used = mib(fields[1]);
+        let mem_total = mib(fields[2]);
+        out.push(GpuStat {
+            name: (!fields[4].is_empty()).then(|| fields[4].to_string()),
+            util_pct: util.clamp(0.0, 100.0),
+            mem_used: mem_total.and(mem_used),
+            mem_total: mem_used.and(mem_total),
+            temp_c: fields[3].parse::<i32>().ok(),
+        });
+    }
+    out
+}
+
 /// `/proc/uptime`: `12345.67 98765.43` (seconds since boot, idle time).
 fn parse_uptime(uptime: &str) -> Option<u64> {
     uptime
@@ -441,8 +513,10 @@ mod tests {
     use super::*;
     use std::time::Duration;
 
-    /// Build a payload from per-section strings in probe order.
-    fn payload(sections: [&str; 7]) -> String {
+    /// Build a payload from per-section strings in probe order. Const
+    /// generic so the older 7-section fixtures keep compiling: a
+    /// truncated payload is a real case the parser must handle anyway.
+    fn payload<const N: usize>(sections: [&str; N]) -> String {
         sections.join(&format!("\n{SEP}\n"))
     }
 
@@ -754,6 +828,81 @@ mod tests {
         assert_eq!(snap.net_rx, u64::MAX);
         assert_eq!(sample.mem.unwrap().total, u64::MAX);
         assert_eq!(sample.disks[0].total, u64::MAX);
+    }
+
+    #[test]
+    fn nvidia_csv_rows_parse_with_units_and_name() {
+        let gpu = "42, 1234, 8192, 65, NVIDIA GeForce RTX 3080\n\
+                   7, 100, 24576, 41, NVIDIA RTX A5000\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", "", gpu]), None, t0());
+        assert_eq!(sample.gpus.len(), 2);
+        let g = &sample.gpus[0];
+        assert_eq!(g.util_pct, 42.0);
+        assert_eq!(g.mem_used, Some(1234 * 1024 * 1024));
+        assert_eq!(g.mem_total, Some(8192 * 1024 * 1024));
+        assert_eq!(g.temp_c, Some(65));
+        assert_eq!(g.name.as_deref(), Some("NVIDIA GeForce RTX 3080"));
+        assert_eq!(sample.gpus[1].name.as_deref(), Some("NVIDIA RTX A5000"));
+    }
+
+    #[test]
+    fn nvidia_not_supported_fields_degrade_per_field() {
+        // Old drivers answer `[Not Supported]` per field; utilization is
+        // the only hard requirement, and VRAM is all-or-nothing (a used
+        // figure against an unknown total would render a lying gauge).
+        let gpu = "13, [Not Supported], 8192, [N/A], Tesla K80\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", "", gpu]), None, t0());
+        let g = &sample.gpus[0];
+        assert_eq!(g.util_pct, 13.0);
+        assert_eq!(g.mem_used, None);
+        assert_eq!(g.mem_total, None);
+        assert_eq!(g.temp_c, None);
+        // A row whose utilization is unreadable is no row at all.
+        let gpu = "[Not Supported], 1, 2, 3, Ghost GPU\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", "", gpu]), None, t0());
+        assert!(sample.gpus.is_empty());
+    }
+
+    #[test]
+    fn amd_sysfs_rows_parse_with_optional_vram() {
+        // Full row: busy% plus the two VRAM byte counters.
+        let gpu = "AMD 37 1234567890 17163091968\nAMD 5\n";
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", "", gpu]), None, t0());
+        assert_eq!(sample.gpus.len(), 2);
+        assert_eq!(sample.gpus[0].util_pct, 37.0);
+        assert_eq!(sample.gpus[0].mem_used, Some(1_234_567_890));
+        assert_eq!(sample.gpus[0].mem_total, Some(17_163_091_968));
+        assert!(sample.gpus[0].name.is_none());
+        // Kernel without the VRAM files: busy% only.
+        assert_eq!(sample.gpus[1].util_pct, 5.0);
+        assert_eq!(sample.gpus[1].mem_used, None);
+        assert_eq!(sample.gpus[1].mem_total, None);
+    }
+
+    #[test]
+    fn hosts_without_a_gpu_render_no_gpu_section() {
+        // No 8th section at all (older payload), an empty one, and shell
+        // noise must all yield the same empty list.
+        let (sample, _) =
+            parse_linux(&payload(["", "", "", "", "", "", ""]), None, t0());
+        assert!(sample.gpus.is_empty());
+        let (sample, _) = parse_linux(
+            &payload(["", "", "", "", "", "", "", "sh: nvidia-smi: not found"]),
+            None,
+            t0(),
+        );
+        assert!(sample.gpus.is_empty());
+        // Hostile utilization values clamp instead of blowing the gauge.
+        let (sample, _) = parse_linux(
+            &payload(["", "", "", "", "", "", "", "AMD 9999"]),
+            None,
+            t0(),
+        );
+        assert_eq!(sample.gpus[0].util_pct, 100.0);
     }
 
     #[test]

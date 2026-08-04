@@ -96,6 +96,7 @@ mod tests {
                 load: None,
                 net: None,
                 disks: Vec::new(),
+                gpus: Vec::new(),
                 ports: Vec::new(),
                 uptime_secs: None,
             },

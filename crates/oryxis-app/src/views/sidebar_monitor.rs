@@ -119,6 +119,27 @@ impl Oryxis {
             ));
         }
 
+        // GPU gauges (roadmap: host monitoring): rendered only when the
+        // probe answered, so a host without a GPU (or without nvidia-smi
+        // / the amdgpu sysfs) shows nothing rather than a dead section.
+        // The gauge tracks utilization; VRAM and temperature ride in the
+        // value line when the device reports them.
+        for (i, gpu) in sample.gpus.iter().enumerate() {
+            let label = match (&gpu.name, sample.gpus.len() > 1) {
+                (Some(name), _) => name.clone(),
+                (None, true) => format!("{} {}", t("monitor_gpu"), i),
+                (None, false) => t("monitor_gpu").to_string(),
+            };
+            let mut value = format!("{:.0}%", gpu.util_pct);
+            if let (Some(used), Some(total)) = (gpu.mem_used, gpu.mem_total) {
+                value.push_str(&format!("   {} / {}", fmt_bytes(used), fmt_bytes(total)));
+            }
+            if let Some(temp) = gpu.temp_c {
+                value.push_str(&format!("   {temp}°C"));
+            }
+            body = body.push(gauge_block(&label, gpu.util_pct, &value));
+        }
+
         if let Some(up) = sample.uptime_secs {
             body = body.push(stat_row(t("monitor_uptime"), fmt_uptime(up)));
         }
@@ -424,7 +445,10 @@ fn placeholder(label: &str) -> Element<'_, Message> {
 /// Label + value line above a filled bar. The fill colour follows the
 /// theme's semantic colours so a host in trouble reads as such at a
 /// glance.
-fn gauge_block<'a>(label: &'a str, pct: f32, value: &str) -> Element<'a, Message> {
+// `label` is converted to an owned string right away (as is `value`), so
+// the returned element's lifetime is NOT tied to it: callers can pass a
+// loop-local `String` (the GPU gauges build "GPU 0" labels per device).
+fn gauge_block<'a>(label: &str, pct: f32, value: &str) -> Element<'a, Message> {
     let pct = pct.clamp(0.0, 100.0);
     let fill = if pct >= 90.0 {
         OryxisColors::t().error

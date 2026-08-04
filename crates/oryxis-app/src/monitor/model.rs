@@ -26,6 +26,10 @@ pub(crate) struct Sample {
     /// `None` on the first sample for the same reason as `cpu`.
     pub net: Option<NetStat>,
     pub disks: Vec<DiskStat>,
+    /// GPUs, one entry per device. Empty on hosts without a GPU, without
+    /// `nvidia-smi` / the amdgpu sysfs files, or where the shell refused
+    /// the probe; the section simply doesn't render then.
+    pub gpus: Vec<GpuStat>,
     /// Listening sockets on the host (issue #83). Empty when neither
     /// `ss` nor `netstat` is available, or the shell refused them.
     pub ports: Vec<PortStat>,
@@ -91,6 +95,22 @@ impl DiskStat {
             (self.used as f32 / self.total as f32) * 100.0
         }
     }
+}
+
+/// One GPU's vitals. NVIDIA rows carry everything `nvidia-smi` reports
+/// (utilization, VRAM, temperature, name); AMD rows come from the
+/// amdgpu sysfs files, which always expose utilization but only
+/// sometimes VRAM, and never a temperature or marketing name here.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct GpuStat {
+    /// Marketing name ("NVIDIA GeForce RTX 3080"). `None` for AMD sysfs
+    /// rows; the gauge label falls back to a plain "GPU".
+    pub name: Option<String>,
+    pub util_pct: f32,
+    /// VRAM in bytes. Either both are present or neither renders.
+    pub mem_used: Option<u64>,
+    pub mem_total: Option<u64>,
+    pub temp_c: Option<i32>,
 }
 
 /// One listening socket. The process name is best-effort: `ss -p` /

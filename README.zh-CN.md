@@ -149,8 +149,8 @@ Oryxis 以大约每周一次的节奏持续发布，功能就绪即上线。最�
 [路线图讨论](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推进的方向包括：原生 FIDO2（通过 USB / NFC 直接与安全密钥通信）、
 终端增强（带触发动作的关键字高亮、窗口不透明度）、原生 Mosh 客户端、
-配置导入器（PuTTY / WinSCP / mRemoteNG / Termius）、主机监控的 GPU
-仪表与多主机面板，以及面向中文用户的阿里云 / 腾讯云支持、东亚宽度
+配置导入器（PuTTY / WinSCP / mRemoteNG / Termius）、主机监控的
+多主机面板，以及面向中文用户的阿里云 / 腾讯云支持、东亚宽度
 选项和终端背景图。来自社区的新需求也已排入：JumpServer 类堡垒机的
 登录脚本、sudo 提示处调用保险库密码、侧边栏 tmux 会话管理器、可按
 需下载的终端字体包，以及主机树形视图。

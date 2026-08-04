@@ -1349,6 +1349,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_load" => "الحمل",
         "monitor_procs" => "العمليات",
         "monitor_net" => "الشبكة",
+        "monitor_gpu" => "GPU",
         "monitor_uptime" => "مدة التشغيل",
         "monitor_disk" => "الأقراص",
         "monitor_sampling" => "جارٍ أخذ العينات...",

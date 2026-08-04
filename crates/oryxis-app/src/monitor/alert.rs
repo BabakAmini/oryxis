@@ -127,6 +127,7 @@ mod tests {
                     total: 1000,
                 })
                 .collect(),
+            gpus: Vec::new(),
             ports: Vec::new(),
             uptime_secs: None,
         }

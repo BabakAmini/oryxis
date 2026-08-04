@@ -1348,6 +1348,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_load" => "Tải",
         "monitor_procs" => "Tiến trình",
         "monitor_net" => "Mạng",
+        "monitor_gpu" => "GPU",
         "monitor_uptime" => "Thời gian hoạt động",
         "monitor_disk" => "Đĩa",
         "monitor_sampling" => "Đang lấy mẫu...",

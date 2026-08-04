@@ -1354,6 +1354,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_load" => "Φόρτος",
         "monitor_procs" => "Διεργασίες",
         "monitor_net" => "Δίκτυο",
+        "monitor_gpu" => "GPU",
         "monitor_uptime" => "Χρόνος λειτουργίας",
         "monitor_disk" => "Δίσκοι",
         "monitor_sampling" => "Γίνεται δειγματοληψία...",
