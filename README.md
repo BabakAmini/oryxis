@@ -239,6 +239,19 @@ tracks it interactively.
 - **Terminal:** keyword highlighting with user-defined trigger actions,
   and window opacity (Linux and macOS first; Windows depends on the
   graphics stack).
+- **Terminal font pack:** popular Nerd Font builds (JetBrains Mono,
+  CaskaydiaCove) downloadable on demand from the font picker,
+  hash-pinned and mirror-aware like the CJK fonts.
+- **tmux session manager:** a terminal-sidebar tab listing the tmux
+  sessions on the current host with attach / create / kill, read over
+  the live connection; nothing installed on the server, as always.
+- **Stored passwords at sudo prompts:** when a `sudo` / `su` password
+  prompt appears in the terminal, a popup at the cursor offers the
+  host's vault password; confirmed with a click or hotkey, never sent
+  automatically.
+- **Bastion login scripts:** expect-style login automation (wait for a
+  prompt, send a stored answer) with ready-made presets for
+  JumpServer-class bastions and other menu-driven jump boxes.
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
@@ -246,6 +259,8 @@ tracks it interactively.
   WSL layer).
 - **Quick-connect OS integration:** register as the `ssh://` URL handler
   and accept `oryxis user@host` on the CLI.
+- **Host tree view:** an mRemoteNG-style tree of groups and hosts as an
+  alternative view to the card grid.
 - **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
   importers plus generic CSV import / export, Wake-on-LAN, and an
   optional network tools panel (DNS, ping / traceroute, port test,
@@ -253,7 +268,9 @@ tracks it interactively.
 - **Vault & sync:** a curated terminal theme collection plus theme file
   import, extra sync snapshot
   backends (private GitHub repo via device code, any WebDAV server;
-  ciphertext only, as always), one-click relay deploy (the app installs
+  ciphertext only, as always), backup export to external storage
+  (starting with Telegram via bot, with custom endpoint and proxy
+  support), one-click relay deploy (the app installs
   `oryxis-relay` on a host from your vault over SSH, with the script
   shown before it runs), connection health indicators with
   connection reuse, and group settings inheritance (per-parameter
