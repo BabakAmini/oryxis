@@ -27,6 +27,7 @@ mod connection;
 mod host_picker;
 mod interface;
 mod local_terminals;
+pub(crate) mod login_scripts;
 mod mcp;
 mod previews;
 mod proxies;

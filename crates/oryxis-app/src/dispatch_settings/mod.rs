@@ -44,6 +44,7 @@ mod toggles;
 mod appearance;
 mod defaults;
 mod local_terminals;
+mod login_scripts;
 // The reconnect respawn (`dispatch_tabs/lifecycle.rs`) spawns the
 // dead tab's exact shell with its captured cwd, bypassing the
 // picker / "always open X" decision flow.
@@ -389,6 +390,21 @@ impl Oryxis {
             | SettingsMessage::SettingSftpSessionTimeoutChanged(..)
             | SettingsMessage::SettingSftpOpTimeoutChanged(..)
             ) => self.handle_settings_toggles(m).unwrap_or_else(crate::dispatch::unrouted),
+            m @ (
+                SettingsMessage::LoginScriptEdit(..)
+                | SettingsMessage::LoginScriptCancelEdit
+                | SettingsMessage::LoginScriptNameChanged(..)
+                | SettingsMessage::LoginScriptAddStep
+                | SettingsMessage::LoginScriptRemoveStep(..)
+                | SettingsMessage::LoginScriptStepExpect(..)
+                | SettingsMessage::LoginScriptStepSendKind(..)
+                | SettingsMessage::LoginScriptStepText(..)
+                | SettingsMessage::LoginScriptStepOptional(..)
+                | SettingsMessage::LoginScriptSave
+                | SettingsMessage::LoginScriptRequestDelete(..)
+                | SettingsMessage::LoginScriptCancelDelete
+                | SettingsMessage::LoginScriptDelete(..)
+            ) => self.handle_settings_login_scripts(m),
         }
     }
 }

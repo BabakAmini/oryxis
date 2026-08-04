@@ -153,6 +153,12 @@ impl Oryxis {
 
         self.reset_editor_startup_combo();
         self.reset_editor_key_combo();
+        self.editor_login_script_combo =
+            iced::widget::combo_box::State::new(self.login_script_options());
+        self.editor_script_template_combo = iced::widget::combo_box::State::new(vec![
+            crate::i18n::t("login_script_tpl_jumpserver").to_string(),
+            crate::i18n::t("login_script_tpl_bastion").to_string(),
+        ]);
     }
 
     /// Option list for the Initial Command / Snippet combo: the
@@ -437,6 +443,44 @@ impl Oryxis {
                 None => return Err(crate::i18n::t("host_mac_invalid").to_string()),
             }
         };
+        // Login automation. SSH-only, so a host switched to another
+        // protocol drops the reference rather than carrying an
+        // automation nothing will ever run (same clamp as `mcp_enabled`
+        // and the TOTP secret). Variables are pruned to the ones the
+        // selected script actually references, so a value left over
+        // from a previous script cannot be typed at an unrelated
+        // prompt.
+        let is_ssh_now = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh;
+        conn.login_script_id = is_ssh_now
+            .then_some(self.editor_form.login_script_id)
+            .flatten()
+            .filter(|sid| self.login_scripts.iter().any(|s| s.id == *sid));
+        conn.login_script_vars = match conn.login_script_id {
+            Some(sid) => {
+                let names: Vec<String> = self
+                    .login_scripts
+                    .iter()
+                    .find(|s| s.id == sid)
+                    .map(|s| {
+                        crate::util::login_script_placeholders(&s.steps)
+                            .into_iter()
+                            .map(|(n, _)| n)
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                self.editor_form
+                    .login_script_vars
+                    .iter()
+                    .filter(|(n, _)| names.contains(n))
+                    .map(|(n, v)| oryxis_core::models::connection::ScriptVar {
+                        name: n.clone(),
+                        value: v.clone(),
+                    })
+                    .collect()
+            }
+            None => Vec::new(),
+        };
         conn.tags = crate::util::parse_tags(&self.editor_form.tags_text);
         conn.privacy_mode = self.editor_form.privacy_mode;
         conn.sidebar_auto_open = self.editor_form.sidebar_auto_open;
@@ -524,6 +568,7 @@ impl Oryxis {
         has_pw: bool,
         has_proxy_pw: bool,
         has_totp: bool,
+        has_target_pw: bool,
     ) -> ConnectionForm {
         ConnectionForm {
             label: conn.label.clone(),
@@ -610,6 +655,22 @@ impl Oryxis {
                 .map(|n| n.to_string())
                 .unwrap_or_default(),
             mac_address: conn.mac_address.clone().unwrap_or_default(),
+            // A script deleted while this host still referenced it
+            // renders as "off" rather than a blank picker entry, the
+            // same rule `resolve_proxy` follows for proxy identities.
+            login_script_id: conn
+                .login_script_id
+                .filter(|sid| self.login_scripts.iter().any(|s| s.id == *sid)),
+            login_script_vars: conn
+                .login_script_vars
+                .iter()
+                .map(|v| (v.name.clone(), v.value.clone()))
+                .collect(),
+            // Never pre-fill the target password either.
+            target_password: Default::default(),
+            has_existing_target_password: has_target_pw,
+            target_password_visible: false,
+            login_script_draft: None,
             auto_title: conn.auto_title,
             tags_text: conn.tags.join(", "),
             cloud_transport: conn
@@ -751,6 +812,18 @@ impl Oryxis {
                 | EditorMessage::HostConfigTerminalTypeChanged(..)
                 | EditorMessage::HostConfigAutoTitleChanged(..)
             ) => self.handle_editor_host_config(m),
+            m @ (
+                EditorMessage::EditorLoginScriptChanged(..)
+                | EditorMessage::EditorLoginScriptComboOpened
+                | EditorMessage::EditorLoginScriptVarChanged(..)
+                | EditorMessage::EditorTargetPasswordChanged(..)
+                | EditorMessage::EditorToggleTargetPasswordVisibility
+                | EditorMessage::EditorScriptDraftTemplateChanged(..)
+                | EditorMessage::EditorScriptDraftNameChanged(..)
+                | EditorMessage::EditorScriptDraftPromptChanged(..)
+                | EditorMessage::EditorScriptDraftCreate
+                | EditorMessage::EditorScriptDraftCancel
+            ) => self.handle_editor_login_script(m),
         }
     }
 
@@ -915,6 +988,7 @@ fn build_proxy_resolution(form: &ConnectionForm) -> Result<ProxyResolution, Stri
 
 mod lifecycle;
 mod identity;
+mod login_script;
 mod network;
 mod terminal;
 mod integration;

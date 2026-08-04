@@ -401,6 +401,12 @@ impl Oryxis {
                         bytes = scan.clean;
                     }
                 }
+                // Login automation (issue #122) reads the same cleaned
+                // bytes the emulator is about to get, BEFORE the pane
+                // borrow below, because a fired step writes back through
+                // `self`. It is a no-op for every pane without an armed
+                // script, which is nearly all of them.
+                self.feed_login_script(pane_id, &bytes);
                 // Route to the specific pane (a tab may have several, each
                 // with its own PTY). Scan is trivial at these counts.
                 let mut over_threshold = false;

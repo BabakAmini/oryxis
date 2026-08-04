@@ -369,6 +369,11 @@ impl Oryxis {
                     new_conn_defaults_section,
                     Space::new().height(12),
                     session_section,
+                    Space::new().height(12),
+                    // Login automations live here rather than in a rail
+                    // view of their own: they are host configuration, and
+                    // the flow that creates them is the host editor.
+                    self.login_scripts_section(),
                     Space::new().height(24),
                 ]
                 .width(Length::Fill)

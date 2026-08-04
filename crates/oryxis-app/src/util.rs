@@ -121,6 +121,43 @@ pub(crate) fn snippet_placeholders(body: &str) -> Vec<(String, String)> {
     out
 }
 
+/// The placeholders a login script references, in first-appearance
+/// order across its steps. Same grammar as snippet variables, reused
+/// deliberately: a user who has met `{name}` in a snippet already knows
+/// this syntax, and the parser is the one that has been proven not to
+/// trip over shell text.
+///
+/// Only the parts a user can type are scanned. A `Secret` step carries
+/// a reference, not text, so a credential can never become a variable
+/// no matter what the script says.
+pub(crate) fn login_script_placeholders(
+    steps: &[oryxis_core::login_script::LoginStep],
+) -> Vec<(String, String)> {
+    use oryxis_core::login_script::{ExpectPattern, SendPayload};
+    let mut out: Vec<(String, String)> = Vec::new();
+    for step in steps {
+        let mut scan = |text: &str| {
+            for (name, default) in snippet_placeholders(text) {
+                if !out.iter().any(|(n, _)| *n == name) {
+                    out.push((name, default));
+                }
+            }
+        };
+        match &step.expect {
+            Some(ExpectPattern::Suffix(s)) => scan(s),
+            // A regex can legitimately contain braces (`a{2,3}`), and
+            // the placeholder grammar rejects those shapes, so scanning
+            // it is safe and lets a pattern vary per host.
+            Some(ExpectPattern::Regex(r)) => scan(r),
+            None => {}
+        }
+        if let SendPayload::Text(t) = &step.send {
+            scan(t);
+        }
+    }
+    out
+}
+
 /// Substitute every `{name}` / `{name:*}` occurrence with its value
 /// (same validity rules as [`snippet_placeholders`]; unknown names and
 /// shell-shaped braces stay literal).
@@ -1138,5 +1175,56 @@ mod tests {
         let (_, path) = edit_temp_file("/srv/配置ファイル.yaml");
         let name = path.file_name().unwrap().to_string_lossy().into_owned();
         assert!(name.ends_with("配置ファイル.yaml"));
+    }
+
+    /// A login script's variables come from every part a user can type,
+    /// and NEVER from a secret step: a credential is a reference, so it
+    /// has no text to scan in the first place.
+    #[test]
+    fn login_script_placeholders_scan_text_and_patterns_only() {
+        use oryxis_core::login_script::{ExpectPattern, LoginStep, SecretRef, SendPayload};
+        let steps = vec![
+            LoginStep {
+                expect: Some(ExpectPattern::Suffix("{env} opt>".into())),
+                send: SendPayload::Text("{asset}".into()),
+                timeout_ms: 0,
+                optional: false,
+            },
+            LoginStep {
+                expect: Some(ExpectPattern::Suffix("password:".into())),
+                send: SendPayload::Secret(SecretRef::TargetPassword),
+                timeout_ms: 0,
+                optional: false,
+            },
+            // Repeated name keeps its first appearance and default.
+            LoginStep {
+                expect: None,
+                send: SendPayload::Text("{asset:web-01}".into()),
+                timeout_ms: 0,
+                optional: false,
+            },
+        ];
+        let vars = login_script_placeholders(&steps);
+        assert_eq!(
+            vars,
+            vec![
+                ("env".to_string(), String::new()),
+                ("asset".to_string(), String::new()),
+            ]
+        );
+    }
+
+    /// A regex step can carry braces that are regex quantifiers, not
+    /// placeholders; the shared grammar already rejects those shapes.
+    #[test]
+    fn login_script_placeholders_ignore_regex_quantifiers() {
+        use oryxis_core::login_script::{ExpectPattern, LoginStep, SendPayload};
+        let steps = vec![LoginStep {
+            expect: Some(ExpectPattern::Regex(r"opt\d{2,3}>$".into())),
+            send: SendPayload::Text("x".into()),
+            timeout_ms: 0,
+            optional: false,
+        }];
+        assert!(login_script_placeholders(&steps).is_empty());
     }
 }

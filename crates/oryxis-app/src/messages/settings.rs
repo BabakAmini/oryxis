@@ -459,4 +459,21 @@ pub enum SettingsMessage {
     SettingToggleSessionLogCompress,
     /// Toggle the global "record connection events" (history) setting.
     SettingToggleConnectionHistory,
+    // ── Login automations (issue #122) ──
+    // Management only: creation happens in the host editor. The step
+    // editor is the escape hatch for a bastion the three-field preset
+    // cannot describe.
+    LoginScriptEdit(uuid::Uuid),
+    LoginScriptCancelEdit,
+    LoginScriptNameChanged(String),
+    LoginScriptAddStep,
+    LoginScriptRemoveStep(usize),
+    LoginScriptStepExpect(usize, String),
+    LoginScriptStepSendKind(usize, String),
+    LoginScriptStepText(usize, String),
+    LoginScriptStepOptional(usize),
+    LoginScriptSave,
+    LoginScriptRequestDelete(uuid::Uuid),
+    LoginScriptCancelDelete,
+    LoginScriptDelete(uuid::Uuid),
 }

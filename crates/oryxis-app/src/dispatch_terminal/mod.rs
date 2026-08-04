@@ -437,6 +437,9 @@ impl Oryxis {
                     }
                 }
             }
+            TerminalMessage::LoginScriptTick(pane_id, generation) => {
+                return self.tick_login_script(pane_id, generation);
+            }
             // ── Broadcast input (C2) ──
             TerminalMessage::ToggleTabBroadcast(idx) => {
                 if let Some(tab) = self.tabs.get_mut(idx) {

@@ -115,6 +115,27 @@ pub enum EditorMessage {
     EditorTotpChanged(super::Redacted),
     EditorToggleTotpVisibility,
     EditorUseTotpToggled,
+    /// Login automation picker: the combo's display string (the "off"
+    /// sentinel, a saved script's name, or the "new script" sentinel).
+    EditorLoginScriptChanged(String),
+    EditorLoginScriptComboOpened,
+    /// One `{placeholder}` value for this host, by variable name.
+    EditorLoginScriptVarChanged(String, String),
+    /// The credential the script types at the asset's own prompt.
+    /// Redacted like every other secret-bearing variant.
+    EditorTargetPasswordChanged(super::Redacted),
+    EditorToggleTargetPasswordVisibility,
+    /// Inline "new script" sub-form: template choice, the three prompt
+    /// fields, then create (which saves the entity and selects it) or
+    /// cancel.
+    EditorScriptDraftTemplateChanged(String),
+    EditorScriptDraftNameChanged(String),
+    /// One of the draft's three prompt patterns. These carry the text
+    /// the bastion PRINTS (`Opt>`, `password:`), never a credential, so
+    /// a plain `String` is right here.
+    EditorScriptDraftPromptChanged(crate::state::ScriptPromptField, String),
+    EditorScriptDraftCreate,
+    EditorScriptDraftCancel,
     EditorSave,
     /// Connect using the current editor form WITHOUT persisting anything:
     /// builds an ephemeral quick-connect entry (typed credentials ride in

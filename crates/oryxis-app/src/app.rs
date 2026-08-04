@@ -624,6 +624,16 @@ pub struct Oryxis {
     pub(crate) proxy_identities: Vec<oryxis_core::models::proxy_identity::ProxyIdentity>,
     pub(crate) proxy_identity_form: crate::state::ProxyIdentityForm,
 
+    // Login scripts: reusable expect/send automations for hosts behind
+    // an interactive bastion, referenced by `Connection.login_script_id`.
+    // Created from the host editor (where the user is already looking at
+    // the host that needs one) and managed in Settings → Connection.
+    pub(crate) login_scripts: Vec<oryxis_core::models::LoginScript>,
+    /// Bumped per armed run so a stale timeout tick from a finished
+    /// run cannot abort the one that replaced it.
+    pub(crate) login_script_generation: u64,
+    pub(crate) login_script_form: crate::state::LoginScriptForm,
+
     // Cloud Accounts, CloudProfile rows + the wizard form. Wizard is
     // intentionally minimal in v0.6 PR 3: provider + AWS profile auth
     // only. Access key + SSO + the discover-and-pick step land in
@@ -664,6 +674,10 @@ pub struct Oryxis {
     /// label commits through `EditorStartupChoiceChanged` (no free-text
     /// path). Rebuilt on editor-open via `rebuild_editor_combos`.
     pub(crate) editor_startup_combo: iced::widget::combo_box::State<String>,
+    /// Login-automation picker: off / every saved script / new.
+    pub(crate) editor_login_script_combo: iced::widget::combo_box::State<String>,
+    /// Template picker inside the inline "new script" sub-form.
+    pub(crate) editor_script_template_combo: iced::widget::combo_box::State<String>,
     /// Native combo_box state for the host editor's SSH Key field. Same
     /// forced-selection searchable pattern as the startup combo: options
     /// are the `(none)` sentinel plus the key labels; picking commits

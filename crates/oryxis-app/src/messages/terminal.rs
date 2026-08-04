@@ -23,7 +23,13 @@ pub enum TerminalMessage {
     TerminalSearchStep(bool),
     /// Close the find-bar (Esc) and drop the match set; the terminal keeps
     /// focus.
-    TerminalSearchClose,
+    TerminalSearchClose,
+    /// Wake-up for a running login script (issue #122). The engine
+    /// checks its per-step deadline on poll, and poll is driven by
+    /// output, so a bastion that goes silent would never time out
+    /// without this. The generation makes a stale tick from a finished
+    /// run a no-op instead of an abort of the run after it.
+    LoginScriptTick(uuid::Uuid, u64),
     /// Broadcast input (C2): arm / disarm fan-out of keystrokes, pastes and
     /// snippets to every pane of the tab at `usize`. Toggled by the status
     /// segment, the tab context menu and the `ToggleBroadcastInput` hotkey.

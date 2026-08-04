@@ -46,9 +46,9 @@ impl Oryxis {
                     // Returns Task::none(); the toast itself is state.
                     let _ = self.show_toast_secs(msg, 8);
                 }
-                let detect_for = match self.pane_tab_index(pane_id) {
+                let (detect_for, login_script_task) = match self.pane_tab_index(pane_id) {
                     Some(tab_idx) => self.wire_connected_pane(tab_idx, pane_id, &session),
-                    None => None,
+                    None => (None, Task::none()),
                 };
                 // Clear progress, show terminal, but ONLY if this completion
                 // is the connect the card is tracking. A split-pane or
@@ -84,13 +84,14 @@ impl Oryxis {
                     return Task::batch([
                         files_sync,
                         hybrid_sftp,
+                        login_script_task,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
                             |(id, os)| Message::Ssh(SshMessage::OsDetected(id, os)),
                         ),
                     ]);
                 }
-                return Task::batch([files_sync, hybrid_sftp]);
+                return Task::batch([files_sync, hybrid_sftp, login_script_task]);
             }
             SshMessage::OsDetected(conn_id, os) => {
                 // Persist + update in-memory list so the icon refreshes.
@@ -247,13 +248,15 @@ impl Oryxis {
     ///
     /// Returns the argument for a silent OS detection when this host
     /// qualifies for one (feature on, never detected, no icon override),
+    /// paired with the login script's first timeout tick (`Task::none()`
+    /// when the host has no automation),
     /// so the caller can batch that probe with its other follow-ups.
     fn wire_connected_pane(
         &mut self,
         tab_idx: usize,
         pane_id: Uuid,
         session: &crate::state::TerminalTransport,
-    ) -> Option<(Uuid, Arc<SshSession>)> {
+    ) -> (Option<(Uuid, Arc<SshSession>)>, Task<Message>) {
                 let label = self.tabs[tab_idx].label.clone();
                 // Attach the session to the specific pane that connected
                 // and forward future viewport resizes to the server so
@@ -307,6 +310,12 @@ impl Oryxis {
                     .filter(|s| !s.trim().is_empty())
                     .or(fallback_cmd)
                     .filter(|s| !s.trim().is_empty());
+                // A login script (issue #122) takes ownership of the
+                // startup command: sending it now would type it into the
+                // bastion's menu, and a menu-driven bastion drains
+                // type-ahead it did not ask for. The runner re-sends it
+                // once the script has reached the asset's shell.
+                let (initial, login_script_task) = self.arm_login_script(pane_id, initial);
                 if let Some(cmd) = initial {
                     let payload = format!("{cmd}\n");
                     if let Err(e) = session.write(payload.as_bytes()) {
@@ -381,9 +390,9 @@ impl Oryxis {
                         && !has_custom
                         && let Some(ssh) = session.ssh()
                     {
-                        return Some((conn_id, ssh.clone()));
+                        return (Some((conn_id, ssh.clone())), login_script_task);
                     }
                 }
-        None
+        (None, login_script_task)
     }
 }

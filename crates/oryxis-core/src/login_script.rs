@@ -145,6 +145,87 @@ pub fn line_bytes(text: &str) -> Vec<u8> {
     out
 }
 
+/// The three prompts an interactive bastion asks before it hands over
+/// the asset's shell. Every menu-driven jump box in the field follows
+/// this shape (JumpServer's KoKo, Teleport's node picker, the menu
+/// firmware on network gear), so the guided form asks for the three
+/// strings instead of making the user author steps.
+///
+/// No other client ships a preset: the expect/send engine is a
+/// twenty-year-old commodity, the guided form is not.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct BastionPreset {
+    /// Where the bastion asks WHICH asset (`Opt>` on JumpServer).
+    pub asset_prompt: String,
+    /// Where it asks for the account on that asset.
+    pub user_prompt: String,
+    /// Where it asks for that account's password.
+    pub password_prompt: String,
+}
+
+/// Placeholder names the preset's steps reference, filled in per host.
+pub const VAR_ASSET: &str = "asset";
+pub const VAR_TARGET_USER: &str = "target_user";
+
+impl BastionPreset {
+    /// JumpServer / KoKo, the deployment this feature was reported
+    /// from. `Opt>` is the menu prompt, and the password line reads
+    /// `Manual input(<user>)'s password:` so only its suffix is matched.
+    pub fn jumpserver() -> Self {
+        Self {
+            asset_prompt: "opt>".into(),
+            user_prompt: "username:".into(),
+            password_prompt: "password:".into(),
+        }
+    }
+
+    /// Neutral defaults for any other menu-driven bastion; the user
+    /// edits the three strings to match what their box prints.
+    pub fn generic() -> Self {
+        Self {
+            asset_prompt: ">".into(),
+            user_prompt: "username:".into(),
+            password_prompt: "password:".into(),
+        }
+    }
+
+    /// Expand to steps. The asset and user answers are placeholders so
+    /// one script serves every host behind the bastion; the password is
+    /// a reference, so the script itself never carries a credential.
+    ///
+    /// The user step is `optional`: plenty of bastions take the account
+    /// as part of the asset selection and never ask separately, and the
+    /// engine skips an optional step when a later one matches.
+    pub fn build(&self) -> Vec<LoginStep> {
+        let mut steps = Vec::with_capacity(3);
+        if !self.asset_prompt.trim().is_empty() {
+            steps.push(LoginStep {
+                expect: Some(ExpectPattern::Suffix(self.asset_prompt.trim().into())),
+                send: SendPayload::Text(format!("{{{VAR_ASSET}}}")),
+                timeout_ms: 0,
+                optional: false,
+            });
+        }
+        if !self.user_prompt.trim().is_empty() {
+            steps.push(LoginStep {
+                expect: Some(ExpectPattern::Suffix(self.user_prompt.trim().into())),
+                send: SendPayload::Text(format!("{{{VAR_TARGET_USER}}}")),
+                timeout_ms: 0,
+                optional: true,
+            });
+        }
+        if !self.password_prompt.trim().is_empty() {
+            steps.push(LoginStep {
+                expect: Some(ExpectPattern::Suffix(self.password_prompt.trim().into())),
+                send: SendPayload::Secret(SecretRef::TargetPassword),
+                timeout_ms: 0,
+                optional: false,
+            });
+        }
+        steps
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum ScriptError {
     #[error("step {step}: invalid pattern: {source}")]
@@ -172,6 +253,7 @@ pub enum RunnerAction {
     Finished,
 }
 
+#[derive(Debug)]
 struct CompiledStep {
     expect: Option<CompiledPattern>,
     send: SendPayload,
@@ -179,6 +261,7 @@ struct CompiledStep {
     optional: bool,
 }
 
+#[derive(Debug)]
 enum CompiledPattern {
     /// Pre-lowercased; compared against the lowercased tail.
     Suffix(String),
@@ -198,6 +281,7 @@ impl CompiledPattern {
 ///
 /// The clock is a parameter rather than an ambient `Instant::now()` so
 /// timeout behavior is testable without sleeping.
+#[derive(Debug)]
 pub struct ScriptRunner {
     steps: Vec<CompiledStep>,
     /// Index of the armed step.
@@ -764,5 +848,49 @@ mod tests {
         assert_eq!(NamedKey::Enter.bytes(), b"\r");
         assert_eq!(NamedKey::CtrlC.bytes(), b"\x03");
         assert_eq!(line_bytes("admin"), b"admin\r".to_vec());
+    }
+
+    #[test]
+    fn the_jumpserver_preset_expands_to_the_reported_flow() {
+        let steps = BastionPreset::jumpserver().build();
+        assert_eq!(steps.len(), 3);
+        assert_eq!(steps[0].send, SendPayload::Text("{asset}".into()));
+        // The account step is optional: bastions that fold the account
+        // into the asset selection must not stall the run.
+        assert!(steps[1].optional);
+        assert_eq!(steps[2].send, SendPayload::Secret(SecretRef::TargetPassword));
+        // And it actually runs against the reporter's transcript.
+        let t0 = Instant::now();
+        let mut r = ScriptRunner::new(&steps, Duration::from_secs(60), t0).unwrap();
+        // Variables are substituted before the runner is built; here the
+        // raw placeholder text is enough to prove the sequencing.
+        assert_eq!(sent(&run(&mut r, b"\r\nOpt> ", t0)), vec!["{asset}"]);
+        assert_eq!(
+            sent(&run(&mut r, b"web-01\r\nusername: ", t0)),
+            vec!["{target_user}"]
+        );
+        let acts = run(&mut r, b"Manual input(deploy)'s password: ", t0);
+        assert!(matches!(
+            acts.first(),
+            Some(RunnerAction::Send {
+                payload: SendPayload::Secret(SecretRef::TargetPassword),
+                ..
+            })
+        ));
+    }
+
+    #[test]
+    fn a_preset_drops_the_prompts_left_blank() {
+        let preset = BastionPreset {
+            asset_prompt: "  ".into(),
+            user_prompt: "login:".into(),
+            password_prompt: "password:".into(),
+        };
+        let steps = preset.build();
+        assert_eq!(steps.len(), 2, "a blank prompt means the bastion never asks");
+        assert_eq!(
+            steps[0].expect,
+            Some(ExpectPattern::Suffix("login:".into()))
+        );
     }
 }

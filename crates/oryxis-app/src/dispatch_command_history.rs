@@ -140,6 +140,13 @@ impl Oryxis {
         // Sidebar-originated injections use the `_ring_injection_` variant
         // below, which keeps the ring so arrow-Enter-arrow-Enter works.
         self.keynav.sidebar_selected = None;
+        // The user typed, so they have taken over: a login script racing
+        // them is worse than no script (issue #122). Their own keystroke
+        // still reaches the PTY below.
+        if let Some(tab) = self.tabs.get(tab_idx) {
+            let pane_id = tab.active().id;
+            self.abort_login_script(pane_id);
+        }
         self.write_ring_injection_to_tab(tab_idx, bytes);
     }
 
@@ -211,6 +218,39 @@ impl Oryxis {
             if snap_to_bottom {
                 state.pending_scroll.set(Some(0));
             }
+        }
+    }
+
+    /// Write bytes to ONE pane that the user did not type.
+    ///
+    /// The documented input-capture bypass, used by the login-script
+    /// runner and the sudo-password autofill. Everything it skips is
+    /// deliberate:
+    ///
+    /// - `observe_input`, so a credential never reaches the command
+    ///   history mirror (there is a structural test for that);
+    /// - the broadcast fan-out, because a secret goes to exactly one
+    ///   pane, never to every pane of a synchronized tab;
+    /// - bracketed paste and the paste guard, because a password prompt
+    ///   is not a paste target and a confirm dialog mid-login would be
+    ///   worse than useless.
+    ///
+    /// Suppressed while a ZMODEM transfer owns the pane's byte stream
+    /// or the tab is showing its Files surface: in both cases these
+    /// bytes would be read by something that is not a shell.
+    pub(crate) fn write_secret_to_pane(&mut self, pane_id: uuid::Uuid, bytes: &[u8]) {
+        let snap = self.prefs.scrollback_reset_keypress;
+        let Some(tab_idx) = self.pane_tab_index(pane_id) else {
+            return;
+        };
+        if self.tabs.get(tab_idx).is_some_and(|t| t.files_mode) {
+            return;
+        }
+        if let Some(tab) = self.tabs.get_mut(tab_idx)
+            && let Some(pane) = tab.pane_by_id_mut(pane_id)
+            && pane.zmodem.is_none()
+        {
+            Self::write_bytes_to_pane(pane, bytes, snap);
         }
     }
 

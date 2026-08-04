@@ -302,6 +302,26 @@ impl PaneFiles {
     }
 }
 
+/// A login script answering an interactive bastion on one pane.
+///
+/// Holds NO secrets: `conn_id` is what a fired `SecretRef` is resolved
+/// against at send time, so a soft vault lock (which zeroizes the key)
+/// simply makes the next resolution fail instead of leaving a decrypted
+/// credential parked in app state.
+#[derive(Debug)]
+pub(crate) struct LoginScriptRun {
+    pub runner: oryxis_core::login_script::ScriptRunner,
+    /// Whose credentials the script's `SecretRef` steps mean.
+    pub conn_id: Uuid,
+    /// Deferred until the run finishes: sending it up front would land
+    /// in the bastion's menu instead of the asset's shell, and a
+    /// menu-driven bastion drains type-ahead it did not ask for.
+    pub pending_startup: Option<String>,
+    /// Generation for the timeout tick, so a stale wake-up from a run
+    /// that already finished cannot abort the one after it.
+    pub generation: u64,
+}
+
 /// One terminal pane, owns its alacritty grid and (optionally) the
 /// remote session feeding it. A `TerminalTab` holds one or more panes
 /// in a `pane_grid::State`, which owns their split layout.
@@ -419,6 +439,12 @@ pub(crate) struct Pane {
     /// transferring. Cheap (a few bytes of held-back state); it flags a
     /// `sz` / `rz` on the remote and hands over the byte stream.
     pub zmodem_detector: oryxis_zmodem::ZmodemDetector,
+    /// `Some` while a login script is answering an interactive bastion
+    /// on this pane (issue #122). Armed at session-ready, fed every
+    /// output batch, and dropped the moment the run ends, the user
+    /// types, or the session dies, so a lingering runner can never
+    /// answer a prompt from the shell the user is now driving.
+    pub login_script: Option<LoginScriptRun>,
     /// `Some` while a ZMODEM transfer owns this pane's byte stream: output
     /// is diverted to the driver (not the emulator) and input is frozen.
     /// Cleared when the transfer ends, which resumes the terminal.
@@ -555,6 +581,7 @@ impl Pane {
             attention: None,
             last_output: None,
             zmodem_detector: oryxis_zmodem::ZmodemDetector::new(),
+            login_script: None,
             zmodem: None,
             drop_upload: None,
             pending_drop_sources: Vec::new(),

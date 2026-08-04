@@ -154,6 +154,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Connection, "auto_reconnect", "auto reconnect disconnect retry drop"),
     e(S::Connection, "max_reconnect_attempts", "max reconnect attempts retries limit"),
     e(S::Connection, "os_detection", "os detection detect remote operating system probe"),
+    e(S::Connection, "login_scripts", "login automation script bastion jumpserver expect send prompt jump box"),
     // ── Security ───────────────────────────────────────────────────
     e(S::Security, "vault_password", "vault password master encryption protect"),
     e(S::Security, "lock_vault", "lock vault now secure"),

@@ -126,6 +126,73 @@ impl SecretInput {
     }
 }
 
+/// Which template the inline "new login script" sub-form starts from.
+/// Both expand to the same three-step shape; JumpServer just arrives
+/// pre-filled with what KoKo prints.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum ScriptTemplate {
+    /// Any menu-driven jump box; the user edits the three prompts.
+    #[default]
+    Bastion,
+    /// JumpServer / KoKo, pre-filled.
+    JumpServer,
+}
+
+/// Which of the draft's three prompt patterns an edit targets.
+///
+/// One discriminant instead of three near-identical messages, which
+/// also keeps the word "password" out of a message name: these hold the
+/// text the BASTION prints, never anything we type back, and a variant
+/// called `...PasswordChanged(String)` is exactly what the
+/// `secret_bearing_variants_carry_redacted` guard exists to catch.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ScriptPromptField {
+    Asset,
+    User,
+    Credential,
+}
+
+/// Inline sub-form for creating a login script from the host editor.
+/// The full step editor lives in Settings; this covers the shape every
+/// interactive bastion in the field actually has, which is what keeps
+/// the common case from being an authoring exercise.
+#[derive(Debug, Clone)]
+pub(crate) struct LoginScriptDraft {
+    pub name: String,
+    pub template: ScriptTemplate,
+    pub asset_prompt: String,
+    pub user_prompt: String,
+    pub password_prompt: String,
+}
+
+impl LoginScriptDraft {
+    pub fn new(template: ScriptTemplate) -> Self {
+        let preset = match template {
+            ScriptTemplate::Bastion => {
+                oryxis_core::login_script::BastionPreset::generic()
+            }
+            ScriptTemplate::JumpServer => {
+                oryxis_core::login_script::BastionPreset::jumpserver()
+            }
+        };
+        Self {
+            name: String::new(),
+            template,
+            asset_prompt: preset.asset_prompt,
+            user_prompt: preset.user_prompt,
+            password_prompt: preset.password_prompt,
+        }
+    }
+
+    pub fn preset(&self) -> oryxis_core::login_script::BastionPreset {
+        oryxis_core::login_script::BastionPreset {
+            asset_prompt: self.asset_prompt.clone(),
+            user_prompt: self.user_prompt.clone(),
+            password_prompt: self.password_prompt.clone(),
+        }
+    }
+}
+
 /// Connection editor form state.
 #[derive(Debug, Clone)]
 pub(crate) struct ConnectionForm {
@@ -234,6 +301,23 @@ pub(crate) struct ConnectionForm {
     /// canonical colon form on save, a malformed value blocks the save
     /// with an inline error rather than being dropped silently.
     pub mac_address: String,
+    /// Login automation for hosts behind an interactive bastion.
+    /// `None` = off. Mirrors `Connection.login_script_id`; a dangling
+    /// id (script deleted while the editor was open) renders as off.
+    pub login_script_id: Option<Uuid>,
+    /// Values for the selected script's `{placeholder}` variables on
+    /// this host, keyed by name. Plaintext by construction: a
+    /// credential is a `SecretRef` in the script, never a variable.
+    pub login_script_vars: Vec<(String, String)>,
+    /// The credential the script types at the ASSET's own prompt. The
+    /// host's `password` is spent on the bastion login, so this is a
+    /// second secret with the same tri-state discipline.
+    pub target_password: SecretInput,
+    pub has_existing_target_password: bool,
+    pub target_password_visible: bool,
+    /// Inline "new script" sub-form, open only while the user is
+    /// creating one from the host editor. `None` = closed.
+    pub login_script_draft: Option<LoginScriptDraft>,
     /// Per-host auto-title (OSC 0/2) override. Mirrors `Connection.auto_title`:
     /// `None` inherits the global setting, `Some(true/false)` forces it on/off
     /// for this host.
@@ -869,6 +953,24 @@ pub(crate) struct IdentityForm {
 /// records whether the stored row carries one, [`SecretInput`] tracks
 /// whether the user edited the field this session, so save can
 /// distinguish "leave as-is" from "clear" from "set".
+/// Settings > Connection management surface for login scripts. The
+/// host editor creates them (that is where the user already is when
+/// they need one); this is where they are renamed, re-authored step by
+/// step, and deleted.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct LoginScriptForm {
+    /// Which script's step editor is expanded. `None` = list only.
+    pub editing_id: Option<Uuid>,
+    pub name: String,
+    /// Working copy of the steps; committed to the vault on save so a
+    /// half-edited list never reaches a live connect.
+    pub steps: Vec<oryxis_core::login_script::LoginStep>,
+    /// Inline validation error (bad regex, empty script).
+    pub error: Option<String>,
+    /// Id pending delete confirmation.
+    pub confirm_delete: Option<Uuid>,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct ProxyIdentityForm {
     /// Whether the inline editor is currently shown.
@@ -966,6 +1068,12 @@ impl Default for ConnectionForm {
             terminal_theme: None,
             keepalive_interval: String::new(),
             mac_address: String::new(),
+            login_script_id: None,
+            login_script_vars: Vec::new(),
+            target_password: SecretInput::default(),
+            has_existing_target_password: false,
+            target_password_visible: false,
+            login_script_draft: None,
             auto_title: None,
             cloud_transport: None,
             icon_style: None,

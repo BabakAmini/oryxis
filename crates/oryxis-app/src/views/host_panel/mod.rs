@@ -25,6 +25,7 @@ mod basics;
 mod credentials;
 mod footer;
 mod integration;
+mod login_script;
 mod network;
 mod terminal_settings;
 
@@ -125,6 +126,7 @@ impl Oryxis {
         let rd_block = self.hp_rd_block(is_rd);
         let env_items = self.hp_env_items(is_ssh);
         let startup_block = self.hp_startup_block(is_ssh);
+        let login_script_block = self.hp_login_script_block(is_ssh);
         let appearance_items = self.hp_appearance_items();
         let row_session_logging = self.hp_row_session_logging();
         let row_privacy_mode = self.hp_row_privacy_mode();
@@ -285,7 +287,13 @@ impl Oryxis {
                 .push(Space::new().height(ROW_GAP))
                 .push(env_items)
                 .push(group_sep())
-                .push(startup_block);
+                .push(startup_block)
+                // Login automation sits right after the startup command
+                // on purpose: both are "what happens once the session
+                // opens", and the script has to finish before the
+                // startup command is sent (see `dispatch_ssh/session`).
+                .push(group_sep())
+                .push(login_script_block);
             panel_section(ssh_col)
         } else if is_serial {
             // Serial card: the line-parameter block under the header.

@@ -154,6 +154,23 @@ impl Oryxis {
             items.push(broadcast_segment_btn(idx, tab.broadcast));
             items.push(Space::new().width(10).into());
         }
+        // Login automation progress (issue #122). Present only while a
+        // script is actually running, which is a few seconds at connect,
+        // so it costs nothing the rest of the time. Read-only: the way
+        // to stop a run is to type, which is also the way to take over.
+        if let Some((step, total)) = self.login_script_progress() {
+            items.push(
+                text(
+                    crate::i18n::t("login_script_progress")
+                        .replace("{step}", &step.to_string())
+                        .replace("{total}", &total.to_string()),
+                )
+                .size(11)
+                .color(OryxisColors::t().accent)
+                .into(),
+            );
+            items.push(Space::new().width(10).into());
+        }
         // Host vitals (issue #83, the MobaXterm-style bar): the same
         // samples the sidebar Monitor tab renders, condensed to one line.
         // Behind its own setting AND the host's monitoring opt-in, so it

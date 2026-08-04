@@ -58,8 +58,17 @@ impl Oryxis {
                         .and_then(|v| v.get_connection_totp_secret(&conn.id).ok())
                         .flatten()
                         .is_some();
-                    self.editor_form =
-                        self.form_from_connection(conn, has_pw, has_proxy_pw, has_totp);
+                    let has_target_pw = self.vault.as_ref()
+                        .and_then(|v| v.get_connection_target_password(&conn.id).ok())
+                        .flatten()
+                        .is_some();
+                    self.editor_form = self.form_from_connection(
+                        conn,
+                        has_pw,
+                        has_proxy_pw,
+                        has_totp,
+                        has_target_pw,
+                    );
                     let cmd = conn.initial_command.as_deref().unwrap_or_default();
                     self.editor_initial_command =
                         iced::widget::text_editor::Content::with_text(cmd);
@@ -97,7 +106,7 @@ impl Oryxis {
                 self.panel_nav_clear();
                 self.host_panel_error = None;
                 self.active_view = crate::state::View::Dashboard;
-                let mut form = self.form_from_connection(&entry.conn, false, false, false);
+                let mut form = self.form_from_connection(&entry.conn, false, false, false, false);
                 // Prefill as a NEW host: saving must insert a fresh row,
                 // never overwrite; the open tab stays ephemeral until its
                 // next reconnect.
@@ -198,6 +207,19 @@ impl Oryxis {
                                 let s = secret.trim();
                                 let s = (!s.is_empty()).then_some(s);
                                 let _ = vault.set_connection_totp_secret(&conn.id, s);
+                            }
+                            // Target password, same clamp: it only means
+                            // anything while a login script is attached
+                            // (the save above already dropped the
+                            // reference on a non-SSH protocol), so
+                            // detaching the script clears the credential
+                            // instead of leaving it stranded.
+                            if conn.login_script_id.is_none() {
+                                let _ = vault.set_connection_target_password(&conn.id, None);
+                            } else if let Some(pw) =
+                                self.editor_form.target_password.resolve()
+                            {
+                                let _ = vault.set_connection_target_password(&conn.id, Some(pw));
                             }
                             self.panels.host_panel = false;
                             self.panel_nav_clear();
