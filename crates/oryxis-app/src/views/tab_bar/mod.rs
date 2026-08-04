@@ -639,20 +639,13 @@ impl Oryxis {
         .width(Length::Fill)
         .height(Length::Fixed(BAR_HEIGHT));
 
-        // Top mode: no leading padding (the burger already carries its own
-        // right padding, an extra strip margin just read as a gap before
-        // the first tab). Bottom mode: nothing claims the leading edge, so
-        // the strip gets its own small gutter before the Home tab, and one
-        // extra px on top so the tabs don't hug the accent hairline that
-        // now sits directly above them.
+        // No leading padding in either mode: the burger (top) or the
+        // Home tab's own gutter (bottom) already claims the leading
+        // edge out in the fixed row. Bottom mode keeps one extra px on
+        // top so the tabs don't hug the accent hairline that sits
+        // directly above them.
         let strip_padding = if bottom {
-            // The gutter hugs the leading edge, which flips under RTL
-            // (dir_row renders the Home tab on the right there).
-            if crate::i18n::is_rtl_layout() {
-                Padding { top: 5.0, right: 8.0, bottom: 4.0, left: 0.0 }
-            } else {
-                Padding { top: 5.0, right: 0.0, bottom: 4.0, left: 8.0 }
-            }
+            Padding { top: 5.0, right: 0.0, bottom: 4.0, left: 0.0 }
         } else {
             Padding { top: 4.0, right: 0.0, bottom: 4.0, left: 0.0 }
         };
@@ -702,10 +695,17 @@ impl Oryxis {
             leading.push(burger_menu_btn(self.panels.burger_menu));
             // 1 px breather between the burger and the first area tab (home).
             leading.push(Space::new().width(1).height(TAB_HEIGHT).into());
+        } else {
+            // Bottom mode has no burger, so the Home tab leads the row;
+            // give it a small gutter off the window edge. `dir_row`
+            // flips the whole row under RTL, which carries the gutter
+            // to the mirrored leading edge with no manual branch.
+            leading.push(Space::new().width(8).height(TAB_HEIGHT).into());
         }
-        // The navigation areas live as top-level tabs before the
-        // connection tabs (see `home_area_tab` for the selection family
-        // and why Settings stays out).
+        // The navigation areas live as fixed top-level tabs before the
+        // scrollable connection strip (see `home_area_tab` for the
+        // selection family and why Settings stays out), so Home stays
+        // reachable no matter how far the strip overflows.
         leading.push(self.home_area_tab(solid_fill));
         leading.push(Space::new().width(TAB_SPACING).height(TAB_HEIGHT).into());
         leading.push(tab_strip);
