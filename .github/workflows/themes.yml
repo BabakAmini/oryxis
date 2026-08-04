@@ -16,6 +16,9 @@ on:
     paths:
       - "themes/**"
       - "scripts/gen_theme_index.py"
+  # Manual recovery: if a push run loses the head race (see the
+  # expectedHeadOid note below) this regenerates from the current head.
+  workflow_dispatch:
 
 # Least privilege by default; only the job that commits the regenerated
 # index widens it. Declared here rather than left implicit because a
@@ -43,12 +46,22 @@ jobs:
 
   index:
     name: Regenerate index
-    if: github.event_name == 'push'
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # The push happens over the THEMES_DEPLOY_KEY deploy key, not the
+      # workflow token: the main ruleset (PR required, restricted
+      # updates, verified signatures) rejects a push from the Actions
+      # bot, and a personal-account repository cannot list the Actions
+      # app as a ruleset bypass actor. "Deploy keys" is a bypass actor
+      # instead, and this write-scoped key exists solely for this
+      # workflow. A stale-head push still fails on non-fast-forward and
+      # the newer push's own run (or a manual dispatch) regenerates.
       - uses: actions/checkout@v5
+        with:
+          ssh-key: ${{ secrets.THEMES_DEPLOY_KEY }}
 
       - name: Regenerate themes/index.json
         run: python3 scripts/gen_theme_index.py
