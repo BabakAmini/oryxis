@@ -794,3 +794,96 @@ fn import_leaves_a_clean_hierarchy_alone() {
         Some(child.id)
     );
 }
+
+/// A login script, its per-host variables and the target password it
+/// types must all survive a portable export/import. The script rides
+/// the Connections category (it has no checkbox of its own), so the
+/// second half asserts that: unchecking Connections drops both.
+#[test]
+fn export_import_login_script_round_trip() {
+    use crate::portable::{export_vault, import_vault, ExportFilter, ExportOptions};
+    use oryxis_core::login_script::{ExpectPattern, LoginStep, SecretRef, SendPayload};
+    use oryxis_core::models::connection::ScriptVar;
+
+    let vault = unlocked_vault();
+
+    let mut script = LoginScript::new("jumpserver");
+    script.steps = vec![
+        LoginStep {
+            expect: Some(ExpectPattern::Suffix("opt>".into())),
+            send: SendPayload::Text("{asset}".into()),
+            timeout_ms: 0,
+            optional: false,
+        },
+        LoginStep {
+            expect: Some(ExpectPattern::Suffix("password:".into())),
+            send: SendPayload::Secret(SecretRef::TargetPassword),
+            timeout_ms: 12_000,
+            optional: false,
+        },
+    ];
+    vault.save_login_script(&script).unwrap();
+
+    let mut conn = Connection::new("behind-bastion", "10.0.0.7");
+    conn.login_script_id = Some(script.id);
+    conn.login_script_vars = vec![ScriptVar {
+        name: "asset".into(),
+        value: "web-01".into(),
+    }];
+    vault.save_connection(&conn, Some("bastion-pw")).unwrap();
+    vault
+        .set_connection_target_password(&conn.id, Some("asset-pw"))
+        .unwrap();
+
+    let data = export_vault(
+        &vault,
+        "export-pw",
+        ExportOptions {
+            include_private_keys: false,
+            filter: ExportFilter::All,
+            selection: crate::portable::ExportSelection::all(),
+        },
+    )
+    .unwrap();
+
+    let vault2 = unlocked_vault();
+    let result = import_vault(
+        &vault2,
+        &data,
+        "export-pw",
+        &crate::portable::ExportSelection::all(),
+    )
+    .unwrap();
+    assert_eq!(result.connections_added, 1);
+    assert_eq!(result.login_scripts_added, 1);
+
+    let scripts = vault2.list_login_scripts().unwrap();
+    assert_eq!(scripts.len(), 1);
+    assert_eq!(scripts[0].steps, script.steps);
+
+    let conn2 = &vault2.list_connections().unwrap()[0];
+    assert_eq!(conn2.login_script_id, Some(script.id));
+    assert_eq!(conn2.login_script_vars[0].value, "web-01");
+    // Both secrets land in their own encrypted columns.
+    assert_eq!(
+        vault2.get_connection_password(&conn2.id).unwrap().as_deref(),
+        Some("bastion-pw")
+    );
+    assert_eq!(
+        vault2
+            .get_connection_target_password(&conn2.id)
+            .unwrap()
+            .as_deref(),
+        Some("asset-pw")
+    );
+
+    // Unchecking Connections drops the scripts with them, so an import
+    // can never produce a script nothing references.
+    let vault3 = unlocked_vault();
+    let mut narrowed = crate::portable::ExportSelection::all();
+    narrowed.connections = false;
+    let result = import_vault(&vault3, &data, "export-pw", &narrowed).unwrap();
+    assert_eq!(result.connections_added, 0);
+    assert_eq!(result.login_scripts_added, 0);
+    assert!(vault3.list_login_scripts().unwrap().is_empty());
+}

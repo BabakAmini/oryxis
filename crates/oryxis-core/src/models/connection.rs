@@ -162,6 +162,20 @@ pub struct Connection {
     /// `initial_command` (custom) or nothing.
     #[serde(default)]
     pub startup_snippet_id: Option<Uuid>,
+    /// Expect/send automation replayed after the SSH login, for hosts
+    /// that authenticate INSIDE the TTY (JumpServer-class bastions,
+    /// menu-driven jump boxes). Points at a shared `LoginScript`; a
+    /// dangling id (script deleted) resolves to no automation, never an
+    /// error, same rule as `proxy_identity_id`.
+    #[serde(default)]
+    pub login_script_id: Option<Uuid>,
+    /// Values for the script's `{placeholder}` variables on THIS host,
+    /// which is what lets one script serve many assets behind the same
+    /// bastion. Plaintext by construction: a credential can never be a
+    /// variable, it is a `SecretRef` in the script and an encrypted
+    /// column here.
+    #[serde(default)]
+    pub login_script_vars: Vec<ScriptVar>,
     /// Per-host SSH keepalive override (seconds). `None` inherits the
     /// global `keepalive_interval` setting. `Some(0)` explicitly disables
     /// keepalive on this host even when the global default is non-zero.
@@ -294,6 +308,8 @@ impl Connection {
             cloud_ref: None,
             initial_command: None,
             startup_snippet_id: None,
+            login_script_id: None,
+            login_script_vars: Vec::new(),
             keepalive_interval: None,
             mac_address: None,
             auto_title: None,
@@ -427,6 +443,16 @@ pub struct PortForward {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EnvVar {
     pub key: String,
+    pub value: String,
+}
+
+/// One `{placeholder}` value for this host's login script. A named
+/// pair rather than a tuple so the serialized form stays readable and
+/// can gain fields (a per-variable "secret" flag is deliberately NOT
+/// one of them: secrets are `SecretRef`s, never variables).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ScriptVar {
+    pub name: String,
     pub value: String,
 }
 
@@ -569,6 +595,23 @@ mod tests {
         value.as_object_mut().unwrap().remove("mac_address");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.mac_address, None);
+    }
+
+    /// Same contract for the login script: a payload from a peer that
+    /// never knew about it carries neither key, and both must land as
+    /// "no automation". Defaulting `login_script_vars` to an empty list
+    /// matters as much as the id: a script resolved with no variables
+    /// would type literal `{asset}` text at a bastion prompt.
+    #[test]
+    fn login_script_legacy_payload_defaults_to_none() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("login_script_id");
+        obj.remove("login_script_vars");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.login_script_id, None);
+        assert!(de.login_script_vars.is_empty());
     }
 
     /// Same contract for the monitoring opt-in: a payload written before

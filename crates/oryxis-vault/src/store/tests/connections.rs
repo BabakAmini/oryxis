@@ -646,3 +646,165 @@ fn sftp_initial_path_roundtrips_and_blank_reads_as_none() {
 }
 
 // ── Group.cloud_query ──
+
+// ── Login scripts ──
+
+/// The script reference + its variables round-trip through the plain
+/// `login_script` column, and both halves survive independently.
+#[test]
+fn login_script_reference_round_trips() {
+    use oryxis_core::models::connection::ScriptVar;
+    let vault = unlocked_vault();
+    let script = LoginScript::new("jumpserver");
+    vault.save_login_script(&script).unwrap();
+
+    let mut conn = Connection::new("h", "bastion.example");
+    conn.login_script_id = Some(script.id);
+    conn.login_script_vars = vec![ScriptVar {
+        name: "asset".into(),
+        value: "web-01".into(),
+    }];
+    vault.save_connection(&conn, None).unwrap();
+
+    let stored = &vault.list_connections().unwrap()[0];
+    assert_eq!(stored.login_script_id, Some(script.id));
+    assert_eq!(stored.login_script_vars.len(), 1);
+    assert_eq!(stored.login_script_vars[0].name, "asset");
+    assert_eq!(stored.login_script_vars[0].value, "web-01");
+
+    // Detaching clears both halves.
+    conn.login_script_id = None;
+    conn.login_script_vars.clear();
+    vault.save_connection(&conn, None).unwrap();
+    let stored = &vault.list_connections().unwrap()[0];
+    assert_eq!(stored.login_script_id, None);
+    assert!(stored.login_script_vars.is_empty());
+}
+
+/// Deleting a script detaches every host that referenced it, so the
+/// editor can't show a picker entry pointing at nothing.
+#[test]
+fn deleting_a_login_script_detaches_its_hosts() {
+    let vault = unlocked_vault();
+    let script = LoginScript::new("koko");
+    vault.save_login_script(&script).unwrap();
+
+    let mut conn = Connection::new("h", "bastion.example");
+    conn.login_script_id = Some(script.id);
+    vault.save_connection(&conn, None).unwrap();
+    assert_eq!(
+        vault.login_script_usage().unwrap().get(&script.id),
+        Some(&1usize)
+    );
+
+    vault.delete_login_script(&script.id).unwrap();
+    assert!(vault.list_login_scripts().unwrap().is_empty());
+    assert_eq!(vault.list_connections().unwrap()[0].login_script_id, None);
+}
+
+/// Same tri-state contract as every other credential: None preserves,
+/// Some("") clears, Some(v) stores.
+#[test]
+fn target_password_tri_state() {
+    let vault = unlocked_vault();
+    let conn = Connection::new("h", "host");
+    vault.save_connection(&conn, None).unwrap();
+
+    vault
+        .set_connection_target_password(&conn.id, Some("asset-pw"))
+        .unwrap();
+    assert_eq!(
+        vault.get_connection_target_password(&conn.id).unwrap().as_deref(),
+        Some("asset-pw")
+    );
+    vault.set_connection_target_password(&conn.id, Some("")).unwrap();
+    assert_eq!(vault.get_connection_target_password(&conn.id).unwrap(), None);
+}
+
+/// Like the proxy password and the TOTP secret, the target password
+/// must survive a re-save of the connection that doesn't touch it.
+#[test]
+fn target_password_survives_unrelated_resave() {
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "host");
+    vault.save_connection(&conn, None).unwrap();
+    vault
+        .set_connection_target_password(&conn.id, Some("asset-pw"))
+        .unwrap();
+
+    conn.label = "renamed".into();
+    vault.save_connection(&conn, None).unwrap();
+
+    assert_eq!(
+        vault.get_connection_target_password(&conn.id).unwrap().as_deref(),
+        Some("asset-pw"),
+        "editing an unrelated field wiped the target password"
+    );
+}
+
+/// Structural, in the spirit of `proxy_password_does_not_leak_into_proxy_column`:
+/// neither the script's own `steps` column nor the host's `login_script`
+/// column may ever contain credential material. The types already make
+/// it impossible (a step carries a `SecretRef` discriminant, and a
+/// variable is a plain name/value pair), so this is the guard that keeps
+/// it that way.
+#[test]
+fn login_script_columns_never_carry_a_secret() {
+    use oryxis_core::login_script::{ExpectPattern, LoginStep, SecretRef, SendPayload};
+    use oryxis_core::models::connection::ScriptVar;
+    let vault = unlocked_vault();
+
+    let mut script = LoginScript::new("koko");
+    script.steps = vec![
+        LoginStep {
+            expect: Some(ExpectPattern::Suffix("opt>".into())),
+            send: SendPayload::Text("{asset}".into()),
+            timeout_ms: 0,
+            optional: false,
+        },
+        LoginStep {
+            expect: Some(ExpectPattern::Suffix("password:".into())),
+            send: SendPayload::Secret(SecretRef::TargetPassword),
+            timeout_ms: 0,
+            optional: false,
+        },
+    ];
+    vault.save_login_script(&script).unwrap();
+
+    let mut conn = Connection::new("h", "bastion.example");
+    conn.login_script_id = Some(script.id);
+    conn.login_script_vars = vec![ScriptVar {
+        name: "asset".into(),
+        value: "web-01".into(),
+    }];
+    vault.save_connection(&conn, None).unwrap();
+    vault
+        .set_connection_target_password(&conn.id, Some("should-not-persist"))
+        .unwrap();
+
+    let raw_steps: String = vault
+        .db
+        .query_row(
+            "SELECT steps FROM login_scripts WHERE id = ?1",
+            params![script.id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(
+        !raw_steps.contains("should-not-persist"),
+        "target password leaked into the plaintext steps column: {raw_steps}"
+    );
+
+    let raw_ref: String = vault
+        .db
+        .query_row(
+            "SELECT login_script FROM connections WHERE id = ?1",
+            params![conn.id.to_string()],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(
+        !raw_ref.contains("should-not-persist"),
+        "target password leaked into the plaintext login_script column: {raw_ref}"
+    );
+}

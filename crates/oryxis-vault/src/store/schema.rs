@@ -134,6 +134,18 @@ impl VaultStore {
                 updated_at TEXT NOT NULL
             );
 
+            -- Reusable expect/send login automations linked from
+            -- `connections` via `login_script_id`. `steps` is plain JSON
+            -- on purpose: a step can only reference a secret, never
+            -- carry one (see `oryxis_core::login_script::SecretRef`).
+            CREATE TABLE IF NOT EXISTS login_scripts (
+                id         TEXT PRIMARY KEY,
+                name       TEXT NOT NULL,
+                steps      TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS known_hosts (
                 id          TEXT PRIMARY KEY,
                 hostname    TEXT NOT NULL,
@@ -402,6 +414,17 @@ impl VaultStore {
         // Wake-on-LAN MAC address (NULL / empty = no MAC, card action
         // hidden). Plain text: a MAC is a locator, not a credential.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN mac_address TEXT;");
+
+        // Login automation for hosts behind an interactive bastion:
+        // `login_script` is the JSON `{ id, vars }` pair (plaintext, it
+        // holds only a reference and placeholder values), while
+        // `target_password` is the credential the script types at the
+        // asset's own prompt, encrypted like `totp_secret`. The
+        // connection's existing `password` column is spent on the
+        // bastion login, which is why the second secret needs a column
+        // of its own.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN login_script TEXT;");
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN target_password BLOB;");
 
         // Populate new timestamp columns with sensible defaults
         let _ = self.db.execute_batch("UPDATE keys SET updated_at = created_at WHERE updated_at IS NULL;");

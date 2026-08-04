@@ -96,6 +96,12 @@ pub enum EntityType {
     /// hosts by id or are local shells), so the bare model travels over the
     /// wire like `Group`.
     SessionGroup,
+    /// Reusable expect/send login automations referenced from
+    /// `Connection.login_script_id`. Carries patterns and secret
+    /// REFERENCES only (the credential it types lives in the host's
+    /// encrypted `target_password`), so the bare model travels over the
+    /// wire like `Snippet`, with no `sync_passwords` gate of its own.
+    LoginScript,
 }
 
 impl std::fmt::Display for EntityType {
@@ -111,11 +117,51 @@ impl std::fmt::Display for EntityType {
             Self::CloudProfile => write!(f, "cloud_profile"),
             Self::PortForwardRule => write!(f, "port_forward_rule"),
             Self::SessionGroup => write!(f, "session_group"),
+            Self::LoginScript => write!(f, "login_script"),
         }
     }
 }
 
 impl EntityType {
+    /// Every variant, for the round-trip test. Kept honest by
+    /// `wire_index` below: a new variant forces an arm there, and the
+    /// arm's index forces this list to grow.
+    pub const ALL: [EntityType; 11] = [
+        Self::Connection,
+        Self::SshKey,
+        Self::Identity,
+        Self::Group,
+        Self::Snippet,
+        Self::KnownHost,
+        Self::ProxyIdentity,
+        Self::CloudProfile,
+        Self::PortForwardRule,
+        Self::SessionGroup,
+        Self::LoginScript,
+    ];
+
+    /// Position of a variant in [`Self::ALL`]. Exists only so the
+    /// compiler refuses a new variant that nobody listed: the match is
+    /// exhaustive, and `all_covers_every_variant` asserts the mapping
+    /// agrees with the array. Test-only, which is enough: `cargo test`
+    /// and `clippy --all-targets` are both CI gates.
+    #[cfg(test)]
+    fn wire_index(self) -> usize {
+        match self {
+            Self::Connection => 0,
+            Self::SshKey => 1,
+            Self::Identity => 2,
+            Self::Group => 3,
+            Self::Snippet => 4,
+            Self::KnownHost => 5,
+            Self::ProxyIdentity => 6,
+            Self::CloudProfile => 7,
+            Self::PortForwardRule => 8,
+            Self::SessionGroup => 9,
+            Self::LoginScript => 10,
+        }
+    }
+
     /// Parse the wire string produced by [`Display`]. This is the
     /// inverse used to map the vault's string-typed `sync_metadata`
     /// tombstones back into typed manifest entries. An unknown string
@@ -133,6 +179,7 @@ impl EntityType {
             "cloud_profile" => Some(Self::CloudProfile),
             "port_forward_rule" => Some(Self::PortForwardRule),
             "session_group" => Some(Self::SessionGroup),
+            "login_script" => Some(Self::LoginScript),
             _ => None,
         }
     }
@@ -331,6 +378,14 @@ pub struct SyncConnection {
     /// TOTP secret was explicitly removed.
     #[serde(default, skip_serializing_if = "is_false")]
     pub totp_secret_cleared: bool,
+    /// The credential a login script types at the ASSET's prompt,
+    /// behind an interactive bastion (separate encrypted column on
+    /// disk), gated by `sync_passwords` like every other credential.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub target_password: Option<String>,
+    /// Target password was explicitly removed.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub target_password_cleared: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -413,6 +468,8 @@ mod tests {
             proxy_password_cleared: false,
             totp_secret: None,
             totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
         };
         let v = serde_json::to_value(&cleared).unwrap();
         assert_eq!(v["password_cleared"], serde_json::json!(true));
@@ -434,6 +491,8 @@ mod tests {
             proxy_password_cleared: false,
             totp_secret: None,
             totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
         };
         let back: SyncConnection =
             serde_json::from_value(serde_json::to_value(&set).unwrap()).unwrap();
@@ -532,21 +591,23 @@ mod tests {
     /// the manifest builder maps it back.
     #[test]
     fn entity_type_wire_str_round_trip() {
-        let all = [
-            EntityType::Connection,
-            EntityType::SshKey,
-            EntityType::Identity,
-            EntityType::Group,
-            EntityType::Snippet,
-            EntityType::KnownHost,
-            EntityType::ProxyIdentity,
-            EntityType::CloudProfile,
-        ];
-        for et in all {
+        for et in EntityType::ALL {
             let s = et.to_string();
             assert_eq!(EntityType::from_wire_str(&s), Some(et), "round-trip {s}");
         }
         assert_eq!(EntityType::from_wire_str("unknown_future_type"), None);
+    }
+
+    /// The list above used to be written out by hand at each call site
+    /// and had silently fallen two variants behind. `ALL` is now the
+    /// single list, and this asserts it stayed complete: adding a
+    /// variant forces an arm in `wire_index`, and its index has to
+    /// point at the matching slot here.
+    #[test]
+    fn all_covers_every_variant() {
+        for (i, et) in EntityType::ALL.iter().enumerate() {
+            assert_eq!(et.wire_index(), i, "{et} is in the wrong ALL slot");
+        }
     }
 
     #[test]
@@ -596,6 +657,8 @@ mod tests {
             proxy_password_cleared: false,
             totp_secret: Some("JBSWY3DPEHPK3PXP".into()),
             totp_secret_cleared: false,
+            target_password: Some("asset-pw".into()),
+            target_password_cleared: false,
         };
         let bytes = serde_json::to_vec(&wrapper).unwrap();
         let back: SyncConnection = serde_json::from_slice(&bytes).unwrap();
@@ -618,6 +681,8 @@ mod tests {
             proxy_password_cleared: false,
             totp_secret: None,
             totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
         };
         let json = serde_json::to_string(&wrapper).unwrap();
         assert!(

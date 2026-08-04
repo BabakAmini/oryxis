@@ -66,26 +66,37 @@ impl VaultStore {
             AddressFamily::V6 => "v6",
         };
 
-        // The proxy password and TOTP secret live in their own encrypted
-        // columns, written only by their dedicated setters. INSERT OR
-        // REPLACE resets every column missing from its list to NULL, so
-        // both must be carried through each save (regression:
-        // `proxy_password_survives_unrelated_resave`).
-        let (existing_proxy_pw, existing_totp): (Option<Vec<u8>>, Option<Vec<u8>>) = self
+        // The proxy password, TOTP secret and target password live in
+        // their own encrypted columns, written only by their dedicated
+        // setters. INSERT OR REPLACE resets every column missing from
+        // its list to NULL, so all three must be carried through each
+        // save (regression: `proxy_password_survives_unrelated_resave`).
+        type CarriedSecrets = (Option<Vec<u8>>, Option<Vec<u8>>, Option<Vec<u8>>);
+        let (existing_proxy_pw, existing_totp, existing_target_pw): CarriedSecrets = self
             .db
             .query_row(
-                "SELECT proxy_password, totp_secret FROM connections WHERE id = ?1",
+                "SELECT proxy_password, totp_secret, target_password FROM connections WHERE id = ?1",
                 params![conn.id.to_string()],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
-            .unwrap_or((None, None));
+            .unwrap_or((None, None, None));
+
+        // `{ id, vars }` in one plaintext column: the id is a reference
+        // and the vars are placeholder values, never a credential.
+        let login_script_json = conn.login_script_id.map(|id| {
+            serde_json::json!({
+                "id": id.to_string(),
+                "vars": conn.login_script_vars,
+            })
+            .to_string()
+        });
 
         self.db.execute(
             "INSERT OR REPLACE INTO connections
              (id, label, hostname, port, username, auth_method, key_id, group_id,
               jump_chain, proxy, tags, notes, color, password, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards,
-              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51,?52,?53,?54,?55,?56)",
+              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, target_password)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51,?52,?53,?54,?55,?56,?57,?58)",
             params![
                 conn.id.to_string(),
                 conn.label,
@@ -150,6 +161,8 @@ impl VaultStore {
                 conn.x11_forwarding as i32,
                 conn.sftp_initial_path,
                 conn.mac_address,
+                login_script_json,
+                existing_target_pw,
             ],
         )?;
         // Re-creation clears any stale tombstone for this id (the
@@ -172,12 +185,12 @@ impl VaultStore {
         let query = match mcp_filter {
             Some(true) => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script
                  FROM connections WHERE mcp_enabled = 1 AND (protocol IS NULL OR protocol = 'ssh') ORDER BY label"
             }
             _ => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script
                  FROM connections ORDER BY label"
             }
         };
@@ -229,6 +242,15 @@ impl VaultStore {
                         Some("v6") => AddressFamily::V6,
                         _ => AddressFamily::Auto,
                     };
+                // Login automation reference `{ id, vars }`. Malformed
+                // JSON reads as no automation rather than failing the
+                // whole row: a host that cannot be listed is worse than
+                // one whose bastion script needs re-picking.
+                let login_script: Option<serde_json::Value> = row
+                    .get::<_, Option<String>>(53)
+                    .ok()
+                    .flatten()
+                    .and_then(|s| serde_json::from_str(&s).ok());
 
                 Ok(Connection {
                     id: Uuid::parse_str(&row.get::<_, String>(0)?).unwrap_or_default(),
@@ -409,6 +431,16 @@ impl VaultStore {
                         .ok()
                         .flatten()
                         .filter(|s| !s.trim().is_empty()),
+                    login_script_id: login_script
+                        .as_ref()
+                        .and_then(|s| s.get("id"))
+                        .and_then(|v| v.as_str())
+                        .and_then(|s| Uuid::parse_str(s).ok()),
+                    login_script_vars: login_script
+                        .as_ref()
+                        .and_then(|s| s.get("vars"))
+                        .and_then(|v| serde_json::from_value(v.clone()).ok())
+                        .unwrap_or_default(),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;
@@ -496,6 +528,48 @@ impl VaultStore {
             .db
             .query_row(
                 "SELECT totp_secret FROM connections WHERE id = ?1",
+                params![id.to_string()],
+                |row| row.get(0),
+            )
+            .map_err(|_| VaultError::NotFound(format!("Connection {}", id)))?;
+
+        match data {
+            Some(encrypted) => Ok(Some(self.decrypt_field(&encrypted)?)),
+            None => Ok(None),
+        }
+    }
+
+    /// Set the target password for a connection: the credential a login
+    /// script types at the ASSET's prompt, after the connection's own
+    /// `password` has already been spent on the bastion login. `None`
+    /// or an empty string clears it. Same encrypted-column scheme as
+    /// `set_connection_totp_secret`, for the same reason.
+    pub fn set_connection_target_password(
+        &self,
+        id: &Uuid,
+        password: Option<&str>,
+    ) -> Result<(), VaultError> {
+        let encrypted: Option<Vec<u8>> = match password {
+            Some(pw) if !pw.is_empty() => Some(self.encrypt_field(pw)?),
+            _ => None,
+        };
+        self.db.execute(
+            "UPDATE connections SET target_password = ?1 WHERE id = ?2",
+            params![encrypted, id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Get the decrypted target password for a connection.
+    pub fn get_connection_target_password(
+        &self,
+        id: &Uuid,
+    ) -> Result<Option<String>, VaultError> {
+        self.require_unlocked()?;
+        let data: Option<Vec<u8>> = self
+            .db
+            .query_row(
+                "SELECT target_password FROM connections WHERE id = ?1",
                 params![id.to_string()],
                 |row| row.get(0),
             )

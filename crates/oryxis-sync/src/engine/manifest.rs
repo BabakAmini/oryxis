@@ -50,7 +50,7 @@ pub(super) fn active_peer_pubkey(
 /// SQLite table behind each syncable entity type, in manifest order.
 /// Drives the lean stamp queries in [`build_manifest`]; the names are
 /// re-validated against a whitelist inside `list_entity_stamps`.
-const STAMP_TABLES: [(EntityType, &str); 10] = [
+const STAMP_TABLES: [(EntityType, &str); 11] = [
     (EntityType::Connection, "connections"),
     (EntityType::SshKey, "keys"),
     (EntityType::Identity, "identities"),
@@ -61,6 +61,7 @@ const STAMP_TABLES: [(EntityType, &str); 10] = [
     (EntityType::KnownHost, "known_hosts"),
     (EntityType::CloudProfile, "cloud_profiles"),
     (EntityType::SessionGroup, "session_groups"),
+    (EntityType::LoginScript, "login_scripts"),
 ];
 
 /// Build a manifest of all syncable entities in the vault, plus a
@@ -208,6 +209,7 @@ pub(crate) fn collect_records(
     let mut rule_cache = None;
     let mut known_host_cache = None;
     let mut cloud_profile_cache = None;
+    let mut login_script_cache = None;
 
     // Fill `$cache` from `v.$list()` on first use, then hand back a
     // `&HashMap<Uuid, T>` for lookup.
@@ -292,6 +294,13 @@ pub(crate) fn collect_records(
                     } else {
                         (None, false)
                     };
+                    let (target_password, target_password_cleared) = if sync_passwords {
+                        let pw = v.get_connection_target_password(&c.id).ok().flatten();
+                        let cleared = pw.is_none();
+                        (pw, cleared)
+                    } else {
+                        (None, false)
+                    };
                     let wrapper = protocol::SyncConnection {
                         connection: c.clone(),
                         password,
@@ -300,6 +309,8 @@ pub(crate) fn collect_records(
                         proxy_password_cleared,
                         totp_secret,
                         totp_secret_cleared,
+                        target_password,
+                        target_password_cleared,
                     };
                     encode!(wrapper, "Connection")
                 })
@@ -369,6 +380,12 @@ pub(crate) fn collect_records(
                 let hosts = cached!(known_host_cache, list_known_hosts);
                 hosts.get(&delta.entity_id)
                     .and_then(|kh| encode!(kh, "KnownHost"))
+            }
+            EntityType::LoginScript => {
+                let items = cached!(login_script_cache, list_login_scripts);
+                items
+                    .get(&delta.entity_id)
+                    .and_then(|s| encode!(s, "LoginScript"))
             }
             EntityType::CloudProfile => {
                 let items = cached!(cloud_profile_cache, list_cloud_profiles);
@@ -496,6 +513,7 @@ pub(crate) fn apply_records(
                 EntityType::PortForwardRule => {
                     v.delete_port_forward_rule(&record.entity_id)
                 }
+                EntityType::LoginScript => v.delete_login_script(&record.entity_id),
             };
             if let Err(e) = result {
                 tracing::warn!(
@@ -557,6 +575,11 @@ pub(crate) fn apply_records(
                         }
                         if let Some(arg) = secret_arg(&sc.totp_secret, sc.totp_secret_cleared) {
                             log_save!(v.set_connection_totp_secret(&id, Some(arg)));
+                        }
+                        if let Some(arg) =
+                            secret_arg(&sc.target_password, sc.target_password_cleared)
+                        {
+                            log_save!(v.set_connection_target_password(&id, Some(arg)));
                         }
                     }
                     Err(e) => tracing::warn!(
@@ -651,6 +674,15 @@ pub(crate) fn apply_records(
                     Ok(rule) => log_save!(v.save_port_forward_rule(&rule)),
                     Err(e) => tracing::warn!(
                         "sync: bad PortForwardRule payload for {}: {e}",
+                        record.entity_id
+                    ),
+                }
+            }
+            EntityType::LoginScript => {
+                match serde_json::from_slice::<oryxis_core::models::LoginScript>(&payload) {
+                    Ok(script) => log_save!(v.save_login_script(&script)),
+                    Err(e) => tracing::warn!(
+                        "sync: bad LoginScript payload for {}: {e}",
                         record.entity_id
                     ),
                 }
@@ -765,6 +797,8 @@ mod lww_tests {
             proxy_password_cleared: false,
             totp_secret: None,
             totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
         };
         let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
         let payload = cipher.encrypt(&serde_json::to_vec(&wrapper).unwrap()).unwrap();

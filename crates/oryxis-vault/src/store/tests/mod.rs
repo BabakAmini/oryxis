@@ -4,6 +4,7 @@ use oryxis_core::models::group::Group;
 use oryxis_core::models::key::{KeyAlgorithm, SshKey};
 use oryxis_core::models::known_host::KnownHost;
 use oryxis_core::models::log_entry::{LogEntry, LogEvent};
+use oryxis_core::models::login_script::LoginScript;
 use oryxis_core::models::session_group::{
     PaneLayout, PaneMember, PaneSource, SessionGroup, SplitAxis,
 };

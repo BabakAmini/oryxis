@@ -71,6 +71,9 @@ fn every_encrypted_field_survives_master_password_change() {
     vault
         .set_connection_totp_secret(&conn.id, Some("JBSWY3DPEHPK3PXP"))
         .unwrap();
+    vault
+        .set_connection_target_password(&conn.id, Some("asset-pw"))
+        .unwrap();
 
     let key = SshKey::new("k", KeyAlgorithm::Ed25519);
     vault.save_key(&key, Some("PRIVATE-PEM")).unwrap();
@@ -100,6 +103,10 @@ fn every_encrypted_field_survives_master_password_change() {
     assert_eq!(
         vault.get_connection_totp_secret(&conn.id).unwrap().as_deref(),
         Some("JBSWY3DPEHPK3PXP")
+    );
+    assert_eq!(
+        vault.get_connection_target_password(&conn.id).unwrap().as_deref(),
+        Some("asset-pw")
     );
     assert_eq!(vault.get_key_private(&key.id).unwrap().as_deref(), Some("PRIVATE-PEM"));
     assert_eq!(vault.get_identity_password(&ident.id).unwrap().as_deref(), Some("ident-pw"));

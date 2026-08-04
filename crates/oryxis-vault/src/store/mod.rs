@@ -422,6 +422,7 @@ mod groups;
 mod identities;
 mod keys;
 mod known_hosts;
+mod login_scripts;
 mod logs;
 mod schema;
 mod settings;
@@ -998,6 +999,7 @@ impl VaultStore {
             ("connections", "id", "password"),
             ("connections", "id", "proxy_password"),
             ("connections", "id", "totp_secret"),
+            ("connections", "id", "target_password"),
             ("keys", "id", "private_key"),
             ("identities", "id", "password"),
             ("proxy_identities", "id", "password"),

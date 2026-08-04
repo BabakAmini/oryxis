@@ -2,8 +2,8 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
 use oryxis_core::models::{
-    CloudProfile, Connection, CustomTerminalTheme, Group, Identity, KnownHost, PortForwardRule,
-    ProxyIdentity, SessionGroup, Snippet, SshKey,
+    CloudProfile, Connection, CustomTerminalTheme, Group, Identity, KnownHost, LoginScript,
+    PortForwardRule, ProxyIdentity, SessionGroup, Snippet, SshKey,
 };
 
 use crate::store::{encrypt, decrypt, VaultError, VaultStore};
@@ -51,6 +51,12 @@ struct ExportPayload {
     /// with export files written before this field existed.
     #[serde(default)]
     session_groups: Vec<SessionGroup>,
+    /// Reusable login automations referenced from connections via
+    /// `login_script_id`. No secrets of their own (a step can only
+    /// reference one), so the bare model travels here. Defaults to
+    /// empty for backwards compat with older export files.
+    #[serde(default)]
+    login_scripts: Vec<LoginScript>,
     /// Portable application preferences (theme, language, terminal +
     /// SFTP + cloud prefs, AI provider/model/key, …). Device-local and
     /// security-sensitive keys are filtered out on the way in and out
@@ -92,6 +98,11 @@ struct ExportConnection {
     /// to None on import of older files.
     #[serde(default)]
     totp_secret: Option<String>,
+    /// The credential a login script types at the asset's own prompt,
+    /// from the encrypted `target_password` column. Defaults to None on
+    /// import of older files.
+    #[serde(default)]
+    target_password: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -352,6 +363,8 @@ pub struct ImportResult {
     pub known_hosts_skipped: usize,
     pub session_groups_added: usize,
     pub session_groups_skipped: usize,
+    pub login_scripts_added: usize,
+    pub login_scripts_skipped: usize,
     /// Portable preferences written (or overwritten) on import. Settings
     /// have no `updated_at`, so an imported value always wins, hence a
     /// single counter rather than added/updated/skipped.
@@ -466,6 +479,7 @@ pub fn export_vault(
     let all_port_forward_rules = store.list_port_forward_rules()?;
     let all_known_hosts = store.list_known_hosts()?;
     let all_session_groups = store.list_session_groups()?;
+    let all_login_scripts = store.list_login_scripts()?;
 
     // Apply filter to select which connections to export
     let filtered_connections: Vec<&Connection> = match &options.filter {
@@ -576,11 +590,13 @@ pub fn export_vault(
             let pw = store.get_connection_password(&conn.id).unwrap_or(None);
             let proxy_pw = store.get_proxy_password(&conn.id).unwrap_or(None);
             let totp = store.get_connection_totp_secret(&conn.id).unwrap_or(None);
+            let target_pw = store.get_connection_target_password(&conn.id).unwrap_or(None);
             connections.push(ExportConnection {
                 connection: (*conn).clone(),
                 password: pw,
                 proxy_password: proxy_pw,
                 totp_secret: totp,
+                target_password: target_pw,
             });
         }
     }
@@ -625,6 +641,25 @@ pub fn export_vault(
             });
         }
     }
+
+    // Login scripts ride the Connections category rather than owning a
+    // checkbox of their own: a script is meaningless without a host
+    // that references it, and a box the user did not notice would
+    // import hosts whose automation silently resolves to nothing.
+    // Host-scoped exports ship only the scripts those hosts use.
+    let login_scripts: Vec<LoginScript> = if options.selection.connections {
+        let dep_ids: Vec<uuid::Uuid> = filtered_connections
+            .iter()
+            .filter_map(|c| c.login_script_id)
+            .collect();
+        all_login_scripts
+            .iter()
+            .filter(|s| !is_filtered || dep_ids.contains(&s.id))
+            .cloned()
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     // Cloud profiles referenced from `Connection.cloud_ref` (filtered)
     // or all of them (full export). The dynamic-group `cloud_query`
@@ -714,6 +749,7 @@ pub fn export_vault(
         port_forward_rules,
         known_hosts,
         session_groups,
+        login_scripts,
         settings,
         custom_terminal_themes,
     };
@@ -784,7 +820,14 @@ pub fn import_vault(
     // surviving one references (e.g. keys when connections stay) just
     // leaves a dangling id, which the app tolerates like a deleted key
     // (FK enforcement is off on the vault).
-    if !selection.connections { payload.connections.clear(); }
+    // Login scripts ride the Connections box on the way in too, for the
+    // same reason they do on the way out: they exist only to serve a
+    // host, and importing hosts without them would silently drop the
+    // automation the user came for.
+    if !selection.connections {
+        payload.connections.clear();
+        payload.login_scripts.clear();
+    }
     if !selection.groups { payload.groups.clear(); }
     if !selection.keys { payload.keys.clear(); }
     if !selection.identities { payload.identities.clear(); }
@@ -821,6 +864,8 @@ pub fn import_vault(
         known_hosts_skipped: 0,
         session_groups_added: 0,
         session_groups_skipped: 0,
+        login_scripts_added: 0,
+        login_scripts_skipped: 0,
         settings_imported: 0,
         custom_themes_added: 0,
         custom_themes_skipped: 0,
@@ -829,6 +874,7 @@ pub fn import_vault(
     // Existing data for merge checks
     let existing_groups = store.list_groups()?;
     let existing_session_groups = store.list_session_groups()?;
+    let existing_login_scripts = store.list_login_scripts()?;
     let existing_connections = store.list_connections()?;
     let existing_keys = store.list_keys()?;
     let existing_identities = store.list_identities()?;
@@ -1046,6 +1092,22 @@ pub fn import_vault(
                 &export_conn.connection.id,
                 export_conn.totp_secret.as_deref(),
             )?;
+            store.set_connection_target_password(
+                &export_conn.connection.id,
+                export_conn.target_password.as_deref(),
+            )?;
+        }
+    }
+
+    // Login scripts (skip if exists). Written after the connections
+    // that reference them, which is safe in either order: resolution
+    // treats a missing script as no automation rather than an error.
+    for script in &payload.login_scripts {
+        if existing_login_scripts.iter().any(|s| s.id == script.id) {
+            result.login_scripts_skipped += 1;
+        } else {
+            store.save_login_script(script)?;
+            result.login_scripts_added += 1;
         }
     }
 

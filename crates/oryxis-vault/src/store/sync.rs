@@ -242,7 +242,7 @@ impl VaultStore {
         match table {
             "connections" | "keys" | "identities" | "proxy_identities" | "groups"
             | "snippets" | "port_forward_rules" | "known_hosts" | "cloud_profiles"
-            | "session_groups" => {}
+            | "session_groups" | "login_scripts" => {}
             other => {
                 return Err(VaultError::Database(format!(
                     "list_entity_stamps: unknown table {other}"
