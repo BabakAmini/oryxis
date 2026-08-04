@@ -23,6 +23,11 @@ pub static AUTO_CONNECT: OnceLock<Uuid> = OnceLock::new();
 /// the user doesn't have to re-type for "Duplicate in New Window".
 pub static AUTO_PASSWORD: OnceLock<String> = OnceLock::new();
 
+/// Raw `oryxis://` URL from an OS scheme launch, when no running
+/// instance claimed it (see the deep-link block in `main.rs`). Same
+/// hand-off shape as [`AUTO_CONNECT`]; parsed and routed by boot.
+pub static PENDING_DEEP_LINK: OnceLock<String> = OnceLock::new();
+
 /// True when this process is currently the primary (owns the system
 /// tray icon). Stored as an AtomicBool rather than OnceLock so the
 /// child-promotion path can flip it at runtime when the previous
@@ -409,6 +414,10 @@ pub struct Oryxis {
     /// `--connect` CLI flag captured at process start; cleared once the
     /// dispatch fires so a vault re-lock + unlock doesn't re-trigger it.
     pub(crate) pending_auto_connect: Option<Uuid>,
+    /// Deep link waiting for the vault to unlock (a `oryxis://` click
+    /// at the lock screen, or one that arrived while soft-locked).
+    /// Drained by boot and by the unlock handler, like `--connect`.
+    pub(crate) pending_deep_link: Option<crate::deep_link::DeepLink>,
     /// Master password retained in memory for spawning child processes
     /// (Duplicate in New Window). Populated after a successful
     /// unlock / setup, cleared if the user explicitly re-locks.

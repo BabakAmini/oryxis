@@ -341,6 +341,13 @@ impl Oryxis {
             subs.push(Subscription::run(tray_event_stream));
         }
 
+        // Cross-process deep-link inbox (every platform). Same
+        // yield-only-on-event shape as `tray_event_stream`: the fs
+        // poll runs inside the stream's own task, so an empty inbox
+        // (the permanent steady state) never wakes `update()` or
+        // forces a re-render.
+        subs.push(Subscription::run(deep_link_stream));
+
         // Port forward liveness sweep. Only mounts while at least one
         // forward is active; a 5 s tick is enough to flip a row's toggle
         // back to off shortly after its connection drops, without polling
@@ -489,6 +496,26 @@ impl Oryxis {
 /// crucially, does NOT go through `update()`, so it costs nothing on
 /// the render side; only a yielded event wakes the app. Replaces the
 /// old 100 ms `TrayPoll` timer that re-rendered the whole app 10x/s.
+/// Claim deep links dropped in `~/.oryxis/runtime/deeplink/` by a
+/// `oryxis://` launcher process (see the deep-link block in
+/// `main.rs`). One yielded Message per claimed URL; the 500 ms sleep
+/// bounds the courier's wait loop, which gives up (and boots its own
+/// window) after 2 s without a claim.
+fn deep_link_stream() -> impl iced::futures::Stream<Item = Message> {
+    iced::futures::stream::unfold(Vec::<String>::new(), |mut queue| async {
+        loop {
+            if let Some(url) = queue.pop() {
+                return Some((
+                    Message::Tray(crate::messages::TrayMessage::DeepLink(url)),
+                    queue,
+                ));
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            queue = crate::tray_ipc::take_deeplinks();
+        }
+    })
+}
+
 #[cfg(target_os = "windows")]
 fn tray_event_stream() -> impl iced::futures::Stream<Item = Message> {
     iced::futures::stream::unfold((), |()| async {

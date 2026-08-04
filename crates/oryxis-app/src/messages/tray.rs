@@ -24,6 +24,13 @@ pub enum TrayMessage {
     /// hence the cfg'd allow.
     #[cfg_attr(not(target_os = "windows"), allow(dead_code))]
     Poll,
+    /// A `oryxis://` URL claimed from the cross-process deep-link
+    /// inbox (`tray_ipc::take_deeplinks`) by this window's
+    /// `deep_link_stream` subscription. All platforms, unlike the
+    /// rest of this enum's delivery paths: the inbox is how a scheme
+    /// launch reaches an already-running instance. Carries the raw
+    /// URL; `handle_deep_link_url` parses and routes it.
+    DeepLink(String),
     /// User clicked "Show Oryxis" in the tray menu, or left-clicked
     /// the tray icon. Bring the main window back from hidden state
     /// and pull it to the foreground.

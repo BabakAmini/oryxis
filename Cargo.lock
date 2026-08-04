@@ -5575,6 +5575,7 @@ dependencies = [
  "iced_fonts",
  "iced_test",
  "image",
+ "libc",
  "notify-rust",
  "open",
  "oryxis-archive",

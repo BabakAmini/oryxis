@@ -93,20 +93,22 @@ fn commands_dir() -> Option<PathBuf> {
     runtime_root().map(|p| p.join("commands"))
 }
 
+fn deeplink_dir() -> Option<PathBuf> {
+    runtime_root().map(|p| p.join("deeplink"))
+}
+
 /// Create the runtime subdirectories if missing. Idempotent; the
 /// `create_dir_all` call no-ops on existing paths. Failures are
 /// logged and swallowed because there's nothing useful the caller
 /// can do at the call site (the tray feature degrades gracefully).
 pub fn init_runtime_dirs() {
-    if let Some(dir) = instances_dir()
-        && let Err(e) = fs::create_dir_all(&dir)
+    for dir in [instances_dir(), commands_dir(), deeplink_dir()]
+        .into_iter()
+        .flatten()
     {
-        tracing::warn!("tray_ipc: failed to create {:?}: {e}", dir);
-    }
-    if let Some(dir) = commands_dir()
-        && let Err(e) = fs::create_dir_all(&dir)
-    {
-        tracing::warn!("tray_ipc: failed to create {:?}: {e}", dir);
+        if let Err(e) = fs::create_dir_all(&dir) {
+            tracing::warn!("tray_ipc: failed to create {:?}: {e}", dir);
+        }
     }
 }
 
@@ -316,10 +318,97 @@ impl Primary {
     }
 }
 
-/// PID liveness check. Windows-only path opens the process for
-/// query access; success means it's still running. Non-Windows
-/// targets always return false (the whole multi-window tray story
-/// is Windows-only today).
+/// Drop a deep-link URL into the cross-process inbox for a running
+/// instance to claim. Returns the file's path so the (short-lived)
+/// launcher process can watch for the claim and fall back to booting
+/// a window itself if nobody picks the link up.
+pub fn write_deeplink(url: &str) -> Option<PathBuf> {
+    let dir = deeplink_dir()?;
+    // pid + counter: unique even if one launcher ever wrote twice.
+    static SEQ: std::sync::atomic::AtomicU32 = std::sync::atomic::AtomicU32::new(0);
+    let seq = SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let path = dir.join(format!("{}-{seq}.link", current_pid()));
+    match write_atomic(&path, url.as_bytes()) {
+        Ok(()) => Some(path),
+        Err(e) => {
+            tracing::warn!("tray_ipc: write deep link {:?}: {e}", path);
+            None
+        }
+    }
+}
+
+/// Claim + consume every pending deep link. Exactly-once across
+/// instances: each file is renamed (atomic on every platform we ship)
+/// to a per-claimant name first, so when several windows poll the same
+/// inbox only the rename winner reads and handles a given link. Files
+/// that fail the rename belong to another instance and are skipped.
+pub fn take_deeplinks() -> Vec<String> {
+    let Some(dir) = deeplink_dir() else { return Vec::new() };
+    let entries = match fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return Vec::new(),
+    };
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("link") {
+            continue;
+        }
+        let claimed = path.with_extension(format!("claim-{}", current_pid()));
+        if fs::rename(&path, &claimed).is_err() {
+            continue; // another instance won this link
+        }
+        if let Ok(bytes) = fs::read(&claimed)
+            && let Ok(url) = String::from_utf8(bytes)
+        {
+            out.push(url);
+        }
+        let _ = fs::remove_file(&claimed);
+    }
+    out
+}
+
+/// Whether any OTHER live Oryxis instance is registered. Used by a
+/// deep-link launcher process to decide between forwarding the URL and
+/// booting a window itself. PID files whose process died (hard kill)
+/// are swept here, which is also what keeps the registry clean on
+/// Linux/macOS where the Windows primary's tray sweep never runs.
+pub fn any_live_instance() -> bool {
+    let Some(dir) = instances_dir() else { return false };
+    let entries = match fs::read_dir(&dir) {
+        Ok(e) => e,
+        Err(_) => return false,
+    };
+    let self_pid = current_pid();
+    let mut alive = false;
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) != Some("json") {
+            continue;
+        }
+        // The file name IS the pid (`<pid>.json`), no parse needed.
+        let Some(pid) = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .and_then(|s| s.parse::<u32>().ok())
+        else {
+            continue;
+        };
+        if pid == self_pid {
+            continue;
+        }
+        if is_process_alive(pid) {
+            alive = true;
+        } else {
+            let _ = fs::remove_file(&path);
+        }
+    }
+    alive
+}
+
+/// PID liveness check. Windows opens the process for query access;
+/// Unix probes with `kill(pid, 0)` (EPERM still means "exists").
+/// Success means it's still running.
 #[cfg(target_os = "windows")]
 fn is_process_alive(pid: u32) -> bool {
     use windows_sys::Win32::Foundation::CloseHandle;
@@ -339,7 +428,18 @@ fn is_process_alive(pid: u32) -> bool {
     }
 }
 
-#[cfg(not(target_os = "windows"))]
+#[cfg(unix)]
+fn is_process_alive(pid: u32) -> bool {
+    // Signal 0 performs the permission/existence checks without
+    // delivering anything. EPERM means the process exists but isn't
+    // ours (another user's Oryxis), which still counts as alive.
+    // SAFETY: kill with signal 0 only validates, it never signals.
+    let rc = unsafe { libc::kill(pid as libc::pid_t, 0) };
+    rc == 0
+        || std::io::Error::last_os_error().raw_os_error() == Some(libc::EPERM)
+}
+
+#[cfg(not(any(target_os = "windows", unix)))]
 fn is_process_alive(_pid: u32) -> bool {
     false
 }

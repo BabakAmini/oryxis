@@ -13,6 +13,13 @@ impl Oryxis {
         message: TrayMessage,
     ) -> Task<Message> {
         match message {
+            // A `oryxis://` URL forwarded by a launcher process and
+            // claimed by this window's deep-link subscription. Not
+            // tray-related beyond sharing the instance-IPC plumbing
+            // (tray_ipc owns the inbox), hence its home here.
+            TrayMessage::DeepLink(url) => {
+                return self.handle_deep_link_url(&url);
+            }
             // -- System tray --
             TrayMessage::Poll => {
                 // A native minimize verb (taskbar button, Win+Down,

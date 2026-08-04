@@ -137,6 +137,14 @@ Section "Install"
 
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe" "" "$INSTDIR\oryxis.exe"
     WriteRegStr HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe" "Path" "$INSTDIR"
+
+    ; oryxis:// URL scheme (deep links: sync pairing, theme install).
+    ; Per-user classes shadow HKLM's, so this install wins the scheme
+    ; for this user even next to a system install.
+    WriteRegStr HKCU "Software\Classes\oryxis" "" "URL:Oryxis deep link"
+    WriteRegStr HKCU "Software\Classes\oryxis" "URL Protocol" ""
+    WriteRegStr HKCU "Software\Classes\oryxis\DefaultIcon" "" '"$INSTDIR\oryxis.exe",0'
+    WriteRegStr HKCU "Software\Classes\oryxis\shell\open\command" "" '"$INSTDIR\oryxis.exe" "%1"'
 SectionEnd
 
 Section "Uninstall"
@@ -161,4 +169,5 @@ Section "Uninstall"
     DeleteRegKey HKCU "Software\Oryxis"
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\Uninstall\Oryxis"
     DeleteRegKey HKCU "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe"
+    DeleteRegKey HKCU "Software\Classes\oryxis"
 SectionEnd

@@ -147,6 +147,13 @@ os_info = { version = "3", default-features = false }
 [target.'cfg(windows)'.build-dependencies]
 winresource = "0.1"
 
+# PID liveness probe (`kill(pid, 0)`) for the cross-process deep-link
+# inbox in `tray_ipc`: a `oryxis://` launcher process needs to know
+# whether a live window exists before deciding to forward or boot.
+# Already in the tree transitively; 0.2.186 matches the lock.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
 # ShellExecuteW for the auto-updater. CreateProcess (what
 # `Command::new().spawn()` uses) ignores the installer manifest and fails
 # with ERROR_ELEVATION_REQUIRED (740) on the system NSIS .exe, which

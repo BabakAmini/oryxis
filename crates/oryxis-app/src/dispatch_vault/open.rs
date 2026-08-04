@@ -157,6 +157,12 @@ impl Oryxis {
                                     .position(|c| c.id == connect_id)
                             {
                                 unlock_tasks.push(Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))));
+                            } else if let Some(link) = self.pending_deep_link.take() {
+                                // A deep link clicked at the lock screen
+                                // routes now, and its own navigation
+                                // replaces the default landing focus.
+                                let route = self.handle_deep_link(link);
+                                unlock_tasks.push(route);
                             } else {
                                 // Land on Home with the host search focused
                                 // so the user can type / keyboard-navigate

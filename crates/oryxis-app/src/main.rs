@@ -18,6 +18,7 @@ mod color_picker;
 mod chat_persist;
 mod command_capture;
 mod connect_methods;
+mod deep_link;
 mod dispatch;
 mod dispatch_ai;
 mod dispatch_editor;
@@ -318,8 +319,15 @@ fn main() -> iced::Result {
     let mut args = std::env::args().skip(1);
     let mut inherit_vault = false;
     let mut relaunching = false;
+    let mut deep_link_url: Option<String> = None;
     while let Some(flag) = args.next() {
         match flag.as_str() {
+            // OS-registered `oryxis://` scheme launch (deep links:
+            // pairing, theme install). Captured raw here; validated
+            // and possibly forwarded to a running instance below.
+            url if url.starts_with("oryxis://") => {
+                deep_link_url = Some(flag);
+            }
             "--connect" => {
                 if let Some(value) = args.next()
                     && let Ok(uuid) = uuid::Uuid::parse_str(&value)
@@ -334,6 +342,42 @@ fn main() -> iced::Result {
                 relaunching = true;
             }
             _ => {}
+        }
+    }
+    // Deep-link launch. When another Oryxis is already running, this
+    // process is only a courier: drop the URL in the cross-process
+    // inbox (tray_ipc), wait for a window to claim it, and exit
+    // without ever booting iced. If nobody claims it (the instance
+    // died mid-race, or its build predates the inbox), reclaim the
+    // file and boot a window ourselves with the link stashed, so a
+    // click never lands nowhere. Skipped under the harness (sandboxed
+    // $HOME; a test never wants to forward into a real instance).
+    if let Some(url) = deep_link_url.filter(|_| !harness_active) {
+        if deep_link::parse(&url).is_none() {
+            // Not ours / malformed: boot normally, exactly like a
+            // plain double-click. Tracing isn't up yet.
+            eprintln!("oryxis: ignoring malformed deep link");
+        } else {
+            tray_ipc::init_runtime_dirs();
+            let mut forwarded = false;
+            if tray_ipc::any_live_instance()
+                && let Some(pending) = tray_ipc::write_deeplink(&url)
+            {
+                let mut waited = 0;
+                while pending.exists() && waited < 2000 {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    waited += 100;
+                }
+                if pending.exists() {
+                    let _ = std::fs::remove_file(&pending);
+                } else {
+                    forwarded = true;
+                }
+            }
+            if forwarded {
+                return Ok(());
+            }
+            let _ = app::PENDING_DEEP_LINK.set(url);
         }
     }
     if inherit_vault {
@@ -415,6 +459,13 @@ fn main() -> iced::Result {
 
     if !harness_active {
         tray_ipc::init_runtime_dirs();
+
+        // Every window (primary included, every platform) registers a
+        // PID file: it's how a later `oryxis://` launcher process
+        // knows a live instance exists to forward to. Before deep
+        // links only Windows children registered (the tray menu was
+        // the file's only reader).
+        tray_ipc::Child::register("Oryxis");
 
         if is_primary {
             // Install the Windows system tray icon. No-op on macOS/Linux

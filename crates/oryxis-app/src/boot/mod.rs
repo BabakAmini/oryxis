@@ -21,6 +21,12 @@ impl Oryxis {
         // <uuid>` (the path "Duplicate in New Window" takes), capture that
         // ID now and dispatch a `ConnectSsh` once the vault is open.
         let pending_auto_connect = AUTO_CONNECT.get().copied();
+        // OS `oryxis://` scheme launch with no running instance to
+        // forward to: parse it now (main.rs already shape-checked) and
+        // route it below once the vault state is known.
+        let pending_deep_link = crate::app::PENDING_DEEP_LINK
+            .get()
+            .and_then(|url| crate::deep_link::parse(url));
         // Inherited master password from the parent's stdin pipe, used
         // to silently unlock the vault below so the user doesn't have to
         // re-type for the spawned window.
@@ -317,6 +323,7 @@ impl Oryxis {
                 group_edit: crate::state::GroupEditForm::default(),
                 folder_delete: None,
                 pending_auto_connect,
+                pending_deep_link,
                 // Keep the inherited password in memory only when the
                 // unlock above actually succeeded, otherwise the user is
                 // about to type their own at the lock screen.
@@ -591,6 +598,14 @@ impl Oryxis {
                 .position(|c| c.id == connect_id)
         {
             tasks.push(Task::done(Message::Ssh(SshMessage::ConnectSsh(idx))));
+        }
+        // Route a deep link the launch carried. `handle_deep_link`
+        // re-stashes it by itself when the vault is still locked, so no
+        // unlocked-state guard here (unlike `--connect`, whose index
+        // lookup needs the loaded connections).
+        if let Some(link) = app.pending_deep_link.take() {
+            let route = app.handle_deep_link(link);
+            tasks.push(route);
         }
         // Bring the sync engine up if the vault is already open and the
         // user left sync enabled. When the vault is locked we defer to

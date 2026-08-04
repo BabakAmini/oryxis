@@ -5,10 +5,10 @@
   from repository secrets, which is why the Partner Center identity is
   nowhere in this tree; docs/MSIX.md explains where each value comes from.
 
-  There is deliberately no `windows.protocol` extension: the app has no
-  oryxis:// URI handler yet (pairing links are pasted into the sync
-  screen), and declaring a protocol that does nothing when invoked is
-  worse than not declaring it. Add it together with the handler.
+  The `windows.protocol` extension mirrors the NSIS installers'
+  `Software\Classes\oryxis` registration: the shell launches the app
+  with the full URL as argv[1], which is exactly the CLI contract
+  `deep_link.rs` handles (forward to a running window or boot with it).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -89,6 +89,12 @@
             <desktop:ExecutionAlias Alias="oryxis.exe" />
           </uap3:AppExecutionAlias>
         </uap3:Extension>
+        <!-- oryxis:// deep links (sync pairing, theme install). -->
+        <uap:Extension Category="windows.protocol">
+          <uap:Protocol Name="oryxis">
+            <uap:DisplayName>Oryxis deep link</uap:DisplayName>
+          </uap:Protocol>
+        </uap:Extension>
       </Extensions>
     </Application>
   </Applications>

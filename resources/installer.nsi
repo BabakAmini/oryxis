@@ -162,6 +162,14 @@ Section "Install"
     ; Registry — App Paths (makes Windows Search find the app)
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe" "" "$INSTDIR\oryxis.exe"
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe" "Path" "$INSTDIR"
+
+    ; oryxis:// URL scheme (deep links: sync pairing, theme install).
+    ; The URL arrives as argv[1]; the app forwards it to a running
+    ; instance or boots with it (see deep_link.rs).
+    WriteRegStr HKLM "Software\Classes\oryxis" "" "URL:Oryxis deep link"
+    WriteRegStr HKLM "Software\Classes\oryxis" "URL Protocol" ""
+    WriteRegStr HKLM "Software\Classes\oryxis\DefaultIcon" "" '"$INSTDIR\oryxis.exe",0'
+    WriteRegStr HKLM "Software\Classes\oryxis\shell\open\command" "" '"$INSTDIR\oryxis.exe" "%1"'
 SectionEnd
 
 Section "Uninstall"
@@ -186,4 +194,5 @@ Section "Uninstall"
     DeleteRegKey HKLM "Software\Oryxis"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\Oryxis"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe"
+    DeleteRegKey HKLM "Software\Classes\oryxis"
 SectionEnd
