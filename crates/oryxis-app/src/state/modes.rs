@@ -125,6 +125,11 @@ pub enum View {
     History,
     Sftp,
     Settings,
+    /// Multi-host monitor dashboard (issue #95): live vitals across
+    /// every opted-in host. Not a sub-nav pill: entered through the
+    /// Hosts toolbar's monitor icon, which only renders while the
+    /// master `host_monitoring` toggle is on (optional-features rule).
+    Monitoring,
 }
 
 /// One row in the Plugins panel: a cloud-provider plugin and its

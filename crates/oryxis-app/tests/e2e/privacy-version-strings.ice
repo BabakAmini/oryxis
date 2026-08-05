@@ -33,7 +33,8 @@ type ctrl+shift+t
 settle 500
 expect "Local Shell"
 click "Local Shell"
-expect "● bash (default), connected"
+# Since #131 the segment claims nothing for a local shell.
+expect "● bash (default)"
 settle 800
 
 type "echo 'Python 3  Python.3  3.9.0.2  3.13.0  winget'"
@@ -48,4 +49,4 @@ type "echo 'update available at 192.168.1.10'"
 type enter
 settle 800
 screenshot privacy-version-strings
-expect "● bash (default), connected"
+expect "● bash (default)"

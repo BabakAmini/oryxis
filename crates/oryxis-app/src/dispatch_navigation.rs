@@ -55,6 +55,14 @@ impl Oryxis {
                 if view != View::Settings {
                     self.settings_search.clear();
                 }
+                // Monitor dashboard lifecycle (issue #95): leaving the
+                // view arms the idle TTL on the dialed connections;
+                // entering it (re-)establishes every link right away.
+                // Captured before `active_view` moves.
+                let mut dash_tasks: Vec<Task<Message>> = Vec::new();
+                if self.active_view == View::Monitoring && view != View::Monitoring {
+                    dash_tasks.push(self.dash_leave());
+                }
                 self.active_view = view;
                 self.active_tab = None;
                 // Give Settings its strip entry (issue #120). Every door
@@ -129,6 +137,9 @@ impl Oryxis {
                     self.refresh_sftp_local(crate::state::SftpPaneSide::Left);
                     self.refresh_sftp_local(crate::state::SftpPaneSide::Right);
                 }
+                if view == View::Monitoring {
+                    dash_tasks.push(self.dash_enter());
+                }
                 // Entering Logs re-reads the timeline from the vault:
                 // rows created since boot (a session that just started
                 // recording, fresh connection events) only exist in the
@@ -165,10 +176,13 @@ impl Oryxis {
                 if !keep_keynav && let Some(id) = self.active_view_search_id() {
                     let mut tasks = vec![crate::widgets::focus_input(id)];
                     tasks.extend(settings_tasks);
+                    tasks.extend(dash_tasks);
                     return Task::batch(tasks);
                 }
-                if !settings_tasks.is_empty() {
-                    return Task::batch(settings_tasks);
+                if !settings_tasks.is_empty() || !dash_tasks.is_empty() {
+                    let mut tasks = settings_tasks;
+                    tasks.extend(dash_tasks);
+                    return Task::batch(tasks);
                 }
             }
             NavigationMessage::QuickHostInput(v) => {

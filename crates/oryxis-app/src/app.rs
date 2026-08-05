@@ -765,6 +765,10 @@ pub struct Oryxis {
     /// Agentless host-monitor state (issue #83): per-host sample ring
     /// for the sidebar Monitor tab. RAM only, never persisted or synced.
     pub(crate) monitor: crate::monitor::MonitorState,
+    /// Multi-host dashboard links (issue #95). Samples go into
+    /// `monitor.series` like the sidebar's, so the two surfaces can
+    /// never disagree about a host.
+    pub(crate) monitor_dash: crate::state::MonitorDash,
     /// Bumped whenever a monitored host's series is invalidated
     /// (disconnect, opt-out, lock). Probes carry the stamp they were
     /// dispatched with, so a result from before the reset is dropped.

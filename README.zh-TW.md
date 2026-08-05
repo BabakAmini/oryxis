@@ -149,8 +149,8 @@ Oryxis 以大約每週一次的節奏持續發布，功能就緒即上線。最�
 [藍圖討論](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推進的方向包括：原生 FIDO2（透過 USB / NFC 直接與安全金鑰通訊）、
 終端機強化（附觸發動作的關鍵字高亮、視窗不透明度）、原生 Mosh 用戶端、
-設定匯入工具（PuTTY / WinSCP / mRemoteNG / Termius）、主機監控的
-多主機面板，以及東亞全形寬度選項和終端機背景圖。來自社群的
+設定匯入工具（PuTTY / WinSCP / mRemoteNG / Termius），以及東亞
+全形寬度選項和終端機背景圖。來自社群的
 新需求也已排入：側邊欄 tmux 工作階段管理器，以及主機樹狀檢視。
 
 ## 參與貢獻

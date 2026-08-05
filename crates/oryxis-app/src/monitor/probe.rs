@@ -34,6 +34,18 @@ pub(crate) const LISTENING_SOCKETS_CMD: &str =
 /// yields an empty section instead of an error, and the sentinels keep
 /// the split stable regardless.
 pub(crate) fn linux_probe_command() -> String {
+    probe_command(true)
+}
+
+/// The dashboard's cheaper variant (issue #95, owner call): vitals
+/// only, the listening-sockets section replaced by a no-op. The slot
+/// stays in place (the parser splits by POSITION), it just comes back
+/// empty, exactly like a host without `ss`/`netstat`.
+pub(crate) fn linux_probe_command_vitals() -> String {
+    probe_command(false)
+}
+
+fn probe_command(with_ports: bool) -> String {
     let batch = [
         // Each section falls back to its BSD / macOS equivalent when the
         // Linux source produces nothing, so ONE command serves every
@@ -53,7 +65,7 @@ pub(crate) fn linux_probe_command() -> String {
         "df -kP 2>/dev/null || df -k 2>/dev/null",
         "cat /proc/uptime 2>/dev/null || { date +%s | sed \"s/^/Now: /\"; \
              sysctl -n kern.boottime 2>/dev/null; }",
-        LISTENING_SOCKETS_CMD,
+        if with_ports { LISTENING_SOCKETS_CMD } else { "true" },
         // GPU (roadmap: host-monitoring GPU gauges). NVIDIA first:
         // nvidia-smi answers one CSV line per device, `nounits` so the
         // fields parse bare (util %, VRAM MiB, temp C), name last since

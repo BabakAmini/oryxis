@@ -184,6 +184,17 @@ coming next, see the [Roadmap](../README.md#roadmap).
   channel multiplexed onto the live session. Nothing is installed on the
   server; Linux `/proc` is the primary source with BSD and macOS probe
   fallbacks.
+- **Multi-host dashboard.** A Monitoring pill next to Hosts (visible
+  once the feature toggle is on) shows live vitals cards for every
+  opted-in host at once, FinalShell-style: hosts with an open tab are
+  read over that session, the rest get a headless probe-only
+  connection dialed with the stored credentials (strict host key,
+  TOTP autofill) and pooled with an idle TTL. Cards carry CPU /
+  memory gauges plus net, disk and GPU at a glance; clicking one
+  opens a detail panel (sparkline, swap, load, every disk, GPUs,
+  uptime) with explicit open-terminal and retry actions. Search and
+  the host-tag filter narrow the grid, a toggle switches grid and
+  two-column list, and polling only runs while the view is visible.
 - **GPU gauges.** Utilization, VRAM and temperature per device, from
   `nvidia-smi` where it exists and the amdgpu sysfs counters otherwise.
   The section renders only when the host answers, so machines without a

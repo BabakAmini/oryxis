@@ -266,9 +266,6 @@ tracks it interactively.
   shown before it runs), connection health indicators with
   connection reuse, and group settings inheritance (per-parameter
   defaults hosts inherit, Termius-style).
-- **Host monitoring:** a multi-host dashboard view next to the
-  per-session panel. Still agentless and opt-in per host, nothing
-  installed on servers.
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
   providers, an East Asian ambiguous-width option, and terminal
   background images.

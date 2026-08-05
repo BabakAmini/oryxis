@@ -50,4 +50,37 @@ pub enum MonitorMessage {
     /// monitoring was swept) while the run was in flight, so the result
     /// belongs to state that no longer exists.
     KillFinished(u64, crate::monitor::kill::KillOutcome),
+    /// One-second heartbeat of the multi-host dashboard (issue #95).
+    /// Mounted only while the Monitoring view is up: drives the
+    /// per-host probe stagger, dials missing links and redials dead
+    /// ones.
+    DashTick,
+    /// A dashboard dial finished. The `u64` is `monitor_dash.stamp`
+    /// captured at dispatch: a mismatch means a sweep (lock, toggle
+    /// off, idle TTL) ran meanwhile, so a `Live` result is closed
+    /// instead of stored.
+    DashDialed(Uuid, u64, Result<std::sync::Arc<oryxis_ssh::MonitorConn>, String>),
+    /// Retry a failed card (the only retry path besides re-entering
+    /// the view: the dashboard never hammers a down host on its own).
+    DashRetry(Uuid),
+    /// The idle TTL armed on leaving the Monitoring view expired. If
+    /// the view is up again by then the pooled links survive (that is
+    /// the point of the TTL: a quick round-trip elsewhere shouldn't
+    /// redial the fleet); otherwise the links are swept and their
+    /// dialed connections closed. The stamp de-duplicates timers: the
+    /// sweep bumps it, so a second armed timer lands on a stale stamp
+    /// and no-ops.
+    DashSweepDue(u64),
+    /// Open the host's terminal from the detail panel's explicit
+    /// action: focus an existing tab when one is connected to the
+    /// host, otherwise start the normal connect flow.
+    DashOpenHost(Uuid),
+    /// Card click: open the host's detail panel on the trailing edge.
+    DashSelectHost(Uuid),
+    /// Close the detail panel.
+    DashCloseDetail,
+    /// The view's search field (display-only filter over the cards).
+    DashSearchChanged(String),
+    /// Grid <-> list layout toggle, persisted like the host grid's.
+    DashToggleListView,
 }

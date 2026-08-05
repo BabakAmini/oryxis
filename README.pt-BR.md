@@ -167,8 +167,7 @@ Entre as frentes em andamento: FIDO2 nativo (falar direto com a chave
 de segurança por USB / NFC), melhorias de terminal (realce de
 palavras-chave com ações de gatilho e opacidade de janela), cliente
 Mosh nativo, importadores de configuração (PuTTY / WinSCP / mRemoteNG /
-Termius), painel multi-host no monitoramento,
-suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
+Termius), suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
 pedidos recentes da comunidade: gerenciador de sessões tmux na barra
 lateral e visão em árvore dos hosts.
 

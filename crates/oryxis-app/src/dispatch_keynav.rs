@@ -739,6 +739,10 @@ impl Oryxis {
         use crate::state::SortMenuKind;
         Some(match (self.active_view, item) {
             (View::Dashboard, ToolbarItem::ViewToggle) => Message::Settings(SettingsMessage::ToggleHostListView),
+            // Monitoring toolbar (issue #95): shared tag filter, plus
+            // its own grid/list toggle.
+            (View::Monitoring, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
+            (View::Monitoring, ToolbarItem::ViewToggle) => Message::Monitor(crate::app::MonitorMessage::DashToggleListView),
             (View::Dashboard, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
             (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
             (View::History, ToolbarItem::TagFilter) => Message::History(HistoryMessage::ShowHistoryTagFilterMenu),

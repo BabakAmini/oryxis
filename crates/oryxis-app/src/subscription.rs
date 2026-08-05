@@ -246,6 +246,21 @@ impl Oryxis {
             );
         }
 
+        // Multi-host dashboard heartbeat (issue #95): a 1 s tick that
+        // staggers the per-host probes, mounted only while the view is
+        // actually up. Same Unlocked gate as the sidebar monitor: a
+        // soft lock must stop reading the fleet behind the lock screen.
+        if self.prefs.host_monitoring
+            && self.vault_ui.state == crate::state::VaultState::Unlocked
+            && self.active_view == crate::state::View::Monitoring
+            && self.active_tab.is_none()
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(1))
+                    .map(|_| Message::Monitor(crate::app::MonitorMessage::DashTick)),
+            );
+        }
+
         // The latency segment reads the RTT that the in-session probe
         // updates WITHOUT emitting a Message, so on an idle terminal the
         // bar would freeze on the last value forever. A light tick

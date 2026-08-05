@@ -539,6 +539,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("monitor_interval_seconds") {
                 self.prefs.monitor_interval = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("monitor_dash_list_view") {
+                self.prefs.monitor_dash_list_view = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("host_list_view") {
                 self.prefs.host_list_view = v == "true";
             }

@@ -98,6 +98,26 @@ impl SshEngine {
             .await
     }
 
+    /// Dial + authenticate a probe-only [`MonitorConn`] for the
+    /// multi-host monitor dashboard (issue #95): the full transport
+    /// path (proxy, jump chain, host-key verification, TOTP autofill)
+    /// with no PTY and no shell, so the host only ever sees the login
+    /// and the per-poll exec channels. Headless by design: a host
+    /// whose auth needs an interactive answer the configured
+    /// credentials can't give fails here instead of prompting.
+    pub async fn connect_monitor(
+        &self,
+        connection: &Connection,
+        password: Option<&str>,
+        key_material: Option<KeyMaterial<'_>>,
+        resolver: Option<&ConnectionResolver>,
+    ) -> Result<super::MonitorConn, SshError> {
+        let mut handle = self.dial(connection, resolver).await?;
+        self.authenticate_handle_bounded(&mut handle, connection, password, key_material)
+            .await?;
+        Ok(super::MonitorConn::new(handle))
+    }
+
     /// Step 1: Establish TCP transport (direct, proxy, or jump host).
     /// Returns an opaque handle after successful TCP connection + SSH handshake + host key verification.
     ///

@@ -52,6 +52,9 @@ impl Oryxis {
         items.push(rail_item(iced_fonts::lucide::cloud(), crate::i18n::t("cloud_accounts"), View::Cloud, act(View::Cloud), expanded, kb(View::Cloud)));
         items.push(rail_item(iced_fonts::lucide::router(), crate::i18n::t("proxies"), View::Proxies, act(View::Proxies), expanded, kb(View::Proxies)));
         items.push(rail_item(iced_fonts::lucide::shield_check(), crate::i18n::t("known_hosts"), View::KnownHosts, act(View::KnownHosts), expanded, kb(View::KnownHosts)));
+        if self.prefs.host_monitoring {
+            items.push(rail_item(iced_fonts::lucide::activity(), crate::i18n::t("monitor_dash_pill"), View::Monitoring, act(View::Monitoring), expanded, kb(View::Monitoring)));
+        }
 
         let nav = scrollable(
             column(items)

@@ -272,6 +272,11 @@ impl Oryxis {
                     self.proxy_search.as_str(),
                     |v| Message::ProxyIdentity(ProxyIdentityMessage::ProxySearchChanged(v)),
                 ),
+                View::Monitoring => (
+                    "search_hosts",
+                    self.monitor_dash.search.as_str(),
+                    |v| Message::Monitor(crate::app::MonitorMessage::DashSearchChanged(v)),
+                ),
                 _ => return Space::new().into(),
             };
         let id: &'static str = match self.active_view {
@@ -282,6 +287,7 @@ impl Oryxis {
             View::History => "search-history",
             View::Cloud => "search-cloud",
             View::Proxies => "search-proxies",
+            View::Monitoring => "search-monitor",
             _ => "search-vault-subnav",
         };
         // Dashboard only: when the query parses as a quick-connect target
@@ -675,6 +681,12 @@ impl Oryxis {
         defs.push(("cloud_accounts", View::Cloud));
         defs.push(("proxies", View::Proxies));
         defs.push(("known_hosts", View::KnownHosts));
+        // Multi-host monitor dashboard (issue #95), a pill by owner
+        // call; hidden with the master monitoring toggle like every
+        // other trace of the feature (optional-features rule).
+        if self.prefs.host_monitoring {
+            defs.push(("monitor_dash_pill", View::Monitoring));
+        }
         defs
     }
 

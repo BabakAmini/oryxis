@@ -22,12 +22,14 @@ mod exec;
 mod forwarding;
 mod handler;
 mod kbi;
+mod monitor_conn;
 mod net_quality;
 mod session;
 mod terminfo;
 
 pub use errors::*;
 pub use forwarding::*;
+pub use monitor_conn::MonitorConn;
 pub use net_quality::{NetQuality, NetQualitySnapshot};
 pub(crate) use net_quality::*;
 pub use session::*;

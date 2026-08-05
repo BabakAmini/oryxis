@@ -196,6 +196,19 @@ impl Oryxis {
                 self.monitor.kill = None;
                 Task::none()
             }
+            // Multi-host dashboard group (issue #95): routed wholesale
+            // to its own file, exhaustive there.
+            m @ (MonitorMessage::DashTick
+            | MonitorMessage::DashDialed(..)
+            | MonitorMessage::DashRetry(..)
+            | MonitorMessage::DashSweepDue(..)
+            | MonitorMessage::DashOpenHost(..)
+            | MonitorMessage::DashSelectHost(..)
+            | MonitorMessage::DashCloseDetail
+            | MonitorMessage::DashSearchChanged(..)
+            | MonitorMessage::DashToggleListView) => self
+                .handle_monitor_dash(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
             MonitorMessage::KillFinished(stamp, outcome) => {
                 // Same rule as `Sampled`: a reconnect or a sweep while
                 // the run was in flight invalidates everything the
@@ -399,6 +412,9 @@ impl Oryxis {
         self.monitor = Default::default();
         self.monitor_stamp = self.monitor_stamp.wrapping_add(1);
         self.monitor_error = None;
+        // The dashboard rides the same sweeps: its dialed connections
+        // close and in-flight dials/probes land on a dead stamp.
+        self.monitor_dash.sweep();
     }
 }
 

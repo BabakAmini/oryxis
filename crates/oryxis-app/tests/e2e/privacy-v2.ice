@@ -54,7 +54,9 @@ type ctrl+shift+t
 settle 500
 expect "Local Shell"
 click "Local Shell"
-expect "● bash (default), connected"
+# Since #131 the segment claims nothing for a local shell (no SSH
+# connection to report): the tab name alone, no ", connected".
+expect "● bash (default)"
 settle 800
 type "echo owner koobs koobs; echo owner root root"
 type enter
@@ -75,5 +77,5 @@ screenshot privacy-v2-override-off
 type ctrl+shift+m
 settle 400
 expect "Privacy"
-expect "● bash (default), connected"
+expect "● bash (default)"
 screenshot privacy-v2-override-back

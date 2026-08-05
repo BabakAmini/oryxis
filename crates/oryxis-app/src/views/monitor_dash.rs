@@ -1,0 +1,561 @@
+//! Multi-host monitor dashboard view (issue #95): one vitals card per
+//! opted-in host, fed by the same rings as the per-session sidebar.
+//!
+//! A sub-nav pill (gated by the master monitoring toggle) is the way
+//! in; a direct navigation with the toggle off just shows the empty
+//! state. The toolbar carries a search filter, the shared host-tag
+//! filter and a grid/list toggle; both filters are display-only
+//! lenses, the whole fleet keeps polling behind them. Clicking a card
+//! opens the host's detail panel on the trailing edge (owner call on
+//! the first live build: a card click must never open an SSH session
+//! by itself); connecting is the panel's explicit action. Cards and
+//! panel actions are recorded as generic content actions per the
+//! keynav rule.
+
+use iced::border::Radius;
+use iced::widget::button::Status as BtnStatus;
+use iced::widget::{button, column, container, scrollable, text, Space};
+use iced::{Background, Border, Color, Element, Length, Padding};
+
+use crate::app::{Message, MonitorMessage, NavigationMessage, Oryxis};
+use crate::i18n::t;
+use crate::state::DashLink;
+use crate::theme::OryxisColors;
+use crate::widgets::dir_row;
+
+use super::sidebar_monitor::{fmt_bytes_short, fmt_uptime, gauge_block, sparkline, stat_row};
+
+/// Card width in grid mode, matching the host cards so the two grids
+/// read as one family.
+const CARD_W: f32 = crate::app::CARD_WIDTH;
+
+impl Oryxis {
+    pub(crate) fn view_monitor_dash(&self) -> Element<'_, Message> {
+        let fleet = self.dash_hosts();
+
+        if fleet.is_empty() {
+            return container(
+                column![
+                    text(t("monitor_dash_empty"))
+                        .size(15)
+                        .color(OryxisColors::t().text_primary),
+                    Space::new().height(8),
+                    text(t("monitor_dash_empty_hint"))
+                        .size(12)
+                        .color(OryxisColors::t().text_muted),
+                ]
+                .align_x(iced::Alignment::Center),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into();
+        }
+
+        // ── Toolbar: search + shared tag filter + grid/list toggle ──
+        let tag_filter_btn: Element<'_, Message> = if self.host_tag_filter_available() {
+            dir_row(vec![
+                self.keynav_toolbar_ring(
+                    crate::keynav::ToolbarItem::TagFilter,
+                    crate::widgets::bounds_reporter(
+                        crate::widgets::tag_filter_toolbar_button(
+                            self.host_filter_tags.len(),
+                            Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
+                        ),
+                        self.host_tag_filter_btn_bounds.clone(),
+                    ),
+                ),
+                Space::new().width(6).into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
+        } else {
+            Space::new().into()
+        };
+        let view_toggle = self.keynav_toolbar_ring(
+            crate::keynav::ToolbarItem::ViewToggle,
+            dash_view_toggle_button(self.prefs.monitor_dash_list_view),
+        );
+        self.keynav_toolbar_reset();
+        if self.host_tag_filter_available() {
+            self.keynav_toolbar_record(crate::keynav::ToolbarItem::TagFilter);
+        }
+        self.keynav_toolbar_record(crate::keynav::ToolbarItem::ViewToggle);
+
+        let toolbar = container(
+            dir_row(vec![
+                self.vault_search_field(),
+                Space::new().width(10).into(),
+                tag_filter_btn,
+                view_toggle,
+            ])
+            .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 16.0, right: 24.0, bottom: 16.0, left: 24.0 })
+        .width(Length::Fill);
+
+        // ── Filtered fleet (lenses only; polling covers everything) ──
+        let needle = self.monitor_dash.search.trim().to_lowercase();
+        let hosts: Vec<uuid::Uuid> = fleet
+            .into_iter()
+            .filter(|id| {
+                let Some(conn) = self.connections.iter().find(|c| c.id == *id) else {
+                    return false;
+                };
+                let by_search =
+                    needle.is_empty() || conn.label.to_lowercase().contains(&needle);
+                let by_tags = self.host_filter_tags.is_empty()
+                    || conn.tags.iter().any(|t| self.host_filter_tags.contains(t));
+                by_search && by_tags
+            })
+            .collect();
+
+        // ── Card grid ──
+        // Grid mode: responsive fixed-width cards. List mode: at most
+        // two full-width columns (the owner's "list (2 columns)").
+        let panel_open = self.monitor_dash.selected.is_some();
+        let panel_w = if panel_open { crate::app::PANEL_WIDTH } else { 0.0 };
+        let nav_width = self.vault_rail_width();
+        let available = (self.window_size.width
+            - nav_width
+            - self.side_strip_reserve()
+            - panel_w
+            - 48.0)
+            .max(0.0);
+        let list_mode = self.prefs.monitor_dash_list_view;
+        let cols = if list_mode {
+            2.min((available / 360.0).max(1.0) as usize).max(1)
+        } else {
+            crate::widgets::card_grid_columns(available, CARD_W, 12.0).max(1)
+        };
+
+        let mut grid = column![].spacing(12);
+        for chunk in hosts.chunks(cols) {
+            let mut row_items: Vec<Element<'_, Message>> = Vec::new();
+            for conn_id in chunk {
+                row_items.push(self.dash_card(*conn_id, list_mode));
+                row_items.push(Space::new().width(12).into());
+            }
+            grid = grid.push(dir_row(row_items).align_y(iced::Alignment::Start));
+        }
+
+        let content = column![
+            toolbar,
+            scrollable(
+                container(grid)
+                    .padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 })
+                    .width(Length::Fill),
+            )
+            .height(Length::Fill),
+        ];
+
+        match self.monitor_dash.selected {
+            Some(conn_id) => dir_row(vec![
+                container(content).width(Length::Fill).height(Length::Fill).into(),
+                self.dash_detail_panel(conn_id),
+            ])
+            .into(),
+            None => content.into(),
+        }
+    }
+
+    /// One host's vitals card. Click (and Enter, via the recorded
+    /// content action) opens the detail panel; nothing on the card
+    /// itself touches the host.
+    fn dash_card(&self, conn_id: uuid::Uuid, list_mode: bool) -> Element<'_, Message> {
+        let Some(conn) = self.connections.iter().find(|c| c.id == conn_id) else {
+            return Space::new().into();
+        };
+        let link = self.monitor_dash.links.get(&conn_id);
+        let (dot, dot_color) = match link {
+            Some(DashLink::Live(_)) => ("●", OryxisColors::t().success),
+            Some(DashLink::Connecting) | None => ("●", OryxisColors::t().warning),
+            Some(DashLink::Failed(_)) => ("●", OryxisColors::t().error),
+        };
+
+        let latest = self.monitor.series.get(&conn_id).and_then(|s| s.latest());
+
+        let mut body = column![].spacing(8);
+        match link {
+            Some(DashLink::Failed(e)) => {
+                body = body.push(
+                    text(e.clone()).size(11).color(OryxisColors::t().error),
+                );
+            }
+            _ => {
+                if let Some(sample) = latest {
+                    // CPU renders from the very first sample: the rate
+                    // needs two ticks, so until then the bar is empty
+                    // and the value an honest "-", never a fake 0%.
+                    body = body.push(match &sample.cpu {
+                        Some(cpu) => gauge_block(
+                            t("monitor_cpu"),
+                            cpu.pct,
+                            &format!("{:.0}%", cpu.pct),
+                        ),
+                        None => gauge_block(t("monitor_cpu"), 0.0, "-"),
+                    });
+                    if let Some(mem) = &sample.mem
+                        && mem.total > 0
+                    {
+                        body = body.push(gauge_block(
+                            t("monitor_mem"),
+                            mem.pct(),
+                            &format!(
+                                "{} / {}",
+                                fmt_bytes_short(mem.used),
+                                fmt_bytes_short(mem.total)
+                            ),
+                        ));
+                    }
+                    // One compact stats line: net rates, the fullest
+                    // disk, GPU utilization when a GPU answered.
+                    let mut stats: Vec<String> = Vec::new();
+                    match &sample.net {
+                        Some(net) => stats.push(format!(
+                            "\u{2193}{}/s \u{2191}{}/s",
+                            fmt_bytes_short(net.rx_bps),
+                            fmt_bytes_short(net.tx_bps)
+                        )),
+                        None => stats.push("\u{2193}- \u{2191}-".to_string()),
+                    }
+                    if let Some(disk) = sample
+                        .disks
+                        .iter()
+                        .filter(|d| d.total > 0)
+                        .max_by(|a, b| a.pct().total_cmp(&b.pct()))
+                    {
+                        stats.push(format!("{} {:.0}%", t("monitor_disk"), disk.pct()));
+                    }
+                    if let Some(gpu) = sample.gpus.first() {
+                        stats.push(format!("{} {:.0}%", t("monitor_gpu"), gpu.util_pct));
+                    }
+                    body = body.push(
+                        text(stats.join("   "))
+                            .size(11)
+                            .color(OryxisColors::t().text_secondary),
+                    );
+                } else {
+                    body = body.push(
+                        text(match link {
+                            Some(DashLink::Live(_)) => t("monitor_sampling"),
+                            _ => t("monitor_dash_connecting"),
+                        })
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                    );
+                }
+            }
+        }
+
+        let uptime: Element<'_, Message> = match latest.and_then(|s| s.uptime_secs) {
+            Some(secs) => text(fmt_uptime(secs))
+                .size(10)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+            None => Space::new().into(),
+        };
+
+        let inner = column![
+            dir_row(vec![
+                text(dot).size(10).color(dot_color).into(),
+                Space::new().width(6).into(),
+                text(conn.label.clone())
+                    .size(13)
+                    .color(OryxisColors::t().text_primary)
+                    .width(Length::Fill)
+                    .into(),
+                uptime,
+            ])
+            .align_y(iced::Alignment::Center),
+            Space::new().height(10),
+            body,
+        ];
+
+        let selected = self.monitor_dash.selected == Some(conn_id);
+        let msg = Message::Monitor(MonitorMessage::DashSelectHost(conn_id));
+        let width = if list_mode {
+            Length::Fill
+        } else {
+            Length::Fixed(CARD_W)
+        };
+        let card = button(container(inner).padding(14).width(width))
+            .on_press(msg.clone())
+            .padding(0)
+            .width(width)
+            .style(move |_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                    BtnStatus::Pressed => OryxisColors::t().bg_selected,
+                    _ => OryxisColors::t().bg_surface,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border {
+                        radius: Radius::from(10.0),
+                        color: if selected {
+                            OryxisColors::t().accent
+                        } else {
+                            OryxisColors::t().border
+                        },
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }
+            });
+        self.content_action_slot(
+            crate::keynav::RowAction::activate(msg),
+            10.0,
+            card.into(),
+        )
+    }
+
+    /// The trailing-edge detail panel: full vitals of the selected
+    /// host, plus the explicit actions (open terminal / retry).
+    fn dash_detail_panel(&self, conn_id: uuid::Uuid) -> Element<'_, Message> {
+        let label = self
+            .connections
+            .iter()
+            .find(|c| c.id == conn_id)
+            .map(|c| c.label.clone())
+            .unwrap_or_default();
+        let link = self.monitor_dash.links.get(&conn_id);
+        let series = self.monitor.series.get(&conn_id);
+        let latest = series.and_then(|s| s.latest());
+
+        let close = self.content_action_slot(
+            crate::keynav::RowAction::activate(Message::Monitor(
+                MonitorMessage::DashCloseDetail,
+            )),
+            6.0,
+            button(
+                container(
+                    iced_fonts::lucide::x()
+                        .size(14)
+                        .color(OryxisColors::t().text_secondary),
+                )
+                .center_y(Length::Fixed(22.0))
+                .center_x(Length::Fixed(22.0)),
+            )
+            .on_press(Message::Monitor(MonitorMessage::DashCloseDetail))
+            .padding(0)
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                    BtnStatus::Pressed => OryxisColors::t().bg_selected,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border { radius: Radius::from(6.0), ..Default::default() },
+                    ..Default::default()
+                }
+            })
+            .into(),
+        );
+
+        let mut body = column![].spacing(14);
+        match link {
+            Some(DashLink::Failed(e)) => {
+                body = body
+                    .push(text(e.clone()).size(12).color(OryxisColors::t().error))
+                    .push(self.content_action_slot(
+                        crate::keynav::RowAction::activate(Message::Monitor(
+                            MonitorMessage::DashRetry(conn_id),
+                        )),
+                        6.0,
+                        crate::widgets::styled_button(
+                            t("retry"),
+                            Message::Monitor(MonitorMessage::DashRetry(conn_id)),
+                            OryxisColors::t().accent,
+                        ),
+                    ));
+            }
+            _ => {
+                if let Some(sample) = latest {
+                    if let Some(s) = series {
+                        let cpu_series = s.cpu_series();
+                        if cpu_series.len() > 1 {
+                            body = body.push(sparkline(&cpu_series));
+                        }
+                    }
+                    body = body.push(match &sample.cpu {
+                        Some(cpu) => gauge_block(
+                            t("monitor_cpu"),
+                            cpu.pct,
+                            &format!("{:.0}%", cpu.pct),
+                        ),
+                        None => gauge_block(t("monitor_cpu"), 0.0, "-"),
+                    });
+                    if let Some(mem) = &sample.mem {
+                        if mem.total > 0 {
+                            body = body.push(gauge_block(
+                                t("monitor_mem"),
+                                mem.pct(),
+                                &format!(
+                                    "{} / {}",
+                                    fmt_bytes_short(mem.used),
+                                    fmt_bytes_short(mem.total)
+                                ),
+                            ));
+                        }
+                        if mem.swap_total > 0 {
+                            let pct =
+                                mem.swap_used as f32 / mem.swap_total as f32 * 100.0;
+                            body = body.push(gauge_block(
+                                t("monitor_swap"),
+                                pct,
+                                &format!(
+                                    "{} / {}",
+                                    fmt_bytes_short(mem.swap_used),
+                                    fmt_bytes_short(mem.swap_total)
+                                ),
+                            ));
+                        }
+                    }
+                    if let Some(load) = &sample.load {
+                        body = body.push(stat_row(
+                            t("monitor_load"),
+                            format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen),
+                        ));
+                    }
+                    if let Some(net) = &sample.net {
+                        body = body.push(stat_row(
+                            t("monitor_net"),
+                            format!(
+                                "\u{2193}{}/s \u{2191}{}/s",
+                                fmt_bytes_short(net.rx_bps),
+                                fmt_bytes_short(net.tx_bps)
+                            ),
+                        ));
+                    }
+                    if let Some(uptime) = sample.uptime_secs {
+                        body = body.push(stat_row(t("monitor_uptime"), fmt_uptime(uptime)));
+                    }
+                    for gpu in &sample.gpus {
+                        let label = gpu.name.as_deref().unwrap_or("GPU");
+                        let vram = match (gpu.mem_used, gpu.mem_total) {
+                            (Some(u), Some(t)) => format!(
+                                " {} / {}",
+                                fmt_bytes_short(u),
+                                fmt_bytes_short(t)
+                            ),
+                            _ => String::new(),
+                        };
+                        body = body.push(gauge_block(
+                            label,
+                            gpu.util_pct,
+                            &format!("{:.0}%{vram}", gpu.util_pct),
+                        ));
+                    }
+                    if !sample.disks.is_empty() {
+                        let mut disks = column![].spacing(8);
+                        for d in &sample.disks {
+                            disks = disks.push(gauge_block(
+                                &d.mount,
+                                d.pct(),
+                                &format!(
+                                    "{} / {}",
+                                    fmt_bytes_short(d.used),
+                                    fmt_bytes_short(d.total)
+                                ),
+                            ));
+                        }
+                        body = body
+                            .push(
+                                text(t("monitor_disk"))
+                                    .size(12)
+                                    .color(OryxisColors::t().text_secondary),
+                            )
+                            .push(disks);
+                    }
+                } else {
+                    body = body.push(
+                        text(match link {
+                            Some(DashLink::Live(_)) => t("monitor_sampling"),
+                            _ => t("monitor_dash_connecting"),
+                        })
+                        .size(12)
+                        .color(OryxisColors::t().text_muted),
+                    );
+                }
+            }
+        }
+
+        // Explicit connect action: the one place the dashboard opens a
+        // terminal (focuses an existing tab when one is live).
+        let open_btn = self.content_action_slot(
+            crate::keynav::RowAction::activate(Message::Monitor(
+                MonitorMessage::DashOpenHost(conn_id),
+            )),
+            6.0,
+            crate::widgets::styled_button(
+                t("monitor_dash_open_terminal"),
+                Message::Monitor(MonitorMessage::DashOpenHost(conn_id)),
+                OryxisColors::t().accent,
+            ),
+        );
+
+        container(
+            column![
+                dir_row(vec![
+                    text(label)
+                        .size(15)
+                        .color(OryxisColors::t().text_primary)
+                        .width(Length::Fill)
+                        .into(),
+                    close,
+                ])
+                .align_y(iced::Alignment::Center),
+                Space::new().height(14),
+                scrollable(body).height(Length::Fill),
+                Space::new().height(12),
+                open_btn,
+            ]
+            .padding(Padding { top: 16.0, right: 16.0, bottom: 16.0, left: 16.0 }),
+        )
+        .width(Length::Fixed(crate::app::PANEL_WIDTH))
+        .height(Length::Fill)
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border {
+                color: OryxisColors::t().border,
+                width: 1.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
+    }
+}
+
+/// Grid/List toggle for the monitor dashboard toolbar, mirroring the
+/// host grid's toggle button.
+fn dash_view_toggle_button(list_view: bool) -> Element<'static, Message> {
+    let glyph: iced::widget::Text<'static, iced::Theme, iced::Renderer> = if list_view {
+        iced_fonts::lucide::layout_grid()
+    } else {
+        iced_fonts::lucide::list()
+    };
+    button(
+        container(
+            glyph.size(15).color(OryxisColors::t().button_text),
+        )
+        .center_y(Length::Fixed(24.0))
+        .center_x(Length::Fixed(24.0)),
+    )
+    .on_press(Message::Monitor(MonitorMessage::DashToggleListView))
+    .style(|_, status| {
+        let bg = match status {
+            BtnStatus::Hovered => OryxisColors::t().button_bg_hover,
+            _ => OryxisColors::t().button_bg,
+        };
+        button::Style {
+            background: Some(Background::Color(bg)),
+            border: Border { radius: Radius::from(6.0), ..Default::default() },
+            ..Default::default()
+        }
+    })
+    .into()
+}

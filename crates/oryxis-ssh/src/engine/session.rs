@@ -11,6 +11,50 @@ pub struct ExecResult {
     pub stderr: String,
 }
 
+/// Open one exec side channel on the shared handle, run `command`, and
+/// collect bounded stdout. The body behind both [`SshSession::probe`]
+/// and [`MonitorConn::probe`](super::MonitorConn::probe): the handle
+/// lock is released as soon as the channel is open, so other tasks
+/// (SFTP, forwards) aren't blocked while the command runs.
+pub(crate) async fn probe_on(
+    handle: &Arc<tokio::sync::Mutex<client::Handle<ClientHandler>>>,
+    command: &str,
+    timeout: std::time::Duration,
+) -> Option<String> {
+    let handle = handle.lock().await;
+    let mut channel = handle.channel_open_session().await.ok()?;
+    channel.exec(true, command).await.ok()?;
+    drop(handle); // release so other tasks can use the shared handle
+
+    // Hard cap on collected output: probe payloads are a few KB, and
+    // the host side is untrusted, so an unbounded collect would let a
+    // hostile (or misconfigured) command stream hundreds of MB into
+    // memory within the timeout window. Generous headroom for a busy
+    // host's df/socket tables; excess is dropped, not an error.
+    const PROBE_STDOUT_CAP: usize = 512 * 1024;
+    let mut stdout = Vec::new();
+    let collect = async {
+        loop {
+            match channel.wait().await {
+                // Once the cap is hit the guard stops matching and
+                // excess data falls through to `_` (drained, dropped).
+                Some(russh::ChannelMsg::Data { data })
+                    if stdout.len() < PROBE_STDOUT_CAP =>
+                {
+                    let room = PROBE_STDOUT_CAP - stdout.len();
+                    stdout.extend_from_slice(&data[..data.len().min(room)]);
+                }
+                Some(russh::ChannelMsg::Eof)
+                | Some(russh::ChannelMsg::ExitStatus { .. })
+                | None => break,
+                _ => {}
+            }
+        }
+    };
+    tokio::time::timeout(timeout, collect).await.ok()?;
+    Some(String::from_utf8_lossy(&stdout).into_owned())
+}
+
 /// A live SSH session with a remote PTY channel.
 pub struct SshSession {
     /// Shared SSH handle, kept alive for port forward tasks to open channels.
@@ -128,38 +172,7 @@ impl SshSession {
         command: &str,
         timeout: std::time::Duration,
     ) -> Option<String> {
-        let handle = self._handle.lock().await;
-        let mut channel = handle.channel_open_session().await.ok()?;
-        channel.exec(true, command).await.ok()?;
-        drop(handle); // release so other tasks can use the shared handle
-
-        // Hard cap on collected output: probe payloads are a few KB, and
-        // the host side is untrusted, so an unbounded collect would let a
-        // hostile (or misconfigured) command stream hundreds of MB into
-        // memory within the timeout window. Generous headroom for a busy
-        // host's df/socket tables; excess is dropped, not an error.
-        const PROBE_STDOUT_CAP: usize = 512 * 1024;
-        let mut stdout = Vec::new();
-        let collect = async {
-            loop {
-                match channel.wait().await {
-                    // Once the cap is hit the guard stops matching and
-                    // excess data falls through to `_` (drained, dropped).
-                    Some(russh::ChannelMsg::Data { data })
-                        if stdout.len() < PROBE_STDOUT_CAP =>
-                    {
-                        let room = PROBE_STDOUT_CAP - stdout.len();
-                        stdout.extend_from_slice(&data[..data.len().min(room)]);
-                    }
-                    Some(russh::ChannelMsg::Eof)
-                    | Some(russh::ChannelMsg::ExitStatus { .. })
-                    | None => break,
-                    _ => {}
-                }
-            }
-        };
-        tokio::time::timeout(timeout, collect).await.ok()?;
-        Some(String::from_utf8_lossy(&stdout).into_owned())
+        probe_on(&self._handle, command, timeout).await
     }
 
     /// [`Self::probe`] with the full result: exit status, stdout AND

@@ -7,6 +7,22 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Multi-host monitoring dashboard (#95).** A Monitoring pill next to
+  Hosts (once the host-monitoring feature toggle is on) shows live
+  vitals cards for every opted-in host at once. Hosts with an open
+  terminal tab are read over that session; the rest get a headless,
+  probe-only SSH connection dialed with the stored credentials
+  (strict host key, TOTP autofill, jump chains and proxies included)
+  and pooled with an idle TTL, so leaving the view and coming right
+  back doesn't redial the fleet. Cards show CPU and memory gauges
+  plus network, fullest-disk and GPU at a glance; clicking one opens
+  a detail panel with the CPU sparkline, swap, load, every disk, GPUs
+  and uptime, and the explicit "Open terminal" / "Retry" actions (a
+  card click never opens a session by itself). Search and the shared
+  host-tag filter narrow the grid, a toggle switches between the card
+  grid and a two-column list, polling only runs while the view is
+  visible, and the same sample rings feed this view, the sidebar
+  Monitor tab and the status bar, so they can never disagree.
 - **Downloadable terminal font pack (#109).** The terminal font picker
   now carries a curated catalog of popular Nerd Font builds: JetBrains
   Mono, CaskaydiaCove (Cascadia Code), Fira Code, Hack, MesloLGS (the

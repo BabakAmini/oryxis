@@ -448,7 +448,7 @@ fn placeholder(label: &str) -> Element<'_, Message> {
 // `label` is converted to an owned string right away (as is `value`), so
 // the returned element's lifetime is NOT tied to it: callers can pass a
 // loop-local `String` (the GPU gauges build "GPU 0" labels per device).
-fn gauge_block<'a>(label: &str, pct: f32, value: &str) -> Element<'a, Message> {
+pub(crate) fn gauge_block<'a>(label: &str, pct: f32, value: &str) -> Element<'a, Message> {
     let pct = pct.clamp(0.0, 100.0);
     let fill = if pct >= 90.0 {
         OryxisColors::t().error
@@ -506,7 +506,7 @@ fn pending_block<'a>(label: &'a str) -> Element<'a, Message> {
     .into()
 }
 
-fn stat_row<'a>(label: &'a str, value: String) -> Element<'a, Message> {
+pub(crate) fn stat_row<'a>(label: &'a str, value: String) -> Element<'a, Message> {
     dir_row(vec![
         text(label.to_string())
             .size(11)
@@ -525,7 +525,7 @@ fn stat_row<'a>(label: &'a str, value: String) -> Element<'a, Message> {
 
 /// CPU history as a row of bars, oldest to newest. A canvas would be
 /// smoother but this reuses the gauge's vocabulary and costs nothing.
-fn sparkline<'a>(series: &[f32]) -> Element<'a, Message> {
+pub(crate) fn sparkline<'a>(series: &[f32]) -> Element<'a, Message> {
     // Only the tail fits the sidebar's width at a readable bar size.
     let tail = series.len().saturating_sub(40);
     let bars: Vec<Element<'a, Message>> = series[tail..]
@@ -578,7 +578,7 @@ fn fmt_bytes(bytes: u64) -> String {
 }
 
 /// Uptime as the coarsest useful unit, the way `uptime(1)` reads.
-fn fmt_uptime(secs: u64) -> String {
+pub(crate) fn fmt_uptime(secs: u64) -> String {
     let days = secs / 86_400;
     let hours = (secs % 86_400) / 3_600;
     let minutes = (secs % 3_600) / 60;

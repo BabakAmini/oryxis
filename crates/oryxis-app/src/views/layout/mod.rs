@@ -103,6 +103,7 @@ impl Oryxis {
                     | View::Proxies
                     | View::KnownHosts
                     | View::History
+                    | View::Monitoring
             )
     }
 
@@ -299,6 +300,7 @@ impl Oryxis {
                 View::Sftp => self.view_sftp(),
                 View::Settings => self.view_settings(),
                 View::Terminal => self.view_terminal(),
+                View::Monitoring => self.view_monitor_dash(),
             }
         };
 
@@ -333,6 +335,7 @@ impl Oryxis {
             View::History => self.logs.is_empty() && self.session_logs.is_empty(),
             View::Cloud => self.cloud_profiles.is_empty(),
             View::Proxies => self.proxy_identities.is_empty(),
+            View::Monitoring => self.dash_hosts().is_empty(),
             _ => true,
         }
     }

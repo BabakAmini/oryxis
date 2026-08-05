@@ -156,6 +156,8 @@ impl Oryxis {
             // content like any vault view.
             View::Settings => Some(widget::Id::new("search-settings")),
             View::KnownHosts => None,
+            View::Monitoring => (!self.dash_hosts().is_empty())
+                .then(|| widget::Id::new("search-monitor")),
         }
     }
 

@@ -41,6 +41,7 @@ mod dispatch_player;
 mod gif_export;
 mod dispatch_command_history;
 mod dispatch_monitor;
+mod dispatch_monitor_dash;
 mod dispatch_mcp;
 mod dispatch_sync;
 mod dispatch_proxy_identity;
