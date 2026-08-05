@@ -1835,6 +1835,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "מוריד גופן שפה...",
         "cjk_font_failed" => "לא ניתן היה להוריד את גופן השפה, נעשה שימוש בגופן המערכת.",
+        "font_pack_available" => "זמינים להורדה (נטענים בעת הבחירה):",
+        "font_pack_downloading" => "מוריד גופן מסוף...",
+        "font_pack_failed" => "לא ניתן להוריד את גופן המסוף, הגופן הנוכחי נשמר.",
 
         // SSH certificate auth (B2)
         "certificate" => "תעודה",

@@ -1742,6 +1742,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "언어 글꼴 다운로드 중...",
         "cjk_font_failed" => "언어 글꼴을 다운로드하지 못했습니다. 시스템 글꼴을 사용합니다.",
+        "font_pack_available" => "다운로드 가능 (선택 시 받아옴):",
+        "font_pack_downloading" => "터미널 글꼴 다운로드 중...",
+        "font_pack_failed" => "터미널 글꼴을 다운로드하지 못해 현재 글꼴을 유지합니다.",
 
         "logs" => "기록",
         "vault" => "볼트",

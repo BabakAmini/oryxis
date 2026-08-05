@@ -89,7 +89,56 @@ impl Oryxis {
             SettingsMessage::TerminalFontChanged(name) => {
                 self.terminal_font_name = name;
                 self.persist_setting("terminal_font_name", &self.terminal_font_name);
+                // Picking a pack font (issue #109) pulls its file on
+                // demand, once per session (guard contract of
+                // `loaded_cjk_fonts`). A cached file loads silently;
+                // a download shows a hint toast. Either way the font
+                // registers via `PackFontReady`, live panes re-render
+                // with it, no restart.
+                if let Some(font) = crate::fonts::pack_font(&self.terminal_font_name)
+                    && !self.loaded_pack_fonts.contains(font.family)
+                {
+                    self.loaded_pack_fonts.insert(font.family.to_string());
+                    if !crate::fonts::is_pack_cached(font) {
+                        self.set_toast(
+                            crate::i18n::t("font_pack_downloading").to_string(),
+                        );
+                    }
+                    return Ok(crate::fonts::ensure_pack_task(font));
+                }
             }
+            SettingsMessage::PackFontReady(family, result) => match result {
+                Ok(bytes) => {
+                    // Clear the "downloading" hint and register the
+                    // font with the iced font system; the terminal
+                    // widget resolves the family by name per frame, so
+                    // the picked font applies as soon as the load
+                    // lands. `iced::font::Error` is uninhabited, so
+                    // the load result is discarded.
+                    self.toast = None;
+                    return Ok(iced::font::load(bytes).discard());
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        target = "oryxis::fonts",
+                        family = %family,
+                        error = %e,
+                        "pack font download failed; keeping the fallback rendering"
+                    );
+                    // Drop the guard so re-picking the font retries.
+                    self.loaded_pack_fonts.remove(&family);
+                    self.set_toast(crate::i18n::t("font_pack_failed").to_string());
+                    return Ok(Task::perform(
+                        async {
+                            tokio::time::sleep(
+                                std::time::Duration::from_millis(2600),
+                            )
+                            .await;
+                        },
+                        |_| Message::ToastClear,
+                    ));
+                }
+            },
             SettingsMessage::ToggleCopyOnSelect => {
                 self.prefs.copy_on_select = !self.prefs.copy_on_select;
                 self.persist_setting(

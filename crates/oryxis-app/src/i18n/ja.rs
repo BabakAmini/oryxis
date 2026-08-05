@@ -1721,6 +1721,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "言語フォントをダウンロード中...",
         "cjk_font_failed" => "言語フォントをダウンロードできませんでした。システムフォントを使用します。",
+        "font_pack_available" => "ダウンロード可能（選択時に取得）:",
+        "font_pack_downloading" => "ターミナルフォントをダウンロード中...",
+        "font_pack_failed" => "ターミナルフォントをダウンロードできませんでした。現在のフォントを維持します。",
 
         "terminal_link_hint" => "Ctrl を押しながらクリックするとリンクを開きます。",
         "mouse_capture_hint" => "マウスモードが有効です。Shift を押しながらテキストを選択。",

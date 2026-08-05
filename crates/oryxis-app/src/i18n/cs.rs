@@ -1835,6 +1835,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Stahování jazykového písma...",
         "cjk_font_failed" => "Jazykové písmo se nepodařilo stáhnout, používá se systémové písmo.",
+        "font_pack_available" => "K dispozici ke stažení (stáhne se při výběru):",
+        "font_pack_downloading" => "Stahování písma terminálu...",
+        "font_pack_failed" => "Písmo terminálu se nepodařilo stáhnout, zůstává současné.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certifikát",

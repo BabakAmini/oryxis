@@ -1759,6 +1759,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Téléchargement de la police de la langue...",
         "cjk_font_failed" => "Impossible de télécharger la police de la langue. Utilisation de la police système.",
+        "font_pack_available" => "Disponibles au téléchargement (récupérées à la sélection) :",
+        "font_pack_downloading" => "Téléchargement de la police du terminal...",
+        "font_pack_failed" => "Impossible de télécharger la police du terminal, la police actuelle est conservée.",
 
         "terminal_link_hint" => "Maintenez Ctrl et cliquez pour ouvrir le lien.",
         "mouse_capture_hint" => "Mode souris actif. Maintenez Maj pour sélectionner le texte.",

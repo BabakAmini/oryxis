@@ -549,6 +549,7 @@ impl Oryxis {
                 toast: None,
                 toast_deadline: None,
                 loaded_cjk_fonts: std::collections::HashSet::new(),
+                loaded_pack_fonts: std::collections::HashSet::new(),
                 error_dialog: None,
                 local_terminals: None,
                 local_terminal_default: None,
@@ -671,6 +672,17 @@ impl Oryxis {
                 app.loaded_cjk_fonts.insert(code.to_string());
                 tasks.push(crate::fonts::ensure_task(lang));
             }
+        }
+
+        // Terminal font pack (issue #109): load every already-cached
+        // pack font now so a terminal picked to one of them renders
+        // right from its first frame, and silently fetch the picked
+        // family when it isn't cached yet (settings that arrived via
+        // sync / import land on a machine without the file). Guard
+        // semantics mirror the CJK block above.
+        for (family, task) in crate::fonts::boot_pack_tasks(&app.terminal_font_name) {
+            app.loaded_pack_fonts.insert(family.to_string());
+            tasks.push(task);
         }
 
         // A restored position may reference a monitor that is gone

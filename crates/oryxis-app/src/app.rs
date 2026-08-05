@@ -137,21 +137,32 @@ pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
             }
         }
 
+        // Prepend the bundled family (always picker entry #1) and the
+        // downloadable pack families (issue #109) regardless of what
+        // the system scan returned. cosmic-text resolves all of them
+        // by family name: the bundled one is registered in main.rs,
+        // the pack ones via `iced::font::load` when picked (an
+        // un-downloaded pack font is still listed; selecting it
+        // triggers the download). Also applied to the scan-failed
+        // fallback path, so the guaranteed-loadable families never
+        // vanish from the picker on a system fontdb can't read.
+        let mut head: Vec<&str> = vec!["SauceCodePro Nerd Font"];
+        head.extend(crate::fonts::PACK_FONTS.iter().map(|p| p.family));
+
         if names.is_empty() {
-            return TERMINAL_FONT_FALLBACK.iter().map(|s| s.to_string()).collect();
+            return head
+                .iter()
+                .map(|s| s.to_string())
+                .chain(TERMINAL_FONT_FALLBACK.iter().map(|s| s.to_string()))
+                .collect();
         }
 
-        // Prepend the bundled family so it's always picker entry #1
-        // regardless of what the system scan returned. cosmic-text
-        // resolves it by family name, fontdb has it registered via
-        // `application.font(include_bytes!(...))` in main.rs.
-        let bundled: &[&str] = &["SauceCodePro Nerd Font"];
-        let mut out: Vec<String> = Vec::with_capacity(names.len() + bundled.len());
-        for b in bundled {
+        let mut out: Vec<String> = Vec::with_capacity(names.len() + head.len());
+        for b in &head {
             out.push((*b).to_string());
         }
         for n in names {
-            if !bundled.contains(&n.as_str()) {
+            if !head.contains(&n.as_str()) {
                 out.push(n);
             }
         }
@@ -1060,6 +1071,14 @@ pub struct Oryxis {
     /// doesn't re-download or re-load. A code is removed on a failed
     /// download so a later retry can happen. See `crate::fonts`.
     pub(crate) loaded_cjk_fonts: std::collections::HashSet<String>,
+
+    /// Terminal-pack font families whose bytes have already been
+    /// requested this session (same guard contract as
+    /// `loaded_cjk_fonts`: inserted when the ensure task is spawned,
+    /// removed on a failed download so a re-pick retries). Also drives
+    /// the picker's "available to download" hint, which lists only the
+    /// pack fonts not yet requested.
+    pub(crate) loaded_pack_fonts: std::collections::HashSet<String>,
 
     /// Generic blocking error dialog. Use for cases the user must read
     /// (install instructions, fatal config errors) where a 1.8 s toast

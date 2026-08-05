@@ -168,6 +168,14 @@ coming next, see the [Roadmap](../README.md#roadmap).
   viewport never hides what you type) and/or on output, and an opt-in
   performance HUD (frame time vs budget, RTT and jitter on the SSH
   connection).
+- **Downloadable font pack.** A curated catalog of popular Nerd Font
+  builds sits in the font picker next to the system fonts: JetBrains
+  Mono, CaskaydiaCove (Cascadia Code), Fira Code, Hack, MesloLGS (the
+  powerlevel10k standard), Roboto Mono, Ubuntu Mono and Iosevka. Each
+  downloads individually on first selection (2-3 MB, Iosevka 13 MB),
+  SHA-256 pinned, cached locally, applied without a restart, and
+  mirror-aware like the CJK fonts; nothing is bundled into the
+  installers and the default SauceCodePro Nerd Font stays built in.
 
 ## Host monitoring
 

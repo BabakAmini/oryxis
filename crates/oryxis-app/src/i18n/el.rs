@@ -1835,6 +1835,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Λήψη γραμματοσειράς γλώσσας...",
         "cjk_font_failed" => "Αδύνατη η λήψη της γραμματοσειράς γλώσσας, χρήση της γραμματοσειράς συστήματος.",
+        "font_pack_available" => "Διαθέσιμες για λήψη (λαμβάνονται κατά την επιλογή):",
+        "font_pack_downloading" => "Λήψη γραμματοσειράς τερματικού...",
+        "font_pack_failed" => "Αδυναμία λήψης της γραμματοσειράς τερματικού, διατηρείται η τρέχουσα.",
 
         // SSH certificate auth (B2)
         "certificate" => "Πιστοποιητικό",

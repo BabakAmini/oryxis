@@ -1836,6 +1836,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "กำลังดาวน์โหลดฟอนต์ภาษา...",
         "cjk_font_failed" => "ดาวน์โหลดฟอนต์ภาษาไม่ได้ จะใช้ฟอนต์ของระบบแทน",
+        "font_pack_available" => "พร้อมดาวน์โหลด (ดึงเมื่อเลือก):",
+        "font_pack_downloading" => "กำลังดาวน์โหลดฟอนต์เทอร์มินัล...",
+        "font_pack_failed" => "ไม่สามารถดาวน์โหลดฟอนต์เทอร์มินัลได้ จะใช้ฟอนต์ปัจจุบันต่อไป",
 
         // SSH certificate auth (B2)
         "certificate" => "ใบรับรอง",

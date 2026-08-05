@@ -1731,6 +1731,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "در حال دانلود فونت زبان...",
         "cjk_font_failed" => "دانلود فونت زبان ممکن نشد. از فونت سیستم استفاده می‌شود.",
+        "font_pack_available" => "قابل دانلود (هنگام انتخاب دریافت می‌شود):",
+        "font_pack_downloading" => "در حال دانلود فونت ترمینال...",
+        "font_pack_failed" => "دانلود فونت ترمینال ممکن نشد، فونت فعلی حفظ می‌شود.",
 
         "logs" => "تاریخچه",
         "vault" => "صندوقچه",

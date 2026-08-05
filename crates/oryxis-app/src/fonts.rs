@@ -1,4 +1,5 @@
-//! On-demand CJK font download + runtime load.
+//! On-demand font download + runtime load (CJK scripts + the
+//! terminal font pack).
 //!
 //! Noto Sans (Latin / Cyrillic / Greek / Vietnamese) plus the Noto
 //! Sans Arabic, Hebrew, Thai and Devanagari script fonts ship inside
@@ -10,8 +11,15 @@
 //! then handed to the iced font system with `iced::font::load` so
 //! cosmic-text falls back to them per codepoint.
 //!
-//! A failed download degrades to the system CJK font (the behaviour
-//! that existed before this module) and never surfaces as a hard error.
+//! The terminal font pack (issue #109) rides the same machinery: a
+//! curated short list of popular Nerd Font builds, downloaded the
+//! first time the user picks one in the terminal font picker instead
+//! of being bundled in the installers. Same cache directory, same
+//! sha256 + byte-length pins, same mirror routing.
+//!
+//! A failed download degrades to the previous font (system CJK font /
+//! whatever the terminal was rendering with) and never surfaces as a
+//! hard error.
 
 use std::path::PathBuf;
 
@@ -80,14 +88,11 @@ pub static BUNDLED_FONTS: &[&[u8]] = &[
     include_bytes!("../../../resources/fonts/SymbolsNerdFont-Regular.ttf"),
 ];
 
-/// One downloadable CJK font, keyed by language. Each is a Noto Sans
-/// regional variable TTF (all weights in one file) pinned to an
-/// immutable `google/fonts` commit *and* to its SHA-256. To re-pin or
-/// move to a self-hosted mirror, change `url` and `sha256` together.
-struct CjkAsset {
-    /// Short language code used as the in-memory "already loaded" guard
-    /// key and the cache file stem.
-    code: &'static str,
+/// One downloadable font file: pinned to an immutable commit URL
+/// *and* to its SHA-256. To re-pin or move to a self-hosted mirror,
+/// change `url` and `sha256` together. Shared by the CJK assets and
+/// the terminal font pack.
+struct FontAsset {
     /// Cache file name under `~/.oryxis/fonts/`.
     file: &'static str,
     /// Immutable (commit-pinned) download URL.
@@ -97,6 +102,15 @@ struct CjkAsset {
     /// Expected byte length. A cheap pre-check before hashing and the
     /// cache-hit validity test (guards against a truncated file).
     len: u64,
+}
+
+/// One downloadable CJK font, keyed by language. Each is a Noto Sans
+/// regional variable TTF (all weights in one file).
+struct CjkAsset {
+    /// Short language code used as the in-memory "already loaded" guard
+    /// key and the cache file stem.
+    code: &'static str,
+    asset: FontAsset,
 }
 
 // The pinned URLs below resolve against `google/fonts` commit
@@ -112,33 +126,165 @@ struct CjkAsset {
 static ASSETS: &[CjkAsset] = &[
     CjkAsset {
         code: "ko",
-        file: "NotoSansKR.ttf",
-        url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
-        sha256: "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
-        len: 10_414_588,
+        asset: FontAsset {
+            file: "NotoSansKR.ttf",
+            url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
+            sha256: "194018e6b2b293a7964f037b25c0249ce1418bc9ab3c971060a03aa57861e252",
+            len: 10_414_588,
+        },
     },
     CjkAsset {
         code: "zh",
-        file: "NotoSansSC.ttf",
-        url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
-        sha256: "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
-        len: 17_772_300,
+        asset: FontAsset {
+            file: "NotoSansSC.ttf",
+            url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
+            sha256: "a3041811a78c361b1de50f953c805e0244951c21c5bd412f7232ef0d899af0da",
+            len: 17_772_300,
+        },
     },
     CjkAsset {
         code: "ja",
-        file: "NotoSansJP.ttf",
-        url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf",
-        sha256: "c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f",
-        len: 9_589_900,
+        asset: FontAsset {
+            file: "NotoSansJP.ttf",
+            url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf",
+            sha256: "c2f3b4d463500a2ddcd3849cded1fceeb9fd6d1c32e6cbecd568453ba50fc68f",
+            len: 9_589_900,
+        },
     },
     CjkAsset {
         code: "zh-TW",
-        file: "NotoSansTC.ttf",
-        url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
-        sha256: "864727d210d54f2537bbe23b3a839436c3992af72de9322af5270897246bd44f",
-        len: 11_941_968,
+        asset: FontAsset {
+            file: "NotoSansTC.ttf",
+            url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
+            sha256: "864727d210d54f2537bbe23b3a839436c3992af72de9322af5270897246bd44f",
+            len: 11_941_968,
+        },
     },
 ];
+
+// The pinned URLs below resolve against `ryanoasis/nerd-fonts` commit
+// `fa7b859994228a9c8759f99c55a8d31ee92a1b5e` (the v3.4.0 tag), the
+// last release whose patched TTFs are committed in-repo (v3.5.0
+// removed them from the tree, leaving only the mutable release-zip
+// assets, which a sha256 pin can't ride). Same content-addressed
+// contract as the CJK pins above.
+
+/// The terminal font pack (issue #109): a curated list of popular
+/// Nerd Font builds, offered in the terminal font picker and
+/// downloaded individually on first selection (a catalog, not a
+/// bundle: the user only ever pays for the families they pick).
+/// `family` is the exact typographic family name inside each TTF
+/// (the in-repo builds are inconsistent about it: some use the short
+/// "NF" suffix, most spell out "Nerd Font") - it is what the picker
+/// stores in `terminal_font_name` and what cosmic-text resolves, so
+/// the three must always agree per entry.
+///
+/// Only the Regular face is pinned per family: the terminal renderer
+/// draws every cell with a single face (`widget/draw.rs` maps the
+/// BOLD flag to a color promotion, not a weight change), so extra
+/// weights would be dead download weight. The non-Mono variant
+/// matches the bundled SauceCodePro Nerd Font build.
+pub struct PackFont {
+    /// Typographic family name (name ID 1/16) inside the TTF.
+    pub family: &'static str,
+    asset: FontAsset,
+}
+
+pub static PACK_FONTS: &[PackFont] = &[
+    PackFont {
+        family: "JetBrainsMono NF",
+        asset: FontAsset {
+            file: "JetBrainsMonoNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf",
+            sha256: "0ec29a68b539ece7078fc714cebff0c0accb2f4948f8f7963d9f5e86633b12d9",
+            len: 2_469_104,
+        },
+    },
+    PackFont {
+        family: "CaskaydiaCove NF",
+        asset: FontAsset {
+            file: "CaskaydiaCoveNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFont-Regular.ttf",
+            sha256: "701d7ec08f58f07251c1758361c5d1ab57ba0a867dd378cbb0fa52e1d2beccad",
+            len: 2_892_532,
+        },
+    },
+    PackFont {
+        family: "FiraCode Nerd Font",
+        asset: FontAsset {
+            file: "FiraCodeNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/FiraCode/Regular/FiraCodeNerdFont-Regular.ttf",
+            sha256: "29b619655612cb273e034737408b9508a04beb63c1ddbdfaa9a6846c409c7a2e",
+            len: 2_642_616,
+        },
+    },
+    PackFont {
+        family: "Hack Nerd Font",
+        asset: FontAsset {
+            file: "HackNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Hack/Regular/HackNerdFont-Regular.ttf",
+            sha256: "7e6b5d86baee613984b10cef14c8d6aee86c976a3d1cbd87abffd424d6ec4c64",
+            len: 2_685_912,
+        },
+    },
+    // The nerd-fonts build of Meslo LG S, the face powerlevel10k made
+    // the de-facto prompt standard (p10k's own "MesloLGS NF" is a
+    // separate hand-tuned build; this official one names itself
+    // "MesloLGS Nerd Font").
+    PackFont {
+        family: "MesloLGS Nerd Font",
+        asset: FontAsset {
+            file: "MesloLGSNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf",
+            sha256: "44ae9b687639c1529ecd01e5d0ae8d98f3b30cb20b02bbe4e6d9fb474c8dee36",
+            len: 2_853_324,
+        },
+    },
+    PackFont {
+        family: "RobotoMono Nerd Font",
+        asset: FontAsset {
+            file: "RobotoMonoNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/RobotoMono/Regular/RobotoMonoNerdFont-Regular.ttf",
+            sha256: "09605f6c29dcb12c007cbddc22170ce771d746fde4ed05b4b5d4dfc251e595fb",
+            len: 2_454_524,
+        },
+    },
+    PackFont {
+        family: "UbuntuMono Nerd Font",
+        asset: FontAsset {
+            file: "UbuntuMonoNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/UbuntuMono/Regular/UbuntuMonoNerdFont-Regular.ttf",
+            sha256: "06492cae7c6b268ac5dccacfb0677e40f0f1377852b4d22689d4105ec862d7a4",
+            len: 2_367_832,
+        },
+    },
+    // 13 MB: Iosevka is a superfamily with very wide coverage. Fine
+    // for an opt-in download (the CJK fonts run 9-18 MB), would never
+    // fly bundled.
+    PackFont {
+        family: "Iosevka NF",
+        asset: FontAsset {
+            file: "IosevkaNerdFont-Regular.ttf",
+            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Iosevka/IosevkaNerdFont-Regular.ttf",
+            sha256: "48dad582909322164f40892e4e27eaa497346ab046b450b5c23c754ac35b53d2",
+            len: 13_233_516,
+        },
+    },
+];
+
+/// The pack entry for a picker family name, if it is one.
+pub fn pack_font(family: &str) -> Option<&'static PackFont> {
+    PACK_FONTS.iter().find(|p| p.family == family)
+}
+
+/// True when the pack font's file is already on disk at the expected
+/// size (same cheap validity test as [`is_language_cached`]).
+pub fn is_pack_cached(font: &PackFont) -> bool {
+    cached_path(&font.asset)
+        .and_then(|p| std::fs::metadata(p).ok())
+        .map(|m| m.len() == font.asset.len)
+        .unwrap_or(false)
+}
 
 /// The CJK asset a language needs, if any.
 fn asset_for(lang: Language) -> Option<&'static CjkAsset> {
@@ -164,7 +310,7 @@ fn cache_dir() -> Option<PathBuf> {
     Some(dirs::home_dir()?.join(".oryxis").join("fonts"))
 }
 
-fn cached_path(asset: &CjkAsset) -> Option<PathBuf> {
+fn cached_path(asset: &FontAsset) -> Option<PathBuf> {
     Some(cache_dir()?.join(asset.file))
 }
 
@@ -176,16 +322,16 @@ pub fn is_language_cached(lang: Language) -> bool {
     let Some(asset) = asset_for(lang) else {
         return false;
     };
-    cached_path(asset)
+    cached_path(&asset.asset)
         .and_then(|p| std::fs::metadata(p).ok())
-        .map(|m| m.len() == asset.len)
+        .map(|m| m.len() == asset.asset.len)
         .unwrap_or(false)
 }
 
 /// Read the cached font if present and the right size, otherwise
 /// download it (size-capped + SHA-256 verified, written atomically),
 /// and return the bytes ready for `iced::font::load`.
-async fn ensure_and_read(asset: &'static CjkAsset) -> Result<Vec<u8>, String> {
+async fn ensure_and_read(asset: &'static FontAsset) -> Result<Vec<u8>, String> {
     let path = cached_path(asset).ok_or_else(|| "no home directory".to_string())?;
 
     if let Ok(meta) = tokio::fs::metadata(&path).await
@@ -241,7 +387,7 @@ async fn ensure_and_read(asset: &'static CjkAsset) -> Result<Vec<u8>, String> {
     if !digest.eq_ignore_ascii_case(asset.sha256) {
         return Err(format!(
             "sha256 mismatch for {}: expected {}, got {digest}",
-            asset.code, asset.sha256
+            asset.file, asset.sha256
         ));
     }
 
@@ -284,9 +430,34 @@ pub fn ensure_task(lang: Language) -> iced::Task<Message> {
         return iced::Task::none();
     };
     let code = asset.code.to_string();
-    iced::Task::perform(ensure_and_read(asset), move |res| {
+    iced::Task::perform(ensure_and_read(&asset.asset), move |res| {
         Message::Settings(SettingsMessage::CjkFontReady(code.clone(), res))
     })
+}
+
+/// A task that ensures one pack font is available (cache read or
+/// download) and reports back as `PackFontReady`, which registers the
+/// bytes with the iced font system. The terminal widget resolves the
+/// family by name per frame, so a load that lands mid-session applies
+/// to live panes with no restart.
+pub fn ensure_pack_task(font: &'static PackFont) -> iced::Task<Message> {
+    let family = font.family.to_string();
+    iced::Task::perform(ensure_and_read(&font.asset), move |res| {
+        Message::Settings(SettingsMessage::PackFontReady(family.clone(), res))
+    })
+}
+
+/// Boot-time pack loading: one ensure task per pack font that is
+/// either already cached (pure disk read, loads before the first
+/// terminal renders) or is the picked terminal font on a machine that
+/// doesn't have it yet (settings arrived via sync / portable import;
+/// the silent download heals the tofu without the user re-picking).
+pub fn boot_pack_tasks(selected_family: &str) -> Vec<(&'static str, iced::Task<Message>)> {
+    PACK_FONTS
+        .iter()
+        .filter(|f| is_pack_cached(f) || f.family == selected_family)
+        .map(|f| (f.family, ensure_pack_task(f)))
+        .collect()
 }
 
 #[cfg(test)]
@@ -334,6 +505,61 @@ mod tests {
         assert_eq!(resolve_weight(&db, Weight::NORMAL), Weight::NORMAL);
         assert_eq!(resolve_weight(&db, Weight::SEMIBOLD), Weight::SEMIBOLD);
         assert_eq!(resolve_weight(&db, Weight::BOLD), Weight::BOLD);
+    }
+
+    /// Every downloadable font pin must be well-formed: lowercase-hex
+    /// 64-char sha256, a nonzero length, an https URL on the one host
+    /// the mirror layer rewrites to `fonts/<file>` (a pin on any other
+    /// host would silently lose the China-mirror fallback), and a URL
+    /// that actually ends in the cache file name (the mirror bucket
+    /// key is derived from the URL's last segment, so a mismatch would
+    /// 404 only on the fallback leg, the least-tested path).
+    #[test]
+    fn download_pins_are_well_formed() {
+        let all: Vec<(&str, &super::FontAsset)> = super::ASSETS
+            .iter()
+            .map(|a| (a.code, &a.asset))
+            .chain(super::PACK_FONTS.iter().map(|p| (p.family, &p.asset)))
+            .collect();
+        for (key, asset) in &all {
+            assert_eq!(asset.sha256.len(), 64, "{key}: sha256 length");
+            assert!(
+                asset.sha256.chars().all(|c| c.is_ascii_hexdigit() && !c.is_ascii_uppercase()),
+                "{key}: sha256 must be lowercase hex"
+            );
+            assert!(asset.len > 0, "{key}: zero pinned length");
+            assert!(
+                asset.url.starts_with("https://raw.githubusercontent.com/"),
+                "{key}: pin host must be raw.githubusercontent.com"
+            );
+            let last = asset.url.rsplit('/').next().unwrap_or_default();
+            let decoded = last.replace("%5B", "[").replace("%5D", "]");
+            assert!(
+                decoded.contains(asset.file.trim_end_matches(".ttf"))
+                    || asset.file.contains(decoded.trim_end_matches(".ttf")),
+                "{key}: URL tail {decoded:?} does not match cache file {:?}",
+                asset.file
+            );
+        }
+        // Cache file names double as bucket keys; a collision would
+        // make two different pins overwrite each other on disk.
+        let mut files: Vec<&str> = all.iter().map(|(_, a)| a.file).collect();
+        files.sort_unstable();
+        files.dedup();
+        assert_eq!(files.len(), all.len(), "duplicate cache file names");
+    }
+
+    /// The pack family names are what the picker stores and what
+    /// cosmic-text resolves against the loaded TTF, so they must be
+    /// unique and stable. `enumerate_terminal_fonts` prepends them by
+    /// name; a rename here without a picker migration would strand
+    /// saved `terminal_font_name` values.
+    #[test]
+    fn pack_families_are_unique() {
+        let mut fams: Vec<&str> = super::PACK_FONTS.iter().map(|p| p.family).collect();
+        fams.sort_unstable();
+        fams.dedup();
+        assert_eq!(fams.len(), super::PACK_FONTS.len());
     }
 
     /// The bundled MenuCJK subset must cover every glyph of the CJK

@@ -7,6 +7,16 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Downloadable terminal font pack (#109).** The terminal font picker
+  now carries a curated catalog of popular Nerd Font builds: JetBrains
+  Mono, CaskaydiaCove (Cascadia Code), Fira Code, Hack, MesloLGS (the
+  powerlevel10k standard), Roboto Mono, Ubuntu Mono and Iosevka. Each
+  downloads individually the first time it is picked (2-3 MB, Iosevka
+  13 MB), verified against a pinned SHA-256, cached under
+  `~/.oryxis/fonts/`, applied to live sessions without a restart, and
+  routed through the China download mirror like the CJK fonts. Nothing
+  is bundled into the installers and the built-in SauceCodePro Nerd
+  Font remains the default.
 - **Wake-on-LAN.** Store a MAC address on any host (any common
   notation) and wake the machine from the host card's menu with a
   magic-packet broadcast, before SSH, RDP or anything else can reach

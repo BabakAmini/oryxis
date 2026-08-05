@@ -87,9 +87,10 @@ binários de Windows são assinados com Authenticode.
   nunca aprenderam SSH, transferências ZMODEM, shells locais e RDP/VNC
   em um clique através de túnel SSH.
 - **Um terminal de verdade**: emulador baseado no alacritty, painéis
-  divididos, grupos de sessão, temas por host, Nerd Fonts embutidas,
-  abas inteligentes que sinalizam comandos demorados e histórico de
-  comandos por host.
+  divididos, grupos de sessão, temas por host, Nerd Fonts embutidas
+  mais um pacote de fontes baixáveis (JetBrains Mono, Fira Code,
+  MesloLGS e outras), abas inteligentes que sinalizam comandos
+  demorados e histórico de comandos por host.
 - **Arquivos em todo lugar**: SFTP de painel duplo com arrastar e
   soltar, edição no lugar e cópia servidor a servidor; toda aba SSH
   ainda traz uma barra lateral de arquivos que segue o diretório do
@@ -169,8 +170,7 @@ Mosh nativo, importadores de configuração (PuTTY / WinSCP / mRemoteNG /
 Termius), painel multi-host no monitoramento,
 suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
 pedidos recentes da comunidade: gerenciador de sessões tmux na barra
-lateral, pacote de fontes Nerd Font para o terminal e visão em árvore
-dos hosts.
+lateral e visão em árvore dos hosts.
 
 ## Contribuindo
 

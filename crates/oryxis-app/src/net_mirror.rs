@@ -136,7 +136,13 @@ fn asset_path(url: &str) -> Option<String> {
         // file name from the pinned raw URL; the mirror/bucket key is the
         // DECODED name (the server decodes request paths before matching),
         // so publish-mirror.yml stores decoded keys (see a038c67).
-        "raw.githubusercontent.com" if path.starts_with("/google/fonts/") => {
+        "raw.githubusercontent.com"
+            if path.starts_with("/google/fonts/")
+                || path.starts_with("/ryanoasis/nerd-fonts/") =>
+        {
+            // Both pinned font sources (CJK from google/fonts, the
+            // terminal font pack from ryanoasis/nerd-fonts) flatten
+            // to `fonts/<file>` on the asset host.
             let file = url.rsplit('/').next()?;
             (!file.is_empty()).then(|| format!("fonts/{file}"))
         }
@@ -318,6 +324,12 @@ mod tests {
             (
                 "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf".to_string(),
                 Some("fonts/NotoSansSC%5Bwght%5D.ttf"),
+            ),
+            // Terminal font pack pins (issue #109) flatten to the same
+            // `fonts/` prefix as the CJK pins.
+            (
+                "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf".to_string(),
+                Some("fonts/JetBrainsMonoNerdFont-Regular.ttf"),
             ),
             (
                 format!("https://api.github.com/repos/{repo}/releases/latest"),

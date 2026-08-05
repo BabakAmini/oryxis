@@ -1710,6 +1710,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Sprachschriftart wird heruntergeladen...",
         "cjk_font_failed" => "Schriftart der Sprache konnte nicht heruntergeladen werden. Systemschriftart wird verwendet.",
+        "font_pack_available" => "Zum Herunterladen verfügbar (wird bei Auswahl geladen):",
+        "font_pack_downloading" => "Terminal-Schriftart wird heruntergeladen...",
+        "font_pack_failed" => "Terminal-Schriftart konnte nicht heruntergeladen werden, die aktuelle bleibt erhalten.",
 
         "logs" => "Verlauf",
         "vault" => "Tresor",

@@ -1741,6 +1741,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Đang tải phông chữ ngôn ngữ...",
         "cjk_font_failed" => "Không tải được phông chữ ngôn ngữ. Đang dùng phông hệ thống.",
+        "font_pack_available" => "Có thể tải xuống (tải khi chọn):",
+        "font_pack_downloading" => "Đang tải phông chữ terminal...",
+        "font_pack_failed" => "Không thể tải phông chữ terminal, giữ phông chữ hiện tại.",
 
         "logs" => "Lịch sử",
         "vault" => "Kho",

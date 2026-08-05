@@ -1741,6 +1741,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Dil yazi tipi indiriliyor...",
         "cjk_font_failed" => "Dil yazi tipi indirilemedi. Sistem yazi tipi kullaniliyor.",
+        "font_pack_available" => "İndirilebilir (seçildiğinde indirilir):",
+        "font_pack_downloading" => "Terminal yazı tipi indiriliyor...",
+        "font_pack_failed" => "Terminal yazı tipi indirilemedi, mevcut olan korunuyor.",
 
         "logs" => "Geçmiş",
         "vault" => "Kasa",

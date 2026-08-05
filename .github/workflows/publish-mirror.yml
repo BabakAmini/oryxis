@@ -86,7 +86,7 @@ jobs:
           gh api "$api/latest" > assets/releases/latest.json || rm -f assets/releases/latest.json
           gh api "$api/tags/nightly-latest" > assets/releases/nightly.json || rm -f assets/releases/nightly.json
 
-      - name: Mirror the pinned CJK fonts
+      - name: Mirror the pinned fonts (CJK + terminal pack)
         run: |
           set -euo pipefail
           # Bucket keys are the DECODED file names ([wght], not %5B):
@@ -95,12 +95,24 @@ jobs:
           # pinned source URLs live in crates/oryxis-app/src/fonts.rs.
           commit=c89741abbf4eeabce432c3ed2fd7dc28b022701e
           base="https://raw.githubusercontent.com/google/fonts/$commit/ofl"
+          # Terminal font pack (issue #109): pinned at the nerd-fonts
+          # v3.4.0 tag commit, the last with in-repo patched TTFs.
+          nf_commit=fa7b859994228a9c8759f99c55a8d31ee92a1b5e
+          nf="https://raw.githubusercontent.com/ryanoasis/nerd-fonts/$nf_commit/patched-fonts"
           mkdir -p assets/fonts
           declare -A fonts=(
             ["NotoSansKR[wght].ttf"]="$base/notosanskr/NotoSansKR%5Bwght%5D.ttf"
             ["NotoSansSC[wght].ttf"]="$base/notosanssc/NotoSansSC%5Bwght%5D.ttf"
             ["NotoSansJP[wght].ttf"]="$base/notosansjp/NotoSansJP%5Bwght%5D.ttf"
             ["NotoSansTC[wght].ttf"]="$base/notosanstc/NotoSansTC%5Bwght%5D.ttf"
+            ["JetBrainsMonoNerdFont-Regular.ttf"]="$nf/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf"
+            ["CaskaydiaCoveNerdFont-Regular.ttf"]="$nf/CascadiaCode/CaskaydiaCoveNerdFont-Regular.ttf"
+            ["FiraCodeNerdFont-Regular.ttf"]="$nf/FiraCode/Regular/FiraCodeNerdFont-Regular.ttf"
+            ["HackNerdFont-Regular.ttf"]="$nf/Hack/Regular/HackNerdFont-Regular.ttf"
+            ["MesloLGSNerdFont-Regular.ttf"]="$nf/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf"
+            ["RobotoMonoNerdFont-Regular.ttf"]="$nf/RobotoMono/Regular/RobotoMonoNerdFont-Regular.ttf"
+            ["UbuntuMonoNerdFont-Regular.ttf"]="$nf/UbuntuMono/Regular/UbuntuMonoNerdFont-Regular.ttf"
+            ["IosevkaNerdFont-Regular.ttf"]="$nf/Iosevka/IosevkaNerdFont-Regular.ttf"
           )
           for key in "${!fonts[@]}"; do
             # Immutable, commit-pinned content: skip when already there.

@@ -1835,6 +1835,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "भाषा फ़ॉन्ट डाउनलोड हो रहा है...",
         "cjk_font_failed" => "भाषा फ़ॉन्ट डाउनलोड नहीं हो सका, सिस्टम फ़ॉन्ट उपयोग हो रहा है।",
+        "font_pack_available" => "डाउनलोड के लिए उपलब्ध (चुनने पर प्राप्त):",
+        "font_pack_downloading" => "टर्मिनल फ़ॉन्ट डाउनलोड हो रहा है...",
+        "font_pack_failed" => "टर्मिनल फ़ॉन्ट डाउनलोड नहीं हो सका, वर्तमान फ़ॉन्ट ही रहेगा।",
 
         // SSH certificate auth (B2)
         "certificate" => "प्रमाणपत्र",

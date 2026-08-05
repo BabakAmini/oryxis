@@ -130,7 +130,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Terminal, "sidebar_auto_open", "sidebar auto open connect show"),
     e(S::Terminal, "sidebar_default_tab", "sidebar default tab chat snippets files monitor history last opened"),
     e(S::Terminal, "terminal_font_size", "font size zoom text scale points"),
-    e(S::Terminal, "terminal_font", "font family typeface monospace nerd"),
+    e(S::Terminal, "terminal_font", "font family typeface monospace nerd pack download jetbrains cascadia caskaydia"),
     e(S::Terminal, "theme_new_custom", "create custom terminal theme color scheme"),
     e(S::Terminal, "theme_import", "import terminal theme scheme iterm base16"),
     e(S::Terminal, "rescan_terminals", "rescan detect local terminals shells refresh"),

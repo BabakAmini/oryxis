@@ -1709,6 +1709,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Download del font della lingua...",
         "cjk_font_failed" => "Impossibile scaricare il font della lingua. Verrà usato il font di sistema.",
+        "font_pack_available" => "Disponibili per il download (scaricati alla selezione):",
+        "font_pack_downloading" => "Download del font del terminale...",
+        "font_pack_failed" => "Impossibile scaricare il font del terminale, viene mantenuto quello attuale.",
 
         "logs" => "Cronologia",
         "vault" => "Vault",

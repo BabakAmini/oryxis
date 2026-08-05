@@ -1719,6 +1719,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "正在下載語言字型...",
         "cjk_font_failed" => "無法下載語言字型，將使用系統字型。",
+        "font_pack_available" => "可下載（選擇時取得）：",
+        "font_pack_downloading" => "正在下載終端機字型...",
+        "font_pack_failed" => "無法下載終端機字型，將繼續使用目前字型。",
 
         "terminal_link_hint" => "按住 Ctrl 並點選以開啟連結。",
         "mouse_capture_hint" => "滑鼠模式已啟用。按住 Shift 選取文字。",

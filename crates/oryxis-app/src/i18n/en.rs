@@ -1836,6 +1836,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         "cjk_font_downloading" => "Downloading language font...",
         "cjk_font_failed" => "Couldn't download the language font, using the system font.",
+        "font_pack_available" => "Available to download (fetched when selected):",
+        "font_pack_downloading" => "Downloading terminal font...",
+        "font_pack_failed" => "Couldn't download the terminal font, keeping the current one.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certificate",

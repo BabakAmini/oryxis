@@ -796,7 +796,7 @@ impl Oryxis {
             &self.terminal_font_name,
             |v| Message::Settings(SettingsMessage::TerminalFontChanged(v)),
         );
-        let font_picker_block = column![
+        let mut font_picker_block = column![
             text(crate::i18n::t("terminal_font")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(4),
             text(t("setting_font_desc"))
@@ -817,9 +817,31 @@ impl Oryxis {
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
                 .into(),
             ),
-            Space::new().height(12),
-            font_preview,
         ];
+        // Font pack affordance (issue #109): the pick_list can't
+        // annotate rows, so the downloadable-but-not-yet-loaded pack
+        // entries are named here instead. The line disappears once
+        // every pack font has been requested (they are ordinary picker
+        // entries from then on).
+        let pack_missing: Vec<&str> = crate::fonts::PACK_FONTS
+            .iter()
+            .map(|p| p.family)
+            .filter(|f| !self.loaded_pack_fonts.contains(*f))
+            .collect();
+        if !pack_missing.is_empty() {
+            font_picker_block = font_picker_block.push(Space::new().height(6)).push(
+                text(format!(
+                    "{} {}",
+                    t("font_pack_available"),
+                    pack_missing.join(", ")
+                ))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            );
+        }
+        let font_picker_block = font_picker_block
+            .push(Space::new().height(12))
+            .push(font_preview);
         // One Appearance card: rendering toggles, then the font
         // size stepper and the font picker + live sample. The
         // terminal-theme gallery keeps its own card below (its own

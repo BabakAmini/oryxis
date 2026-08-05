@@ -1787,6 +1787,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "جارٍ تنزيل خط اللغة...",
         "cjk_font_failed" => "تعذّر تنزيل خط اللغة. سيتم استخدام خط النظام.",
+        "font_pack_available" => "متاحة للتنزيل (يتم جلبها عند الاختيار):",
+        "font_pack_downloading" => "جارٍ تنزيل خط الطرفية...",
+        "font_pack_failed" => "تعذر تنزيل خط الطرفية، سيتم الإبقاء على الخط الحالي.",
 
                 "ecs_exec_group_missing" => "مجموعة السحابة وراء هذه الجلسة لم تعد موجودة. ألغ تثبيت التبويب وأعد الاتصال من لوحة التحكم.",
         "cloud_session_ended" => "انتهت الجلسة",

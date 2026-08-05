@@ -1716,6 +1716,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Descargando la fuente del idioma...",
         "cjk_font_failed" => "No se pudo descargar la fuente del idioma. Usando la fuente del sistema.",
+        "font_pack_available" => "Disponibles para descargar (se obtienen al seleccionar):",
+        "font_pack_downloading" => "Descargando la fuente del terminal...",
+        "font_pack_failed" => "No se pudo descargar la fuente del terminal, se mantiene la actual.",
 
         "terminal_link_hint" => "Mantén Ctrl y haz clic para abrir el enlace.",
         "mouse_capture_hint" => "Modo ratón activo. Mantén Mayús para seleccionar texto.",

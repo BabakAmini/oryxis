@@ -1801,6 +1801,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Pobieranie czcionki jezyka...",
         "cjk_font_failed" => "Nie udalo sie pobrac czcionki jezyka. Uzywana jest czcionka systemowa.",
+        "font_pack_available" => "Dostępne do pobrania (pobierane przy wyborze):",
+        "font_pack_downloading" => "Pobieranie czcionki terminala...",
+        "font_pack_failed" => "Nie udało się pobrać czcionki terminala, zachowano obecną.",
 
                 "ecs_exec_group_missing" => "Grupa chmurowa tej sesji już nie istnieje. Odepnij kartę i połącz się ponownie z poziomu pulpitu.",
         "cloud_session_ended" => "sesja zakończona",

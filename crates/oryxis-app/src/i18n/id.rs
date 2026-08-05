@@ -1741,6 +1741,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         "cjk_font_downloading" => "Mengunduh font bahasa...",
         "cjk_font_failed" => "Tidak dapat mengunduh font bahasa. Memakai font sistem.",
+        "font_pack_available" => "Tersedia untuk diunduh (diambil saat dipilih):",
+        "font_pack_downloading" => "Mengunduh font terminal...",
+        "font_pack_failed" => "Gagal mengunduh font terminal, font saat ini dipertahankan.",
 
         "logs" => "Riwayat",
         "vault" => "Vault",
