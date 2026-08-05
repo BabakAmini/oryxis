@@ -120,6 +120,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Terminal, "cmd_history_file", "command history text file log append export"),
     e(S::Terminal, "default_download_dir", "download folder directory default zmodem transfer rz sz save"),
     e(S::Terminal, "smart_contrast", "smart contrast readability colors legibility blue"),
+    e(S::Terminal, "terminal_opacity", "opacity transparency transparent translucent background see through blur glass"),
     e(S::Terminal, "terminal_auto_title", "auto title tab osc window name"),
     e(S::Terminal, "terminal_bell", "bell sound alert audio visual notification"),
     e(S::Terminal, "terminal_clipboard", "clipboard osc 52 copy access allow"),

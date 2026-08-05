@@ -94,6 +94,12 @@ pub(crate) struct AppPrefs {
     /// with the focused host's tags. Persisted as `snippet_tag_filter`.
     pub(crate) snippet_tag_filter: bool,
     pub(crate) bold_is_bright: bool,
+    /// Terminal background opacity in percent, 100 = opaque (the
+    /// default). Persisted as `terminal_opacity`. Kept here only so
+    /// Settings can render the picker: the render path reads
+    /// `theme::terminal_bg_alpha()`, which also knows whether the
+    /// window was actually created with a transparent surface.
+    pub(crate) terminal_opacity: u8,
     /// Draw the thin separator outline on UNFOCUSED panes. The focused
     /// pane's accent outline is not affected: with the panes flush there
     /// would otherwise be nothing at all marking where one ends.
@@ -487,6 +493,7 @@ impl Default for AppPrefs {
             zmodem_download_dir: String::new(),
             snippet_tag_filter: false,
             bold_is_bright: true,
+            terminal_opacity: 100,
             pane_border_inactive: true,
             pane_gap: "0".to_string(),
             keyword_highlight: true,

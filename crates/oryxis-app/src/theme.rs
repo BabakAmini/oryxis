@@ -1,6 +1,6 @@
 use iced::font::{Family, Weight};
 use iced::{Color, Font};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 
 // ---------------------------------------------------------------------------
 // System UI font stack
@@ -38,6 +38,68 @@ pub const SYSTEM_UI_SEMIBOLD: Font = Font {
 
 /// Global app theme index.
 static ACTIVE_THEME: AtomicUsize = AtomicUsize::new(0);
+
+/// Whether the window was created with a transparent surface. Decided
+/// once in `main`, before the runtime builds the window, from the stored
+/// `terminal_opacity`: the flag is creation-time on every platform, so a
+/// window born opaque can never show the desktop no matter what the
+/// setting says later. Everything downstream gates on this rather than
+/// on the opacity value, which is why lowering the slider on an opaque
+/// window offers a restart instead of drawing a wrong frame.
+static WINDOW_TRANSPARENT: AtomicBool = AtomicBool::new(false);
+
+/// Terminal background opacity in percent (100 = opaque, the default).
+/// Live: with a transparent window the user can drag this all the way to
+/// 100 and back without a restart.
+static TERMINAL_OPACITY: AtomicUsize = AtomicUsize::new(100);
+
+/// Record how the window was actually created. Called once from `main`.
+pub fn set_window_transparent(on: bool) {
+    WINDOW_TRANSPARENT.store(on, Ordering::Relaxed);
+}
+
+/// True when the surface can show what is behind the window.
+pub fn window_transparent() -> bool {
+    WINDOW_TRANSPARENT.load(Ordering::Relaxed)
+}
+
+/// Store the user's opacity, clamped to the range the UI offers. Values
+/// below `MIN_TERMINAL_OPACITY` are unreadable and the picker never
+/// produces them; a hand-edited vault row is clamped rather than obeyed.
+pub fn set_terminal_opacity(percent: u8) {
+    TERMINAL_OPACITY.store(
+        percent.clamp(MIN_TERMINAL_OPACITY, 100) as usize,
+        Ordering::Relaxed,
+    );
+}
+
+/// The stored opacity in percent, whether or not it can be applied.
+pub fn terminal_opacity() -> u8 {
+    TERMINAL_OPACITY.load(Ordering::Relaxed) as u8
+}
+
+/// Lowest opacity the picker offers. Below this the foreground text
+/// stops being readable over an arbitrary desktop, so it is a floor,
+/// not a preference.
+pub const MIN_TERMINAL_OPACITY: u8 = 30;
+
+/// The percentages the picker offers, densest where the difference is
+/// actually visible. Descending so the list reads from opaque (the
+/// default, and where the ring starts) downwards.
+pub const OPACITY_STEPS: [u8; 11] = [100, 95, 90, 85, 80, 75, 70, 60, 50, 40, 30];
+
+/// The alpha the terminal backdrop must be painted with, or `None` when
+/// the terminal is opaque (either the user asked for 100, or the window
+/// was born opaque and cannot show anything behind it). The single
+/// authority for "is the terminal translucent right now": callers branch
+/// on this, never on the raw setting.
+pub fn terminal_bg_alpha() -> Option<f32> {
+    let percent = terminal_opacity();
+    if !window_transparent() || percent >= 100 {
+        return None;
+    }
+    Some(f32::from(percent) / 100.0)
+}
 
 /// Active *custom* UI theme colors, if any. A non-null pointer (to a
 /// `Box::leak`'d `ThemeColors`) wins over the built-in `ACTIVE_THEME`. Set

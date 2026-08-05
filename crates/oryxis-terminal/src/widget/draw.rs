@@ -110,6 +110,7 @@ where
             performance: self.performance,
             smart_contrast: self.smart_contrast,
             bold_is_bright: self.bold_is_bright,
+            transparent_bg: self.transparent_bg,
             privacy_terms_hash: if self.privacy { hash_terms(&self.privacy_terms) } else { 0 },
             privacy_classes: if self.privacy {
                 self.privacy_classes
@@ -441,7 +442,14 @@ where
         };
         let palette = &palette;
 
-        frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background);
+        // Skipped when the host paints the backdrop itself (translucent
+        // terminal background): the container behind this canvas already
+        // carries the palette colour at the requested alpha, and painting
+        // it a second time here would composite two translucent layers
+        // into a plate the user never asked for.
+        if !self.transparent_bg {
+            frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background);
+        }
 
         // --- Detect syntax highlights ---
         // Runs when keyword tinting OR Privacy Mode is on; the latter needs

@@ -276,6 +276,7 @@ impl Oryxis {
             | SettingsMessage::SidebarDefaultTabChanged(..)
             | SettingsMessage::ToggleCarefulPaste
             | SettingsMessage::ToggleBoldIsBright
+            | SettingsMessage::TerminalOpacityChanged(..)
             | SettingsMessage::TogglePaneBorderInactive
             | SettingsMessage::PaneGapChanged(..)
             | SettingsMessage::OpenTerminalThemeGallery

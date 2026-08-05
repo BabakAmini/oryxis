@@ -199,11 +199,21 @@ impl Oryxis {
                 .center(Length::Fill).into()
         };
 
+        // The terminal's own backdrop, and the only layer that carries
+        // the opacity: the canvas hands its full-bounds fill over to
+        // this container (`with_transparent_bg`) precisely so the colour
+        // is painted once. Panes, split gutters and the empty
+        // no-session area all sit on it, so they fade together instead
+        // of one translucent rectangle floating on an opaque plate.
+        let backdrop_alpha = self.terminal_backdrop_alpha();
         let base = container(terminal_area)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().terminal_bg)),
+            .style(move |_| container::Style {
+                background: Some(Background::Color(Color {
+                    a: backdrop_alpha.unwrap_or(1.0),
+                    ..OryxisColors::t().terminal_bg
+                })),
                 ..Default::default()
             });
         // Floating overlay over the terminal area (shown whether or not
@@ -520,6 +530,9 @@ impl Oryxis {
             .with_privacy_terms(&self.privacy_terms())
             .with_privacy_classes(self.privacy_classes())
             .with_smart_contrast(self.prefs.smart_contrast)
+            // Translucent terminal: the backdrop is painted once, by the
+            // container this canvas sits on (see `base` in `view_terminal`).
+            .with_transparent_bg(self.terminal_backdrop_alpha().is_some())
             // C5: a host with `disable_mouse_reporting` keeps clicks local
             // even when the remote turns on mouse tracking.
             .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)

@@ -7,6 +7,19 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Translucent terminal background.** Settings > Terminal >
+  Background opacity fades the terminal down to 30% so the desktop
+  shows through, while the tab strip, panels, sidebars and the status
+  bar stay opaque: the effect lands on the surface you stare at, not on
+  the text you have to read. Only the terminal's own backdrop carries
+  the alpha, so split gutters and the empty area fade with it instead
+  of floating on an opaque plate, and a coloured block from a TUI stays
+  solid. A see-through window is set up when Oryxis starts, so the
+  first step away from 100% offers a restart; every later change,
+  including going back to opaque, applies live. Linux (Wayland, or X11
+  with a compositor) and macOS; on Windows the graphics stack usually
+  offers no transparent surface, where the setting has no effect
+  rather than a broken window.
 - **First-run setup gained two steps.** "Make it yours" lists the
   optional features (AI, SFTP, Sync, RDP/VNC, host monitoring, SSH
   agent) with one line each and a live toggle, so the app can be

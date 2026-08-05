@@ -364,6 +364,15 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("renderer_backend") {
                 self.prefs.renderer_backend = v;
             }
+            // Same row `main` read before the window existed: it decided
+            // there whether the surface is transparent at all, this only
+            // feeds the Settings picker.
+            if let Ok(Some(v)) = vault.get_setting("terminal_opacity")
+                && let Ok(percent) = v.parse::<u8>()
+            {
+                self.prefs.terminal_opacity =
+                    percent.clamp(crate::theme::MIN_TERMINAL_OPACITY, 100);
+            }
             if let Ok(Some(v)) = vault.get_setting("copy_on_select") {
                 self.prefs.copy_on_select = v == "true";
             }

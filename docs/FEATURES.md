@@ -427,6 +427,14 @@ vulnerability disclosure policy.
   in both galleries links straight to it; True Black OLED, the first
   contributed pair, ships with the app.
 - **Per-theme button colors** with WCAG contrast guards enforced in CI.
+- **Translucent terminal background.** `Settings → Terminal → Background
+  opacity` lets the desktop show through the terminal, down to 30%.
+  Panels, tabs and the status bar stay opaque, so nothing you read over
+  a busy wallpaper loses contrast. The window's transparency is set up
+  at startup, so the first step away from 100% offers a restart; every
+  change after that is live. Linux (Wayland, or X11 with a compositor)
+  and macOS; on Windows the graphics stack usually reports no
+  transparent surface, where the setting simply has no effect.
 - **23 languages.** English, Português, Español, Français, Deutsch,
   Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית,
   한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย,

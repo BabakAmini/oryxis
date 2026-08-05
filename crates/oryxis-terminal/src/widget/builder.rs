@@ -25,6 +25,7 @@ impl<Message> TerminalView<Message> {
             privacy_terms: Vec::new(),
             privacy_classes: PrivacyClasses::default(),
             smart_contrast: true,
+            transparent_bg: false,
             mouse_reporting: true,
             word_delimiters: crate::backend::DEFAULT_WORD_DELIMITERS.to_string(),
             on_font_size_increase: None,
@@ -147,6 +148,15 @@ impl<Message> TerminalView<Message> {
 
     pub fn with_smart_contrast(mut self, on: bool) -> Self {
         self.smart_contrast = on;
+        self
+    }
+
+    /// Hand the background fill to the container behind this widget.
+    /// Pass `true` only when that container paints the same colour with
+    /// the alpha the user asked for; see `transparent_bg` on the widget
+    /// for why the two must never both paint it.
+    pub fn with_transparent_bg(mut self, on: bool) -> Self {
+        self.transparent_bg = on;
         self
     }
 

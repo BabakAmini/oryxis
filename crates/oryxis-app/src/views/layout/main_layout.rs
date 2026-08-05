@@ -282,11 +282,23 @@ impl Oryxis {
             slot_status,
         ];
 
+        // The window-wide backdrop, dropped while a translucent terminal
+        // is on screen: it sits under the terminal, so painting it would
+        // mean the terminal's alpha reveals the app's own background
+        // instead of the desktop. Every piece of chrome around the
+        // terminal (tab strip, status bar, sidebars, separators) paints
+        // its own background, which is what keeps them readable with
+        // nothing behind them.
+        let backdrop = if self.terminal_backdrop_alpha().is_some() {
+            None
+        } else {
+            Some(Background::Color(OryxisColors::t().bg_primary))
+        };
         let base: Element<'_, Message> = container(layout)
             .width(Length::Fill)
             .height(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_primary)),
+            .style(move |_| container::Style {
+                background: backdrop,
                 ..Default::default()
             })
             .into();

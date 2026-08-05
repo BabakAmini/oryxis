@@ -344,6 +344,37 @@ impl Oryxis {
                     if self.prefs.bold_is_bright { "true" } else { "false" },
                 );
             }
+            SettingsMessage::TerminalOpacityChanged(v) => {
+                let percent = v
+                    .trim_end_matches('%')
+                    .parse::<u8>()
+                    .unwrap_or(100)
+                    .clamp(crate::theme::MIN_TERMINAL_OPACITY, 100);
+                if percent == self.prefs.terminal_opacity {
+                    return Ok(Task::none());
+                }
+                let was_opaque = self.prefs.terminal_opacity >= 100;
+                self.prefs.terminal_opacity = percent;
+                crate::theme::set_terminal_opacity(percent);
+                self.persist_setting("terminal_opacity", &percent.to_string());
+                // A window that was created opaque has no alpha channel to
+                // composite with, so the first step away from 100% is the
+                // only one that needs a new window. Every later change
+                // (including going back to 100%) is live, which is why the
+                // prompt is gated on both halves and not on the value alone.
+                if was_opaque && !crate::theme::window_transparent() {
+                    self.error_dialog = Some(crate::state::ErrorDialog {
+                        title: crate::i18n::t("terminal_opacity_restart_title").to_string(),
+                        body: crate::i18n::t("terminal_opacity_restart_body").to_string(),
+                        link: None,
+                        action: Some(crate::state::ErrorDialogAction {
+                            label: crate::i18n::t("renderer_restart_now").to_string(),
+                            message: Box::new(Message::Settings(SettingsMessage::RelaunchApp)),
+                            danger: false,
+                        }),
+                    });
+                }
+            }
             SettingsMessage::ToggleKeywordHighlight => {
                 self.prefs.keyword_highlight = !self.prefs.keyword_highlight;
                 self.persist_setting(

@@ -311,6 +311,7 @@ struct RenderKey {
     performance: bool,
     smart_contrast: bool,
     bold_is_bright: bool,
+    transparent_bg: bool,
     /// Order-independent digest of `privacy_terms` (0 when privacy is off).
     privacy_terms_hash: u64,
     /// Per-class privacy gates (issue #78): flipping a class in
@@ -505,6 +506,15 @@ pub struct TerminalView<Message = ()> {
     /// the text stays legible. Off paints the cell exactly as the
     /// emulator asked, which a few colour-precise tools rely on.
     smart_contrast: bool,
+    /// When true the canvas skips the full-bounds fill it normally
+    /// paints with the palette's background colour, because the host
+    /// already painted that colour (at reduced alpha) on the container
+    /// behind this widget. Exactly one layer must carry the alpha, or
+    /// two translucent fills of the same colour composite into a
+    /// noticeably more opaque plate. Cells that carry an explicit
+    /// background still paint theirs: a coloured block from a TUI is
+    /// content, not backdrop, and stays solid.
+    transparent_bg: bool,
     /// Whether this pane honours remote mouse-tracking requests (C5). When
     /// false (a host with `disable_mouse_reporting`), clicks always
     /// select / paste locally even while the remote enabled tracking, so a

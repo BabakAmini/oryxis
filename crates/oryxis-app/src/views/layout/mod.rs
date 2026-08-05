@@ -107,6 +107,32 @@ impl Oryxis {
             )
     }
 
+    /// True when the content area is the terminal surface: a tab is
+    /// active and its connect screen isn't covering it. The translucent
+    /// backdrop gates on this, because the root container has to keep
+    /// painting under every other view: those paint their own opaque
+    /// background but not their gaps, and a gap onto the desktop reads
+    /// as a rendering bug rather than as an effect.
+    pub(crate) fn terminal_surface_visible(&self) -> bool {
+        self.active_tab.is_some()
+            && !self
+                .connecting
+                .as_ref()
+                .is_some_and(|cp| Some(cp.tab_idx) == self.active_tab)
+    }
+
+    /// The alpha the terminal backdrop is painted with right now, or
+    /// `None` when it is opaque. Folds the user's setting together with
+    /// what is actually on screen, so nothing else has to repeat the
+    /// pair of conditions.
+    pub(crate) fn terminal_backdrop_alpha(&self) -> Option<f32> {
+        if self.terminal_surface_visible() {
+            crate::theme::terminal_bg_alpha()
+        } else {
+            None
+        }
+    }
+
     /// Width currently occupied by the left vault nav rail (the vertical
     /// icon rail). Zero in horizontal orientation or outside the vault
     /// area. The single source the content-width / pane-split math reads
@@ -285,7 +311,7 @@ impl Oryxis {
             .is_some_and(|cp| Some(cp.tab_idx) == self.active_tab);
         let content: Element<'_, Message> = if connecting_here {
             self.view_connection_progress()
-        } else if self.active_tab.is_some() {
+        } else if self.terminal_surface_visible() {
             self.view_terminal()
         } else {
             match self.active_view {

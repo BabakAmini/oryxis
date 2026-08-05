@@ -115,9 +115,10 @@ matching installer. Windows binaries are Authenticode-signed (see
   learned SSH, ZMODEM transfers, local shells, and one-click RDP/VNC
   through an SSH tunnel.
 - **A real terminal.** alacritty-based emulator, split panes, session
-  groups, per-host themes, bundled Nerd Fonts plus a downloadable font
-  pack (JetBrains Mono, Fira Code, MesloLGS and more), smart tabs that
-  flag long-running commands, and per-host command history.
+  groups, per-host themes, an optional translucent background, bundled
+  Nerd Fonts plus a downloadable font pack (JetBrains Mono, Fira Code,
+  MesloLGS and more), smart tabs that flag long-running commands, and
+  per-host command history.
 - **Files everywhere.** Dual-pane SFTP with drag-and-drop, edit-in-place
   and server-to-server copy; every SSH tab also carries a Files sidebar
   that follows your shell's working directory.
@@ -244,9 +245,7 @@ tracks it interactively.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
-- **Terminal:** keyword highlighting with user-defined trigger actions,
-  and window opacity (Linux and macOS first; Windows depends on the
-  graphics stack).
+- **Terminal:** keyword highlighting with user-defined trigger actions.
 - **tmux session manager:** a terminal-sidebar tab listing the tmux
   sessions on the current host with attach / create / kill, read over
   the live connection; nothing installed on the server, as always.

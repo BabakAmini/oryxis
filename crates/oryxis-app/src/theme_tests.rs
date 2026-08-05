@@ -154,3 +154,45 @@ fn muted_label_remains_legible_against_surface() {
         }
     }
 }
+
+#[test]
+fn terminal_alpha_needs_both_a_transparent_window_and_a_reduced_setting() {
+    use crate::theme::{
+        MIN_TERMINAL_OPACITY, OPACITY_STEPS, set_terminal_opacity, set_window_transparent,
+        terminal_bg_alpha, terminal_opacity,
+    };
+    // One test, not four: these are process globals, and parallel test
+    // threads sharing them would make separate cases flaky.
+
+    // An opaque window can never composite with the desktop, so the
+    // setting alone must not make anything translucent: that is the
+    // state right after the user lowers the slider, before the restart.
+    set_window_transparent(false);
+    set_terminal_opacity(70);
+    assert_eq!(terminal_bg_alpha(), None);
+
+    // With the surface in place the same setting applies, live.
+    set_window_transparent(true);
+    assert_eq!(terminal_bg_alpha(), Some(0.7));
+
+    // Back to fully opaque: no alpha, no translucent layer, even though
+    // the window itself can still composite.
+    set_terminal_opacity(100);
+    assert_eq!(terminal_bg_alpha(), None);
+
+    // A hand-edited vault row below the floor is clamped, not obeyed:
+    // the picker never offers it and the text would be unreadable.
+    set_terminal_opacity(1);
+    assert_eq!(terminal_opacity(), MIN_TERMINAL_OPACITY);
+
+    // Every offered step round-trips, so the picker can't show a value
+    // the store would rewrite under it.
+    for step in OPACITY_STEPS {
+        set_terminal_opacity(step);
+        assert_eq!(terminal_opacity(), step, "step {step} did not round-trip");
+    }
+
+    // Leave the process on the default the rest of the suite expects.
+    set_window_transparent(false);
+    set_terminal_opacity(100);
+}

@@ -185,6 +185,11 @@ pub enum SettingsMessage {
     /// Resolved graphics backend + adapter from the compositor, queried
     /// when the Interface settings section opens. `(backend, adapter)`.
     RendererInfoLoaded(String, String),
+    /// Terminal background opacity, as the picker's `"85%"` string.
+    /// Applies live on a window that was created transparent; going
+    /// translucent from an opaque window offers a restart, because the
+    /// surface's alpha mode is fixed when the window is created.
+    TerminalOpacityChanged(String),
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,

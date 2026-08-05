@@ -260,6 +260,19 @@ fn main() -> iced::Result {
             .flatten()
             .as_deref()
             == Some("true");
+        // Terminal background opacity. Read here, with the geometry and
+        // the renderer knob, because a transparent surface is decided
+        // when the window is created and can't be turned on afterwards
+        // (winit exposes `set_transparent`, but it is a no-op on most
+        // platforms and the fork is not ours to change). A window born
+        // opaque therefore stays opaque for the whole run, which is what
+        // the restart prompt in Settings covers. `boot` hydrates the
+        // same row into `prefs` for the UI.
+        if let Some(v) = vault.get_setting("terminal_opacity").ok().flatten()
+            && let Ok(percent) = v.parse::<u8>()
+        {
+            theme::set_terminal_opacity(percent);
+        }
         // Debug logging (Settings > Advanced, or `--debug-log`). Armed
         // before the tracing subscriber below is built so the earliest
         // boot lines land in the file too; same unlocked settings read
@@ -616,10 +629,25 @@ fn main() -> iced::Result {
     // Load window icon from PNG
     let icon = load_icon();
 
+    // A translucent terminal needs a surface that composites with the
+    // desktop, and the alpha has to reach it: the clear colour is the
+    // bottom-most layer of every frame, so an opaque one would sit under
+    // the terminal and turn the effect into "the app's own background
+    // showing through". Only claimed when the user asked for it, so the
+    // default install keeps the exact surface it has today.
+    let transparent_window = theme::terminal_opacity() < 100;
+    theme::set_window_transparent(transparent_window);
     let mut application =
         iced::application(app::Oryxis::boot, app::Oryxis::update, app::Oryxis::view)
             .title(app::Oryxis::title)
             .theme(app::Oryxis::theme)
+            .style(|_state, theme| {
+                let mut style = iced::theme::default(theme);
+                if theme::window_transparent() {
+                    style.background_color = iced::Color::TRANSPARENT;
+                }
+                style
+            })
             .subscription(app::Oryxis::subscription);
     // Every bundled font, from the Lucide icon glyphs to the Nerd Font
     // terminal faces. The list (and the rationale for each entry) lives
@@ -648,6 +676,12 @@ fn main() -> iced::Result {
             min_size: Some(Size::new(MIN_WIDTH, MIN_HEIGHT)),
             icon,
             decorations: false, // native title bar off, our own chrome in the tab bar
+            // Only when a translucent terminal was asked for: a surface
+            // that composites with the desktop is not free everywhere
+            // (X11 needs a running compositor; DX12 usually offers no
+            // pre-multiplied alpha mode at all, where this degrades to a
+            // plain opaque window rather than to a broken one).
+            transparent: transparent_window,
             // Take ownership of every close verb. With iced's default
             // (`true`) the winit shell closes the window itself on
             // `CloseRequested` and never forwards the event, so the

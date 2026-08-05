@@ -586,6 +586,22 @@ impl Oryxis {
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.prefs.keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("smart_contrast"), self.prefs.smart_contrast, Message::Settings(SettingsMessage::ToggleSmartContrast)),
+            Space::new().height(10),
+            self.nav_pick_row(
+                crate::i18n::t("terminal_opacity"),
+                crate::theme::OPACITY_STEPS
+                    .iter()
+                    .map(|p| format!("{p}%"))
+                    .collect::<Vec<_>>(),
+                format!("{}%", self.prefs.terminal_opacity),
+                |s: &String| s.clone(),
+                120.0,
+                |v| Message::Settings(SettingsMessage::TerminalOpacityChanged(v)),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("terminal_opacity_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ];
 
         // Notifications: everything whose job is to GET YOUR ATTENTION.

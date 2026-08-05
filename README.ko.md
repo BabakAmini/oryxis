@@ -157,8 +157,8 @@ Oryxis는 대략 매주 작은 단위로 릴리스하며, 기능은 준비되는
 [CHANGELOG.md](CHANGELOG.md), 인터랙티브 로드맵은
 [로드맵 Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)에서
 볼 수 있습니다. 진행 중인 방향: 네이티브 FIDO2(USB / NFC로 보안
-키와 직접 통신), 터미널 강화(트리거 동작이 있는 키워드 하이라이트,
-창 불투명도), 네이티브 Mosh 클라이언트, 동아시아 모호
+키와 직접 통신), 터미널 강화(트리거 동작이 있는 키워드 하이라이트),
+네이티브 Mosh 클라이언트, 동아시아 모호
 폭(ambiguous width) 옵션과 터미널 배경 이미지. 커뮤니티 요청도 예정되어 있습니다:
 사이드바 tmux 세션 관리자, 호스트 트리 뷰.
 
