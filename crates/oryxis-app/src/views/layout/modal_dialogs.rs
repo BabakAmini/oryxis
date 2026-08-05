@@ -283,12 +283,15 @@ impl Oryxis {
         self.modal_nav_reset();
         // Product names, deliberately untranslated; the sentence
         // around them localizes.
-        const SOURCES: [&str; 5] = [
+        const SOURCES: [&str; 8] = [
             "Oryxis export (.oryxis)",
             "OpenSSH config (~/.ssh/config)",
             "PuTTY / KiTTY sessions (.reg export)",
             "WinSCP sites (WinSCP.ini / .reg export)",
             "mRemoteNG (confCons.xml)",
+            "MobaXterm (MobaXterm.ini)",
+            "Xshell / SecureCRT / FinalShell (session folder)",
+            "Termius export / CSV (any host table)",
         ];
         let mut sources = column![].spacing(4);
         for s in SOURCES {
@@ -383,6 +386,21 @@ impl Oryxis {
                         ),
                     ),
                     Space::new().width(8),
+                    // The per-session formats keep one file per host,
+                    // so a folder is the unit those users think in.
+                    self.modal_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Share(
+                            ShareMessage::ImportHubPickFolder,
+                        )),
+                        6.0,
+                        false,
+                        styled_button(
+                            crate::i18n::t("import_hub_choose_folder"),
+                            Message::Share(ShareMessage::ImportHubPickFolder),
+                            OryxisColors::t().bg_hover,
+                        ),
+                    ),
+                    Space::new().width(8),
                     self.modal_nav_slot(
                         crate::keynav::RowAction::activate(Message::Share(
                             ShareMessage::ImportHubDismiss,
@@ -398,7 +416,7 @@ impl Oryxis {
                 ],
             ]
             .padding(24)
-            .width(420),
+            .width(460),
         )
         .style(|_| container::Style {
             background: Some(Background::Color(OryxisColors::t().bg_surface)),

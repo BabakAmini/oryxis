@@ -151,22 +151,57 @@ impl Oryxis {
                         let path = rfd::FileDialog::new()
                             .set_title("Import hosts")
                             .pick_file()?;
-                        Some(std::fs::read(&path).map_err(|e| format!("Read failed: {e}")))
+                        let stem = path
+                            .file_stem()
+                            .and_then(|s| s.to_str())
+                            .unwrap_or("session")
+                            .to_string();
+                        Some(
+                            std::fs::read(&path)
+                                .map(|bytes| (bytes, stem))
+                                .map_err(|e| format!("Read failed: {e}")),
+                        )
                     }),
                     |res| match res {
-                        Ok(Some(bytes)) => {
-                            Message::Share(ShareMessage::ImportHubLoaded(bytes))
+                        Ok(Some(loaded)) => {
+                            Message::Share(ShareMessage::ImportHubLoaded(loaded))
                         }
                         _ => Message::NoOp,
                     },
                 );
             }
+            ShareMessage::ImportHubPickFolder => {
+                return Task::perform(
+                    tokio::task::spawn_blocking(|| {
+                        let dir = rfd::FileDialog::new()
+                            .set_title("Import a sessions folder")
+                            .pick_folder()?;
+                        Some(crate::importers::detect::scan_folder(&dir))
+                    }),
+                    |res| match res {
+                        Ok(Some(import)) => Message::Share(
+                            ShareMessage::ImportHubFolderScanned(Box::new(import)),
+                        ),
+                        _ => Message::NoOp,
+                    },
+                );
+            }
+            ShareMessage::ImportHubFolderScanned(import) => {
+                let import = *import;
+                if import.hosts.is_empty() {
+                    self.import_hub_error =
+                        Some(crate::i18n::t("import_hub_folder_empty").to_string());
+                    return Task::none();
+                }
+                self.panels.import_hub = false;
+                return self.open_direct_preview(import);
+            }
             ShareMessage::ImportHubLoaded(Err(e)) => {
                 self.import_hub_error = Some(e);
             }
-            ShareMessage::ImportHubLoaded(Ok(bytes)) => {
+            ShareMessage::ImportHubLoaded(Ok((bytes, stem))) => {
                 use crate::importers::detect::Detected;
-                match crate::importers::detect::detect(&bytes) {
+                match crate::importers::detect::detect(&bytes, &stem) {
                     Detected::OryxisExport => {
                         // Hand off to the vault-import dialog with the
                         // same field resets its own picker path does.

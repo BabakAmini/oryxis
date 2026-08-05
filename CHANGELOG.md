@@ -7,6 +7,19 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **MobaXterm, Xshell, SecureCRT, FinalShell, Termius and CSV
+  import.** The Import hub grows a "Choose folder" button for the
+  clients that keep one file per session (Xshell `.xsh`, SecureCRT
+  session `.ini`, FinalShell connection JSON): point it at the
+  sessions directory and the whole tree comes in as one batch.
+  MobaXterm reads its `MobaXterm.ini` bookmarks (SSH sessions, with
+  their folder recorded per host). Any CSV of hosts imports through
+  header matching, so a Termius export, a spreadsheet you keep by
+  hand or a column of hostnames all work; a `password` column is
+  honored and lands encrypted. Clients that encrypt their stored
+  passwords with a per-install key (Xshell, SecureCRT, FinalShell,
+  MobaXterm) import the host and say so in its notes instead of
+  guessing.
 - **mRemoteNG import (confCons.xml).** SSH, Telnet, RDP and VNC nodes
   map (RDP/VNC onto the remote-desktop hosts), the container
   hierarchy is recorded in each host's notes, and HTTP/rlogin nodes

@@ -22,8 +22,14 @@ pub enum ShareMessage {
     /// The hub's "Choose file" button: any-file picker; the format is
     /// detected from the content.
     ImportHubPick,
-    /// The picked file's bytes, ready for detection + routing.
-    ImportHubLoaded(Result<Vec<u8>, String>),
+    /// The picked file's bytes plus its file stem (the per-session
+    /// formats have no name field; the file name IS the label).
+    ImportHubLoaded(Result<(Vec<u8>, String), String>),
+    /// The hub's "Choose folder" button: scan a session directory
+    /// (Xshell / SecureCRT / FinalShell keep one file per host).
+    ImportHubPickFolder,
+    /// A folder scan finished, merged into one batch.
+    ImportHubFolderScanned(Box<crate::importers::DirectImport>),
     /// File password typed in the hub (a protected confCons.xml).
     ImportHubPasswordChanged(super::Redacted),
     /// Retry the held protected file with the typed password.
