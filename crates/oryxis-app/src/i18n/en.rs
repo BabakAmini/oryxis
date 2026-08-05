@@ -1590,6 +1590,12 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "onboarding_sync_title" => "Sync and AI",
         "onboarding_sync_body" => "Opt-in peer-to-peer sync keeps your vault in step across devices, and a per-session AI assistant helps you right inside the terminal.",
         "onboarding_password_title" => "Protect your vault",
+        "onboarding_features_title" => "Make it yours",
+        "onboarding_features_body" => "Turn on what you need. Everything here is optional, off by default, and can be changed later in Settings > Features & Plugins.",
+        "onboarding_import_title" => "Bring your hosts along",
+        "onboarding_import_body" => "Already using another SSH client? Oryxis reads its saved sessions, so you start with your servers already there.",
+        "onboarding_import_cta" => "Import my hosts",
+        "onboarding_import_hint" => "The importer opens right after your vault is created.",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "Passwords, SSH keys and proxy credentials in one place",
         "onboarding_vault_b2" => "Encrypted at rest with Argon2id and ChaCha20-Poly1305",

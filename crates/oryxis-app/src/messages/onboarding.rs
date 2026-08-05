@@ -13,4 +13,7 @@ pub enum OnboardingMessage {
     Back,
     /// Jump straight to the final (password-setup) slide.
     SkipToEnd,
+    /// "Import my hosts" on the import slide: remembers the intent
+    /// (the vault does not exist yet) and jumps to the final slide.
+    ImportAfterSetup,
 }

@@ -288,6 +288,7 @@ impl Oryxis {
                 icon_picker: crate::state::IconPickerState::default(),
                 icon_color_popover: None,
                 onboarding_slide: 0,
+                onboarding_import_pending: false,
                 chain_editor_adding: false,
                 chain_editor_search: String::new(),
                 connecting: None,

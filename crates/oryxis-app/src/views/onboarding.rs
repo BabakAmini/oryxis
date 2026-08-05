@@ -11,7 +11,9 @@ use iced::widget::{button, column, container, svg, text, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
 use crate::app::{VaultMessage, Message, OnboardingMessage, Oryxis};
-use crate::dispatch_onboarding::ONBOARDING_LAST_SLIDE;
+use crate::dispatch_onboarding::{
+    ONBOARDING_FEATURES_SLIDE, ONBOARDING_IMPORT_SLIDE, ONBOARDING_LAST_SLIDE,
+};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::theme::mix;
@@ -24,10 +26,11 @@ impl Oryxis {
     pub(crate) fn view_onboarding_page(&self) -> Element<'_, Message> {
         let slide = self.onboarding_slide.min(ONBOARDING_LAST_SLIDE);
 
-        let content: Element<'_, Message> = if slide == ONBOARDING_LAST_SLIDE {
-            self.onboarding_password_slide()
-        } else {
-            self.onboarding_feature_slide(slide)
+        let content: Element<'_, Message> = match slide {
+            ONBOARDING_LAST_SLIDE => self.onboarding_password_slide(),
+            ONBOARDING_FEATURES_SLIDE => self.onboarding_features_slide(),
+            ONBOARDING_IMPORT_SLIDE => self.onboarding_import_slide(),
+            _ => self.onboarding_feature_slide(slide),
         };
 
         let card_inner = column![
@@ -155,6 +158,141 @@ impl Oryxis {
             }).color(OryxisColors::t().text_primary),
             Space::new().height(18),
             body,
+        ]
+        .align_x(iced::Alignment::Center)
+        .into()
+    }
+
+    /// Optional features, with a one-line explanation each and a live
+    /// toggle: the same switches (and messages) as Settings >
+    /// Features & Plugins, offered once at the start so the app can
+    /// be shaped before it is first used. Everything here is off by
+    /// default and reversible; the footer says where they live.
+    ///
+    /// Toggling writes through the normal handlers, which persist to
+    /// the settings table (plaintext, reachable before the vault is
+    /// initialized, the same path boot uses to stamp a fresh vault).
+    fn onboarding_features_slide(&self) -> Element<'_, Message> {
+        use crate::app::{AgentMessage, AiMessage, SettingsMessage, SyncMessage};
+        let accent = OryxisColors::t().accent;
+        let badge = onboarding_icon_badge(
+            iced_fonts::lucide::sliders_horizontal().size(38).color(accent).into(),
+            accent,
+        );
+
+        // (label, description, value, message), in the same order the
+        // Features panel lists them so the two surfaces read alike.
+        let mut rows: Vec<(&str, &str, bool, Message)> = vec![
+            (
+                t("ai_assistant"),
+                t("feature_ai_desc"),
+                self.ai.enabled,
+                Message::Ai(AiMessage::ToggleAiEnabled),
+            ),
+            (
+                "SFTP",
+                t("feature_sftp_desc"),
+                self.sftp_enabled,
+                Message::Settings(SettingsMessage::SettingToggleSftpEnabled),
+            ),
+            (
+                t("sync"),
+                t("feature_sync_desc"),
+                self.sync.enabled,
+                Message::Sync(SyncMessage::ToggleEnabled),
+            ),
+            (
+                t("remote_desktop"),
+                t("feature_remote_desktop_desc"),
+                self.remote_desktop_enabled,
+                Message::Settings(SettingsMessage::SettingToggleRemoteDesktop),
+            ),
+            (
+                t("feature_monitoring"),
+                t("feature_monitoring_desc"),
+                self.prefs.host_monitoring,
+                Message::Settings(SettingsMessage::SettingToggleHostMonitoring),
+            ),
+        ];
+        // The agent only exists where a listener can be bound.
+        if crate::agent_server::listener_socket_display().is_some() {
+            rows.push((
+                t("agent_server"),
+                t("agent_server_desc"),
+                self.agent.enabled,
+                Message::Agent(AgentMessage::AgentServerToggled(!self.agent.enabled)),
+            ));
+        }
+
+        let mut list = column![].spacing(10);
+        for (label, desc, value, msg) in rows {
+            list = list.push(crate::widgets::toggle_row_desc(label, desc, value, msg));
+        }
+
+        column![
+            badge,
+            Space::new().height(20),
+            text(t("onboarding_features_title")).size(30).font(iced::Font {
+                weight: iced::font::Weight::Bold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            }).color(OryxisColors::t().text_primary),
+            Space::new().height(10),
+            text(t("onboarding_features_body"))
+                .size(14)
+                .color(OryxisColors::t().text_secondary)
+                .align_x(iced::alignment::Horizontal::Center),
+            Space::new().height(16),
+            // Bounded so a long list can't push the card past a short
+            // window; the rows scroll instead.
+            container(iced::widget::scrollable(list).height(Length::Fixed(300.0)))
+                .width(Length::Fixed(460.0)),
+        ]
+        .align_x(iced::Alignment::Center)
+        .into()
+    }
+
+    /// The import offer: names the clients Oryxis can read and, on
+    /// accept, remembers the intent so the hub opens right after the
+    /// vault exists (there is nothing to import into before that).
+    fn onboarding_import_slide(&self) -> Element<'_, Message> {
+        let accent = OryxisColors::t().accent;
+        let badge = onboarding_icon_badge(
+            iced_fonts::lucide::download().size(38).color(accent).into(),
+            accent,
+        );
+        column![
+            badge,
+            Space::new().height(20),
+            text(t("onboarding_import_title")).size(30).font(iced::Font {
+                weight: iced::font::Weight::Bold,
+                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+            }).color(OryxisColors::t().text_primary),
+            Space::new().height(12),
+            text(t("onboarding_import_body"))
+                .size(15)
+                .color(OryxisColors::t().text_secondary)
+                .align_x(iced::alignment::Horizontal::Center),
+            Space::new().height(16),
+            column![
+                onboarding_bullet("OpenSSH config, PuTTY, KiTTY, WinSCP"),
+                Space::new().height(10),
+                onboarding_bullet("mRemoteNG, MobaXterm, SecureCRT, Xshell"),
+                Space::new().height(10),
+                onboarding_bullet("FinalShell, Termius, CSV"),
+            ]
+            .width(Length::Fixed(440.0))
+            .align_x(crate::widgets::dir_align_x()),
+            Space::new().height(20),
+            styled_button(
+                t("onboarding_import_cta"),
+                Message::Onboarding(OnboardingMessage::ImportAfterSetup),
+                accent,
+            ),
+            Space::new().height(6),
+            text(t("onboarding_import_hint"))
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .align_x(iced::alignment::Horizontal::Center),
         ]
         .align_x(iced::Alignment::Center)
         .into()

@@ -7,6 +7,13 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **First-run setup gained two steps.** "Make it yours" lists the
+  optional features (AI, SFTP, Sync, RDP/VNC, host monitoring, SSH
+  agent) with one line each and a live toggle, so the app can be
+  shaped before it is first used and nothing niche is on by surprise;
+  "Bring your hosts along" offers to read the sessions of the SSH
+  client you already use, and opens the importer right after your
+  vault is created. Skip still jumps straight to the password step.
 - **MobaXterm, Xshell, SecureCRT, FinalShell, Termius and CSV
   import.** The Import hub grows a "Choose folder" button for the
   clients that keep one file per session (Xshell `.xsh`, SecureCRT

@@ -106,7 +106,11 @@ matching installer. Windows binaries are Authenticode-signed (see
 - **The full SSH pipeline.** Auto-auth, multi-hop jump chains, SOCKS /
   HTTP / command proxies, agent forwarding, standalone `-L`/`-R`/`-D` port
   forwarding, expect-style login scripts for menu-driven bastions
-  (JumpServer and friends), and `~/.ssh/config` import.
+  (JumpServer and friends).
+- **Bring your hosts along.** One import reads what you already have:
+  `~/.ssh/config`, PuTTY, KiTTY, WinSCP, mRemoteNG, MobaXterm,
+  SecureCRT, Xshell, FinalShell, Termius or any CSV. Pick the file
+  (or the sessions folder) and the format is detected for you.
 - **More than SSH.** Telnet and serial consoles for the gear that never
   learned SSH, ZMODEM transfers, local shells, and one-click RDP/VNC
   through an SSH tunnel.
@@ -193,7 +197,8 @@ Click any thumbnail for the full-size image.
 1. **First launch:** choose a master password or continue without one
    (you can enable it, plus biometric unlock, later in Settings).
 2. **Add hosts:** click `+ HOST`, or just type `user@host` (Ctrl+K) to
-   connect without saving. `~/.ssh/config` imports in one click.
+   connect without saving. Coming from another SSH client? Import
+   brings its saved sessions over in one step.
 3. **Connect:** click a host card. Split panes, the Files sidebar, SFTP
    and snippets are one keystroke away.
 4. **Optional extras:** AI chat (Settings > AI), MCP server
@@ -252,10 +257,8 @@ tracks it interactively.
   WSL layer).
 - **Host tree view:** an mRemoteNG-style tree of groups and hosts as an
   alternative view to the card grid.
-- **Importers & utilities:** PuTTY / WinSCP / mRemoteNG / Termius config
-  importers plus generic CSV import / export, and an optional network
-  tools panel (DNS, ping / traceroute, port test, TLS check, WHOIS,
-  RBL).
+- **Utilities:** CSV export of hosts, and an optional network tools
+  panel (DNS, ping / traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
   import, extra sync snapshot
   backends (private GitHub repo via device code, any WebDAV server;

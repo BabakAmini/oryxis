@@ -271,6 +271,10 @@ pub struct Oryxis {
     /// Current slide index of the first-run onboarding carousel
     /// (`VaultState::NeedSetup`).
     pub(crate) onboarding_slide: usize,
+    /// The onboarding import slide asked to import hosts. The vault
+    /// does not exist while that screen is up, so the intent waits
+    /// here and both vault-creation paths consume it.
+    pub(crate) onboarding_import_pending: bool,
     pub(crate) chain_editor_adding: bool,
     pub(crate) chain_editor_search: String,
     pub(crate) connecting: Option<ConnectionProgress>,

@@ -1589,6 +1589,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_sync_title" => "Συγχρονισμός και AI",
         "onboarding_sync_body" => "Ο προαιρετικός συγχρονισμός peer-to-peer κρατά το vault σας ενημερωμένο σε όλες τις συσκευές, και ένας βοηθός AI ανά συνεδρία σας βοηθά μέσα στο τερματικό.",
         "onboarding_password_title" => "Προστατεύστε το vault σας",
+        "onboarding_features_title" => "Κάντε το δικό σας",
+        "onboarding_features_body" => "Ενεργοποιήστε ό,τι χρειάζεστε. Όλα εδώ είναι προαιρετικά, ανενεργά από προεπιλογή, και αλλάζουν αργότερα στις Ρυθμίσεις > Λειτουργίες και πρόσθετα.",
+        "onboarding_import_title" => "Πάρτε μαζί τους υπολογιστές σας",
+        "onboarding_import_body" => "Χρησιμοποιείτε ήδη άλλο πρόγραμμα SSH; Το Oryxis διαβάζει τις αποθηκευμένες συνεδρίες του, ώστε να ξεκινήσετε με τους διακομιστές σας.",
+        "onboarding_import_cta" => "Εισαγωγή των υπολογιστών μου",
+        "onboarding_import_hint" => "Η εισαγωγή ανοίγει αμέσως μετά τη δημιουργία του θησαυροφυλακίου.",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "Κωδικοί, κλειδιά SSH και διαπιστευτήρια proxy σε ένα μέρος",
         "onboarding_vault_b2" => "Κρυπτογράφηση στον δίσκο με Argon2id και ChaCha20-Poly1305",

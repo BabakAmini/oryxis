@@ -198,6 +198,10 @@ impl Oryxis {
                                     bio_task,
                                     self.agent_boot_task(),
                                     self.take_perf_mode_toast_task(),
+                                    // Onboarding's import offer, now
+                                    // that there IS a vault to import
+                                    // into.
+                                    self.take_onboarding_import_task(),
                                     crate::widgets::focus_input(iced::widget::Id::new(
                                         "search-dashboard",
                                     )),

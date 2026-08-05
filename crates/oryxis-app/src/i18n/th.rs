@@ -1590,6 +1590,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_sync_title" => "ซิงค์และ AI",
         "onboarding_sync_body" => "ซิงค์เพียร์ทูเพียร์แบบเลือกเปิดทำให้ Vault ตรงกันทุกอุปกรณ์ และผู้ช่วย AI ต่อเซสชันช่วยคุณได้ในเทอร์มินัลโดยตรง",
         "onboarding_password_title" => "ปกป้อง Vault ของคุณ",
+        "onboarding_features_title" => "ปรับให้เป็นของคุณ",
+        "onboarding_features_body" => "เปิดเฉพาะที่คุณต้องการ ทุกอย่างที่นี่เป็นตัวเลือก ปิดไว้เป็นค่าเริ่มต้น และเปลี่ยนภายหลังได้ที่ ตั้งค่า > ฟีเจอร์และปลั๊กอิน",
+        "onboarding_import_title" => "นำโฮสต์ของคุณมาด้วย",
+        "onboarding_import_body" => "ใช้โปรแกรม SSH อื่นอยู่ใช่ไหม? Oryxis อ่านเซสชันที่บันทึกไว้ได้ คุณจึงเริ่มต้นพร้อมเซิร์ฟเวอร์ของคุณ",
+        "onboarding_import_cta" => "นำเข้าโฮสต์ของฉัน",
+        "onboarding_import_hint" => "ตัวนำเข้าจะเปิดทันทีหลังสร้างห้องนิรภัยของคุณ",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "รหัสผ่าน คีย์ SSH และข้อมูลรับรองพร็อกซีในที่เดียว",
         "onboarding_vault_b2" => "เข้ารหัสขณะจัดเก็บด้วย Argon2id และ ChaCha20-Poly1305",

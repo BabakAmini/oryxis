@@ -1589,6 +1589,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_sync_title" => "Synchronizace a AI",
         "onboarding_sync_body" => "Volitelná peer-to-peer synchronizace udržuje trezor sladěný napříč zařízeními a AI asistent pro každou relaci pomáhá přímo v terminálu.",
         "onboarding_password_title" => "Chraňte svůj trezor",
+        "onboarding_features_title" => "Přizpůsobte si to",
+        "onboarding_features_body" => "Zapněte, co potřebujete. Vše zde je volitelné, ve výchozím stavu vypnuté a lze to změnit později v Nastavení > Funkce a pluginy.",
+        "onboarding_import_title" => "Vezměte si hostitele s sebou",
+        "onboarding_import_body" => "Používáte už jiného SSH klienta? Oryxis přečte jeho uložené relace, takže začínáte se svými servery.",
+        "onboarding_import_cta" => "Importovat mé hostitele",
+        "onboarding_import_hint" => "Import se otevře hned po vytvoření trezoru.",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "Hesla, SSH klíče a přihlašovací údaje proxy na jednom místě",
         "onboarding_vault_b2" => "Šifrováno v klidovém stavu pomocí Argon2id a ChaCha20-Poly1305",

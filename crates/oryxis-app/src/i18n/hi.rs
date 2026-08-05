@@ -1589,6 +1589,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_sync_title" => "सिंक और AI",
         "onboarding_sync_body" => "ऑप्ट-इन पीयर-टू-पीयर सिंक आपके वॉल्ट को डिवाइसों में एक-सा रखता है, और प्रति-सेशन AI असिस्टेंट टर्मिनल के भीतर ही आपकी मदद करता है।",
         "onboarding_password_title" => "अपना वॉल्ट सुरक्षित करें",
+        "onboarding_features_title" => "अपने हिसाब से बनाएं",
+        "onboarding_features_body" => "जो चाहिए वही चालू करें। यहां सब कुछ वैकल्पिक है, डिफ़ॉल्ट रूप से बंद, और बाद में सेटिंग्स > फ़ीचर्स और प्लगइन्स में बदला जा सकता है।",
+        "onboarding_import_title" => "अपने होस्ट साथ लाएं",
+        "onboarding_import_body" => "पहले से कोई और SSH क्लाइंट इस्तेमाल कर रहे हैं? Oryxis उसके सहेजे सत्र पढ़ लेता है, ताकि आपके सर्वर शुरू से मौजूद रहें।",
+        "onboarding_import_cta" => "मेरे होस्ट आयात करें",
+        "onboarding_import_hint" => "आपकी तिजोरी बनते ही आयात खुल जाएगा।",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "पासवर्ड, SSH कुंजियां और प्रॉक्सी क्रेडेंशियल एक ही जगह",
         "onboarding_vault_b2" => "Argon2id और ChaCha20-Poly1305 से स्टोरेज में एन्क्रिप्टेड",

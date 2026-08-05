@@ -53,8 +53,19 @@ coming next, see the [Roadmap](../README.md#roadmap).
   expires, any keystroke of yours aborts it, and the host's startup
   command is held back until the script actually lands you on the asset.
   Managed in Settings > Connection, created inline from the host editor.
-- **Rich `~/.ssh/config` import.** `ProxyCommand` and `ProxyJump` resolved
-  automatically.
+- **Import from the client you already use.** One "Import" entry reads
+  `~/.ssh/config` (with `ProxyCommand` and `ProxyJump` resolved
+  automatically), PuTTY and KiTTY registry exports, WinSCP sites,
+  mRemoteNG's `confCons.xml`, MobaXterm bookmarks, Xshell / SecureCRT /
+  FinalShell session folders, and any CSV of hosts (a Termius export
+  included). The format is detected from the file's content, not its
+  name, and a registry export holding two clients' sessions imports as
+  one batch. Every host lands in a tick-per-host preview,
+  deduplicated against what you already have. Passwords come along
+  where the source's own scheme allows it (WinSCP, mRemoteNG, a CSV
+  password column) and go straight into the encrypted vault; clients
+  that encrypt with a per-install key import the host and say so in
+  its notes rather than guessing.
 - **PuTTY-grade details.** TCP_NODELAY on every socket, per-host IPv4/IPv6
   preference honored on direct dials, proxy dials and jump chains, and the
   SSH pre-authentication banner shown instead of silently dropped.

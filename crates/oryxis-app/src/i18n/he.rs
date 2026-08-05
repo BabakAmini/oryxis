@@ -1589,6 +1589,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "onboarding_sync_title" => "סנכרון ו-AI",
         "onboarding_sync_body" => "סנכרון עמית-לעמית בהסכמה שומר על הכספת מעודכנת בין המכשירים, ועוזר AI פר-סשן עוזר לכם ממש בתוך הטרמינל.",
         "onboarding_password_title" => "הגנו על הכספת שלכם",
+        "onboarding_features_title" => "התאם אישית",
+        "onboarding_features_body" => "הפעל את מה שצריך. הכול כאן אופציונלי, כבוי כברירת מחדל, וניתן לשינוי בהמשך בהגדרות > תכונות ותוספים.",
+        "onboarding_import_title" => "קח איתך את המארחים",
+        "onboarding_import_body" => "כבר משתמש בלקוח SSH אחר? Oryxis קורא את ההפעלות השמורות שלו, כך שהשרתים שלך שם מההתחלה.",
+        "onboarding_import_cta" => "ייבא את המארחים שלי",
+        "onboarding_import_hint" => "הייבוא ייפתח מיד לאחר יצירת הכספת.",
         // Feature-slide highlight bullets.
         "onboarding_vault_b1" => "סיסמאות, מפתחות SSH ופרטי גישה לפרוקסי במקום אחד",
         "onboarding_vault_b2" => "מוצפן באחסון עם Argon2id ו-ChaCha20-Poly1305",

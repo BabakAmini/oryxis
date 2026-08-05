@@ -7,10 +7,17 @@ use iced::Task;
 
 use crate::app::{Message, OnboardingMessage, Oryxis};
 
-/// Last slide index. The carousel has five slides (0..=4); the final one
-/// carries the master-password setup. Kept here as the single source of
-/// truth for navigation clamping and the "Skip" jump.
-pub(crate) const ONBOARDING_LAST_SLIDE: usize = 4;
+/// Last slide index. The carousel has seven slides (0..=6): four
+/// feature slides, the optional-features toggles, the import offer,
+/// and finally the master-password setup. Kept here as the single
+/// source of truth for navigation clamping and the "Skip" jump.
+pub(crate) const ONBOARDING_LAST_SLIDE: usize = 6;
+
+/// Index of the optional-features slide (toggles).
+pub(crate) const ONBOARDING_FEATURES_SLIDE: usize = 4;
+
+/// Index of the import-offer slide.
+pub(crate) const ONBOARDING_IMPORT_SLIDE: usize = 5;
 
 impl Oryxis {
     pub(crate) fn handle_onboarding(
@@ -31,7 +38,24 @@ impl Oryxis {
             OnboardingMessage::SkipToEnd => {
                 self.onboarding_slide = ONBOARDING_LAST_SLIDE;
             }
+            OnboardingMessage::ImportAfterSetup => {
+                // The import needs an unlocked vault, which does not
+                // exist yet on this screen: remember the intent and
+                // move to the password slide. Both vault-creation
+                // paths consume it (`take_onboarding_import_task`).
+                self.onboarding_import_pending = true;
+                self.onboarding_slide = ONBOARDING_LAST_SLIDE;
+            }
         }
         Task::none()
+    }
+
+    /// Open the Import hub right after the vault is created, when the
+    /// onboarding import slide asked for it. One-shot.
+    pub(crate) fn take_onboarding_import_task(&mut self) -> Task<Message> {
+        if !std::mem::take(&mut self.onboarding_import_pending) {
+            return Task::none();
+        }
+        Task::done(Message::Share(crate::app::ShareMessage::ShowImportHub))
     }
 }
