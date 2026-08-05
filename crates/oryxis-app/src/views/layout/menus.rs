@@ -642,6 +642,15 @@ impl Oryxis {
                 Message::Navigation(NavigationMessage::ChangeView(View::KnownHosts)),
                 self.hotkey_label_for_vault_slot(8)
             )),
+            if self.prefs.host_monitoring {
+                indent(item(
+                    "monitor_dash_pill",
+                    Message::Navigation(NavigationMessage::ChangeView(View::Monitoring)),
+                    self.hotkey_label_for_vault_slot(9)
+                ))
+            } else {
+                Space::new().into()
+            },
             Space::new().height(4),
             sftp_item,
             item("settings", Message::Navigation(NavigationMessage::ChangeView(View::Settings)), hk_settings),
