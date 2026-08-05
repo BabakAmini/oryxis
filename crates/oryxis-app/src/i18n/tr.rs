@@ -1583,6 +1583,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import" => "SSH config içe aktar",
         "ssh_config_import_desc" => "Bir OpenSSH config dosyası seçin (varsayılan ~/.ssh/config). Her `Host` bloğu bir bağlantı kaydı olur; joker karakterler ve mevcut etiketler atlanır.",
         "import_ssh_config_btn" => "~/.ssh/config içe aktar",
+        "import_putty_btn" => "PuTTY oturumlarını içe aktar (.reg)",
+        "import_skipped" => "İçe aktarılamayanlar:",
         "export_hosts" => "Sunucuları dışa aktar",
         "export_groups" => "Eklenecek klasörler",
         "export_ungrouped" => "Klasörsüz sunucular",

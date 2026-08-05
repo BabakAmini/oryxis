@@ -15,6 +15,11 @@ pub enum ShareMessage {
     /// The parsed Host blocks land in a preview modal where the user
     /// ticks which to import.
     ImportSshConfig,
+    /// Pick a PuTTY `.reg` export and load it (importers::putty).
+    ImportPutty,
+    /// The picked `.reg` file's raw bytes (regedit exports UTF-16LE,
+    /// so the decode happens in the handler, not the reader).
+    PuttyFileLoaded(Result<Vec<u8>, String>),
     /// File contents picked + read by the background task spawned from
     /// `ImportSshConfig`; the handler parses and opens the preview.
     SshConfigFileLoaded(Result<String, String>),

@@ -1500,6 +1500,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import" => "SSH config 导入",
         "ssh_config_import_desc" => "选择 OpenSSH 配置文件（默认 ~/.ssh/config）。每个 `Host` 块成为一个连接记录；通配符和已存在的标签会被跳过。",
         "import_ssh_config_btn" => "导入 ~/.ssh/config",
+        "import_putty_btn" => "导入 PuTTY 会话（.reg）",
+        "import_skipped" => "无法导入：",
         "export_hosts" => "导出主机",
         "export_groups" => "要包含的文件夹",
         "export_ungrouped" => "无文件夹的主机",

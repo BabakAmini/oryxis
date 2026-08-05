@@ -1583,6 +1583,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import" => "SSH 구성 가져오기",
         "ssh_config_import_desc" => "OpenSSH 구성 파일을 선택하세요(기본값 ~/.ssh/config). 각 `Host` 블록은 연결 레코드가 됩니다. 와일드카드와 기존 레이블은 건너뜁니다.",
         "import_ssh_config_btn" => "~/.ssh/config 가져오기",
+        "import_putty_btn" => "PuTTY 세션 가져오기 (.reg)",
+        "import_skipped" => "가져올 수 없음:",
         "export_hosts" => "호스트 내보내기",
         "export_groups" => "포함할 폴더",
         "export_ungrouped" => "폴더 없는 호스트",

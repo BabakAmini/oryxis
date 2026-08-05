@@ -275,10 +275,53 @@ impl Oryxis {
         dialog.into()
     }
 
-    /// Content for the SSH-config import preview (per-host checklist with
-    /// select/deselect all, then Import + Cancel).
+    /// Content for the import preview (per-host checklist with
+    /// select/deselect all, then Import + Cancel). Serves both the
+    /// ssh_config flow and the third-party importers: the row data
+    /// resolves from whichever batch is pending.
     pub(crate) fn build_ssh_import_dialog(&self) -> Element<'_, Message> {
-        let ssh_total = self.ssh_import_hosts.len();
+        // (label, detail) per row, source-agnostic. Direct batches
+        // are already Connections; ssh_config rows derive from the
+        // parsed block.
+        let direct = self.ssh_import_direct.as_ref();
+        let rows: Vec<(String, String)> = match direct {
+            Some(direct) => direct
+                .hosts
+                .iter()
+                .map(|c| {
+                    let mut detail = c.hostname.clone();
+                    if let Some(u) = &c.username {
+                        detail = format!("{u}@{detail}");
+                    }
+                    if c.port > 0 {
+                        detail = format!("{detail}:{}", c.port);
+                    }
+                    (c.label.clone(), detail)
+                })
+                .collect(),
+            None => self
+                .ssh_import_hosts
+                .iter()
+                .map(|host| {
+                    // "user@hostname:port", falling back to the alias
+                    // when HostName is omitted (OpenSSH treats the
+                    // alias as host).
+                    let mut detail = host
+                        .hostname
+                        .clone()
+                        .unwrap_or_else(|| host.alias.clone());
+                    if let Some(u) = &host.user {
+                        detail = format!("{u}@{detail}");
+                    }
+                    if let Some(p) = host.port {
+                        detail = format!("{detail}:{p}");
+                    }
+                    (host.alias.clone(), detail)
+                })
+                .collect(),
+        };
+        let title_key = direct.map_or("import_ssh_config_btn", |d| d.source_key);
+        let ssh_total = rows.len();
         let ssh_selected =
             self.ssh_import_selected.iter().filter(|s| **s).count();
         // Keyboard rows in visual order: select/deselect all, the
@@ -307,24 +350,12 @@ impl Oryxis {
             ),
         );
         let mut list = column![].spacing(4);
-        for (i, host) in self.ssh_import_hosts.iter().enumerate() {
+        for (i, (name, detail)) in rows.iter().enumerate() {
             let checked =
                 self.ssh_import_selected.get(i).copied().unwrap_or(false);
             let exists =
                 self.ssh_import_existing.get(i).copied().unwrap_or(false);
-            // "user@hostname:port", falling back to the alias when
-            // HostName is omitted (OpenSSH treats the alias as host).
-            let mut detail = host
-                .hostname
-                .clone()
-                .unwrap_or_else(|| host.alias.clone());
-            if let Some(u) = &host.user {
-                detail = format!("{u}@{detail}");
-            }
-            if let Some(p) = host.port {
-                detail = format!("{detail}:{p}");
-            }
-            let mut label = format!("{}  ({detail})", host.alias);
+            let mut label = format!("{name}  ({detail})");
             if exists {
                 label.push_str("  · ");
                 label.push_str(crate::i18n::t("ssh_import_exists"));
@@ -341,9 +372,25 @@ impl Oryxis {
                     .into(),
             ));
         }
+        // Sessions the parser could not map: named, muted, honest.
+        let skipped_line: Element<'_, Message> = match direct.filter(|d| !d.skipped.is_empty())
+        {
+            Some(d) => column![
+                Space::new().height(6),
+                text(format!(
+                    "{} {}",
+                    crate::i18n::t("import_skipped"),
+                    d.skipped.join(", ")
+                ))
+                .size(11)
+                .color(OryxisColors::t().warning),
+            ]
+            .into(),
+            None => Space::new().into(),
+        };
         let dialog_content = container(
             column![
-                text(crate::i18n::t("import_ssh_config_btn"))
+                text(crate::i18n::t(title_key))
                     .size(16)
                     .color(OryxisColors::t().text_primary),
                 Space::new().height(4),
@@ -355,6 +402,7 @@ impl Oryxis {
                 ))
                     .size(12)
                     .color(OryxisColors::t().text_muted),
+                skipped_line,
                 Space::new().height(8),
                 row![select_all_btn, Space::new().width(8), deselect_all_btn],
                 Space::new().height(8),

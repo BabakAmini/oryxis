@@ -1163,6 +1163,10 @@ pub struct Oryxis {
     /// Hosts parsed from a picked `~/.ssh/config`, awaiting the user's
     /// pick of which to import. Non-empty drives the preview modal.
     pub(crate) ssh_import_hosts: Vec<crate::ssh_config::SshConfigHost>,
+    /// A third-party import (PuTTY, ...) waiting in the same preview
+    /// dialog. Mutually exclusive with `ssh_import_hosts`; the shared
+    /// `ssh_import_selected` / `ssh_import_existing` vecs serve both.
+    pub(crate) ssh_import_direct: Option<crate::importers::DirectImport>,
     /// Per-host tick state, parallel to `ssh_import_hosts`.
     pub(crate) ssh_import_selected: Vec<bool>,
     /// Per-host "label already exists" flag, parallel to

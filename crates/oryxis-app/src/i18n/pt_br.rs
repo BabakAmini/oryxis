@@ -1542,6 +1542,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import" => "Importar SSH config",
         "ssh_config_import_desc" => "Selecione um arquivo OpenSSH config (padrão ~/.ssh/config). Cada bloco `Host` vira um registro de conexão; wildcards e labels existentes são ignorados.",
         "import_ssh_config_btn" => "Importar ~/.ssh/config",
+        "import_putty_btn" => "Importar sessões do PuTTY (.reg)",
+        "import_skipped" => "Não importáveis:",
         "export_hosts" => "Exportar hosts",
         "export_groups" => "Pastas a incluir",
         "export_ungrouped" => "Hosts sem pasta",

@@ -7,6 +7,18 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **PuTTY session import.** "+ Host ▾" (and the first-run empty
+  state) gains "Import PuTTY sessions (.reg)": pick a regedit export
+  of the PuTTY hive and every session lands in the same tick-per-host
+  preview the `~/.ssh/config` import uses, deduplicated against
+  existing labels. SSH, Telnet and serial sessions map with their
+  ports, users, agent/X11 forwarding, SOCKS4/SOCKS5/HTTP/command
+  proxies and serial line parameters; a session's `.ppk` path is kept
+  in the notes with the auth method set to Key (the Keychain's Import
+  Key reads .ppk when you're ready). Sessions the parser can't map
+  (raw/rlogin, or no host) are listed by name instead of vanishing.
+  UTF-16LE exports decode transparently. First of the importer set;
+  WinSCP, mRemoteNG, Termius and generic CSV are next.
 - **Multi-host monitoring dashboard (#95).** A Monitoring pill next to
   Hosts (once the host-monitoring feature toggle is on) shows live
   vitals cards for every opted-in host at once. Hosts with an open

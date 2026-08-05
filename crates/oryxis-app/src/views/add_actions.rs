@@ -46,6 +46,12 @@ impl Oryxis {
                 msg: Message::Share(ShareMessage::ImportSshConfig),
                 color: secondary,
             },
+            AddHostAction {
+                icon: iced_fonts::lucide::file_down().into(),
+                label: crate::i18n::t("import_putty_btn"),
+                msg: Message::Share(ShareMessage::ImportPutty),
+                color: secondary,
+            },
         ];
         // Group creation, context-symmetric and always the leading
         // entry. Inside a manual folder it's "New subgroup" (a child of

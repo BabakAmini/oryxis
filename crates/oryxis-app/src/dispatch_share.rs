@@ -121,6 +121,68 @@ impl Oryxis {
                     },
                 );
             }
+            ShareMessage::ImportPutty => {
+                self.overlay = None;
+                self.ssh_config_import_status = None;
+                return Task::perform(
+                    tokio::task::spawn_blocking(|| {
+                        let path = rfd::FileDialog::new()
+                            .set_title("Import PuTTY sessions")
+                            .add_filter("Registry export", &["reg"])
+                            .pick_file()?;
+                        Some(std::fs::read(&path).map_err(|e| format!("Read failed: {e}")))
+                    }),
+                    |res| match res {
+                        Ok(Some(bytes)) => {
+                            Message::Share(ShareMessage::PuttyFileLoaded(bytes))
+                        }
+                        _ => Message::NoOp,
+                    },
+                );
+            }
+            ShareMessage::PuttyFileLoaded(Err(e)) => {
+                self.ssh_config_import_status = Some(Err(e));
+            }
+            ShareMessage::PuttyFileLoaded(Ok(bytes)) => {
+                let text = crate::importers::putty::decode_reg_bytes(&bytes);
+                let parsed = crate::importers::putty::parse_reg(&text);
+                if parsed.connections.is_empty() {
+                    // Distinguish "nothing in the file" from "sessions
+                    // present but unimportable": the second silently
+                    // eating someone's export reads as data loss.
+                    let msg = if parsed.skipped.is_empty() {
+                        crate::i18n::t("ssh_import_none_found").to_string()
+                    } else {
+                        format!(
+                            "{} {}",
+                            crate::i18n::t("import_skipped"),
+                            parsed.skipped.join(", ")
+                        )
+                    };
+                    self.ssh_config_import_status = Some(Err(msg.clone()));
+                    return self.show_toast(msg);
+                }
+                let existing_labels: std::collections::HashSet<String> = self
+                    .connections
+                    .iter()
+                    .map(|c| c.label.clone())
+                    .collect();
+                self.ssh_import_existing = parsed
+                    .connections
+                    .iter()
+                    .map(|c| existing_labels.contains(&c.label))
+                    .collect();
+                self.ssh_import_selected =
+                    self.ssh_import_existing.iter().map(|e| !e).collect();
+                self.ssh_import_hosts.clear();
+                self.ssh_import_direct = Some(crate::importers::DirectImport {
+                    source_key: "import_putty_btn",
+                    hosts: parsed.connections,
+                    skipped: parsed.skipped,
+                });
+                self.ssh_config_import_status = None;
+                self.panels.ssh_import_dialog = true;
+            }
             ShareMessage::SshConfigFileLoaded(Err(e)) => {
                 self.ssh_config_import_status = Some(Err(e));
             }
@@ -148,6 +210,7 @@ impl Oryxis {
                 self.ssh_import_selected =
                     self.ssh_import_existing.iter().map(|e| !e).collect();
                 self.ssh_import_hosts = parsed;
+                self.ssh_import_direct = None;
                 self.ssh_config_import_status = None;
                 self.panels.ssh_import_dialog = true;
             }
@@ -164,6 +227,7 @@ impl Oryxis {
             ShareMessage::SshImportDismiss => {
                 self.panels.ssh_import_dialog = false;
                 self.ssh_import_hosts.clear();
+                self.ssh_import_direct = None;
                 self.ssh_import_selected.clear();
                 self.ssh_import_existing.clear();
             }
@@ -174,6 +238,55 @@ impl Oryxis {
                         Some(Err("Vault not unlocked".into()));
                     return Task::none();
                 };
+                // Third-party batch (PuTTY, ...): already Connections,
+                // no alias pass; same transaction shape as below.
+                if let Some(direct) = self.ssh_import_direct.take() {
+                    let picked: Vec<oryxis_core::models::connection::Connection> = direct
+                        .hosts
+                        .iter()
+                        .zip(self.ssh_import_selected.iter())
+                        .filter(|(_, sel)| **sel)
+                        .map(|(c, _)| c.clone())
+                        .collect();
+                    let total = picked.len();
+                    let _ = vault.begin_batch();
+                    let mut saved: Vec<oryxis_core::models::connection::Connection> =
+                        Vec::new();
+                    let mut errors: Vec<String> = Vec::new();
+                    for conn in &picked {
+                        // These formats carry no credentials (PuTTY
+                        // never stores passwords); the host editor is
+                        // where the user finishes auth.
+                        match vault.save_connection(conn, None) {
+                            Ok(()) => saved.push(conn.clone()),
+                            Err(e) => errors.push(format!("{}: {e}", conn.label)),
+                        }
+                    }
+                    if let Err(e) = vault.commit_batch() {
+                        vault.rollback_batch();
+                        saved.clear();
+                        errors.push(format!("commit: {e}"));
+                    }
+                    let imported = saved.len();
+                    self.connections.extend(saved);
+                    self.panels.ssh_import_dialog = false;
+                    self.ssh_import_selected.clear();
+                    self.ssh_import_existing.clear();
+                    let mut summary = format!(
+                        "{} {} / {}",
+                        crate::i18n::t("import_summary_imported"),
+                        imported,
+                        total,
+                    );
+                    if errors.is_empty() {
+                        self.ssh_config_import_status = Some(Ok(summary.clone()));
+                    } else {
+                        summary.push_str("; ");
+                        summary.push_str(&errors.join("; "));
+                        self.ssh_config_import_status = Some(Err(summary.clone()));
+                    }
+                    return self.show_toast(summary);
+                }
                 // Ticked hosts, in original order so `link_proxy_jumps`
                 // can resolve sibling aliases to freshly-assigned ids.
                 let picked: Vec<crate::ssh_config::SshConfigHost> = self

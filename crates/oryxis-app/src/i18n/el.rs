@@ -1618,6 +1618,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import" => "Εισαγωγή SSH config",
         "ssh_config_import_desc" => "Επιλέξτε αρχείο ρυθμίσεων OpenSSH (προεπιλογή ~/.ssh/config). Κάθε μπλοκ `Host` γίνεται εγγραφή σύνδεσης. Μπαλαντέρ και υπάρχουσες ετικέτες παραλείπονται.",
         "import_ssh_config_btn" => "Εισαγωγή ~/.ssh/config",
+        "import_putty_btn" => "Εισαγωγή συνεδριών PuTTY (.reg)",
+        "import_skipped" => "Μη εισαγώγιμα:",
         "export_hosts" => "Εξαγωγή hosts",
         "export_groups" => "Φάκελοι προς συμπερίληψη",
         "export_ungrouped" => "Hosts χωρίς φάκελο",
