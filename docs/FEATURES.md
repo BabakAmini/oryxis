@@ -40,6 +40,19 @@ coming next, see the [Roadmap](../README.md#roadmap).
   Resolves `$DISPLAY` across Linux/BSD unix sockets, XQuartz launchd
   paths on macOS, and the TCP endpoint VcXsrv / Xming serve on Windows,
   including displays that run with access control off.
+- **Bastion login scripts.** Some jump boxes authenticate INSIDE the
+  terminal after SSH is already up: JumpServer / KoKo and friends drop
+  you in a menu that asks for an asset, a user and a password. A login
+  script is a reusable expect/send sequence (wait for a prompt, send an
+  answer) attached to a host, with the answers that are secrets read
+  from the vault at send time rather than stored in the script. Ships
+  with a JumpServer preset and a generic interactive-bastion one, both
+  editable; `{placeholders}` let one script serve many hosts, each with
+  its own asset and target user. The run is bounded on every side: steps
+  fire strictly in order, each has its own deadline, the whole run
+  expires, any keystroke of yours aborts it, and the host's startup
+  command is held back until the script actually lands you on the asset.
+  Managed in Settings > Connection, created inline from the host editor.
 - **Rich `~/.ssh/config` import.** `ProxyCommand` and `ProxyJump` resolved
   automatically.
 - **PuTTY-grade details.** TCP_NODELAY on every socket, per-host IPv4/IPv6
@@ -335,6 +348,17 @@ If your vault has no password, omit the `env` field.
   `otpauth://` URI), encrypted like every credential;
   keyboard-interactive verification-code prompts are answered
   automatically, once per auth attempt, with a manual fallback.
+- **Stored passwords at password prompts.** When a session blocks on
+  `[sudo] password for you:` (or `su`, `ssh`, a key passphrase), a popup
+  at the cursor lists the passwords the vault holds for that host and
+  your identities. Down engages it, Enter sends, Esc hides. Nothing is
+  ever sent without picking a row, so typing your own password is never
+  interrupted, and prompts that ask you to CHOOSE a password (`passwd`,
+  key generation) are recognized and never offered one. The credential
+  is decrypted at the moment you pick it, written straight to that one
+  pane (never broadcast, never mirrored into command history) and
+  scrubbed from memory after the write. Off with one toggle in
+  Settings > Terminal.
 - **Privacy Mode.** Masks IPv4/IPv6 addresses, `user@host` pairs, home
   directories and vault hostnames on screen, in notifications, and before
   AI context leaves the app; click a mask to pin-reveal it.

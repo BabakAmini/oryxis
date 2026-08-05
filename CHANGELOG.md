@@ -4,6 +4,62 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Wake-on-LAN.** Store a MAC address on any host (any common
+  notation) and wake the machine from the host card's menu with a
+  magic-packet broadcast, before SSH, RDP or anything else can reach
+  it.
+- **GPU gauges in the Monitor tab.** The agentless host monitor probes
+  `nvidia-smi` on the same exec channel it already uses, and renders a
+  GPU section only when the probe answers.
+- **Quick connect from outside the app.** Oryxis registers as the OS
+  `ssh://` URL handler and accepts `oryxis user@host` on the command
+  line; a running instance lands the session in a new tab instead of
+  starting a second window.
+- **Bastion login scripts (#122).** Some jump boxes authenticate INSIDE
+  the terminal after SSH is already up: JumpServer / KoKo and friends
+  drop you in a menu that asks for an asset, a user and a password. A
+  login script is a reusable expect/send sequence attached to a host,
+  with the answers that are secrets read from the vault at send time
+  rather than stored in the script. Ships with a JumpServer preset and
+  a generic interactive-bastion one, both editable; `{placeholders}`
+  let one script serve many hosts, each with its own asset and target
+  user. The run is bounded on every side: steps fire strictly in order,
+  each has its own deadline, the whole run expires, any keystroke of
+  yours aborts it, and the host's startup command is held back until
+  the script actually lands you on the asset. Managed in Settings >
+  Connection, created inline from the host editor, and it rides sync
+  and portable export like any other entity.
+- **Stored passwords at password prompts (#117).** When a session
+  blocks on `[sudo] password for you:` (or `su`, `ssh`, a key
+  passphrase), a popup at the cursor lists the passwords the vault
+  holds for that host and your identities. Down engages it, Enter
+  sends, Esc hides. Nothing is ever sent without picking a row, so
+  typing your own password is never interrupted, and prompts that ask
+  you to CHOOSE a password (`passwd`, key generation) are recognized
+  and never offered one. The credential is decrypted at the moment you
+  pick it, written straight to that one pane (never broadcast, never
+  mirrored into command history) and scrubbed from memory after the
+  write. On by default; one toggle in Settings > Terminal.
+
+### Fixed
+- **A master password change no longer orphaned TOTP secrets.** The
+  re-encryption pass did not list the connections table's
+  `totp_secret` column, so changing the master password left every
+  stored 2FA secret undecryptable. The column list is now covered by a
+  rotation test.
+- **Duplicating a host kept its whole configuration.** The duplicate
+  was built field by field from a list that had drifted behind the
+  model, silently dropping quirks, algorithms, port forwards, env vars
+  and more. It clones the host now, so a new field is carried by
+  construction.
+- **The sudo-password snippet action works on split tabs.** It resolved
+  the host by tab LABEL, so a tab holding two hosts sent the wrong
+  host's password or none at all; it resolves from the pane now, and
+  scrubs the credential after the write like every other secret path.
+
 ## [0.12.0] - 2026-08-04
 
 The workspace and community release. Settings opens as a tab beside

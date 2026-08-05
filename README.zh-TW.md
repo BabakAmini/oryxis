@@ -81,9 +81,11 @@ macOS（Apple Silicon `.dmg`）和 Windows（系統層級與使用者層級安�
   單一二進位檔。沒有 Electron、沒有 webview。
 - **本機加密保險庫**：Argon2id + ChaCha20-Poly1305 欄位級加密、可選
   主密碼、生物辨識解鎖（Windows Hello / Touch ID / Linux 金鑰環）、
-  閒置自動鎖定、TOTP 兩步驟驗證自動填入。
+  閒置自動鎖定、TOTP 兩步驟驗證自動填入，以及在 `sudo` 提示時
+  提供保險庫密碼（絕不自動送出）。
 - **完整的 SSH 能力**：自動驗證、多層跳板機、SOCKS / HTTP / 命令
-  代理、Agent 轉發、獨立的 `-L`/`-R`/`-D` 連接埠轉送、一鍵匯入
+  代理、Agent 轉發、獨立的 `-L`/`-R`/`-D` 連接埠轉送、面向選單式
+  跳板機（JumpServer 等）的 expect/send 登入指令碼、一鍵匯入
   `~/.ssh/config`。
 - **不只 SSH**：Telnet 與序列埠主控台、ZMODEM 傳輸、本機 Shell，
   以及透過 SSH 隧道一鍵開啟 RDP/VNC。
@@ -148,9 +150,8 @@ Oryxis 以大約每週一次的節奏持續發布，功能就緒即上線。最�
 終端機強化（附觸發動作的關鍵字高亮、視窗不透明度）、原生 Mosh 用戶端、
 設定匯入工具（PuTTY / WinSCP / mRemoteNG / Termius）、主機監控的
 多主機面板，以及東亞全形寬度選項和終端機背景圖。來自社群的
-新需求也已排入：JumpServer 類跳板機的登入指令碼、sudo 提示時帶出
-保險庫密碼、側邊欄 tmux 工作階段管理器、可按需下載的終端機字型包，
-以及主機樹狀檢視。
+新需求也已排入：側邊欄 tmux 工作階段管理器、可按需下載的終端機
+字型包，以及主機樹狀檢視。
 
 ## 參與貢獻
 

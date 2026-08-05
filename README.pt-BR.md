@@ -76,11 +76,13 @@ binários de Windows são assinados com Authenticode.
 - **Cofre local criptografado**: Argon2id + ChaCha20-Poly1305 campo a
   campo, senha mestra opcional, desbloqueio biométrico (Windows Hello /
   Touch ID / keyring do Linux), bloqueio automático por inatividade e
-  preenchimento automático de TOTP para hosts com 2FA.
+  preenchimento automático de TOTP para hosts com 2FA e senhas do
+  cofre oferecidas nos prompts de `sudo` (nunca enviadas sozinhas).
 - **O pipeline SSH completo**: autenticação automática, jump hosts em
   cadeia, proxies SOCKS / HTTP / de comando, encaminhamento de agente,
-  port forwarding independente `-L`/`-R`/`-D` e importação do
-  `~/.ssh/config` em um clique.
+  port forwarding independente `-L`/`-R`/`-D`, scripts de login
+  expect/send para bastions de menu (JumpServer e companhia) e
+  importação do `~/.ssh/config` em um clique.
 - **Mais que SSH**: consoles Telnet e serial para os equipamentos que
   nunca aprenderam SSH, transferências ZMODEM, shells locais e RDP/VNC
   em um clique através de túnel SSH.
@@ -166,10 +168,9 @@ palavras-chave com ações de gatilho e opacidade de janela), cliente
 Mosh nativo, importadores de configuração (PuTTY / WinSCP / mRemoteNG /
 Termius), painel multi-host no monitoramento,
 suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
-pedidos recentes da comunidade: scripts de login para bastions tipo
-JumpServer, senha do cofre em prompts de sudo, gerenciador de sessões
-tmux na barra lateral, pacote de fontes Nerd Font para o terminal e
-visão em árvore dos hosts.
+pedidos recentes da comunidade: gerenciador de sessões tmux na barra
+lateral, pacote de fontes Nerd Font para o terminal e visão em árvore
+dos hosts.
 
 ## Contribuindo
 

@@ -101,10 +101,12 @@ matching installer. Windows binaries are Authenticode-signed (see
   UI, single binary. No Electron, no webview.
 - **Encrypted local vault.** Argon2id + ChaCha20-Poly1305 per field,
   optional master password, biometric unlock (Windows Hello / Touch ID /
-  Linux keyring), idle auto-lock, and TOTP autofill for 2FA hosts.
+  Linux keyring), idle auto-lock, TOTP autofill for 2FA hosts, and
+  stored passwords offered at `sudo` prompts (never sent on their own).
 - **The full SSH pipeline.** Auto-auth, multi-hop jump chains, SOCKS /
   HTTP / command proxies, agent forwarding, standalone `-L`/`-R`/`-D` port
-  forwarding, and `~/.ssh/config` import.
+  forwarding, expect-style login scripts for menu-driven bastions
+  (JumpServer and friends), and `~/.ssh/config` import.
 - **More than SSH.** Telnet and serial consoles for the gear that never
   learned SSH, ZMODEM transfers, local shells, and one-click RDP/VNC
   through an SSH tunnel.
@@ -245,13 +247,6 @@ tracks it interactively.
 - **tmux session manager:** a terminal-sidebar tab listing the tmux
   sessions on the current host with attach / create / kill, read over
   the live connection; nothing installed on the server, as always.
-- **Stored passwords at sudo prompts:** when a `sudo` / `su` password
-  prompt appears in the terminal, a popup at the cursor offers the
-  host's vault password; confirmed with a click or hotkey, never sent
-  automatically.
-- **Bastion login scripts:** expect-style login automation (wait for a
-  prompt, send a stored answer) with ready-made presets for
-  JumpServer-class bastions and other menu-driven jump boxes.
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
