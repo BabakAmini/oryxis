@@ -126,7 +126,14 @@ impl Oryxis {
     /// what is actually on screen, so nothing else has to repeat the
     /// pair of conditions.
     pub(crate) fn terminal_backdrop_alpha(&self) -> Option<f32> {
-        if self.terminal_surface_visible() {
+        // Files mode returns early in `view_terminal`, before the layer
+        // that would carry the alpha, so a tab showing the dual-pane
+        // file browser is not a terminal on screen: fading here would
+        // leave the root container not painting and nothing painting in
+        // its place. It is also the right answer on its own terms, a
+        // file listing is content to read, like every other view that
+        // stays opaque.
+        if self.terminal_surface_visible() && !self.sftp_surface_visible() {
             crate::theme::terminal_bg_alpha()
         } else {
             None
