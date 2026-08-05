@@ -108,6 +108,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Terminal, "word_delimiters", "word delimiters double click selection boundary"),
     e(S::Terminal, "scrollback", "scrollback lines history buffer rows limit"),
     e(S::Terminal, "scrollback_reset_keypress", "scrollback reset keypress jump bottom"),
+    e(S::Terminal, "terminal_password_autofill", "password autofill sudo suggest credential prompt"),
     e(S::Terminal, "scrollback_reset_output", "scrollback reset output activity jump bottom"),
     e(S::Terminal, "bold_bright", "bold bright colors text intensity"),
     e(S::Terminal, "pane_border_inactive", "pane border outline split inactive unfocused separator divider"),

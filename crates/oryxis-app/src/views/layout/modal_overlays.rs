@@ -344,7 +344,17 @@ impl Oryxis {
         // open a new tab. Skip the backdrop here so the click reaches the
         // button. Every other overlay through this path is click-triggered
         // and keeps its click-outside dismissal.
-        let is_hover_popover = matches!(overlay.content, OverlayContent::SplitMenu);
+        //
+        // The password-suggest popup (#117) skips it for the same
+        // reason from the other direction: it floats over a live
+        // terminal, and a full-screen backdrop would turn every click
+        // on the session underneath into "close the popup" instead of
+        // a click on the terminal. It dismisses through the pane's own
+        // interactions (FocusPane, typing, tab switch) instead.
+        let is_hover_popover = matches!(
+            overlay.content,
+            OverlayContent::SplitMenu | OverlayContent::PasswordSuggest { .. }
+        );
 
         // Position the menu, clamping to window bounds to prevent clipping.
         // Under RTL, anchor by the menu's right edge so it grows toward

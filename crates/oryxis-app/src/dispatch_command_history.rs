@@ -147,6 +147,12 @@ impl Oryxis {
             let pane_id = tab.active().id;
             self.abort_login_script(pane_id);
         }
+        // Same reasoning for the password-suggest popup (issue #117):
+        // the user is answering the prompt themselves. The key router
+        // already dismisses on a printable key so the keystroke is not
+        // swallowed; this catches every other input path (paste, IME,
+        // snippet Run) with one rule.
+        self.dismiss_password_suggest();
         self.write_ring_injection_to_tab(tab_idx, bytes);
     }
 
@@ -239,10 +245,15 @@ impl Oryxis {
     /// or the tab is showing its Files surface: in both cases these
     /// bytes would be read by something that is not a shell.
     pub(crate) fn write_secret_to_pane(&mut self, pane_id: uuid::Uuid, bytes: &[u8]) {
-        let snap = self.prefs.scrollback_reset_keypress;
         let Some(tab_idx) = self.pane_tab_index(pane_id) else {
             return;
         };
+        // Unlike a keystroke, neither caller is guaranteed to be looking
+        // at this tab (a login script runs while the user reads another
+        // one), and yanking a background pane's viewport out from under
+        // a reader is the bug scroll-on-input exists to avoid. Same gate
+        // `snap_tab_to_live_edge` documents for the AI-exec path.
+        let snap = self.prefs.scrollback_reset_keypress && self.active_tab == Some(tab_idx);
         if self.tabs.get(tab_idx).is_some_and(|t| t.files_mode) {
             return;
         }

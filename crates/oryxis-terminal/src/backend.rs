@@ -317,6 +317,72 @@ impl TerminalBackend {
         std::mem::take(&mut self.marks).into()
     }
 
+    /// The password prompt printed in front of the cursor, if that is
+    /// what the cursor is sitting behind (issue #117).
+    ///
+    /// Reads the grid rather than the byte stream: a program that
+    /// blocks on a password has left its prompt on screen with the
+    /// escapes already applied, so the text here is exactly what the
+    /// user sees. Soft wraps are joined; the read stops AT the cursor,
+    /// because "what is printed before the cursor" is the definition of
+    /// a prompt and anything past it belongs to a previous frame.
+    ///
+    /// `None` on the alternate screen (a full-screen app draws its own
+    /// prompts and owns its keys) and whenever the line does not match
+    /// [`crate::prompt_detect::looks_like_password_prompt`].
+    pub fn password_prompt_at_cursor(&self) -> Option<crate::prompt_detect::PasswordPrompt> {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        use alacritty_terminal::term::TermMode;
+
+        if self.term.mode().contains(TermMode::ALT_SCREEN) {
+            return None;
+        }
+        let grid = self.term.grid();
+        let cols = grid.columns();
+        if cols == 0 {
+            return None;
+        }
+        let point = grid.cursor.point;
+        let cursor_line = point.line.0;
+        let cursor_col = point.column.0.min(cols);
+        let topmost = grid.topmost_line().0;
+
+        // Walk up the soft-wrap chain to the row the logical line
+        // starts on. Bounded like `read_logical_line`: a prompt longer
+        // than four screen widths is not a prompt.
+        let mut first = cursor_line;
+        let mut walked = 0;
+        while first > topmost && walked < 4 {
+            let prev = &grid[Line(first - 1)];
+            if !prev[Column(cols - 1)].flags.contains(CellFlags::WRAPLINE) {
+                break;
+            }
+            first -= 1;
+            walked += 1;
+        }
+
+        let mut text = String::new();
+        for line in first..=cursor_line {
+            let row = &grid[Line(line)];
+            let end = if line == cursor_line { cursor_col } else { cols };
+            for c in 0..end {
+                let cell = &row[Column(c)];
+                if cell.c != '\0' && !cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
+                    text.push(cell.c);
+                }
+            }
+        }
+        if !crate::prompt_detect::looks_like_password_prompt(&text) {
+            return None;
+        }
+        Some(crate::prompt_detect::PasswordPrompt {
+            text: text.trim_end().to_string(),
+            abs_line: grid.history_size() as i64 + i64::from(first),
+        })
+    }
+
     /// Deadline at which an open synchronized update (DEC `?2026`) must be
     /// force-flushed, or `None` when nothing is buffering. vte buffers every
     /// byte after a BSU (`ESC[?2026h`) and only applies it on the matching
@@ -610,5 +676,91 @@ mod tests {
             "(reverse-i-search)`':",
             "no tail of the old prompt may survive the redraw"
         );
+    }
+
+    // ── Password-prompt detection (issue #117) ───────────────────────
+    //
+    // These read the GRID, which is the whole point of doing it this
+    // way: color, chunk splits and carriage-return redraws all resolve
+    // before the matcher ever runs.
+
+    #[test]
+    fn a_colored_sudo_prompt_is_detected() {
+        let mut backend = TerminalBackend::new(80, 5);
+        // sudo under a theme that bolds the prompt.
+        backend.process(b"\x1b[1m[sudo] password for wilson:\x1b[0m ");
+        let hit = backend.password_prompt_at_cursor().expect("prompt detected");
+        assert_eq!(hit.text, "[sudo] password for wilson:");
+        assert_eq!(hit.abs_line, 0);
+    }
+
+    #[test]
+    fn a_prompt_split_across_two_batches_is_detected() {
+        // The PTY cuts wherever it likes; the grid does not care.
+        let mut backend = TerminalBackend::new(80, 5);
+        backend.process(b"[sudo] passw");
+        assert!(backend.password_prompt_at_cursor().is_none(), "half a prompt is not a prompt");
+        backend.process(b"ord for wilson: ");
+        assert!(backend.password_prompt_at_cursor().is_some());
+    }
+
+    #[test]
+    fn a_carriage_return_redraw_reads_the_line_that_is_actually_on_screen() {
+        let mut backend = TerminalBackend::new(80, 5);
+        backend.process(b"Enter password: ");
+        assert!(backend.password_prompt_at_cursor().is_some());
+        // The program clears the line and asks for something else.
+        backend.process(b"\r\x1b[KVerification code: ");
+        assert!(
+            backend.password_prompt_at_cursor().is_none(),
+            "the redrawn line is the one that counts"
+        );
+    }
+
+    #[test]
+    fn a_wrapped_prompt_is_joined_across_rows() {
+        // 40 columns forces ssh's passphrase prompt onto two rows.
+        let mut backend = TerminalBackend::new(40, 5);
+        backend.process(b"Enter passphrase for key '/home/wilson/.ssh/id_ed25519': ");
+        let hit = backend.password_prompt_at_cursor().expect("prompt detected");
+        assert_eq!(hit.text, "Enter passphrase for key '/home/wilson/.ssh/id_ed25519':");
+        assert_eq!(hit.abs_line, 0, "the logical line starts on its first physical row");
+    }
+
+    #[test]
+    fn only_what_is_before_the_cursor_counts() {
+        let mut backend = TerminalBackend::new(80, 5);
+        backend.process(b"Password: ");
+        assert!(backend.password_prompt_at_cursor().is_some());
+        // Cursor home: the prompt is still painted, but nothing is
+        // printed BEFORE the cursor any more, so nothing is waiting on
+        // an answer there.
+        backend.process(b"\x1b[1;1H");
+        assert!(backend.password_prompt_at_cursor().is_none());
+    }
+
+    #[test]
+    fn the_alternate_screen_is_never_offered_a_password() {
+        let mut backend = TerminalBackend::new(80, 5);
+        backend.process(b"\x1b[?1049h");
+        backend.process(b"Password: ");
+        assert!(
+            backend.password_prompt_at_cursor().is_none(),
+            "a full-screen app owns its own prompts"
+        );
+    }
+
+    #[test]
+    fn abs_line_follows_the_scrollback() {
+        // Two prompts in a row must not share a signature, or the
+        // second one (the retry after a wrong password) is swallowed as
+        // a duplicate by the host's edge detection.
+        let mut backend = TerminalBackend::new(80, 3);
+        backend.process(b"[sudo] password for wilson: ");
+        let first = backend.password_prompt_at_cursor().expect("first prompt");
+        backend.process(b"\r\nSorry, try again.\r\n[sudo] password for wilson: ");
+        let second = backend.password_prompt_at_cursor().expect("second prompt");
+        assert_eq!(first.text, second.text, "same text, by construction");
+        assert_ne!(first.abs_line, second.abs_line, "different rows: two prompts");
     }
 }

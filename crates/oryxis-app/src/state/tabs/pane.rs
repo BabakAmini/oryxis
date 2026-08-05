@@ -445,6 +445,16 @@ pub(crate) struct Pane {
     /// types, or the session dies, so a lingering runner can never
     /// answer a prompt from the shell the user is now driving.
     pub login_script: Option<LoginScriptRun>,
+    /// The password prompt this pane last raised a suggestion popup for
+    /// (issue #117): `(prompt text, absolute grid row)`.
+    ///
+    /// Reading the prompt off the grid is stateless, so EVERY output
+    /// batch re-detects a prompt that is still on screen. This makes the
+    /// popup edge-triggered, and it doubles as the dismissal memory: Esc
+    /// leaves the signature set, so the next byte that arrives cannot
+    /// undo the dismissal. The retry after a wrong password lands on a
+    /// new row, which is why the row is part of the identity.
+    pub password_prompt_sig: Option<(String, i64)>,
     /// `Some` while a ZMODEM transfer owns this pane's byte stream: output
     /// is diverted to the driver (not the emulator) and input is frozen.
     /// Cleared when the transfer ends, which resumes the terminal.
@@ -582,6 +592,7 @@ impl Pane {
             last_output: None,
             zmodem_detector: oryxis_zmodem::ZmodemDetector::new(),
             login_script: None,
+            password_prompt_sig: None,
             zmodem: None,
             drop_upload: None,
             pending_drop_sources: Vec::new(),

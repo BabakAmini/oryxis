@@ -23,13 +23,26 @@ pub enum TerminalMessage {
     TerminalSearchStep(bool),
     /// Close the find-bar (Esc) and drop the match set; the terminal keeps
     /// focus.
-    TerminalSearchClose,
+    TerminalSearchClose,
     /// Wake-up for a running login script (issue #122). The engine
     /// checks its per-step deadline on poll, and poll is driven by
     /// output, so a bastion that goes silent would never time out
     /// without this. The generation makes a stale tick from a finished
     /// run a no-op instead of an abort of the run after it.
     LoginScriptTick(uuid::Uuid, u64),
+    /// Password-suggest popup (issue #117). Move the selection by
+    /// `i32` rows, wrapping. The first move ENGAGES the popup: until
+    /// then nothing is selected and Enter still belongs to the prompt.
+    PasswordSuggestNavigate(i32),
+    /// Send the selected credential to the pane the popup belongs to,
+    /// then close. Decrypt happens here, never at show time.
+    PasswordSuggestPick,
+    /// Close the popup without sending anything (Esc, a click on the
+    /// terminal, a tab switch, a disconnect). The prompt's signature
+    /// stays recorded, so it does not immediately reopen.
+    PasswordSuggestDismiss,
+    /// Mouse moved over the row at `usize`.
+    PasswordSuggestHover(usize),
     /// Broadcast input (C2): arm / disarm fan-out of keystrokes, pastes and
     /// snippets to every pane of the tab at `usize`. Toggled by the status
     /// segment, the tab context menu and the `ToggleBroadcastInput` hotkey.

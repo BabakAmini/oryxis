@@ -358,34 +358,29 @@ impl Oryxis {
                 return self.snippet_send_or_prompt(idx, true);
             }
             SnippetMessage::ApplySudoPassword => {
-                // Resolve the active terminal's connection by label, decrypt
-                // its stored password, and type it + Enter. The password is
-                // never logged (only PTY output is recorded, and sudo turns
-                // echo off) nor shown in the toast.
+                // Decrypt the focused pane's host password and type it +
+                // Enter. Same injection path as the password-suggest
+                // popup (issue #117): `send_password_to_pane` bypasses
+                // the command-history mirror, never broadcasts, and
+                // scrubs the buffer after the write.
+                //
+                // The host is resolved from the PANE's origin, not from
+                // the tab label: a split tab holds one label and several
+                // hosts, so matching by label sent the wrong host's
+                // password (or none) on every split.
                 let toast_key = (|| {
                     let tab_idx = self.snippet_injection_tab()?;
-                    let label = self.tabs.get(tab_idx)?.label.clone();
-                    let conn_id = self
-                        .connections
-                        .iter()
-                        .find(|c| c.label == label)
-                        .map(|c| c.id)?;
+                    let pane_id = self.tabs.get(tab_idx)?.active().id;
+                    let conn_id = match &self.tabs.get(tab_idx)?.active().origin {
+                        crate::state::PaneOrigin::Host(id) => *id,
+                        _ => return None,
+                    };
                     let pw = self
                         .vault
                         .as_ref()
                         .and_then(|v| v.get_connection_password(&conn_id).ok().flatten())
                         .filter(|p| !p.is_empty())?;
-                    let data = format!("{pw}\n");
-                    if let Some(tab) = self.tabs.get(tab_idx) {
-                        if let Some(ref session) = tab.active().session {
-                            let _ = session.write(data.as_bytes());
-                        } else if let Ok(mut state) = tab.active().terminal.lock() {
-                            state.write(data.as_bytes());
-                        }
-                    }
-                    // The answer belongs to a prompt at the live edge: show
-                    // it, the same as any typed input (issue #111).
-                    self.snap_tab_to_live_edge(tab_idx);
+                    self.send_password_to_pane(pane_id, pw);
                     Some("sudo_password_sent")
                 })()
                 .unwrap_or("no_stored_password");

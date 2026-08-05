@@ -22,6 +22,7 @@ const RESIZE_EDGE: f32 = 5.0;
 mod chrome;
 mod main_layout;
 mod menu_card;
+mod menu_password_suggest;
 mod menu_vault;
 mod modal_dialogs;
 mod modal_overlays;

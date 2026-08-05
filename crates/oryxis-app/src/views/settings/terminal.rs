@@ -542,6 +542,19 @@ impl Oryxis {
                 self.prefs.scrollback_reset_output,
                 Message::Settings(SettingsMessage::ToggleScrollbackResetOutput),
             ),
+            // Issue #117. On by default: a suggestion that never sends
+            // itself costs nothing to ignore, and the alternative is
+            // typing a password the app is already holding.
+            Space::new().height(12),
+            self.nav_toggle_row(
+                crate::i18n::t("terminal_password_autofill"),
+                self.prefs.terminal_password_autofill,
+                Message::Settings(SettingsMessage::ToggleTerminalPasswordAutofill),
+            ),
+            Space::new().height(4),
+            text(crate::i18n::t("terminal_password_autofill_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
         ];
         // Where downloads land is behaviour, not appearance: it sat under
         // the Appearance header only because ZMODEM shipped alongside the

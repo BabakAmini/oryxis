@@ -1,0 +1,424 @@
+//! Password-suggest popup: offer a stored credential at a password
+//! prompt (issue #117, Termius parity).
+//!
+//! The detector is [`oryxis_terminal::prompt_detect`], fed off the grid
+//! once per output batch. This module owns everything after that: which
+//! credentials are worth offering, when a popup may open at all, the
+//! keyboard contract, and the injection.
+//!
+//! Three rules the whole design hangs on:
+//!
+//! - **Nothing is ever sent without a pick.** The popup is a
+//!   suggestion. Enter with nothing selected still belongs to the
+//!   prompt, so a user who typed their password by hand is never
+//!   interrupted.
+//! - **No plaintext in app state.** Entries carry the vault row to read
+//!   from, never the credential. The decrypt happens on the pick and
+//!   the buffer is scrubbed after the write.
+//! - **Never over a login script.** A `LoginScript` run exists to
+//!   answer exactly these prompts (issue #122). Offering the user a
+//!   second credential for a prompt the runner is already answering
+//!   would put two secrets on one PTY.
+
+use iced::Task;
+
+use crate::app::{Message, Oryxis, TerminalMessage};
+use crate::state::{OverlayContent, OverlayState, PasswordSource, PasswordSourceKind};
+
+/// Fold this batch's detection into the pane's remembered signature and
+/// answer whether a popup should be raised.
+///
+/// The whole edge-trigger lives here. Grid reading is stateless, so a
+/// prompt still on screen re-detects on every output batch (a bell, an
+/// OSC, a keepalive); without this the popup would reopen forever, and
+/// Esc would be undone by the next byte to arrive.
+///
+/// Call it ONLY on batches where the detection actually ran. A gated
+/// batch knows nothing about the screen, and clearing the signature on
+/// one would resurrect a dismissed popup as soon as the gate lifted.
+pub(crate) fn observe_password_prompt(
+    sig: &mut Option<(String, i64)>,
+    prompt: Option<oryxis_terminal::PasswordPrompt>,
+) -> bool {
+    match prompt {
+        Some(p) => {
+            let next = (p.text, p.abs_line);
+            if sig.as_ref() == Some(&next) {
+                // Same prompt, still waiting. Already offered (or
+                // already dismissed); either way, say nothing.
+                return false;
+            }
+            *sig = Some(next);
+            true
+        }
+        // The prompt is gone (answered, redrawn, or the pane moved to
+        // the alternate screen): forget it, so the same text at the same
+        // row later reads as a new prompt.
+        None => {
+            *sig = None;
+            false
+        }
+    }
+}
+
+impl Oryxis {
+    /// Credentials worth offering for a prompt on `pane_id`, most
+    /// likely first: the pane's own host, then the identity that host
+    /// authenticates with, then every other identity that has a
+    /// password. Empty when there is nothing to offer, which is what
+    /// keeps the popup from ever opening on an empty list.
+    fn password_suggest_sources(&self, pane_id: uuid::Uuid) -> Vec<PasswordSource> {
+        let mut out: Vec<PasswordSource> = Vec::new();
+        let mut seen_identity: std::collections::HashSet<uuid::Uuid> =
+            std::collections::HashSet::new();
+
+        // The pane's host. Quick-connect hosts live in an in-memory
+        // store with no vault row, so only saved hosts qualify.
+        let conn = self.pane_by_id(pane_id).and_then(|p| match &p.origin {
+            crate::state::PaneOrigin::Host(id) => {
+                self.connections.iter().find(|c| c.id == *id)
+            }
+            _ => None,
+        });
+        if let Some(conn) = conn {
+            if self.connections_with_password.contains(&conn.id) {
+                out.push(PasswordSource {
+                    label: conn.label.clone(),
+                    sublabel: conn.username.clone().unwrap_or_default(),
+                    kind: PasswordSourceKind::Connection(conn.id),
+                });
+            }
+            // The identity this host authenticates with outranks the
+            // rest: on a host that logs in through an identity, that is
+            // the account `sudo` is asking about.
+            if let Some(id) = conn.identity_id
+                && self.identities_with_password.contains(&id)
+                && let Some(ident) = self.identities.iter().find(|i| i.id == id)
+            {
+                seen_identity.insert(id);
+                out.push(PasswordSource {
+                    label: ident.label.clone(),
+                    sublabel: ident.username.clone().unwrap_or_default(),
+                    kind: PasswordSourceKind::Identity(id),
+                });
+            }
+        }
+        let mut rest: Vec<&oryxis_core::models::Identity> = self
+            .identities
+            .iter()
+            .filter(|i| {
+                self.identities_with_password.contains(&i.id) && !seen_identity.contains(&i.id)
+            })
+            .collect();
+        rest.sort_by_key(|i| i.label.to_lowercase());
+        out.extend(rest.into_iter().map(|i| PasswordSource {
+            label: i.label.clone(),
+            sublabel: i.username.clone().unwrap_or_default(),
+            kind: PasswordSourceKind::Identity(i.id),
+        }));
+        out
+    }
+
+    /// The pane a password prompt may raise a popup on right now, or
+    /// `None` when no popup should open at all.
+    ///
+    /// Everything here is a "the user is not looking at this pane"
+    /// test. A background pane hitting `sudo` must not throw an overlay
+    /// over the Dashboard, and the overlay slot is single: opening over
+    /// a kebab menu the user is mid-click on would steal it.
+    pub(crate) fn password_suggest_target(&self) -> Option<uuid::Uuid> {
+        if !self.prefs.terminal_password_autofill || self.overlay.is_some() {
+            return None;
+        }
+        if self.active_view != crate::state::View::Terminal {
+            return None;
+        }
+        let tab = self.tabs.get(self.active_tab?)?;
+        if tab.files_mode {
+            return None;
+        }
+        Some(tab.active().id)
+    }
+
+    /// Open the popup for a prompt just detected on `pane_id`. No-op
+    /// when the vault has nothing to offer for that pane.
+    pub(crate) fn show_password_suggest(&mut self, pane_id: uuid::Uuid) {
+        let entries = self.password_suggest_sources(pane_id);
+        if entries.is_empty() {
+            return;
+        }
+        let Some((x, y)) = self.password_suggest_anchor(pane_id) else {
+            return;
+        };
+        self.overlay = Some(OverlayState {
+            content: OverlayContent::PasswordSuggest {
+                pane_id,
+                entries,
+                selected: None,
+            },
+            x,
+            y,
+        });
+    }
+
+    /// Window coordinates just under the terminal caret of `pane_id`.
+    /// `None` before the pane has ever been drawn (no reported bounds),
+    /// which also means the user cannot be looking at it.
+    fn password_suggest_anchor(&self, pane_id: uuid::Uuid) -> Option<(f32, f32)> {
+        let pane = self.pane_by_id(pane_id)?;
+        let bounds = pane.bounds.get();
+        if bounds.width <= 0.0 || bounds.height <= 0.0 {
+            return None;
+        }
+        let cell = pane.terminal.lock().ok()?.cursor_cell();
+        let caret = oryxis_terminal::ime_caret_rect(
+            bounds,
+            self.terminal_font_size,
+            Some(self.terminal_font_name.as_str()),
+            cell,
+        );
+        Some((caret.x, caret.y + caret.height + 2.0))
+    }
+
+    /// The open popup's pane + entries + selection, if one is up.
+    fn password_suggest_state(&self) -> Option<(uuid::Uuid, &[PasswordSource], Option<usize>)> {
+        match self.overlay.as_ref().map(|o| &o.content) {
+            Some(OverlayContent::PasswordSuggest {
+                pane_id,
+                entries,
+                selected,
+            }) => Some((*pane_id, entries.as_slice(), *selected)),
+            _ => None,
+        }
+    }
+
+    /// The pane the open popup belongs to. Callers that close it on a
+    /// context switch use this so they only ever clear an overlay that
+    /// is theirs.
+    pub(crate) fn password_suggest_pane(&self) -> Option<uuid::Uuid> {
+        self.password_suggest_state().map(|(pane_id, _, _)| pane_id)
+    }
+
+    /// Close the popup if it is open, leaving any other overlay alone.
+    /// Called on every context switch that makes the suggestion stale:
+    /// clicking a pane, switching tabs, typing.
+    pub(crate) fn dismiss_password_suggest(&mut self) {
+        if self.password_suggest_pane().is_some() {
+            self.overlay = None;
+        }
+    }
+
+    /// Same, but only when the popup belongs to `pane_id`. For events
+    /// that are about one pane (a disconnect) on a tab whose other
+    /// panes are still live.
+    pub(crate) fn dismiss_password_suggest_for(&mut self, pane_id: uuid::Uuid) {
+        if self.password_suggest_pane() == Some(pane_id) {
+            self.overlay = None;
+        }
+    }
+
+    pub(crate) fn handle_password_suggest(&mut self, message: TerminalMessage) -> Task<Message> {
+        match message {
+            TerminalMessage::PasswordSuggestNavigate(delta) => {
+                let Some((_, entries, selected)) = self.password_suggest_state() else {
+                    return Task::none();
+                };
+                let len = entries.len();
+                if len == 0 {
+                    return Task::none();
+                }
+                // The first move engages the popup and lands on the
+                // first row regardless of direction: Up as an opener
+                // should reach the list, not wrap to its end.
+                let next = match selected {
+                    None => 0,
+                    Some(cur) => {
+                        let n = cur as i64 + delta as i64;
+                        n.rem_euclid(len as i64) as usize
+                    }
+                };
+                if let Some(OverlayContent::PasswordSuggest { selected, .. }) =
+                    self.overlay.as_mut().map(|o| &mut o.content)
+                {
+                    *selected = Some(next);
+                }
+            }
+            TerminalMessage::PasswordSuggestHover(idx) => {
+                if let Some(OverlayContent::PasswordSuggest {
+                    entries, selected, ..
+                }) = self.overlay.as_mut().map(|o| &mut o.content)
+                    && idx < entries.len()
+                {
+                    *selected = Some(idx);
+                }
+            }
+            TerminalMessage::PasswordSuggestDismiss => {
+                self.dismiss_password_suggest();
+            }
+            TerminalMessage::PasswordSuggestPick => {
+                let Some((pane_id, entries, selected)) = self.password_suggest_state() else {
+                    return Task::none();
+                };
+                // A click picks the row it hit (hover set the
+                // selection); Enter without a selection cannot reach
+                // here, the key router leaves it to the prompt.
+                let Some(kind) = selected.and_then(|i| entries.get(i)).map(|e| e.kind) else {
+                    return Task::none();
+                };
+                self.overlay = None;
+                let secret = match kind {
+                    PasswordSourceKind::Connection(id) => self
+                        .vault
+                        .as_ref()
+                        .and_then(|v| v.get_connection_password(&id).ok().flatten()),
+                    PasswordSourceKind::Identity(id) => self
+                        .vault
+                        .as_ref()
+                        .and_then(|v| v.get_identity_password(&id).ok().flatten()),
+                };
+                let Some(secret) = secret.filter(|s| !s.is_empty()) else {
+                    // The row was built from an existence check; a miss
+                    // here means the vault relocked or the row was
+                    // deleted between show and pick.
+                    self.set_toast(crate::i18n::t("no_stored_password").to_string());
+                    return crate::shortcuts::toast_clear_after_secs(2);
+                };
+                self.send_password_to_pane(pane_id, secret);
+            }
+            // Routed here by the parent; anything else is a grouping
+            // mistake, not a runtime case.
+            m => return crate::dispatch::unrouted(m),
+        }
+        Task::none()
+    }
+
+    /// Type `secret` + Enter into `pane_id` through the input-capture
+    /// bypass, then scrub the buffer.
+    ///
+    /// Shared by the popup and by the sudo-password snippet action, so
+    /// there is one implementation of "hand a credential to a prompt".
+    pub(crate) fn send_password_to_pane(&mut self, pane_id: uuid::Uuid, secret: String) {
+        let mut data = secret.into_bytes();
+        data.push(b'\n');
+        self.write_secret_to_pane(pane_id, &data);
+        crate::dispatch_login_script::zeroize_bytes(&mut data);
+    }
+
+    /// Keyboard contract of the popup, run BEFORE the modal navigation
+    /// router so the arrow keys reach it (the modal router's catch-all
+    /// would claim them first).
+    ///
+    /// Deliberately non-modal. Unengaged, it consumes only the two keys
+    /// that address it (Down to engage, Esc to dismiss) and lets
+    /// everything else through to the PTY, so the user can just keep
+    /// typing their password. Engaged, it owns movement and Enter until
+    /// the user leaves it, and any printable key both dismisses the
+    /// popup AND reaches the prompt: typing is an answer, not a
+    /// navigation.
+    pub(crate) fn handle_password_suggest_key(
+        &mut self,
+        event: &iced::keyboard::Event,
+    ) -> Option<Task<Message>> {
+        use iced::keyboard::{key::Named, Event, Key};
+        let (_, _, selected) = self.password_suggest_state()?;
+        let Event::KeyPressed { key, modifiers, .. } = event else {
+            return None;
+        };
+        // A chord belongs to the binding table, not to a popup that
+        // never advertised one.
+        if modifiers.control() || modifiers.alt() || modifiers.logo() {
+            return None;
+        }
+        let msg = |m: TerminalMessage| Some(Task::done(Message::Terminal(m)));
+        match key {
+            Key::Named(Named::Escape) => msg(TerminalMessage::PasswordSuggestDismiss),
+            Key::Named(Named::ArrowDown) => msg(TerminalMessage::PasswordSuggestNavigate(1)),
+            // Up only enters the list once it is engaged. Unengaged it
+            // stays with readline's history, which is what an Up press
+            // at a shell prompt means everywhere else.
+            Key::Named(Named::ArrowUp) if selected.is_some() => {
+                msg(TerminalMessage::PasswordSuggestNavigate(-1))
+            }
+            Key::Named(Named::Enter) if selected.is_some() => {
+                msg(TerminalMessage::PasswordSuggestPick)
+            }
+            // Enter with nothing selected is the user answering the
+            // prompt themselves: close, and let the key through.
+            Key::Named(Named::Enter) => {
+                self.dismiss_password_suggest();
+                None
+            }
+            // Typing is an answer too. Dismiss without consuming, so
+            // the character still reaches the PTY.
+            Key::Character(_) | Key::Named(Named::Space) => {
+                self.dismiss_password_suggest();
+                None
+            }
+            _ => None,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use oryxis_terminal::PasswordPrompt;
+
+    fn prompt(text: &str, abs_line: i64) -> Option<PasswordPrompt> {
+        Some(PasswordPrompt {
+            text: text.into(),
+            abs_line,
+        })
+    }
+
+    #[test]
+    fn a_prompt_that_stays_on_screen_is_offered_once() {
+        // The failure this guards: grid reading is stateless, so every
+        // batch after the prompt (a bell, an OSC, a keepalive) would
+        // re-raise the popup on top of itself.
+        let mut sig = None;
+        assert!(observe_password_prompt(&mut sig, prompt("Password:", 4)));
+        for _ in 0..5 {
+            assert!(
+                !observe_password_prompt(&mut sig, prompt("Password:", 4)),
+                "the same prompt must not re-raise"
+            );
+        }
+    }
+
+    #[test]
+    fn a_dismissal_survives_the_next_batch() {
+        // Esc leaves the signature recorded; output arriving after it
+        // (sudo's own bell, a keepalive) must not undo the dismissal.
+        let mut sig = None;
+        assert!(observe_password_prompt(&mut sig, prompt("Password:", 4)));
+        // ... user pressed Esc; the popup is gone but the signature is not.
+        assert!(!observe_password_prompt(&mut sig, prompt("Password:", 4)));
+    }
+
+    #[test]
+    fn the_retry_after_a_wrong_password_is_a_new_prompt() {
+        // `Sorry, try again.` scrolls the retry onto a new row, which
+        // is exactly why the row is half of the identity.
+        let mut sig = None;
+        assert!(observe_password_prompt(
+            &mut sig,
+            prompt("[sudo] password for wilson:", 4)
+        ));
+        assert!(observe_password_prompt(
+            &mut sig,
+            prompt("[sudo] password for wilson:", 6)
+        ));
+    }
+
+    #[test]
+    fn answering_the_prompt_clears_the_memory() {
+        // Same prompt text at the same row later (a screen that scrolled
+        // back to the same offset) has to read as new again.
+        let mut sig = None;
+        assert!(observe_password_prompt(&mut sig, prompt("Password:", 4)));
+        assert!(!observe_password_prompt(&mut sig, None));
+        assert_eq!(sig, None);
+        assert!(observe_password_prompt(&mut sig, prompt("Password:", 4)));
+    }
+}

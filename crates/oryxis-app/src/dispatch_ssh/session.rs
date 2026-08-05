@@ -181,8 +181,19 @@ impl Oryxis {
                         // A fresh shell on reconnect needs the OSC 7
                         // inject again.
                         p.osc7_injected = false;
+                        // The login script has no transport left to
+                        // answer (issue #122), and the password prompt
+                        // frozen on the dead grid is not waiting for
+                        // anything any more (issue #117).
+                        p.login_script = None;
+                        p.password_prompt_sig = None;
                         p.session_log_id
                     });
+                    // Same for the suggestion popup, if it was this
+                    // pane's: sending a credential to a dead session
+                    // would silently drop it. Scoped to the pane, since
+                    // a split tab's siblings are still live.
+                    self.dismiss_password_suggest_for(pane_id);
                     if let Some(log_id) = log_id
                         && let Some(vault) = &self.vault
                     {

@@ -281,6 +281,16 @@ impl Oryxis {
                 {
                     return Ok(self.cycle_mru_step(!modifiers.shift()));
                 }
+                // Password-suggest popup (issue #117): must run BEFORE
+                // the modal layer, whose catch-all would claim
+                // Up/Down/Enter for a surface that is not a menu, and
+                // before the binding table, which would take Down/Esc
+                // from it. Non-modal by contract: it declines every key
+                // it did not open for, so the PTY keeps the keyboard.
+                // See dispatch_password_suggest.rs.
+                if let Some(task) = self.handle_password_suggest_key(&event) {
+                    return Ok(task);
+                }
                 // Modal / overlay-menu keyboard layer: while a
                 // navigable dialog, dropdown or the burger menu is
                 // open it owns movement + activation keys (Esc stays

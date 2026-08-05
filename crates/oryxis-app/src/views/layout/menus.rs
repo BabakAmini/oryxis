@@ -58,6 +58,9 @@ impl Oryxis {
             }
             OverlayContent::ToolbarSearch => self.toolbar_search_width(),
             OverlayContent::ToolbarOverflow => 210.0,
+            // Host labels and identity names on one line, plus the
+            // "Enter to send" hint under them.
+            OverlayContent::PasswordSuggest { .. } => 260.0,
             _ => 150.0,
         }
     }
@@ -109,6 +112,9 @@ impl Oryxis {
                 // Copy (only with a selection) + Copy All.
                 if sel.is_some() { 2.0 } else { 1.0 }
             }
+            // One row per credential, plus the title and hint lines
+            // (both shorter than a row, hence the halves).
+            OverlayContent::PasswordSuggest { entries, .. } => entries.len() as f32 + 1.0,
             _ => 2.5,
         };
         items * ITEM_H + 10.0
@@ -289,6 +295,9 @@ impl Oryxis {
                 self.build_menu_session_viewer_context(selection)
             }
             OverlayContent::MonitorPortActions(port) => self.build_menu_monitor_port(port),
+            OverlayContent::PasswordSuggest {
+                entries, selected, ..
+            } => self.build_menu_password_suggest(entries, *selected),
         };
 
         // Min-height (so a single-item menu reads as a real button-

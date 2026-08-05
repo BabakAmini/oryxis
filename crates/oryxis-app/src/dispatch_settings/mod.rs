@@ -270,6 +270,7 @@ impl Oryxis {
             | SettingsMessage::ToggleSftpEditAutosave
             | SettingsMessage::ToggleScrollbackResetKeypress
             | SettingsMessage::ToggleScrollbackResetOutput
+            | SettingsMessage::ToggleTerminalPasswordAutofill
             | SettingsMessage::TerminalRightClickChanged(..)
             | SettingsMessage::SidebarDefaultTabChanged(..)
             | SettingsMessage::ToggleCarefulPaste

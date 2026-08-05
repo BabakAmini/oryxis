@@ -27,6 +27,7 @@ mod dispatch_keynav_modal;
 mod dispatch_keynav_panel;
 mod dispatch_keynav_sidebar;
 mod dispatch_login_script;
+mod dispatch_password_suggest;
 mod dispatch_keys;
 mod dispatch_known_hosts;
 mod dispatch_tray;

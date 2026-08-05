@@ -338,6 +338,12 @@ impl TerminalState {
         self.backend.term.mode().contains(TermMode::ALT_SCREEN)
     }
 
+    /// The password prompt printed in front of the cursor, if any
+    /// (issue #117). See [`crate::backend::TerminalBackend::password_prompt_at_cursor`].
+    pub fn password_prompt_at_cursor(&self) -> Option<crate::prompt_detect::PasswordPrompt> {
+        self.backend.password_prompt_at_cursor()
+    }
+
     /// Text of the logical (wrap-joined) line the cursor sits on, from
     /// column 0 of its first physical row (prompt included). Used by the
     /// command-history capture's heuristic path on hosts without OSC 133.

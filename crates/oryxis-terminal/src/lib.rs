@@ -2,6 +2,7 @@ pub mod backend;
 pub mod host_clipboard;
 pub mod input_tracker;
 pub mod osc;
+pub mod prompt_detect;
 pub mod screen_title;
 pub mod widget;
 pub mod pty;
@@ -12,6 +13,7 @@ pub use backend::{set_clipboard_access, set_default_scrollback, TerminalBackend,
 pub use host_clipboard::{take_clipboard_requests, ClipboardRequest, ClipboardSink};
 pub use input_tracker::{InputTracker, SubmittedLine};
 pub use osc::{PositionedShellMark, Progress, ShellMark};
+pub use prompt_detect::PasswordPrompt;
 pub use colors::{TerminalPalette, TerminalTheme};
 pub use widget::{
     ime_caret_rect, ipv4_is_private_or_loopback, ipv6_is_local, looks_like_ipv6,

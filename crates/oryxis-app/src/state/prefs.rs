@@ -68,6 +68,13 @@ pub(crate) struct AppPrefs {
     /// the confirmation. Its own switch, independent of the multi-line
     /// careful-paste toggle. Persisted as `paste_guard`. Default on.
     pub(crate) paste_guard: bool,
+    /// Offer stored credentials at a password prompt (issue #117):
+    /// when a pane blocks on `[sudo] password for …:` and the vault
+    /// holds a password for that host or an identity, a popup at the
+    /// caret lists them. Persisted as `terminal_password_autofill`;
+    /// default ON. Nothing is ever sent without the user picking a row:
+    /// the popup is a suggestion, not an autofill that types itself.
+    pub(crate) terminal_password_autofill: bool,
     /// Command-history capture (default on): record commands executed on
     /// saved hosts into the vault's `command_history` table, surfaced in
     /// the terminal sidebar's History tab. Persisted as `command_history`.
@@ -469,6 +476,7 @@ impl Default for AppPrefs {
             scrollback_reset_keypress: true,
             scrollback_reset_output: false,
             paste_guard: true,
+            terminal_password_autofill: true,
             command_history: true,
             command_history_file: false,
             command_history_file_dir: None,

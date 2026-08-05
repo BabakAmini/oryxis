@@ -447,6 +447,13 @@ impl Oryxis {
                 // Set when this batch carried an OSC 7 cwd; feeds the
                 // sidebar Files follow after the pane borrow ends.
                 let mut cwd_changed = false;
+                // Password autofill (issue #117). The pane a popup may
+                // open on is resolved BEFORE the borrow (it needs the
+                // whole app: the visible view, the active tab, the
+                // overlay slot), and the popup itself is raised AFTER
+                // it, since showing it mutates `self.overlay`.
+                let autofill_pane = self.password_suggest_target();
+                let mut raise_password_suggest = false;
                 if let Some((tab_idx, pane)) = self
                     .tabs
                     .iter_mut()
@@ -463,6 +470,14 @@ impl Oryxis {
                     let mut new_notification = None;
                     let mut new_progress = None;
                     let mut size_now = None;
+                    // Read inside the lock, compared against the pane's
+                    // remembered signature just after it.
+                    let mut prompt_now: Option<oryxis_terminal::PasswordPrompt> = None;
+                    // Never while a login script is running: the runner
+                    // exists to answer exactly these prompts (issue
+                    // #122), and two answers on one PTY is one too many.
+                    let autofill_read =
+                        autofill_pane == Some(pane_id) && pane.login_script.is_none();
                     if let Ok(mut state) = pane.terminal.lock() {
                         state.process(&bytes);
                         // Grid size this batch was processed at, for the
@@ -560,6 +575,24 @@ impl Oryxis {
                         // OSC 9 notification text + OSC 9;4 progress.
                         new_notification = state.take_notification();
                         new_progress = state.progress();
+                        // Password autofill (issue #117): read the grid
+                        // AFTER `process`, so what is in front of the
+                        // cursor is what this batch just painted.
+                        if autofill_read {
+                            prompt_now = state.password_prompt_at_cursor();
+                        }
+                    }
+                    // Edge-trigger, and only when the read actually
+                    // ran: a gated batch knows nothing about the screen,
+                    // and letting it clear the signature would resurrect
+                    // a dismissed popup the moment its own gate (an open
+                    // overlay) went away.
+                    if autofill_read {
+                        raise_password_suggest =
+                            crate::dispatch_password_suggest::observe_password_prompt(
+                                &mut pane.password_prompt_sig,
+                                prompt_now,
+                            );
                     }
                     // OSC 9;4 progress (state 0 = clear) drives the tab border.
                     pane.progress = new_progress.filter(|p| p.state != 0 && p.value > 0);
@@ -841,6 +874,14 @@ impl Oryxis {
                     {
                         state.write(format!("{script}\n").as_bytes());
                     }
+                }
+                // Password autofill (issue #117): the pane borrow is
+                // gone, so the overlay slot is writable again. The gates
+                // were checked before the borrow; the vault lookup
+                // inside decides whether there is anything to offer at
+                // all.
+                if raise_password_suggest {
+                    self.show_password_suggest(pane_id);
                 }
                 // Arm the one-shot flush for a synchronized update that
                 // stalled with output buffered. Fires `flush_sync` at the

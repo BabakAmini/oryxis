@@ -457,6 +457,24 @@ impl VaultStore {
         Ok(())
     }
 
+    /// IDs of connections whose `password` column is non-NULL. Mirrors
+    /// [`Self::list_identity_ids_with_password`]: an existence check, so
+    /// no decrypt and no `require_unlocked()`. The password-autofill
+    /// popup (issue #117) uses it to decide which hosts have anything to
+    /// offer without paying a decrypt per candidate.
+    pub fn list_connection_ids_with_password(
+        &self,
+    ) -> Result<std::collections::HashSet<Uuid>, VaultError> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT id FROM connections WHERE password IS NOT NULL")?;
+        let ids = stmt
+            .query_map([], |row| row.get::<_, String>(0))?
+            .filter_map(|r| r.ok().and_then(|s| Uuid::parse_str(&s).ok()))
+            .collect();
+        Ok(ids)
+    }
+
     /// Get the decrypted password for a connection.
     pub fn get_connection_password(&self, id: &Uuid) -> Result<Option<String>, VaultError> {
         self.require_unlocked()?;

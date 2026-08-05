@@ -107,6 +107,42 @@ pub(crate) enum OverlayContent {
     /// socket row so the confirmation describes the socket that was
     /// pointed at, not whatever a later sample holds.
     MonitorPortActions(Box<crate::monitor::model::PortStat>),
+    /// Credential suggestions for a password prompt the pane is
+    /// blocking on (issue #117). Anchored at the terminal caret rather
+    /// than at a widget, and non-modal: it never takes a key the user
+    /// did not aim at it, and it never sends anything on its own.
+    ///
+    /// The entries carry only WHERE each credential lives, never the
+    /// credential: the decrypt happens on the pick, like every other
+    /// secret read in the app.
+    PasswordSuggest {
+        pane_id: Uuid,
+        /// Resolved once, when the popup opened. Re-resolving per frame
+        /// would let the list shift under a selection index.
+        entries: Vec<PasswordSource>,
+        /// `None` until the user engages with Down: an unengaged popup
+        /// is a hint, and Enter must still reach the prompt.
+        selected: Option<usize>,
+    },
+}
+
+/// One offerable credential: what to show, and where to read it from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct PasswordSource {
+    /// Row title (the host label or the identity name).
+    pub label: String,
+    /// Row subtitle (the username, when there is one).
+    pub sublabel: String,
+    pub kind: PasswordSourceKind,
+}
+
+/// Which vault row a [`PasswordSource`] decrypts from on pick.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PasswordSourceKind {
+    /// `connections.password` of a saved host.
+    Connection(Uuid),
+    /// `identities.password` of a saved identity.
+    Identity(Uuid),
 }
 
 /// Which side-panel input the shared group picker is currently

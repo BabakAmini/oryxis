@@ -230,6 +230,20 @@ impl Oryxis {
                     if self.prefs.scrollback_reset_output { "true" } else { "false" },
                 );
             }
+            SettingsMessage::ToggleTerminalPasswordAutofill => {
+                self.prefs.terminal_password_autofill =
+                    !self.prefs.terminal_password_autofill;
+                // Turning it off closes anything already on screen: the
+                // setting means "do not offer", not "do not offer next
+                // time".
+                if !self.prefs.terminal_password_autofill {
+                    self.dismiss_password_suggest();
+                }
+                self.persist_setting(
+                    "terminal_password_autofill",
+                    if self.prefs.terminal_password_autofill { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleCarefulPaste => {
                 self.prefs.careful_paste = !self.prefs.careful_paste;
                 // Turning the guard off releases nothing: a parked paste

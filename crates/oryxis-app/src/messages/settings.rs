@@ -209,6 +209,9 @@ pub enum SettingsMessage {
     ToggleScrollbackResetKeypress,
     /// PuTTY "reset scrollback on display activity" toggled in Settings.
     ToggleScrollbackResetOutput,
+    /// Offer stored credentials at a password prompt (issue #117),
+    /// toggled in Settings > Terminal.
+    ToggleTerminalPasswordAutofill,
     /// Right-click scheme changed from the settings pick (localized
     /// "Context menu / Paste / Extend selection" label).
     TerminalRightClickChanged(String),

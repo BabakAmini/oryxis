@@ -355,7 +355,7 @@ impl Oryxis {
 /// Best-effort scrub of a credential buffer after it has been written.
 /// `write_volatile` in a loop rather than a plain overwrite so the
 /// optimizer cannot drop the stores as dead.
-fn zeroize_bytes(buf: &mut [u8]) {
+pub(crate) fn zeroize_bytes(buf: &mut [u8]) {
     for b in buf.iter_mut() {
         // SAFETY: `b` is a valid, aligned, mutable reference for the
         // lifetime of this loop iteration.

@@ -159,6 +159,11 @@ impl Oryxis {
                 // Enter/Space/Esc/arrows forever.
                 self.keynav.sidebar_selected = None;
                 self.keynav.pick_open = false;
+                // A click on a pane is the user answering the prompt
+                // themselves (or moving on): the suggestion popup goes
+                // with it. This is also the popup's click-outside
+                // dismissal, since it renders without a backdrop.
+                self.dismiss_password_suggest();
                 // The History tab is per-host; follow the focused pane.
                 if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();
@@ -439,6 +444,13 @@ impl Oryxis {
             }
             TerminalMessage::LoginScriptTick(pane_id, generation) => {
                 return self.tick_login_script(pane_id, generation);
+            }
+            // ── Password-suggest popup (issue #117) ──
+            m @ (TerminalMessage::PasswordSuggestNavigate(_)
+            | TerminalMessage::PasswordSuggestPick
+            | TerminalMessage::PasswordSuggestDismiss
+            | TerminalMessage::PasswordSuggestHover(_)) => {
+                return self.handle_password_suggest(m);
             }
             // ── Broadcast input (C2) ──
             TerminalMessage::ToggleTabBroadcast(idx) => {

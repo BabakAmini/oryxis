@@ -56,8 +56,14 @@ impl Oryxis {
         if let Some(ov) = &self.overlay {
             let family = match &ov.content {
                 // Hover popover and the floating search field have no
-                // row rows to navigate.
-                OC::SplitMenu | OC::ToolbarSearch => return None,
+                // row rows to navigate. The password-suggest popup
+                // (#117) has rows but is deliberately NOT a modal
+                // surface: it sits over a live PTY and owns keys only
+                // once the user engages it, which
+                // `handle_password_suggest_key` decides earlier in the
+                // router. Letting the generic layer claim it would eat
+                // Up/Down/Enter from the shell underneath.
+                OC::SplitMenu | OC::ToolbarSearch | OC::PasswordSuggest { .. } => return None,
                 OC::GroupPicker(_) | OC::CloudDiscoverGroupPicker => SurfaceFamily::Picker,
                 _ => SurfaceFamily::Menu,
             };
