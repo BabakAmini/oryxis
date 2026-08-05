@@ -140,14 +140,24 @@ impl Oryxis {
         Some(tab.active().id)
     }
 
-    /// Open the popup for a prompt just detected on `pane_id`. No-op
-    /// when the vault has nothing to offer for that pane.
+    /// Open the popup for a prompt just detected on `pane_id`.
+    ///
+    /// Two ways to decline, and they are not the same. Nothing to offer
+    /// is a settled answer for this vault state, so the caller keeps the
+    /// signature and stops asking. A missing anchor is transient (the
+    /// pane has not reported a drawn rect yet), so the caller drops the
+    /// signature and the next output batch tries again; without that
+    /// distinction a prompt that arrived one frame too early would be
+    /// silently skipped for good.
     pub(crate) fn show_password_suggest(&mut self, pane_id: uuid::Uuid) {
         let entries = self.password_suggest_sources(pane_id);
         if entries.is_empty() {
             return;
         }
         let Some((x, y)) = self.password_suggest_anchor(pane_id) else {
+            if let Some(pane) = self.pane_by_id_mut(pane_id) {
+                pane.password_prompt_sig = None;
+            }
             return;
         };
         self.overlay = Some(OverlayState {

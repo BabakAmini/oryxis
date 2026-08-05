@@ -47,8 +47,9 @@ settle
 # label is a label). The coordinate is deterministic because this file
 # declares its own viewport, and if a row is ever inserted above this
 # one the failure is the explicit `absent` below rather than a silent
-# pass.
-click (1340, 1784)
+# pass. It has caught that once already: 1784 -> 1830 when the #117
+# password-autofill row joined the section above.
+click (1340, 1830)
 settle
 absent "Copy shell integration snippet"
 absent "Rotate key"
