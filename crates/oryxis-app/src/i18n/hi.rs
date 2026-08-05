@@ -1619,6 +1619,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "कोई OpenSSH कॉन्फ़िग फ़ाइल चुनें (डिफ़ॉल्ट ~/.ssh/config)। हर `Host` ब्लॉक एक कनेक्शन रिकॉर्ड बनता है; वाइल्डकार्ड और मौजूदा लेबल छोड़ दिए जाते हैं।",
         "import_ssh_config_btn" => "~/.ssh/config इंपोर्ट करें",
         "import_putty_btn" => "PuTTY सत्र आयात करें (.reg)",
+        "import_winscp_btn" => "WinSCP साइटें आयात करें (.ini / .reg)",
         "import_skipped" => "आयात योग्य नहीं:",
         "export_hosts" => "होस्ट एक्सपोर्ट करें",
         "export_groups" => "शामिल करने के फ़ोल्डर",

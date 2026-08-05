@@ -1501,6 +1501,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "OpenSSH 設定ファイルを選択（デフォルト ~/.ssh/config）。各 `Host` ブロックは接続レコードになります；ワイルドカードと既存のラベルはスキップされます。",
         "import_ssh_config_btn" => "~/.ssh/config をインポート",
         "import_putty_btn" => "PuTTY セッションをインポート（.reg）",
+        "import_winscp_btn" => "WinSCP サイトをインポート（.ini / .reg）",
         "import_skipped" => "インポート不可:",
         "export_hosts" => "ホストをエクスポート",
         "export_groups" => "含めるフォルダ",

@@ -288,7 +288,8 @@ impl Oryxis {
             Some(direct) => direct
                 .hosts
                 .iter()
-                .map(|c| {
+                .map(|h| {
+                    let c = &h.conn;
                     let mut detail = c.hostname.clone();
                     if let Some(u) = &c.username {
                         detail = format!("{u}@{detail}");

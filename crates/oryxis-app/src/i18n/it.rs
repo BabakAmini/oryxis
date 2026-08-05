@@ -1492,6 +1492,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "Seleziona un file OpenSSH config (predefinito ~/.ssh/config). Ogni blocco `Host` diventa una connessione; i wildcard e le etichette esistenti sono saltati.",
         "import_ssh_config_btn" => "Importa ~/.ssh/config",
         "import_putty_btn" => "Importa sessioni PuTTY (.reg)",
+        "import_winscp_btn" => "Importa siti WinSCP (.ini / .reg)",
         "import_skipped" => "Non importabili:",
         "export_hosts" => "Esporta host",
         "export_groups" => "Cartelle da includere",

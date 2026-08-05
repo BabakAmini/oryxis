@@ -1589,6 +1589,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "اختر ملف تكوين OpenSSH (الافتراضي ~/.ssh/config). يتم تحويل كل كتلة `Host` إلى سجل اتصال؛ يتم تجاهل أحرف البدل والتسميات الموجودة.",
         "import_ssh_config_btn" => "استيراد ~/.ssh/config",
         "import_putty_btn" => "استيراد جلسات PuTTY ‏(.reg)",
+        "import_winscp_btn" => "استيراد مواقع WinSCP ‏(.ini / .reg)",
         "import_skipped" => "غير قابلة للاستيراد:",
         "export_hosts" => "تصدير المضيفين",
         "export_groups" => "المجلدات المراد تضمينها",

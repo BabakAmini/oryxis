@@ -1619,6 +1619,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "בחרו קובץ תצורת OpenSSH (ברירת המחדל ~/.ssh/config). כל בלוק `Host` הופך לרשומת חיבור; תווים כלליים ותוויות קיימות מדולגים.",
         "import_ssh_config_btn" => "ייבוא ~/.ssh/config",
         "import_putty_btn" => "ייבוא הפעלות PuTTY ‏(.reg)",
+        "import_winscp_btn" => "ייבוא אתרי WinSCP ‏(.ini / .reg)",
         "import_skipped" => "לא ניתן לייבא:",
         "export_hosts" => "ייצוא מארחים",
         "export_groups" => "תיקיות לכלול",

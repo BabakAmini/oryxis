@@ -49,7 +49,17 @@ impl Oryxis {
             AddHostAction {
                 icon: iced_fonts::lucide::file_down().into(),
                 label: crate::i18n::t("import_putty_btn"),
-                msg: Message::Share(ShareMessage::ImportPutty),
+                msg: Message::Share(ShareMessage::ImportForeign(
+                    crate::importers::ForeignFormat::Putty,
+                )),
+                color: secondary,
+            },
+            AddHostAction {
+                icon: iced_fonts::lucide::file_down().into(),
+                label: crate::i18n::t("import_winscp_btn"),
+                msg: Message::Share(ShareMessage::ImportForeign(
+                    crate::importers::ForeignFormat::WinScp,
+                )),
                 color: secondary,
             },
         ];

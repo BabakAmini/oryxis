@@ -1584,6 +1584,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "Chọn một tệp cấu hình OpenSSH (mặc định ~/.ssh/config). Mỗi khối `Host` trở thành một bản ghi kết nối; ký tự đại diện và nhãn đã có sẽ bị bỏ qua.",
         "import_ssh_config_btn" => "Nhập ~/.ssh/config",
         "import_putty_btn" => "Nhập phiên PuTTY (.reg)",
+        "import_winscp_btn" => "Nhập site WinSCP (.ini / .reg)",
         "import_skipped" => "Không thể nhập:",
         "export_hosts" => "Xuất máy chủ",
         "export_groups" => "Thư mục cần bao gồm",

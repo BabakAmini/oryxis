@@ -1573,6 +1573,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "یک فایل پیکربندی OpenSSH انتخاب کنید (پیش‌فرض ~/.ssh/config). هر بلوک `Host` به یک رکورد اتصال تبدیل می‌شود؛ wildcardها و برچسب‌های موجود نادیده گرفته می‌شوند.",
         "import_ssh_config_btn" => "وارد کردن ~/.ssh/config",
         "import_putty_btn" => "درون‌ریزی نشست‌های PuTTY ‏(.reg)",
+        "import_winscp_btn" => "درون‌ریزی سایت‌های WinSCP ‏(.ini / .reg)",
         "import_skipped" => "غیرقابل درون‌ریزی:",
         "export_hosts" => "برون‌بری میزبان‌ها",
         "export_groups" => "پوشه‌های قابل افزودن",

@@ -18,7 +18,14 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   Key reads .ppk when you're ready). Sessions the parser can't map
   (raw/rlogin, or no host) are listed by name instead of vanishing.
   UTF-16LE exports decode transparently. First of the importer set;
-  WinSCP, mRemoteNG, Termius and generic CSV are next.
+  mRemoteNG, Termius and generic CSV are next.
+- **WinSCP site import.** Reads a portable `WinSCP.ini` or a registry
+  export, same preview flow. SFTP/SCP sites map with host, port,
+  user, agent forwarding and proxies; FTP/WebDAV/S3 sites are listed
+  as not importable. Stored passwords come along when WinSCP's
+  reversible scheme protects them (they land straight in the vault's
+  encrypted column); sites guarded by a WinSCP master password import
+  without the password and say so in the notes.
 - **Multi-host monitoring dashboard (#95).** A Monitoring pill next to
   Hosts (once the host-monitoring feature toggle is on) shows live
   vitals cards for every opted-in host at once. Hosts with an open

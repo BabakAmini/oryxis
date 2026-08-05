@@ -121,32 +121,32 @@ impl Oryxis {
                     },
                 );
             }
-            ShareMessage::ImportPutty => {
+            ShareMessage::ImportForeign(format) => {
                 self.overlay = None;
                 self.ssh_config_import_status = None;
                 return Task::perform(
-                    tokio::task::spawn_blocking(|| {
+                    tokio::task::spawn_blocking(move || {
+                        let (title, filter, exts) = format.picker();
                         let path = rfd::FileDialog::new()
-                            .set_title("Import PuTTY sessions")
-                            .add_filter("Registry export", &["reg"])
+                            .set_title(title)
+                            .add_filter(filter, exts)
                             .pick_file()?;
                         Some(std::fs::read(&path).map_err(|e| format!("Read failed: {e}")))
                     }),
-                    |res| match res {
+                    move |res| match res {
                         Ok(Some(bytes)) => {
-                            Message::Share(ShareMessage::PuttyFileLoaded(bytes))
+                            Message::Share(ShareMessage::ForeignFileLoaded(format, bytes))
                         }
                         _ => Message::NoOp,
                     },
                 );
             }
-            ShareMessage::PuttyFileLoaded(Err(e)) => {
+            ShareMessage::ForeignFileLoaded(_, Err(e)) => {
                 self.ssh_config_import_status = Some(Err(e));
             }
-            ShareMessage::PuttyFileLoaded(Ok(bytes)) => {
-                let text = crate::importers::putty::decode_reg_bytes(&bytes);
-                let parsed = crate::importers::putty::parse_reg(&text);
-                if parsed.connections.is_empty() {
+            ShareMessage::ForeignFileLoaded(format, Ok(bytes)) => {
+                let parsed = format.parse(&bytes);
+                if parsed.hosts.is_empty() {
                     // Distinguish "nothing in the file" from "sessions
                     // present but unimportable": the second silently
                     // eating someone's export reads as data loss.
@@ -168,18 +168,14 @@ impl Oryxis {
                     .map(|c| c.label.clone())
                     .collect();
                 self.ssh_import_existing = parsed
-                    .connections
+                    .hosts
                     .iter()
-                    .map(|c| existing_labels.contains(&c.label))
+                    .map(|h| existing_labels.contains(&h.conn.label))
                     .collect();
                 self.ssh_import_selected =
                     self.ssh_import_existing.iter().map(|e| !e).collect();
                 self.ssh_import_hosts.clear();
-                self.ssh_import_direct = Some(crate::importers::DirectImport {
-                    source_key: "import_putty_btn",
-                    hosts: parsed.connections,
-                    skipped: parsed.skipped,
-                });
+                self.ssh_import_direct = Some(parsed);
                 self.ssh_config_import_status = None;
                 self.panels.ssh_import_dialog = true;
             }
@@ -241,25 +237,29 @@ impl Oryxis {
                 // Third-party batch (PuTTY, ...): already Connections,
                 // no alias pass; same transaction shape as below.
                 if let Some(direct) = self.ssh_import_direct.take() {
-                    let picked: Vec<oryxis_core::models::connection::Connection> = direct
+                    let picked: Vec<&crate::importers::DirectHost> = direct
                         .hosts
                         .iter()
                         .zip(self.ssh_import_selected.iter())
                         .filter(|(_, sel)| **sel)
-                        .map(|(c, _)| c.clone())
+                        .map(|(h, _)| h)
                         .collect();
                     let total = picked.len();
                     let _ = vault.begin_batch();
                     let mut saved: Vec<oryxis_core::models::connection::Connection> =
                         Vec::new();
                     let mut errors: Vec<String> = Vec::new();
-                    for conn in &picked {
-                        // These formats carry no credentials (PuTTY
-                        // never stores passwords); the host editor is
-                        // where the user finishes auth.
-                        match vault.save_connection(conn, None) {
-                            Ok(()) => saved.push(conn.clone()),
-                            Err(e) => errors.push(format!("{}: {e}", conn.label)),
+                    for host in &picked {
+                        // A password the source carried (WinSCP's
+                        // reversible scheme) goes straight into the
+                        // encrypted column; PuTTY never stores one.
+                        match vault
+                            .save_connection(&host.conn, host.password.as_deref())
+                        {
+                            Ok(()) => saved.push(host.conn.clone()),
+                            Err(e) => {
+                                errors.push(format!("{}: {e}", host.conn.label))
+                            }
                         }
                     }
                     if let Err(e) = vault.commit_batch() {

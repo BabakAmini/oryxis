@@ -1584,6 +1584,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "Pilih file konfigurasi OpenSSH (default ~/.ssh/config). Tiap blok `Host` menjadi catatan koneksi; wildcard dan label yang sudah ada dilewati.",
         "import_ssh_config_btn" => "Impor ~/.ssh/config",
         "import_putty_btn" => "Impor sesi PuTTY (.reg)",
+        "import_winscp_btn" => "Impor situs WinSCP (.ini / .reg)",
         "import_skipped" => "Tidak dapat diimpor:",
         "export_hosts" => "Ekspor host",
         "export_groups" => "Folder yang disertakan",

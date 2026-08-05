@@ -1619,6 +1619,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "Vyberte konfigurační soubor OpenSSH (výchozí ~/.ssh/config). Každý blok `Host` se stane záznamem připojení; zástupné znaky a existující popisky se přeskočí.",
         "import_ssh_config_btn" => "Importovat ~/.ssh/config",
         "import_putty_btn" => "Importovat relace PuTTY (.reg)",
+        "import_winscp_btn" => "Importovat weby WinSCP (.ini / .reg)",
         "import_skipped" => "Nelze importovat:",
         "export_hosts" => "Exportovat hostitele",
         "export_groups" => "Složky k zahrnutí",

@@ -1584,6 +1584,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "Виберіть файл конфігурації OpenSSH (типово ~/.ssh/config). Кожен блок `Host` стає записом підключення; шаблони та наявні мітки пропускаються.",
         "import_ssh_config_btn" => "Імпортувати ~/.ssh/config",
         "import_putty_btn" => "Імпорт сесій PuTTY (.reg)",
+        "import_winscp_btn" => "Імпорт сайтів WinSCP (.ini / .reg)",
         "import_skipped" => "Не імпортуються:",
         "export_hosts" => "Експортувати хости",
         "export_groups" => "Теки для включення",

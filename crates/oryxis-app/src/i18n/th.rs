@@ -1620,6 +1620,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "ssh_config_import_desc" => "เลือกไฟล์ config ของ OpenSSH (ค่าเริ่มต้น ~/.ssh/config) แต่ละบล็อก `Host` จะกลายเป็นระเบียนการเชื่อมต่อ ส่วน wildcard และป้ายชื่อที่มีอยู่แล้วจะถูกข้าม",
         "import_ssh_config_btn" => "นำเข้า ~/.ssh/config",
         "import_putty_btn" => "นำเข้าเซสชัน PuTTY (.reg)",
+        "import_winscp_btn" => "นำเข้าไซต์ WinSCP (.ini / .reg)",
         "import_skipped" => "นำเข้าไม่ได้:",
         "export_hosts" => "ส่งออกโฮสต์",
         "export_groups" => "โฟลเดอร์ที่จะรวม",
