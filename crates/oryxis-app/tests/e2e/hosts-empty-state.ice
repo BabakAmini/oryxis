@@ -18,8 +18,9 @@ click "Continue without password"
 settle 250
 expect "Create host"
 expect "or"
+# One Import entry since the hub landed (single standardized import,
+# format detected from the picked file).
 expect "Import"
-expect "Import ~/.ssh/config"
 screenshot hosts-empty-state
 type tab
 type enter

@@ -33,36 +33,15 @@ impl Oryxis {
     /// in Settings.
     pub(crate) fn add_host_actions(&self) -> Vec<AddHostAction<'_>> {
         let secondary = OryxisColors::t().text_secondary;
-        let mut actions = vec![
-            AddHostAction {
-                icon: iced_fonts::lucide::download().into(),
-                label: crate::i18n::t("import_from_file"),
-                msg: Message::Share(ShareMessage::ImportVault),
-                color: secondary,
-            },
-            AddHostAction {
-                icon: iced_fonts::lucide::file_code().into(),
-                label: crate::i18n::t("import_ssh_config_btn"),
-                msg: Message::Share(ShareMessage::ImportSshConfig),
-                color: secondary,
-            },
-            AddHostAction {
-                icon: iced_fonts::lucide::file_down().into(),
-                label: crate::i18n::t("import_putty_btn"),
-                msg: Message::Share(ShareMessage::ImportForeign(
-                    crate::importers::ForeignFormat::Putty,
-                )),
-                color: secondary,
-            },
-            AddHostAction {
-                icon: iced_fonts::lucide::file_down().into(),
-                label: crate::i18n::t("import_winscp_btn"),
-                msg: Message::Share(ShareMessage::ImportForeign(
-                    crate::importers::ForeignFormat::WinScp,
-                )),
-                color: secondary,
-            },
-        ];
+        // ONE import entry (owner call): the hub modal names every
+        // supported source and detects the picked file's format, so
+        // this menu never grows a button per client again.
+        let mut actions = vec![AddHostAction {
+            icon: iced_fonts::lucide::download().into(),
+            label: crate::i18n::t("import_from_file"),
+            msg: Message::Share(ShareMessage::ShowImportHub),
+            color: secondary,
+        }];
         // Group creation, context-symmetric and always the leading
         // entry. Inside a manual folder it's "New subgroup" (a child of
         // the open folder): the folder kebab offers the same action from

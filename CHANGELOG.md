@@ -7,6 +7,14 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **One Import entry with format auto-detection.** The per-source
+  buttons collapse into a single "Import" that opens a small hub
+  naming every supported source (Oryxis export, OpenSSH config,
+  PuTTY .reg, WinSCP .ini/.reg); pick any file and its format is
+  detected from the content, including a full-registry export
+  carrying PuTTY and WinSCP sessions at once, which imports as one
+  combined batch. An unrecognized file says so inline instead of
+  guessing.
 - **PuTTY session import.** "+ Host ▾" (and the first-run empty
   state) gains "Import PuTTY sessions (.reg)": pick a regedit export
   of the PuTTY hive and every session lands in the same tick-per-host

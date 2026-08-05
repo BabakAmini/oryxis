@@ -574,6 +574,7 @@ impl Oryxis {
                 share: crate::state::ShareForm::default(),
                 ssh_import_hosts: Vec::new(),
                 ssh_import_direct: None,
+                import_hub_error: None,
                 ssh_import_selected: Vec::new(),
                 ssh_import_existing: Vec::new(),
             },

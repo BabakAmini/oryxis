@@ -66,5 +66,8 @@ pub(crate) struct PanelsOpen {
     // editor state is grouped in `share`.
     pub(crate) share_dialog: bool,
     pub(crate) ssh_import_dialog: bool,
+    /// The one-entry Import hub: explains the supported formats and
+    /// opens a picker whose file is format-detected automatically.
+    pub(crate) import_hub: bool,
 }
 

@@ -364,6 +364,20 @@ impl Oryxis {
             );
         }
 
+        // The one-entry Import hub: supported-format list + the
+        // detect-on-pick file button.
+        if self.panels.import_hub {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.build_import_hub_dialog(),
+                    Some(Message::Share(ShareMessage::ImportHubDismiss)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // SSH config import preview. Lists every parsed host with a
         // checkbox so the user picks which to add; hosts whose label
         // already exists are flagged and start unticked.

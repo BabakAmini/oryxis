@@ -275,6 +275,95 @@ impl Oryxis {
         dialog.into()
     }
 
+    /// The one-entry Import hub (owner call: ONE standardized import):
+    /// names every supported source, and the "Choose file" picker's
+    /// result is format-detected from its content, so the user never
+    /// has to know which button matches their old client.
+    pub(crate) fn build_import_hub_dialog(&self) -> Element<'_, Message> {
+        self.modal_nav_reset();
+        // Product names, deliberately untranslated; the sentence
+        // around them localizes.
+        const SOURCES: [&str; 4] = [
+            "Oryxis export (.oryxis)",
+            "OpenSSH config (~/.ssh/config)",
+            "PuTTY sessions (.reg export)",
+            "WinSCP sites (WinSCP.ini / .reg export)",
+        ];
+        let mut sources = column![].spacing(4);
+        for s in SOURCES {
+            sources = sources.push(
+                dir_row(vec![
+                    text("•").size(12).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(8).into(),
+                    text(s).size(13).color(OryxisColors::t().text_primary).into(),
+                ])
+                .align_y(iced::Alignment::Center),
+            );
+        }
+        let error_line: Element<'_, Message> = match &self.import_hub_error {
+            Some(e) => column![
+                Space::new().height(10),
+                text(e.clone()).size(12).color(OryxisColors::t().error),
+            ]
+            .into(),
+            None => Space::new().into(),
+        };
+        container(
+            column![
+                text(crate::i18n::t("import_hub_title"))
+                    .size(16)
+                    .color(OryxisColors::t().text_primary),
+                Space::new().height(6),
+                text(crate::i18n::t("import_hub_desc"))
+                    .size(12)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(12),
+                sources,
+                error_line,
+                Space::new().height(16),
+                row![
+                    self.modal_nav_slot_default(
+                        crate::keynav::RowAction::activate(Message::Share(
+                            ShareMessage::ImportHubPick,
+                        )),
+                        6.0,
+                        true,
+                        styled_button(
+                            crate::i18n::t("import_hub_choose"),
+                            Message::Share(ShareMessage::ImportHubPick),
+                            OryxisColors::t().accent,
+                        ),
+                    ),
+                    Space::new().width(8),
+                    self.modal_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Share(
+                            ShareMessage::ImportHubDismiss,
+                        )),
+                        6.0,
+                        false,
+                        styled_button(
+                            crate::i18n::t("cancel"),
+                            Message::Share(ShareMessage::ImportHubDismiss),
+                            OryxisColors::t().text_muted,
+                        ),
+                    ),
+                ],
+            ]
+            .padding(24)
+            .width(420),
+        )
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border {
+                radius: Radius::from(12.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        })
+        .into()
+    }
+
     /// Content for the import preview (per-host checklist with
     /// select/deselect all, then Import + Cancel). Serves both the
     /// ssh_config flow and the third-party importers: the row data

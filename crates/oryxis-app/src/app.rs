@@ -1167,6 +1167,9 @@ pub struct Oryxis {
     /// dialog. Mutually exclusive with `ssh_import_hosts`; the shared
     /// `ssh_import_selected` / `ssh_import_existing` vecs serve both.
     pub(crate) ssh_import_direct: Option<crate::importers::DirectImport>,
+    /// Inline error of the Import hub modal ("couldn't recognize this
+    /// file"); cleared on open and on a successful detection.
+    pub(crate) import_hub_error: Option<String>,
     /// Per-host tick state, parallel to `ssh_import_hosts`.
     pub(crate) ssh_import_selected: Vec<bool>,
     /// Per-host "label already exists" flag, parallel to

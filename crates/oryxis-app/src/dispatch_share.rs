@@ -121,63 +121,80 @@ impl Oryxis {
                     },
                 );
             }
-            ShareMessage::ImportForeign(format) => {
+            ShareMessage::ShowImportHub => {
                 self.overlay = None;
-                self.ssh_config_import_status = None;
+                self.import_hub_error = None;
+                self.panels.import_hub = true;
+            }
+            ShareMessage::ImportHubDismiss => {
+                self.panels.import_hub = false;
+            }
+            ShareMessage::ImportHubPick => {
                 return Task::perform(
-                    tokio::task::spawn_blocking(move || {
-                        let (title, filter, exts) = format.picker();
+                    tokio::task::spawn_blocking(|| {
                         let path = rfd::FileDialog::new()
-                            .set_title(title)
-                            .add_filter(filter, exts)
+                            .set_title("Import hosts")
                             .pick_file()?;
                         Some(std::fs::read(&path).map_err(|e| format!("Read failed: {e}")))
                     }),
-                    move |res| match res {
+                    |res| match res {
                         Ok(Some(bytes)) => {
-                            Message::Share(ShareMessage::ForeignFileLoaded(format, bytes))
+                            Message::Share(ShareMessage::ImportHubLoaded(bytes))
                         }
                         _ => Message::NoOp,
                     },
                 );
             }
-            ShareMessage::ForeignFileLoaded(_, Err(e)) => {
-                self.ssh_config_import_status = Some(Err(e));
+            ShareMessage::ImportHubLoaded(Err(e)) => {
+                self.import_hub_error = Some(e);
             }
-            ShareMessage::ForeignFileLoaded(format, Ok(bytes)) => {
-                let parsed = format.parse(&bytes);
-                if parsed.hosts.is_empty() {
-                    // Distinguish "nothing in the file" from "sessions
-                    // present but unimportable": the second silently
-                    // eating someone's export reads as data loss.
-                    let msg = if parsed.skipped.is_empty() {
-                        crate::i18n::t("ssh_import_none_found").to_string()
-                    } else {
-                        format!(
-                            "{} {}",
-                            crate::i18n::t("import_skipped"),
-                            parsed.skipped.join(", ")
-                        )
-                    };
-                    self.ssh_config_import_status = Some(Err(msg.clone()));
-                    return self.show_toast(msg);
+            ShareMessage::ImportHubLoaded(Ok(bytes)) => {
+                use crate::importers::detect::Detected;
+                match crate::importers::detect::detect(&bytes) {
+                    Detected::OryxisExport => {
+                        // Hand off to the vault-import dialog with the
+                        // same field resets its own picker path does.
+                        self.panels.import_hub = false;
+                        self.vault_import.status = None;
+                        self.vault_import.password = String::new();
+                        self.vault_import.summary = None;
+                        self.vault_import.selection =
+                            oryxis_vault::ExportSelection::all();
+                        self.vault_import.file_data = Some(bytes);
+                        self.panels.import_dialog = true;
+                    }
+                    Detected::SshConfig(text) => {
+                        // The ssh_config flow keeps its alias-linking
+                        // pass; enter it exactly as its own loader does.
+                        self.panels.import_hub = false;
+                        return self.update(Message::Share(
+                            ShareMessage::SshConfigFileLoaded(Ok(text)),
+                        ));
+                    }
+                    Detected::Foreign(parsed) => {
+                        if parsed.hosts.is_empty() {
+                            // Recognized but nothing importable: say so
+                            // inside the hub (named skips beat a shrug).
+                            self.import_hub_error =
+                                Some(if parsed.skipped.is_empty() {
+                                    crate::i18n::t("ssh_import_none_found").to_string()
+                                } else {
+                                    format!(
+                                        "{} {}",
+                                        crate::i18n::t("import_skipped"),
+                                        parsed.skipped.join(", ")
+                                    )
+                                });
+                            return Task::none();
+                        }
+                        self.panels.import_hub = false;
+                        return self.open_direct_preview(parsed);
+                    }
+                    Detected::Unknown => {
+                        self.import_hub_error =
+                            Some(crate::i18n::t("import_hub_unrecognized").to_string());
+                    }
                 }
-                let existing_labels: std::collections::HashSet<String> = self
-                    .connections
-                    .iter()
-                    .map(|c| c.label.clone())
-                    .collect();
-                self.ssh_import_existing = parsed
-                    .hosts
-                    .iter()
-                    .map(|h| existing_labels.contains(&h.conn.label))
-                    .collect();
-                self.ssh_import_selected =
-                    self.ssh_import_existing.iter().map(|e| !e).collect();
-                self.ssh_import_hosts.clear();
-                self.ssh_import_direct = Some(parsed);
-                self.ssh_config_import_status = None;
-                self.panels.ssh_import_dialog = true;
             }
             ShareMessage::SshConfigFileLoaded(Err(e)) => {
                 self.ssh_config_import_status = Some(Err(e));
@@ -1053,6 +1070,49 @@ fn write_export_file(path: &std::path::Path, data: &[u8]) -> Result<String, Stri
             Ok(format!("Exported to {}", path.display()))
         }
         Err(e) => Err(format!("Write failed: {}", e)),
+    }
+}
+
+impl Oryxis {
+    /// Put a parsed foreign batch into the shared preview dialog:
+    /// dedup ticks against existing labels, clear the ssh_config half
+    /// (the two are mutually exclusive) and open the dialog. Empty
+    /// batches turn into a toast naming the skipped sessions, so a
+    /// file full of unimportable sites never opens an empty picker.
+    fn open_direct_preview(
+        &mut self,
+        parsed: crate::importers::DirectImport,
+    ) -> Task<Message> {
+        if parsed.hosts.is_empty() {
+            let msg = if parsed.skipped.is_empty() {
+                crate::i18n::t("ssh_import_none_found").to_string()
+            } else {
+                format!(
+                    "{} {}",
+                    crate::i18n::t("import_skipped"),
+                    parsed.skipped.join(", ")
+                )
+            };
+            self.ssh_config_import_status = Some(Err(msg.clone()));
+            return self.show_toast(msg);
+        }
+        let existing_labels: std::collections::HashSet<String> = self
+            .connections
+            .iter()
+            .map(|c| c.label.clone())
+            .collect();
+        self.ssh_import_existing = parsed
+            .hosts
+            .iter()
+            .map(|h| existing_labels.contains(&h.conn.label))
+            .collect();
+        self.ssh_import_selected =
+            self.ssh_import_existing.iter().map(|e| !e).collect();
+        self.ssh_import_hosts.clear();
+        self.ssh_import_direct = Some(parsed);
+        self.ssh_config_import_status = None;
+        self.panels.ssh_import_dialog = true;
+        Task::none()
     }
 }
 
