@@ -19,6 +19,9 @@ pub(crate) enum Detected {
     SshConfig(String),
     /// A third-party batch, parsed and ready for the shared preview.
     Foreign(DirectImport),
+    /// A confCons.xml: parsed lazily by the caller because it may
+    /// need the file password (the hub holds the bytes and asks).
+    MRemoteNg,
     /// Nothing recognizable.
     Unknown,
 }
@@ -29,6 +32,11 @@ pub(crate) fn detect(bytes: &[u8]) -> Detected {
     }
     let text = regfile::decode_reg_bytes(bytes);
     let trimmed = text.trim_start_matches('\u{feff}').trim_start();
+
+    // mRemoteNG confCons.xml: the namespaced root is unmistakable.
+    if text.contains("mremoteng.org") || text.contains("<mrng:Connections") {
+        return Detected::MRemoteNg;
+    }
 
     if trimmed.starts_with("Windows Registry Editor")
         || trimmed.starts_with("REGEDIT4")

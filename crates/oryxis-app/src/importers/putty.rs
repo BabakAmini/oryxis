@@ -67,7 +67,12 @@ use super::regfile::{decode_session_name, split_reg_line};
 /// `HKCU\Software\SimonTatham` export carries jump lists and host key
 /// caches too).
 pub fn parse_reg(text: &str) -> PuttyImport {
-    const SESSIONS_MARKER: &str = "\\SimonTatham\\PuTTY\\Sessions\\";
+    // KiTTY is a PuTTY fork with the exact same session shape under
+    // its own hive; one parser serves both.
+    const SESSIONS_MARKERS: [&str; 2] = [
+        "\\SimonTatham\\PuTTY\\Sessions\\",
+        "\\9bis.com\\KiTTY\\Sessions\\",
+    ];
 
     let mut sessions: Vec<PuttySession> = Vec::new();
     let mut current: Option<PuttySession> = None;
@@ -75,13 +80,15 @@ pub fn parse_reg(text: &str) -> PuttyImport {
         let line = raw.trim_end_matches('\r').trim();
         if let Some(path) = line.strip_prefix('[').and_then(|l| l.strip_suffix(']')) {
             // New block: close the previous session (if any) and open
-            // one when the path is a session of the PuTTY hive.
+            // one when the path is a session of either hive.
             if let Some(prev) = current.take() {
                 sessions.push(prev);
             }
-            current = path.find(SESSIONS_MARKER).map(|at| PuttySession {
-                name: decode_session_name(&path[at + SESSIONS_MARKER.len()..]),
-                ..Default::default()
+            current = SESSIONS_MARKERS.iter().find_map(|marker| {
+                path.find(marker).map(|at| PuttySession {
+                    name: decode_session_name(&path[at + marker.len()..]),
+                    ..Default::default()
+                })
             });
             continue;
         }

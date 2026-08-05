@@ -575,6 +575,8 @@ impl Oryxis {
                 ssh_import_hosts: Vec::new(),
                 ssh_import_direct: None,
                 import_hub_error: None,
+                import_hub_pending: None,
+                import_hub_password: String::new(),
                 ssh_import_selected: Vec::new(),
                 ssh_import_existing: Vec::new(),
             },

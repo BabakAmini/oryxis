@@ -24,6 +24,10 @@ pub enum ShareMessage {
     ImportHubPick,
     /// The picked file's bytes, ready for detection + routing.
     ImportHubLoaded(Result<Vec<u8>, String>),
+    /// File password typed in the hub (a protected confCons.xml).
+    ImportHubPasswordChanged(super::Redacted),
+    /// Retry the held protected file with the typed password.
+    ImportHubUnlock,
     /// File contents picked + read by the background task spawned from
     /// `ImportSshConfig`; the handler parses and opens the preview.
     SshConfigFileLoaded(Result<String, String>),

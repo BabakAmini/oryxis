@@ -7,6 +7,15 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **mRemoteNG import (confCons.xml).** SSH, Telnet, RDP and VNC nodes
+  map (RDP/VNC onto the remote-desktop hosts), the container
+  hierarchy is recorded in each host's notes, and HTTP/rlogin nodes
+  are named as not importable. Passwords decrypt with mRemoteNG's own
+  scheme (AES-GCM, PBKDF2 key) including fully-encrypted files: a
+  file with a real password makes the Import hub ask for it and
+  retry, and passwords land straight in the vault's encrypted
+  column. KiTTY sessions also import now (same format as PuTTY,
+  detected by its own registry hive).
 - **One Import entry with format auto-detection.** The per-source
   buttons collapse into a single "Import" that opens a small hub
   naming every supported source (Oryxis export, OpenSSH config,

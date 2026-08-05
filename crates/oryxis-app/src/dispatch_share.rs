@@ -124,10 +124,26 @@ impl Oryxis {
             ShareMessage::ShowImportHub => {
                 self.overlay = None;
                 self.import_hub_error = None;
+                self.import_hub_pending = None;
+                self.import_hub_password = String::new();
                 self.panels.import_hub = true;
             }
             ShareMessage::ImportHubDismiss => {
                 self.panels.import_hub = false;
+                self.import_hub_pending = None;
+                self.import_hub_password = String::new();
+            }
+            ShareMessage::ImportHubPasswordChanged(v) => {
+                self.import_hub_password = v.into_inner();
+            }
+            ShareMessage::ImportHubUnlock => {
+                let Some(bytes) = self.import_hub_pending.clone() else {
+                    return Task::none();
+                };
+                return self.import_hub_try_mremoteng(
+                    bytes,
+                    Some(self.import_hub_password.clone()),
+                );
             }
             ShareMessage::ImportHubPick => {
                 return Task::perform(
@@ -189,6 +205,9 @@ impl Oryxis {
                         }
                         self.panels.import_hub = false;
                         return self.open_direct_preview(parsed);
+                    }
+                    Detected::MRemoteNg => {
+                        return self.import_hub_try_mremoteng(bytes, None);
                     }
                     Detected::Unknown => {
                         self.import_hub_error =
@@ -1074,6 +1093,56 @@ fn write_export_file(path: &std::path::Path, data: &[u8]) -> Result<String, Stri
 }
 
 impl Oryxis {
+    /// Try a confCons.xml with the given file password (`None` = the
+    /// mRemoteNG default). A protected file parks its bytes in the
+    /// hub, which grows a password row and retries via
+    /// `ImportHubUnlock`; success sweeps the parked state and opens
+    /// the shared preview.
+    fn import_hub_try_mremoteng(
+        &mut self,
+        bytes: Vec<u8>,
+        password: Option<String>,
+    ) -> Task<Message> {
+        use crate::importers::mremoteng::{self, MrngParse};
+        match mremoteng::parse(&bytes, password.as_deref()) {
+            MrngParse::Ready(parsed) => {
+                self.import_hub_pending = None;
+                self.import_hub_password = String::new();
+                if parsed.hosts.is_empty() {
+                    self.import_hub_error = Some(if parsed.skipped.is_empty() {
+                        crate::i18n::t("ssh_import_none_found").to_string()
+                    } else {
+                        format!(
+                            "{} {}",
+                            crate::i18n::t("import_skipped"),
+                            parsed.skipped.join(", ")
+                        )
+                    });
+                    return Task::none();
+                }
+                self.panels.import_hub = false;
+                self.open_direct_preview(parsed)
+            }
+            MrngParse::NeedsPassword => {
+                // Second miss (a wrong typed password) reads different
+                // from the first (the silent default-password try).
+                self.import_hub_error = if password.is_some() {
+                    Some(crate::i18n::t("import_hub_wrong_password").to_string())
+                } else {
+                    None
+                };
+                self.import_hub_pending = Some(bytes);
+                Task::none()
+            }
+            MrngParse::Invalid => {
+                self.import_hub_pending = None;
+                self.import_hub_error =
+                    Some(crate::i18n::t("import_hub_unrecognized").to_string());
+                Task::none()
+            }
+        }
+    }
+
     /// Put a parsed foreign batch into the shared preview dialog:
     /// dedup ticks against existing labels, clear the ssh_config half
     /// (the two are mutually exclusive) and open the dialog. Empty

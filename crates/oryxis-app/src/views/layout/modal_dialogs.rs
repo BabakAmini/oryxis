@@ -283,11 +283,12 @@ impl Oryxis {
         self.modal_nav_reset();
         // Product names, deliberately untranslated; the sentence
         // around them localizes.
-        const SOURCES: [&str; 4] = [
+        const SOURCES: [&str; 5] = [
             "Oryxis export (.oryxis)",
             "OpenSSH config (~/.ssh/config)",
-            "PuTTY sessions (.reg export)",
+            "PuTTY / KiTTY sessions (.reg export)",
             "WinSCP sites (WinSCP.ini / .reg export)",
+            "mRemoteNG (confCons.xml)",
         ];
         let mut sources = column![].spacing(4);
         for s in SOURCES {
@@ -308,6 +309,52 @@ impl Oryxis {
             .into(),
             None => Space::new().into(),
         };
+        // A protected mRemoteNG file is parked here while its password
+        // is asked for; Enter in the field retries directly.
+        let password_row: Element<'_, Message> = if self.import_hub_pending.is_some() {
+            let field = iced::widget::text_input(
+                crate::i18n::t("password"),
+                &self.import_hub_password,
+            )
+            .id(iced::widget::Id::new("import-hub-password"))
+            .secure(true)
+            .on_input(|v| {
+                Message::Share(ShareMessage::ImportHubPasswordChanged(v.into()))
+            })
+            .on_submit(Message::Share(ShareMessage::ImportHubUnlock))
+            .padding(10)
+            .style(crate::widgets::rounded_input_style);
+            self.modal_nav_record(crate::keynav::RowAction::input(
+                iced::widget::Id::new("import-hub-password"),
+            ));
+            column![
+                Space::new().height(12),
+                text(crate::i18n::t("import_hub_protected"))
+                    .size(12)
+                    .color(OryxisColors::t().text_primary),
+                Space::new().height(6),
+                row![
+                    field,
+                    Space::new().width(8),
+                    self.modal_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Share(
+                            ShareMessage::ImportHubUnlock,
+                        )),
+                        6.0,
+                        false,
+                        styled_button(
+                            crate::i18n::t("import_hub_unlock"),
+                            Message::Share(ShareMessage::ImportHubUnlock),
+                            OryxisColors::t().accent,
+                        ),
+                    ),
+                ]
+                .align_y(iced::Alignment::Center),
+            ]
+            .into()
+        } else {
+            Space::new().into()
+        };
         container(
             column![
                 text(crate::i18n::t("import_hub_title"))
@@ -319,6 +366,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_muted),
                 Space::new().height(12),
                 sources,
+                password_row,
                 error_line,
                 Space::new().height(16),
                 row![

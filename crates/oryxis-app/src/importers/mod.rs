@@ -6,6 +6,7 @@
 //! pass none of these formats have).
 
 pub(crate) mod detect;
+pub(crate) mod mremoteng;
 pub(crate) mod putty;
 pub(crate) mod regfile;
 pub(crate) mod winscp;

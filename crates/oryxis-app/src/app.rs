@@ -1170,6 +1170,11 @@ pub struct Oryxis {
     /// Inline error of the Import hub modal ("couldn't recognize this
     /// file"); cleared on open and on a successful detection.
     pub(crate) import_hub_error: Option<String>,
+    /// A protected mRemoteNG file held while the hub asks for its
+    /// password. Swept with the hub (dismiss / open / success).
+    pub(crate) import_hub_pending: Option<Vec<u8>>,
+    /// The file password typed in the hub for `import_hub_pending`.
+    pub(crate) import_hub_password: String,
     /// Per-host tick state, parallel to `ssh_import_hosts`.
     pub(crate) ssh_import_selected: Vec<bool>,
     /// Per-host "label already exists" flag, parallel to
