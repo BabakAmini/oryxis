@@ -72,6 +72,21 @@ impl Oryxis {
         let mut seen_identity: std::collections::HashSet<uuid::Uuid> =
             std::collections::HashSet::new();
 
+        // Which rows HAVE a password is asked of the vault here, once
+        // per popup, rather than read from a boot-time cache. A password
+        // can be written by paths that never refresh one (a sync apply,
+        // a portable import, an ssh-config import), and a stale cache
+        // fails in the direction that looks like the feature is broken:
+        // a host whose password you can see in the editor, never
+        // offered. Both queries are existence checks (no decrypt, no
+        // unlock), and once per prompt is not a hot path.
+        let Some(vault) = self.vault.as_ref() else {
+            return out;
+        };
+        let with_password = vault.list_connection_ids_with_password().unwrap_or_default();
+        let identities_with_password =
+            vault.list_identity_ids_with_password().unwrap_or_default();
+
         // The pane's host. Quick-connect hosts live in an in-memory
         // store with no vault row, so only saved hosts qualify.
         let conn = self.pane_by_id(pane_id).and_then(|p| match &p.origin {
@@ -81,7 +96,7 @@ impl Oryxis {
             _ => None,
         });
         if let Some(conn) = conn {
-            if self.connections_with_password.contains(&conn.id) {
+            if with_password.contains(&conn.id) {
                 out.push(PasswordSource {
                     label: conn.label.clone(),
                     sublabel: conn.username.clone().unwrap_or_default(),
@@ -92,7 +107,7 @@ impl Oryxis {
             // rest: on a host that logs in through an identity, that is
             // the account `sudo` is asking about.
             if let Some(id) = conn.identity_id
-                && self.identities_with_password.contains(&id)
+                && identities_with_password.contains(&id)
                 && let Some(ident) = self.identities.iter().find(|i| i.id == id)
             {
                 seen_identity.insert(id);
@@ -107,7 +122,7 @@ impl Oryxis {
             .identities
             .iter()
             .filter(|i| {
-                self.identities_with_password.contains(&i.id) && !seen_identity.contains(&i.id)
+                identities_with_password.contains(&i.id) && !seen_identity.contains(&i.id)
             })
             .collect();
         rest.sort_by_key(|i| i.label.to_lowercase());
@@ -128,6 +143,13 @@ impl Oryxis {
     /// a kebab menu the user is mid-click on would steal it.
     pub(crate) fn password_suggest_target(&self) -> Option<uuid::Uuid> {
         if !self.prefs.terminal_password_autofill || self.overlay.is_some() {
+            return None;
+        }
+        // A blocking modal owns the screen and the keyboard (a host-key
+        // prompt from a background reconnect, an error dialog, the
+        // update dialog). Opening under one would put a popup the user
+        // cannot see in front of the keys they are aiming at the modal.
+        if self.any_modal_blocks_input() {
             return None;
         }
         if self.active_view != crate::state::View::Terminal {
@@ -265,14 +287,11 @@ impl Oryxis {
             TerminalMessage::PasswordSuggestDismiss => {
                 self.dismiss_password_suggest();
             }
-            TerminalMessage::PasswordSuggestPick => {
-                let Some((pane_id, entries, selected)) = self.password_suggest_state() else {
+            TerminalMessage::PasswordSuggestPick(idx) => {
+                let Some((pane_id, entries, _)) = self.password_suggest_state() else {
                     return Task::none();
                 };
-                // A click picks the row it hit (hover set the
-                // selection); Enter without a selection cannot reach
-                // here, the key router leaves it to the prompt.
-                let Some(kind) = selected.and_then(|i| entries.get(i)).map(|e| e.kind) else {
+                let Some(kind) = entries.get(idx).map(|e| e.kind) else {
                     return Task::none();
                 };
                 self.overlay = None;
@@ -331,6 +350,14 @@ impl Oryxis {
     ) -> Option<Task<Message>> {
         use iced::keyboard::{key::Named, Event, Key};
         let (_, _, selected) = self.password_suggest_state()?;
+        // A modal opened while the popup was up (a reconnect's host-key
+        // prompt, an error dialog). Attention has moved and the
+        // suggestion is stale: drop it and let the modal's own router
+        // have the key it was aimed at.
+        if self.any_modal_blocks_input() {
+            self.dismiss_password_suggest();
+            return None;
+        }
         let Event::KeyPressed { key, modifiers, .. } = event else {
             return None;
         };
@@ -349,8 +376,8 @@ impl Oryxis {
             Key::Named(Named::ArrowUp) if selected.is_some() => {
                 msg(TerminalMessage::PasswordSuggestNavigate(-1))
             }
-            Key::Named(Named::Enter) if selected.is_some() => {
-                msg(TerminalMessage::PasswordSuggestPick)
+            Key::Named(Named::Enter) if let Some(i) = selected => {
+                msg(TerminalMessage::PasswordSuggestPick(i))
             }
             // Enter with nothing selected is the user answering the
             // prompt themselves: close, and let the key through.

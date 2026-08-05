@@ -234,7 +234,9 @@ impl Oryxis {
     /// deliberate:
     ///
     /// - `observe_input`, so a credential never reaches the command
-    ///   history mirror (there is a structural test for that);
+    ///   history mirror. Guaranteed by construction rather than by a
+    ///   test: this function simply does not call `feed_input_capture`,
+    ///   and every secret write in the app goes through here;
     /// - the broadcast fan-out, because a secret goes to exactly one
     ///   pane, never to every pane of a synchronized tab;
     /// - bracketed paste and the paste guard, because a password prompt

@@ -73,9 +73,6 @@ impl Oryxis {
             self.identities_with_password = vault
                 .list_identity_ids_with_password()
                 .unwrap_or_default();
-            self.connections_with_password = vault
-                .list_connection_ids_with_password()
-                .unwrap_or_default();
             self.proxy_identities = vault.list_proxy_identities().unwrap_or_default();
             self.login_scripts = vault.list_login_scripts().unwrap_or_default();
             self.cloud_profiles = vault.list_cloud_profiles().unwrap_or_default();

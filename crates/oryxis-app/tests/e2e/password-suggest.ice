@@ -88,14 +88,15 @@ absent "Stored passwords"
 type enter
 wait 600
 
-# 4. Clicking a row sends that credential, exactly and only it. The
-# move before the click is the hover that sets the selection.
+# 4. Clicking a row sends that credential, exactly and only it. No
+# `move` first, deliberately: the click must work with the cursor
+# already sitting where the popup opened, which is the normal case
+# (the popup anchors at the caret, where the user last clicked) and
+# the one where iced never fires a hover.
 type "read -s -p 'Password: ' PW3"
 type enter
 wait 1200
 expect "Stored passwords"
-move (200, 198)
-wait 300
 click (200, 198)
 wait 800
 absent "Stored passwords"

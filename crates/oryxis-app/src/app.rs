@@ -605,11 +605,6 @@ pub struct Oryxis {
     // for every identity on every view() rebuild and slow the main
     // loop enough to fill iced's 100-slot subscription channel.
     pub(crate) identities_with_password: std::collections::HashSet<Uuid>,
-    /// Same cache for saved hosts, hydrated by the same loader. The
-    /// password-autofill popup (issue #117) builds its candidate list
-    /// from it, so a prompt on a host with nothing stored never opens a
-    /// popup with an empty list.
-    pub(crate) connections_with_password: std::collections::HashSet<Uuid>,
     pub(crate) identity_form: crate::state::IdentityForm,
     pub(crate) identity_context_menu: Option<usize>,
 

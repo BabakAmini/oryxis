@@ -68,7 +68,12 @@ impl Oryxis {
                 .width(Length::Fill)
                 .align_x(dir_align_x()),
             )
-            .on_press(Message::Terminal(TerminalMessage::PasswordSuggestPick))
+            // The row's own index, not the selection: iced fires
+            // `on_enter` off a cursor MOVE, so a popup that opens under
+            // a stationary pointer (the caret is exactly where the user
+            // last clicked) never sees a hover, and a pick that read
+            // the selection back would silently do nothing.
+            .on_press(Message::Terminal(TerminalMessage::PasswordSuggestPick(idx)))
             .width(Length::Fill)
             .padding(Padding {
                 top: 6.0,
@@ -99,9 +104,9 @@ impl Oryxis {
                 }
             })
             .into();
-            // Hovering moves the selection, so a click always picks the
-            // row under the cursor (the button's own on_press carries
-            // no index).
+            // Hover moves the selection so the mouse and the keyboard
+            // agree on what is highlighted. It is presentation only:
+            // the pick carries its own row.
             col = col.push(
                 MouseArea::new(row)
                     .on_enter(Message::Terminal(TerminalMessage::PasswordSuggestHover(idx))),

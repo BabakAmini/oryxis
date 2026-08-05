@@ -34,9 +34,12 @@ pub enum TerminalMessage {
     /// `i32` rows, wrapping. The first move ENGAGES the popup: until
     /// then nothing is selected and Enter still belongs to the prompt.
     PasswordSuggestNavigate(i32),
-    /// Send the selected credential to the pane the popup belongs to,
-    /// then close. Decrypt happens here, never at show time.
-    PasswordSuggestPick,
+    /// Send the credential at `usize` to the pane the popup belongs to,
+    /// then close. Decrypt happens here, never at show time. The row
+    /// rides in the message rather than being read back from the
+    /// selection: a click must work even when the popup opened under a
+    /// stationary cursor, where no hover ever fires.
+    PasswordSuggestPick(usize),
     /// Close the popup without sending anything (Esc, a click on the
     /// terminal, a tab switch, a disconnect). The prompt's signature
     /// stays recorded, so it does not immediately reopen.
