@@ -466,6 +466,11 @@ pub enum SettingsMessage {
     // Management only: creation happens in the host editor. The step
     // editor is the escape hatch for a bastion the three-field preset
     // cannot describe.
+    /// Host editor's "Edit steps" link: open Settings > Connection
+    /// with this script in the step editor. One message because a
+    /// button dispatches one; the handler fans out to the view switch
+    /// and the edit.
+    LoginScriptOpenInSettings(uuid::Uuid),
     LoginScriptEdit(uuid::Uuid),
     LoginScriptCancelEdit,
     LoginScriptNameChanged(String),

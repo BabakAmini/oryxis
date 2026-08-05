@@ -62,6 +62,62 @@ impl Oryxis {
                 self.hp_login_script_draft(draft),
             );
         } else {
+            // The selected script's steps, read-only. The entity IS an
+            // ordered expect/send list; without this the preset form was
+            // the only face the feature showed, and it read as a fixed
+            // three-field form instead of a generator for that list.
+            if let Some(script) = self
+                .editor_form
+                .login_script_id
+                .and_then(|id| self.login_scripts.iter().find(|s| s.id == id))
+            {
+                let mut steps = column![].spacing(2);
+                for (i, step) in script.steps.iter().enumerate() {
+                    use oryxis_core::login_script::{ExpectPattern, SendPayload};
+                    let expect = match &step.expect {
+                        Some(ExpectPattern::Suffix(s)) => s.clone(),
+                        Some(ExpectPattern::Regex(r)) => format!("re:{r}"),
+                        None => String::new(),
+                    };
+                    let send = match &step.send {
+                        // Literal text shows as itself (placeholders
+                        // included); everything else shows its localized
+                        // kind, since a secret has no text to show.
+                        SendPayload::Text(t) => t.clone(),
+                        other => {
+                            crate::views::settings::login_scripts::send_label_of(other)
+                        }
+                    };
+                    let line = if expect.is_empty() {
+                        format!("{}. → {}", i + 1, send)
+                    } else {
+                        format!("{}. {} → {}", i + 1, expect, send)
+                    };
+                    steps = steps.push(
+                        text(line)
+                            .size(11)
+                            .font(iced::Font::MONOSPACE)
+                            .color(OryxisColors::t().text_muted),
+                    );
+                }
+                let edit_msg = Message::Settings(
+                    crate::app::SettingsMessage::LoginScriptOpenInSettings(script.id),
+                );
+                let edit_btn = self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(edit_msg.clone()),
+                    6.0,
+                    crate::widgets::styled_button(
+                        t("login_script_edit_steps"),
+                        edit_msg,
+                        OryxisColors::t().bg_hover,
+                    ),
+                );
+                block = block
+                    .push(Space::new().height(ROW_GAP))
+                    .push(steps)
+                    .push(Space::new().height(8))
+                    .push(edit_btn);
+            }
             for (name, value) in self.login_script_variables() {
                 let id = iced::widget::Id::from(format!("editor-script-var-{name}"));
                 self.panel_nav_record(crate::keynav::RowAction::input(id.clone()));

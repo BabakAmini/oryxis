@@ -914,6 +914,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "login_script_desc" => "For hosts behind a bastion that asks which machine to reach inside the terminal.",
         "login_script_off" => "Off",
         "login_script_new" => "New automation...",
+        "login_script_name" => "Name",
+        "login_script_edit_steps" => "Edit steps…",
         "login_script_name_ph" => "e.g. Corp bastion",
         "login_script_name_required" => "Give the automation a name.",
         "login_script_invalid" => "Invalid automation",

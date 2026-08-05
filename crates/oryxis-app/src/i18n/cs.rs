@@ -913,6 +913,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Pro hostitele za bastionem, který se v terminálu ptá, na který stroj se připojit.",
         "login_script_off" => "Vypnuto",
         "login_script_new" => "Nová automatizace...",
+        "login_script_name" => "Název",
+        "login_script_edit_steps" => "Upravit kroky…",
         "login_script_name_ph" => "např. Firemní bastion",
         "login_script_name_required" => "Pojmenujte automatizaci.",
         "login_script_invalid" => "Neplatná automatizace",

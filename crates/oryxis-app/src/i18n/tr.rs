@@ -907,6 +907,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Terminalde hangi makineye bağlanılacağını soran bir atlama sunucusunun arkasındaki ana makineler için.",
         "login_script_off" => "Kapalı",
         "login_script_new" => "Yeni otomasyon...",
+        "login_script_name" => "Ad",
+        "login_script_edit_steps" => "Adımları düzenle…",
         "login_script_name_ph" => "örn. Kurumsal atlama sunucusu",
         "login_script_name_required" => "Otomasyona bir ad verin.",
         "login_script_invalid" => "Geçersiz otomasyon",

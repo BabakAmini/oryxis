@@ -778,6 +778,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "适用于通过堡垒机访问的主机，堡垒机会在终端里询问要连接哪台机器。",
         "login_script_off" => "关闭",
         "login_script_new" => "新建自动化...",
+        "login_script_name" => "名称",
+        "login_script_edit_steps" => "编辑步骤…",
         "login_script_name_ph" => "例如：公司堡垒机",
         "login_script_name_required" => "请为自动化命名。",
         "login_script_invalid" => "自动化无效",

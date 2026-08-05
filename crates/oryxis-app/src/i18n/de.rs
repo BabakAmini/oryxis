@@ -769,6 +769,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Für Hosts hinter einem Bastion-Host, der im Terminal nach dem Ziel fragt.",
         "login_script_off" => "Aus",
         "login_script_new" => "Neue Automatisierung...",
+        "login_script_name" => "Name",
+        "login_script_edit_steps" => "Schritte bearbeiten…",
         "login_script_name_ph" => "z. B. Firmen-Bastion",
         "login_script_name_required" => "Geben Sie der Automatisierung einen Namen.",
         "login_script_invalid" => "Ungültige Automatisierung",

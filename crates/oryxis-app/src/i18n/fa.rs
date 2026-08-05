@@ -909,6 +909,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "برای میزبان‌هایی که پشت یک بستیون هستند و بستیون داخل ترمینال می‌پرسد به کدام دستگاه وصل شوید.",
         "login_script_off" => "خاموش",
         "login_script_new" => "خودکارسازی جدید...",
+        "login_script_name" => "نام",
+        "login_script_edit_steps" => "ویرایش مراحل…",
         "login_script_name_ph" => "مثلاً بستیون سازمانی",
         "login_script_name_required" => "برای خودکارسازی نامی بگذارید.",
         "login_script_invalid" => "خودکارسازی نامعتبر است",

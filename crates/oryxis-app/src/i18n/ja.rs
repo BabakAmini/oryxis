@@ -778,6 +778,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "ターミナル内で接続先を尋ねてくる踏み台サーバー経由のホスト向けです。",
         "login_script_off" => "オフ",
         "login_script_new" => "新しい自動化...",
+        "login_script_name" => "名前",
+        "login_script_edit_steps" => "ステップを編集…",
         "login_script_name_ph" => "例: 社内踏み台",
         "login_script_name_required" => "自動化に名前を付けてください。",
         "login_script_invalid" => "自動化が無効です",

@@ -907,6 +907,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Dành cho máy chủ nằm sau một bastion hỏi trong terminal cần kết nối tới máy nào.",
         "login_script_off" => "Tắt",
         "login_script_new" => "Tự động hóa mới...",
+        "login_script_name" => "Tên",
+        "login_script_edit_steps" => "Sửa các bước…",
         "login_script_name_ph" => "ví dụ: Bastion công ty",
         "login_script_name_required" => "Hãy đặt tên cho tự động hóa.",
         "login_script_invalid" => "Tự động hóa không hợp lệ",

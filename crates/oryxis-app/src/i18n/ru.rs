@@ -769,6 +769,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Для хостов за бастионом, который спрашивает в терминале, к какой машине подключиться.",
         "login_script_off" => "Выключено",
         "login_script_new" => "Новая автоматизация...",
+        "login_script_name" => "Название",
+        "login_script_edit_steps" => "Изменить шаги…",
         "login_script_name_ph" => "напр. Корпоративный бастион",
         "login_script_name_required" => "Задайте имя автоматизации.",
         "login_script_invalid" => "Некорректная автоматизация",

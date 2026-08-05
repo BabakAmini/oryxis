@@ -778,6 +778,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "適用於透過跳板機連線的主機，跳板機會在終端機裡詢問要連到哪一台機器。",
         "login_script_off" => "關閉",
         "login_script_new" => "新增自動化...",
+        "login_script_name" => "名稱",
+        "login_script_edit_steps" => "編輯步驟…",
         "login_script_name_ph" => "例如：公司跳板機",
         "login_script_name_required" => "請為自動化命名。",
         "login_script_invalid" => "自動化無效",

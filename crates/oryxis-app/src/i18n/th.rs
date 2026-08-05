@@ -914,6 +914,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "สำหรับโฮสต์ที่อยู่หลังเครื่อง bastion ซึ่งถามในเทอร์มินัลว่าจะเชื่อมต่อไปยังเครื่องใด",
         "login_script_off" => "ปิด",
         "login_script_new" => "สร้างใหม่...",
+        "login_script_name" => "ชื่อ",
+        "login_script_edit_steps" => "แก้ไขขั้นตอน…",
         "login_script_name_ph" => "เช่น bastion ขององค์กร",
         "login_script_name_required" => "กรุณาตั้งชื่อให้ระบบอัตโนมัตินี้",
         "login_script_invalid" => "ระบบอัตโนมัติไม่ถูกต้อง",

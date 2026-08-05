@@ -21,6 +21,23 @@ impl Oryxis {
         message: SettingsMessage,
     ) -> Task<Message> {
         match message {
+            SettingsMessage::LoginScriptOpenInSettings(id) => {
+                // From the host editor's Login automation block. The
+                // step editor lives in Settings > Connection (the host
+                // panel is a side panel; a second full step editor
+                // there would be a duplicated surface), so this is the
+                // bridge: switch to the Settings tab at the right
+                // section AND open the script, one click.
+                let open = self.update(crate::app::Message::Tabs(
+                    crate::app::TabsMessage::OpenSettingsSection(
+                        crate::state::SettingsSection::Connection,
+                    ),
+                ));
+                let edit = self.update(crate::app::Message::Settings(
+                    SettingsMessage::LoginScriptEdit(id),
+                ));
+                return Task::batch([open, edit]);
+            }
             SettingsMessage::LoginScriptEdit(id) => {
                 if let Some(script) = self.login_scripts.iter().find(|s| s.id == id) {
                     self.login_script_form = crate::state::LoginScriptForm {

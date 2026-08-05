@@ -907,6 +907,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "터미널 안에서 접속할 장비를 묻는 배스천 뒤의 호스트를 위한 기능입니다.",
         "login_script_off" => "끔",
         "login_script_new" => "새 자동화...",
+        "login_script_name" => "이름",
+        "login_script_edit_steps" => "단계 편집…",
         "login_script_name_ph" => "예: 사내 배스천",
         "login_script_name_required" => "자동화에 이름을 지정하세요.",
         "login_script_invalid" => "자동화가 올바르지 않습니다",

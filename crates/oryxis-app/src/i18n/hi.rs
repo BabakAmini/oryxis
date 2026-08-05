@@ -913,6 +913,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "उन होस्ट के लिए जो ऐसे बैस्टियन के पीछे हैं जो टर्मिनल में पूछता है कि किस मशीन से जुड़ना है।",
         "login_script_off" => "बंद",
         "login_script_new" => "नया स्वचालन...",
+        "login_script_name" => "नाम",
+        "login_script_edit_steps" => "चरण संपादित करें…",
         "login_script_name_ph" => "जैसे कंपनी बैस्टियन",
         "login_script_name_required" => "स्वचालन को एक नाम दें।",
         "login_script_invalid" => "अमान्य स्वचालन",

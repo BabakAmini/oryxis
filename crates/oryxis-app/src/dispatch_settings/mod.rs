@@ -392,7 +392,8 @@ impl Oryxis {
             | SettingsMessage::SettingSftpOpTimeoutChanged(..)
             ) => self.handle_settings_toggles(m).unwrap_or_else(crate::dispatch::unrouted),
             m @ (
-                SettingsMessage::LoginScriptEdit(..)
+                SettingsMessage::LoginScriptOpenInSettings(..)
+                | SettingsMessage::LoginScriptEdit(..)
                 | SettingsMessage::LoginScriptCancelEdit
                 | SettingsMessage::LoginScriptNameChanged(..)
                 | SettingsMessage::LoginScriptAddStep

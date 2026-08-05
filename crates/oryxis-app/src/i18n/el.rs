@@ -913,6 +913,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Για κόμβους πίσω από bastion που ρωτά μέσα στο τερματικό σε ποιο μηχάνημα να συνδεθεί.",
         "login_script_off" => "Ανενεργός",
         "login_script_new" => "Νέος αυτοματισμός...",
+        "login_script_name" => "Όνομα",
+        "login_script_edit_steps" => "Επεξεργασία βημάτων…",
         "login_script_name_ph" => "π.χ. Εταιρικό bastion",
         "login_script_name_required" => "Δώστε όνομα στον αυτοματισμό.",
         "login_script_invalid" => "Μη έγκυρος αυτοματισμός",

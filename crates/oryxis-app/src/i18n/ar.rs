@@ -925,6 +925,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "للمضيفات خلف خادم وسيط يسأل داخل الطرفية عن الجهاز المراد الوصول إليه.",
         "login_script_off" => "معطّلة",
         "login_script_new" => "أتمتة جديدة...",
+        "login_script_name" => "الاسم",
+        "login_script_edit_steps" => "تحرير الخطوات…",
         "login_script_name_ph" => "مثال: الخادم الوسيط للشركة",
         "login_script_name_required" => "أعطِ الأتمتة اسمًا.",
         "login_script_invalid" => "أتمتة غير صالحة",

@@ -907,6 +907,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "Untuk host di balik bastion yang menanyakan di terminal mesin mana yang dituju.",
         "login_script_off" => "Mati",
         "login_script_new" => "Otomatisasi baru...",
+        "login_script_name" => "Nama",
+        "login_script_edit_steps" => "Edit langkah…",
         "login_script_name_ph" => "mis. Bastion kantor",
         "login_script_name_required" => "Beri nama otomatisasi ini.",
         "login_script_invalid" => "Otomatisasi tidak valid",

@@ -913,6 +913,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "login_script_desc" => "למארחים שמאחורי שרת קפיצה ששואל בתוך הטרמינל לאיזה מחשב להתחבר.",
         "login_script_off" => "כבויה",
         "login_script_new" => "אוטומציה חדשה...",
+        "login_script_name" => "שם",
+        "login_script_edit_steps" => "עריכת שלבים…",
         "login_script_name_ph" => "לדוגמה: שרת קפיצה ארגוני",
         "login_script_name_required" => "תנו שם לאוטומציה.",
         "login_script_invalid" => "אוטומציה לא תקינה",
