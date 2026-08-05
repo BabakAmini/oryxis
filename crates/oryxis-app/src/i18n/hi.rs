@@ -979,6 +979,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "पासवर्ड सेट करें",
         "no_active_connection" => "कोई सक्रिय कनेक्शन नहीं",
         "status_bar_connected" => "कनेक्टेड",
+        "status_bar_connecting" => "कनेक्ट हो रहा है...",
+        "status_bar_reconnecting" => "फिर से कनेक्ट हो रहा है...",
+        "status_bar_disconnected" => "डिस्कनेक्टेड",
 
         // Host key verification
         "hk_unknown_title" => "अज्ञात होस्ट कुंजी",

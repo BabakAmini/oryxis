@@ -973,6 +973,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "Đặt mật khẩu",
         "no_active_connection" => "Không có kết nối hoạt động",
         "status_bar_connected" => "đã kết nối",
+        "status_bar_connecting" => "đang kết nối...",
+        "status_bar_reconnecting" => "đang kết nối lại...",
+        "status_bar_disconnected" => "đã ngắt kết nối",
 
         // Host key verification
         "hk_unknown_title" => "Khóa máy chủ không xác định",

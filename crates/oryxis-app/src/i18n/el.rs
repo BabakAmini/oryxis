@@ -979,6 +979,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "Ορισμός κωδικού",
         "no_active_connection" => "Καμία ενεργή σύνδεση",
         "status_bar_connected" => "συνδεδεμένο",
+        "status_bar_connecting" => "σύνδεση...",
+        "status_bar_reconnecting" => "επανασύνδεση...",
+        "status_bar_disconnected" => "αποσυνδέθηκε",
 
         // Host key verification
         "hk_unknown_title" => "Άγνωστο κλειδί host",

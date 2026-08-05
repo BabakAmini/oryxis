@@ -980,6 +980,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "ตั้งรหัสผ่าน",
         "no_active_connection" => "ไม่มีการเชื่อมต่อที่ใช้งานอยู่",
         "status_bar_connected" => "เชื่อมต่อแล้ว",
+        "status_bar_connecting" => "กำลังเชื่อมต่อ...",
+        "status_bar_reconnecting" => "กำลังเชื่อมต่อใหม่...",
+        "status_bar_disconnected" => "ตัดการเชื่อมต่อแล้ว",
 
         // Host key verification
         "hk_unknown_title" => "คีย์โฮสต์ที่ไม่รู้จัก",

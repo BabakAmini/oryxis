@@ -991,6 +991,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "تعيين كلمة المرور",
         "no_active_connection" => "لا يوجد اتصال نشط",
         "status_bar_connected" => "متصل",
+        "status_bar_connecting" => "جارٍ الاتصال...",
+        "status_bar_reconnecting" => "جارٍ إعادة الاتصال...",
+        "status_bar_disconnected" => "غير متصل",
 
         // Host key verification
         "hk_unknown_title" => "مفتاح مضيف غير معروف",

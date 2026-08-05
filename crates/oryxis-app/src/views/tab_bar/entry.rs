@@ -314,23 +314,22 @@ impl Oryxis {
         // tab shape keeps the strip uniform while leaving the
         // dashboard card free to honour the user's choice.
         let host_icon_style = crate::widgets::HostIconStyle::Rounded;
-        // Connection-state dot color. Connecting beats every other
-        // signal because a tab that's currently dialing isn't yet
-        // "disconnected" in the user's mental model. Local-shell
-        // tabs (no SSH session, not labeled disconnected) get no
-        // dot, the OS badge already says what they are.
+        // Connection-state dot color, from the same `tab_conn_state`
+        // the status bar reads, so the dot and the bar can never
+        // disagree about one tab. Local-shell tabs and dormant pinned
+        // placeholders get no dot: the OS badge already says what they
+        // are. This used to test `session.is_some()`, which left a
+        // split tab's dead focused pane green (only single-pane tabs
+        // get relabeled "(disconnected)") and left a live cloud tab
+        // dotless (its transport is a plugin process, not a handle).
         let status_dot: Option<Color> = if self.prefs.show_tab_status_dot {
-            let is_connecting = self.connecting.as_ref().map(|cp| cp.tab_idx) == Some(idx);
-            let is_disconnected = tab.label.ends_with(" (disconnected)");
-            let is_remote = tab.active().session.is_some();
-            if is_connecting {
-                Some(OryxisColors::t().warning)
-            } else if is_disconnected {
-                Some(OryxisColors::t().error)
-            } else if is_remote {
-                Some(OryxisColors::t().success)
-            } else {
-                None
+            match self.tab_conn_state(idx) {
+                TabConnState::Connecting | TabConnState::Reconnecting => {
+                    Some(OryxisColors::t().warning)
+                }
+                TabConnState::Lost => Some(OryxisColors::t().error),
+                TabConnState::Connected => Some(OryxisColors::t().success),
+                TabConnState::Idle => None,
             }
         } else {
             None

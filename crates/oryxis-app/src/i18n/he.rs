@@ -979,6 +979,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "הגדרת סיסמה",
         "no_active_connection" => "אין חיבור פעיל",
         "status_bar_connected" => "מחובר",
+        "status_bar_connecting" => "מתחבר...",
+        "status_bar_reconnecting" => "מתחבר מחדש...",
+        "status_bar_disconnected" => "מנותק",
 
         // Host key verification
         "hk_unknown_title" => "מפתח מארח לא מוכר",

@@ -973,6 +973,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "Parola Belirle",
         "no_active_connection" => "Etkin bağlantı yok",
         "status_bar_connected" => "bağlı",
+        "status_bar_connecting" => "bağlanılıyor...",
+        "status_bar_reconnecting" => "yeniden bağlanılıyor...",
+        "status_bar_disconnected" => "bağlantı kesildi",
 
         // Host key verification
         "hk_unknown_title" => "Bilinmeyen Sunucu Anahtarı",

@@ -114,6 +114,7 @@ mod ssh_config;
 mod state;
 mod subscription;
 mod sync_runtime;
+mod tab_conn_state;
 mod tab_cycle;
 mod theme;
 mod monitor;

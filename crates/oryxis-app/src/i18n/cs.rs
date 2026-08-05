@@ -979,6 +979,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "Nastavit heslo",
         "no_active_connection" => "Žádné aktivní připojení",
         "status_bar_connected" => "připojeno",
+        "status_bar_connecting" => "připojování...",
+        "status_bar_reconnecting" => "opětovné připojování...",
+        "status_bar_disconnected" => "odpojeno",
 
         // Host key verification
         "hk_unknown_title" => "Neznámý klíč hostitele",

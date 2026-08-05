@@ -980,6 +980,9 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "set_password" => "Set Password",
         "no_active_connection" => "No active connection",
         "status_bar_connected" => "connected",
+        "status_bar_connecting" => "connecting...",
+        "status_bar_reconnecting" => "reconnecting...",
+        "status_bar_disconnected" => "disconnected",
 
         // Host key verification
         "hk_unknown_title" => "Unknown Host Key",

@@ -975,6 +975,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "تعیین گذرواژه",
         "no_active_connection" => "اتصال فعالی وجود ندارد",
         "status_bar_connected" => "متصل",
+        "status_bar_connecting" => "در حال اتصال...",
+        "status_bar_reconnecting" => "در حال اتصال مجدد...",
+        "status_bar_disconnected" => "قطع شده",
 
         // Host key verification
         "hk_unknown_title" => "کلید میزبان ناشناخته",

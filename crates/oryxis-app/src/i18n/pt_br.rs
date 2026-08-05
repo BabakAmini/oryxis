@@ -944,6 +944,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "Definir Senha",
         "no_active_connection" => "Nenhuma conexão ativa",
         "status_bar_connected" => "conectado",
+        "status_bar_connecting" => "conectando...",
+        "status_bar_reconnecting" => "reconectando...",
+        "status_bar_disconnected" => "desconectado",
 
         "hk_unknown_title" => "Chave do Host Desconhecida",
         "hk_warning_title" => "CHAVE DO HOST ALTERADA",

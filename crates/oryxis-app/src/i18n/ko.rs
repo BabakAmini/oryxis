@@ -973,6 +973,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "비밀번호 설정",
         "no_active_connection" => "활성 연결 없음",
         "status_bar_connected" => "연결됨",
+        "status_bar_connecting" => "연결 중...",
+        "status_bar_reconnecting" => "재연결 중...",
+        "status_bar_disconnected" => "연결 끊김",
 
         // Host key verification
         "hk_unknown_title" => "알 수 없는 호스트 키",

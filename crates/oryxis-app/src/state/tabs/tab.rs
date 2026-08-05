@@ -508,6 +508,18 @@ impl TerminalTab {
         }
     }
 
+    /// True for plugin-backed cloud tabs (ECS Exec / SSM Session /
+    /// `kubectl exec`): the session is a local `session-manager-plugin`
+    /// or `kubectl` process on a PTY, so the pane carries no `session`
+    /// handle and the tab reads as sessionless to anything that looks
+    /// for one. `spawn_plugin_tab` is the only thing that raises
+    /// `ssm_keepalive`, which is why that flag doubles as the marker
+    /// (the keepalive is a consequence of being plugin-backed, not a
+    /// separate fact).
+    pub fn is_plugin_backed(&self) -> bool {
+        self.ssm_keepalive
+    }
+
     /// Currently focused pane. Falls back to the first pane if `focused`
     /// is stale (e.g. just after a close), so this never panics.
     pub fn active(&self) -> &Pane {

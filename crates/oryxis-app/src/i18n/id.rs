@@ -973,6 +973,9 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "set_password" => "Atur Kata Sandi",
         "no_active_connection" => "Tidak ada koneksi aktif",
         "status_bar_connected" => "terhubung",
+        "status_bar_connecting" => "menghubungkan...",
+        "status_bar_reconnecting" => "menghubungkan ulang...",
+        "status_bar_disconnected" => "terputus",
 
         // Host key verification
         "hk_unknown_title" => "Kunci Host Tidak Dikenal",
