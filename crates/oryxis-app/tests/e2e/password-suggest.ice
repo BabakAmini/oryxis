@@ -107,3 +107,16 @@ wait 800
 # do not reach inside the terminal canvas. The screenshot must show
 # `[hunter2]`, the stored password and nothing else.
 screenshot pwsuggest-sent
+
+# 5. The popup follows its prompt. Cancelling the prompt (Ctrl+C ends
+# the `read`, the shell prompt returns) must close the popup on the
+# next output: a pick on a leftover popup would type the password into
+# an ECHOING shell, putting it on screen, in the scrollback and in the
+# session recording.
+type "read -s -p 'Password: ' PW4"
+type enter
+wait 1200
+expect "Stored passwords"
+type ctrl+c
+wait 800
+absent "Stored passwords"

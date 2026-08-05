@@ -104,13 +104,12 @@ impl Oryxis {
                 }
             })
             .into();
-            // Hover moves the selection so the mouse and the keyboard
-            // agree on what is highlighted. It is presentation only:
-            // the pick carries its own row.
-            col = col.push(
-                MouseArea::new(row)
-                    .on_enter(Message::Terminal(TerminalMessage::PasswordSuggestHover(idx))),
-            );
+            // No hover wiring on purpose. The button's own `Hovered`
+            // status already highlights the row under the cursor, and
+            // hover must never reach `selected`: that would arm Enter,
+            // and the popup opens at the caret, right where the pointer
+            // usually sits. `selected` is the KEYBOARD's, exclusively.
+            col = col.push(row);
         }
 
         col.push(

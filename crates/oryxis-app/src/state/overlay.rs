@@ -122,6 +122,12 @@ pub(crate) enum OverlayContent {
         entries: Vec<PasswordSource>,
         /// `None` until the user engages with Down: an unengaged popup
         /// is a hint, and Enter must still reach the prompt.
+        ///
+        /// KEYBOARD-only, never set by hover: Enter picks whatever is
+        /// selected, so a hover-set selection would turn "mouse brushed
+        /// the popup, then Enter aimed at the prompt" into sending a
+        /// secret nobody picked. Mouse users click; the row carries its
+        /// own index.
         selected: Option<usize>,
     },
 }

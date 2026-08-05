@@ -152,6 +152,14 @@ impl Oryxis {
         if self.any_modal_blocks_input() {
             return None;
         }
+        // The soft auto-lock keeps sessions (and their output) flowing
+        // with `active_view` untouched, so without this gate a prompt
+        // arriving behind the lock screen would open a popup in state
+        // that pops into view at unlock: the existence checks below
+        // work on a SEALED vault by design.
+        if self.vault_ui.state != crate::state::VaultState::Unlocked {
+            return None;
+        }
         if self.active_view != crate::state::View::Terminal {
             return None;
         }
@@ -273,15 +281,6 @@ impl Oryxis {
                     self.overlay.as_mut().map(|o| &mut o.content)
                 {
                     *selected = Some(next);
-                }
-            }
-            TerminalMessage::PasswordSuggestHover(idx) => {
-                if let Some(OverlayContent::PasswordSuggest {
-                    entries, selected, ..
-                }) = self.overlay.as_mut().map(|o| &mut o.content)
-                    && idx < entries.len()
-                {
-                    *selected = Some(idx);
                 }
             }
             TerminalMessage::PasswordSuggestDismiss => {

@@ -406,6 +406,18 @@ impl Oryxis {
                 // borrow below, because a fired step writes back through
                 // `self`. It is a no-op for every pane without an armed
                 // script, which is nearly all of them.
+                //
+                // Whether a script was armed is captured BEFORE the feed:
+                // the batch that finishes a run clears `login_script`
+                // inside it, and the autofill gate below must still count
+                // that batch as script-owned. The grid at its end shows
+                // the bastion's password prompt in front of the cursor
+                // (the runner's answer is not echoed), so reading it
+                // would raise a popup for the prompt the script just
+                // answered.
+                let had_login_script = self
+                    .pane_by_id(pane_id)
+                    .is_some_and(|p| p.login_script.is_some());
                 self.feed_login_script(pane_id, &bytes);
                 // Route to the specific pane (a tab may have several, each
                 // with its own PTY). Scan is trivial at these counts.
@@ -453,7 +465,16 @@ impl Oryxis {
                 // overlay slot), and the popup itself is raised AFTER
                 // it, since showing it mutates `self.overlay`.
                 let autofill_pane = self.password_suggest_target();
+                // The open popup's pane, if any. The read must KEEP
+                // running there even though the overlay slot is taken:
+                // "the prompt is gone" is the popup's own dismissal
+                // signal, and without it a popup outlived its prompt.
+                // Field case: Ctrl+C cancels the prompt, the shell
+                // prompt returns, and a pick on the leftover popup would
+                // type the password into an ECHOING shell.
+                let suggest_open_on = self.password_suggest_pane();
                 let mut raise_password_suggest = false;
+                let mut dismiss_stale_suggest = false;
                 if let Some((tab_idx, pane)) = self
                     .tabs
                     .iter_mut()
@@ -473,11 +494,17 @@ impl Oryxis {
                     // Read inside the lock, compared against the pane's
                     // remembered signature just after it.
                     let mut prompt_now: Option<oryxis_terminal::PasswordPrompt> = None;
-                    // Never while a login script is running: the runner
-                    // exists to answer exactly these prompts (issue
-                    // #122), and two answers on one PTY is one too many.
-                    let autofill_read =
-                        autofill_pane == Some(pane_id) && pane.login_script.is_none();
+                    // Never while a login script owns the prompts: the
+                    // runner exists to answer exactly these (issue #122),
+                    // and two answers on one PTY is one too many. Both
+                    // halves matter: `had_login_script` covers the batch
+                    // whose feed FINISHED the run (the grid still shows
+                    // the prompt the script just answered), the live
+                    // check covers every batch in between.
+                    let autofill_read = (autofill_pane == Some(pane_id)
+                        || suggest_open_on == Some(pane_id))
+                        && !had_login_script
+                        && pane.login_script.is_none();
                     if let Ok(mut state) = pane.terminal.lock() {
                         state.process(&bytes);
                         // Grid size this batch was processed at, for the
@@ -588,11 +615,19 @@ impl Oryxis {
                     // a dismissed popup the moment its own gate (an open
                     // overlay) went away.
                     if autofill_read {
+                        let prompt_present = prompt_now.is_some();
                         raise_password_suggest =
                             crate::dispatch_password_suggest::observe_password_prompt(
                                 &mut pane.password_prompt_sig,
                                 prompt_now,
                             );
+                        // The popup follows its prompt: when the thing it
+                        // was raised for is no longer waiting (answered,
+                        // cancelled with Ctrl+C, redrawn, alt screen),
+                        // the suggestion is stale and a pick would type a
+                        // password into whatever replaced it.
+                        dismiss_stale_suggest =
+                            !prompt_present && suggest_open_on == Some(pane_id);
                     }
                     // OSC 9;4 progress (state 0 = clear) drives the tab border.
                     pane.progress = new_progress.filter(|p| p.state != 0 && p.value > 0);
@@ -882,6 +917,8 @@ impl Oryxis {
                 // all.
                 if raise_password_suggest {
                     self.show_password_suggest(pane_id);
+                } else if dismiss_stale_suggest {
+                    self.dismiss_password_suggest_for(pane_id);
                 }
                 // Arm the one-shot flush for a synchronized update that
                 // stalled with output buffered. Fires `flush_sync` at the

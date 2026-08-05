@@ -43,9 +43,14 @@ pub enum TerminalMessage {
     /// Close the popup without sending anything (Esc, a click on the
     /// terminal, a tab switch, a disconnect). The prompt's signature
     /// stays recorded, so it does not immediately reopen.
+    ///
+    /// There is deliberately no Hover message: hover highlighting comes
+    /// from the row button's own `Status::Hovered` styling, and letting
+    /// hover set the SELECTION would arm Enter, so brushing the mouse
+    /// across the popup (which opens at the caret, right where the
+    /// pointer sits) plus an Enter aimed at the prompt would send a
+    /// secret nobody picked.
     PasswordSuggestDismiss,
-    /// Mouse moved over the row at `usize`.
-    PasswordSuggestHover(usize),
     /// Broadcast input (C2): arm / disarm fan-out of keystrokes, pastes and
     /// snippets to every pane of the tab at `usize`. Toggled by the status
     /// segment, the tab context menu and the `ToggleBroadcastInput` hotkey.
