@@ -140,7 +140,7 @@ impl Oryxis {
             run,
             vars,
         });
-        iced::widget::operation::focus(iced::widget::Id::new("snippet-var-0"))
+        crate::widgets::focus_input(iced::widget::Id::new("snippet-var-0"))
     }
 
     /// Rebuild the Group combo options from the distinct snippet
@@ -157,9 +157,10 @@ impl Oryxis {
             }
         }
         labels.sort_by_key(|s| s.to_lowercase());
-        let selection = (!self.snippet_form.group.is_empty()).then(|| self.snippet_form.group.clone());
-        self.snippet_form.group_combo =
-            iced::widget::combo_box::State::with_selection(labels, selection.as_ref());
+        // The live selection travels through the widget's `selection`
+        // argument at view time (sidebar_snippets.rs / snippets.rs);
+        // post-refactor the State only carries the options.
+        self.snippet_form.group_combo = iced::widget::combo_box::State::new(labels);
     }
 
     pub(crate) fn handle_snippets(

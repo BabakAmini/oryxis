@@ -368,7 +368,8 @@ impl Oryxis {
             10.0,
             iced::widget::combo_box(
                 &self.editor_startup_combo,
-                &startup_selected,
+                // Owned placeholder (frame-local String); see auth.rs.
+                startup_selected.clone(),
                 Some(&startup_selected),
                 |v| Message::Editor(EditorMessage::EditorStartupChoiceChanged(v)),
             )

@@ -55,7 +55,7 @@ impl Oryxis {
         // Land the cursor in the first field so the very first Tab keypress
         // walks the form (focus_next with nothing focused would otherwise
         // grab the grid search input).
-        iced::widget::operation::focus(iced::widget::Id::new("editor-hostname"))
+        crate::widgets::focus_input(iced::widget::Id::new("editor-hostname"))
     }
 
     pub(crate) fn new_connection_form(&self) -> crate::state::ConnectionForm {
@@ -146,10 +146,12 @@ impl Oryxis {
             .collect();
         labels.sort_by_key(|s| s.to_lowercase());
         labels.dedup();
-        let selection = self.editor_form.group_name.clone();
-        let selection = (!selection.is_empty()).then_some(selection);
-        self.editor_parent_combo =
-            iced::widget::combo_box::State::with_selection(labels, selection.as_ref());
+        // The live selection travels through the widget's `selection`
+        // argument at view time (host_panel/basics.rs); since the
+        // upstream unify-text-editing refactor the State only carries
+        // the options (`with_selection` is gone, the widget restores
+        // the selected value itself).
+        self.editor_parent_combo = iced::widget::combo_box::State::new(labels);
 
         self.reset_editor_startup_combo();
         self.reset_editor_key_combo();

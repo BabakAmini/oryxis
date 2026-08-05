@@ -103,7 +103,6 @@ impl Oryxis {
                     width: border_width,
                     color: border_color,
                 },
-                icon: c.text_muted,
                 placeholder: c.text_muted,
                 value: c.text_primary,
                 selection: c.accent,

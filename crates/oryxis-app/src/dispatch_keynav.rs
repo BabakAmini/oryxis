@@ -230,7 +230,7 @@ impl Oryxis {
             if search_collapsed && !floating_open {
                 return self.update(Message::Navigation(NavigationMessage::ToggleToolbarSearch));
             }
-            return iced::widget::operation::focus(id);
+            return crate::widgets::focus_input(id);
         };
         let Some(item) = self.keynav_zone_entry_item(zone, forward) else {
             // Zone unexpectedly empty (cycle_zone said otherwise only
@@ -676,7 +676,7 @@ impl Oryxis {
             };
             if let Some(id) = a.focus {
                 self.keynav.focus = None;
-                return iced::widget::operation::focus(id);
+                return crate::widgets::focus_input(id);
             }
             if let Some(msg) = a.activate {
                 return self.update(msg);
@@ -713,7 +713,7 @@ impl Oryxis {
                 };
                 if let Some(id) = a.focus {
                     self.keynav.focus = None;
-                    return iced::widget::operation::focus(id);
+                    return crate::widgets::focus_input(id);
                 }
                 let Some(msg) = a.activate else {
                     return Task::none();

@@ -112,7 +112,10 @@ impl Oryxis {
                 10.0,
                 iced::widget::combo_box(
                     &self.editor_key_combo,
-                    &key_selected,
+                    // Owned placeholder: post-refactor it is an 'a
+                    // fragment, and this String is frame-local. The
+                    // selection stays a borrow (cloned by the widget).
+                    key_selected.clone(),
                     Some(&key_selected),
                     |v| Message::Editor(EditorMessage::EditorKeyChanged(v)),
                 )

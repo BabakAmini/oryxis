@@ -159,7 +159,7 @@ impl Oryxis {
                     }
                     // Land the keyboard in the unlock field so the user
                     // returning to the machine just types the password.
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         "vault-unlock-password",
                     ));
                 }
@@ -276,7 +276,7 @@ impl Oryxis {
                         self.pending_auth_switch = None;
                         // Same auto-focus as the soft lock: the unlock
                         // field is the only thing to interact with.
-                        return iced::widget::operation::focus(iced::widget::Id::new(
+                        return crate::widgets::focus_input(iced::widget::Id::new(
                             "vault-unlock-password",
                         ));
                     } else {

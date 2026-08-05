@@ -33,7 +33,8 @@ impl Oryxis {
             10.0,
             iced::widget::combo_box(
                 &self.editor_login_script_combo,
-                &selected,
+                // Owned placeholder (frame-local String); see auth.rs.
+                selected.clone(),
                 Some(&selected),
                 |v| Message::Editor(EditorMessage::EditorLoginScriptChanged(v)),
             )
@@ -132,7 +133,9 @@ impl Oryxis {
                     // two surfaces.
                     text(name).size(12).color(OryxisColors::t().text_muted),
                     Space::new().height(4),
-                    text_input(t("login_script_var_ph"), &value)
+                    // Owned value: the pair is produced per iteration
+                    // and text_input borrows its fragments for 'a.
+                    text_input(t("login_script_var_ph"), value)
                         .id(id)
                         .on_input(move |v| {
                             Message::Editor(EditorMessage::EditorLoginScriptVarChanged(
@@ -208,7 +211,8 @@ impl Oryxis {
             10.0,
             iced::widget::combo_box(
                 &self.editor_script_template_combo,
-                &template_label,
+                // Owned placeholder (frame-local String); see auth.rs.
+                template_label.clone(),
                 Some(&template_label),
                 |v| Message::Editor(EditorMessage::EditorScriptDraftTemplateChanged(v)),
             )
@@ -221,10 +225,13 @@ impl Oryxis {
 
         // One helper for the four text rows: same shape, same keynav
         // contract, different field.
+        // `value` carries the outer 'a explicitly: the closure feeds it
+        // to `text_input`, which post-refactor borrows its fragments
+        // for the element's lifetime instead of copying.
         let field = |id: &'static str,
                      label: &'static str,
                      placeholder: &'static str,
-                     value: &str,
+                     value: &'a str,
                      on_input: fn(String) -> Message|
          -> Element<'a, Message> {
             let wid = iced::widget::Id::new(id);

@@ -94,7 +94,7 @@ impl Oryxis {
                         SftpPaneSide::Left => "sftp-filter-pop-left",
                         SftpPaneSide::Right => "sftp-filter-pop-right",
                     };
-                    return Ok(iced::widget::operation::focus(iced::widget::Id::new(id)));
+                    return Ok(crate::widgets::focus_input(iced::widget::Id::new(id)));
                 }
             }
             SftpMessage::SftpToggleLog => {

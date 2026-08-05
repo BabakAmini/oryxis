@@ -198,7 +198,7 @@ impl Oryxis {
                                     bio_task,
                                     self.agent_boot_task(),
                                     self.take_perf_mode_toast_task(),
-                                    iced::widget::operation::focus(iced::widget::Id::new(
+                                    crate::widgets::focus_input(iced::widget::Id::new(
                                         "search-dashboard",
                                     )),
                                 ]);

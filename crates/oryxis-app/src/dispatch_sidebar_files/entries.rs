@@ -25,7 +25,7 @@ impl Oryxis {
                     .to_string();
                 pane.files.new_entry = None;
                 pane.files.rename = Some((path, basename));
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     "sidebar-files-rename",
                 ));
             }
@@ -80,7 +80,7 @@ impl Oryxis {
                 }
                 pane.files.rename = None;
                 pane.files.new_entry = Some((kind, String::new()));
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     "sidebar-files-new",
                 ));
             }

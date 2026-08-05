@@ -289,7 +289,7 @@ impl Oryxis {
         self.panels.session_group_panel = true;
         // Land focus in the name field so the user can type immediately
         // (otherwise the first keystrokes go nowhere, reading as broken).
-        iced::widget::operation::focus(iced::widget::Id::new("session-group-name"))
+        crate::widgets::focus_input(iced::widget::Id::new("session-group-name"))
     }
 
     fn save_session_group_form(&mut self) -> Task<Message> {

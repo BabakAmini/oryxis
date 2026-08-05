@@ -4,7 +4,7 @@ use super::*;
 use iced::widget::column;
 
 impl Oryxis {
-    pub(crate) fn view_settings_sftp(&self) -> Element<'_, Message> {
+    pub(crate) fn view_settings_sftp<'a>(&'a self) -> Element<'a, Message> {
         // Keyboard rows are recorded in visual order; each input row
         // focuses its field on Enter (ids are static, the fork's
         // widget::Id only takes &'static str). Recording happens at
@@ -35,9 +35,11 @@ impl Oryxis {
             ),
         ];
 
+        // `value` carries the element lifetime: post-refactor
+        // `text_input` borrows its fragments instead of copying.
         let timeout_input = |label: &str,
                              hint: &str,
-                             value: &str,
+                             value: &'a str,
                              id: &'static str,
                              on_input: fn(String) -> Message| {
             column![

@@ -154,7 +154,7 @@ pub(crate) fn close_guard_modal<'a>() -> Element<'a, Message> {
 
 /// Modal for "New folder" / "New file", single text input + create/cancel.
 /// `Enter` in the input commits, mirroring the inline rename behaviour.
-pub(crate) fn new_entry_modal<'a>(entry: &crate::state::SftpNewEntry) -> Element<'a, Message> {
+pub(crate) fn new_entry_modal<'a>(entry: &'a crate::state::SftpNewEntry) -> Element<'a, Message> {
     let title = match entry.kind {
         SftpEntryKind::Folder => t("new_folder"),
         SftpEntryKind::File => t("new_file"),
@@ -376,7 +376,7 @@ pub(crate) fn drag_ghost<'a>(label: &str) -> Element<'a, Message> {
 /// doesn't render (setuid/setgid/sticky) are preserved verbatim from
 /// the original mode.
 pub(crate) fn properties_modal<'a>(
-    props: &crate::state::PropertiesView,
+    props: &'a crate::state::PropertiesView,
 ) -> Element<'a, Message> {
     let basename = props
         .path

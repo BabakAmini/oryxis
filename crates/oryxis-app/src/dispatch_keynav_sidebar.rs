@@ -175,7 +175,7 @@ impl Oryxis {
         self.keynav.sidebar_selected = Some((tab, next));
         let action = self.keynav.sidebar_items.borrow().get(next)?.action.clone();
         let step = match action.focus {
-            Some(id) => iced::widget::operation::focus(id),
+            Some(id) => crate::widgets::focus_input(id),
             None => {
                 // Walking onto a non-input row blurs whatever input had
                 // the keyboard; that blur also closes a pending Files
@@ -226,7 +226,7 @@ impl Oryxis {
                     // other row would read as stuck.
                     self.keynav.sidebar_selected = None;
                     if self.sidebar_search_open {
-                        return Some(iced::widget::operation::focus(iced::widget::Id::new(
+                        return Some(crate::widgets::focus_input(iced::widget::Id::new(
                             "sidebar-snippet-search",
                         )));
                     }
@@ -235,7 +235,7 @@ impl Oryxis {
                 }
                 TerminalSidebarTab::History => {
                     self.keynav.sidebar_selected = None;
-                    return Some(iced::widget::operation::focus(iced::widget::Id::new(
+                    return Some(crate::widgets::focus_input(iced::widget::Id::new(
                         "sidebar-history-search",
                     )));
                 }
@@ -555,14 +555,14 @@ impl Oryxis {
         match target {
             TerminalSidebarTab::Chat => {
                 self.keynav.sidebar_selected = None;
-                iced::widget::operation::focus(iced::widget::Id::new("chat-input"))
+                crate::widgets::focus_input(iced::widget::Id::new("chat-input"))
             }
             TerminalSidebarTab::History => {
                 self.refresh_command_history();
                 // Owner call: entering History goes straight to its
                 // search field (real focus; Tab walks on from there).
                 self.keynav.sidebar_selected = None;
-                iced::widget::operation::focus(iced::widget::Id::new(
+                crate::widgets::focus_input(iced::widget::Id::new(
                     "sidebar-history-search",
                 ))
             }

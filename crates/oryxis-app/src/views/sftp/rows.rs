@@ -132,7 +132,10 @@ pub(crate) fn name_label_widget<'a>(
 ) -> (Element<'a, Message>, Option<String>) {
     use crate::state::SftpColumn;
     if let Some(input) = rename_input {
-        let w = text_input(name, input)
+        // Owned copies: post-refactor `text_input` borrows its
+        // fragments for the element's lifetime, and both strs here are
+        // caller-scoped.
+        let w = text_input(name.to_string(), input.to_string())
             .id(iced::widget::Id::new(RENAME_INPUT_ID))
             .on_input(|v| Message::Sftp(SftpMessage::SftpRenameInput(v)))
             .on_submit(Message::Sftp(SftpMessage::SftpRenameCommit))

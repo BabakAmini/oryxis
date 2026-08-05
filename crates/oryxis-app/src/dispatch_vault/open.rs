@@ -50,7 +50,7 @@ impl Oryxis {
                             return Task::batch([
                                 self.agent_boot_task(),
                                 self.take_perf_mode_toast_task(),
-                                iced::widget::operation::focus(iced::widget::Id::new(
+                                crate::widgets::focus_input(iced::widget::Id::new(
                                     "search-dashboard",
                                 )),
                             ]);
@@ -173,7 +173,7 @@ impl Oryxis {
                                 // Land on Home with the host search focused
                                 // so the user can type / keyboard-navigate
                                 // immediately (matches ChangeView behavior).
-                                unlock_tasks.push(iced::widget::operation::focus(
+                                unlock_tasks.push(crate::widgets::focus_input(
                                     iced::widget::Id::new("search-dashboard"),
                                 ));
                             }

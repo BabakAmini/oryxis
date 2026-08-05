@@ -69,7 +69,7 @@ impl Oryxis {
                     return self.update(Message::Terminal(TerminalMessage::TerminalSearchOpen));
                 }
                 if let Some(id) = self.active_view_search_id() {
-                    return iced::widget::operation::focus(id);
+                    return crate::widgets::focus_input(id);
                 }
             }
             // Routed here by the parent; anything else is a

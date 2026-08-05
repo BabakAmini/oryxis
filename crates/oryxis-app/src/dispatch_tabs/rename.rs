@@ -25,7 +25,7 @@ impl Oryxis {
                         Some((crate::state::TabRef::Terminal(tab._id), current));
                     // Drop the keyboard straight into the input, mirroring
                     // the SFTP inline rename.
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         crate::views::layout::TAB_RENAME_INPUT_ID,
                     ));
                 }
@@ -35,7 +35,7 @@ impl Oryxis {
                 if let Some(tab) = self.sftp_tabs.get(idx) {
                     let current = tab.display_label().to_string();
                     self.tab_rename = Some((crate::state::TabRef::Sftp(tab.id), current));
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         crate::views::layout::TAB_RENAME_INPUT_ID,
                     ));
                 }

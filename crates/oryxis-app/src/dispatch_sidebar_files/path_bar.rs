@@ -22,7 +22,7 @@ impl Oryxis {
                 pane.files.path_editing = Some(pane.files.path.clone());
                 // Drop the keyboard straight into the input (mirrors the
                 // SFTP pane's path editing).
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     "sidebar-files-path",
                 ));
             }

@@ -20,7 +20,7 @@ impl Oryxis {
                 self.new_tab_picker_group = None;
                 // Land focus on the search so the picker is
                 // type-to-filter from the first keystroke.
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     crate::state::NEW_TAB_PICKER_SEARCH_ID,
                 ));
             }
@@ -95,7 +95,7 @@ impl Oryxis {
                 // new-tab picker and the command palette. The modal's
                 // Up/Down/Enter navigation arrives via the global key
                 // subscription, so the focused input never blocks it.
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     crate::state::TAB_JUMP_SEARCH_ID,
                 ));
             }
@@ -119,7 +119,7 @@ impl Oryxis {
                 self.palette.open = true;
                 self.palette.query.clear();
                 // Focus the query input so the user types immediately.
-                return iced::widget::operation::focus(
+                return crate::widgets::focus_input(
                     iced::widget::Id::new(crate::palette::PALETTE_INPUT_ID),
                 );
             }

@@ -70,7 +70,7 @@ impl Oryxis {
                     // Owner call: entering History lands the keyboard in
                     // its search field. No-op on the empty state, whose
                     // frame renders no such input.
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         "sidebar-history-search",
                     ));
                 }
@@ -93,7 +93,7 @@ impl Oryxis {
                 self.sidebar_search_open = !self.sidebar_search_open;
                 self.sidebar_sort_open = false;
                 if self.sidebar_search_open {
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         "sidebar-snippet-search",
                     ));
                 }

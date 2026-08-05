@@ -578,7 +578,7 @@ impl Oryxis {
             } else {
                 pane.local_path.display().to_string()
             };
-            text_input(&placeholder, input)
+            text_input(placeholder, input)
                 .on_input(move |s| Message::Sftp(SftpMessage::SftpEditPath(side, s)))
                 .on_submit(Message::Sftp(SftpMessage::SftpCommitPath(side)))
                 .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })

@@ -24,7 +24,7 @@ impl Oryxis {
                 self.pending_kbi_quick = quick;
                 // Land focus in the first prompt field so OTP entry is
                 // type-and-Enter without a click.
-                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                return Ok(crate::widgets::focus_input(iced::widget::Id::new(
                     crate::state::KBI_FIRST_INPUT_ID,
                 )));
             }

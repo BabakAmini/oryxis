@@ -85,7 +85,7 @@ impl Oryxis {
                     // never stuck on a prompt the OS keeps rejecting, and
                     // focus the input the error just told them to use.
                     self.vault_ui.password_fallback = true;
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         "vault-unlock-password",
                     ));
                 }
@@ -96,7 +96,7 @@ impl Oryxis {
                 // this is a per-lock choice, not a mode switch.
                 self.vault_ui.password_fallback = true;
                 self.vault_ui.error = None;
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     "vault-unlock-password",
                 ));
             }

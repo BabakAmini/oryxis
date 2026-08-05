@@ -1,6 +1,24 @@
 //! UI helper widgets: inputs. Split out of widgets/mod.rs.
 
 use super::*;
+
+/// Focus a text input by id AND land the cursor at the end of its
+/// value. Since the upstream unify-text-editing refactor, `focus`
+/// only flips the focus flag (a freshly mounted input keeps its
+/// cursor at position 0), so every "drop the keyboard into this
+/// field" site in the app goes through here: on an empty field the
+/// cursor move is a no-op, on a pre-filled one (rename, path bar,
+/// editor forms) it restores the type-to-append behavior the app was
+/// built around. Use `iced::widget::operation::focus` directly only
+/// for the `__keynav_blur__` dummy-id blur trick.
+pub(crate) fn focus_input<T: Send + 'static>(id: impl Into<iced::widget::Id>) -> iced::Task<T> {
+    let id = id.into();
+    iced::Task::batch([
+        iced::widget::operation::focus(id.clone()),
+        iced::widget::operation::move_cursor_to_end(id),
+    ])
+}
+
 /// Shared style closure for `text_input`. Apply via `.style(rounded_input_style)`
 /// to get the app's accent-focused look with the consistent 10 px radius.
 pub fn rounded_input_style(_theme: &Theme, status: text_input::Status) -> text_input::Style {
@@ -17,7 +35,6 @@ pub fn rounded_input_style(_theme: &Theme, status: text_input::Status) -> text_i
             width: border_width,
             color: border_color,
         },
-        icon: c.text_muted,
         placeholder: c.text_muted,
         value: c.text_primary,
         selection: c.accent,

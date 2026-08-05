@@ -363,7 +363,7 @@ impl Oryxis {
             .into()
     }
 
-    pub(crate) fn view_port_forward_panel(&self) -> Element<'_, Message> {
+    pub(crate) fn view_port_forward_panel<'a>(&'a self) -> Element<'a, Message> {
         // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
         // The pickers below are slot-wrapped at their usage point inside the
         // form column (not at construction) so recording follows the on-screen
@@ -422,8 +422,10 @@ impl Oryxis {
             .padding(10)
             .style(crate::widgets::rounded_pick_list_style);
 
-        // `id` doubles as the focus id of the keyboard row.
-        let label_field = |label: &str, value: &str, placeholder: &str, id: &'static str, on_input: fn(String) -> Message| {
+        // `id` doubles as the focus id of the keyboard row. `value` and
+        // `placeholder` carry the element lifetime: post-refactor
+        // `text_input` borrows its fragments instead of copying.
+        let label_field = |label: &str, value: &'a str, placeholder: &'a str, id: &'static str, on_input: fn(String) -> Message| {
             column![
                 text(label.to_string()).size(12).color(OryxisColors::t().text_secondary),
                 Space::new().height(4),

@@ -31,7 +31,7 @@ impl Oryxis {
                 });
                 // Drop the keyboard straight into the inline input so the user
                 // can type the new name without an extra click.
-                return Ok(iced::widget::operation::focus(iced::widget::Id::new(
+                return Ok(crate::widgets::focus_input(iced::widget::Id::new(
                     crate::views::sftp::RENAME_INPUT_ID,
                 )));
             }

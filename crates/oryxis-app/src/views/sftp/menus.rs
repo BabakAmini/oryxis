@@ -13,7 +13,7 @@ pub(crate) fn pane_actions_btn<'a>(toggle_msg: Message) -> Element<'a, Message> 
 
 /// The collapsed-filter input card. Positioned + scrimmed by the caller at
 /// the `view_sftp` level.
-pub(crate) fn filter_card<'a>(side: SftpPaneSide, filter: &str) -> Element<'a, Message> {
+pub(crate) fn filter_card<'a>(side: SftpPaneSide, filter: &'a str) -> Element<'a, Message> {
     let id = match side {
         SftpPaneSide::Left => "sftp-filter-pop-left",
         SftpPaneSide::Right => "sftp-filter-pop-right",

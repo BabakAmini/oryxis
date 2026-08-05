@@ -192,7 +192,7 @@ impl Oryxis {
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
                     // Same focus-the-search behavior as ShowNewTabPicker.
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         crate::state::NEW_TAB_PICKER_SEARCH_ID,
                     ));
                 }
@@ -212,7 +212,7 @@ impl Oryxis {
                     self.new_tab_picker_search.clear();
                     self.new_tab_picker_group = None;
                     // Same focus-the-search behavior as ShowNewTabPicker.
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         crate::state::NEW_TAB_PICKER_SEARCH_ID,
                     ));
                 }
@@ -407,7 +407,7 @@ impl Oryxis {
                             state.search_set_query(&pane.search_query);
                         }
                     }
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         "terminal-buffer-search",
                     ));
                 }

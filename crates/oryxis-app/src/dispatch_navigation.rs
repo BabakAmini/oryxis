@@ -163,7 +163,7 @@ impl Oryxis {
                     Vec::new()
                 };
                 if !keep_keynav && let Some(id) = self.active_view_search_id() {
-                    let mut tasks = vec![iced::widget::operation::focus(id)];
+                    let mut tasks = vec![crate::widgets::focus_input(id)];
                     tasks.extend(settings_tasks);
                     return Task::batch(tasks);
                 }
@@ -436,7 +436,7 @@ impl Oryxis {
                         y,
                     });
                     if let Some(id) = self.active_view_search_id() {
-                        return iced::widget::operation::focus(id);
+                        return crate::widgets::focus_input(id);
                     }
                 }
             }
@@ -511,7 +511,7 @@ impl Oryxis {
                 self.editor_form.hostname = self.quick_host_input.clone();
                 // Hostname came in pre-filled, so the cursor belongs on
                 // the one field still required: the label.
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     "editor-label",
                 ));
             }

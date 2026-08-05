@@ -284,7 +284,7 @@ impl Oryxis {
         let action: RowAction = self.keynav.modal.items.borrow().get(idx)?.clone();
         if let Some(id) = action.focus {
             self.keynav.modal.selected = None;
-            return Some(iced::widget::operation::focus(id));
+            return Some(crate::widgets::focus_input(id));
         }
         let msg = action.activate?;
         Some(self.update(msg))

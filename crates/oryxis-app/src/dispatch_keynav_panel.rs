@@ -125,7 +125,7 @@ impl Oryxis {
         self.keynav.panel_last_row.set(Some(next));
         let action: RowAction = self.keynav.panel_items.borrow().get(next)?.clone();
         let step = match action.focus {
-            Some(id) => iced::widget::operation::focus(id),
+            Some(id) => crate::widgets::focus_input(id),
             None => blur_task(),
         };
         Some(Task::batch([step, self.panel_nav_scroll(next)]))
@@ -272,7 +272,7 @@ impl Oryxis {
         if let Some(id) = action.focus {
             // Defensive: shouldn't happen under the v2 contract.
             self.keynav.panel_selected = None;
-            return Some(iced::widget::operation::focus(id));
+            return Some(crate::widgets::focus_input(id));
         }
         if let Some(msg) = action.activate {
             return Some(self.update(msg));

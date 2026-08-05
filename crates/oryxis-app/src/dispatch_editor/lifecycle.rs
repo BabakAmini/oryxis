@@ -84,7 +84,7 @@ impl Oryxis {
                         _ => crate::state::StartupChoice::None,
                     };
                     self.rebuild_editor_combos();
-                    return iced::widget::operation::focus(iced::widget::Id::new(
+                    return crate::widgets::focus_input(iced::widget::Id::new(
                         "editor-hostname",
                     ));
                 }
@@ -135,7 +135,7 @@ impl Oryxis {
                     _ => crate::state::StartupChoice::None,
                 };
                 self.rebuild_editor_combos();
-                return iced::widget::operation::focus(iced::widget::Id::new(
+                return crate::widgets::focus_input(iced::widget::Id::new(
                     "editor-hostname",
                 ));
             }

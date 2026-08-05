@@ -725,7 +725,7 @@ impl Oryxis {
         // the master-password field (same auto-focus as LockVault /
         // AutoLockVault, so the password is typeable without a click).
         if app.vault_ui.state == crate::state::VaultState::Locked {
-            tasks.push(iced::widget::operation::focus(iced::widget::Id::new(
+            tasks.push(crate::widgets::focus_input(iced::widget::Id::new(
                 "vault-unlock-password",
             )));
         }

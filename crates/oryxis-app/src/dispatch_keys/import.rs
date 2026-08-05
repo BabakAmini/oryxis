@@ -54,7 +54,7 @@ impl Oryxis {
                 let open = self.handle_keys(KeysMessage::ShowKeyPanel);
                 return Ok(Task::batch([
                     open,
-                    iced::widget::operation::focus(iced::widget::Id::new(
+                    crate::widgets::focus_input(iced::widget::Id::new(
                         "panel-key-import-public",
                     )),
                 ]));
@@ -67,7 +67,7 @@ impl Oryxis {
                 let open = self.handle_keys(KeysMessage::ShowKeyPanel);
                 return Ok(Task::batch([
                     open,
-                    iced::widget::operation::focus(iced::widget::Id::new(
+                    crate::widgets::focus_input(iced::widget::Id::new(
                         "panel-key-import-cert",
                     )),
                 ]));

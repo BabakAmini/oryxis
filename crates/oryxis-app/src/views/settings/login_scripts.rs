@@ -233,7 +233,11 @@ impl Oryxis {
             .into()
     }
 
-    fn login_script_step_row(&self, i: usize, step: &LoginStep) -> Element<'_, Message> {
+    // `step` shares the element's lifetime: the Text-payload input
+    // borrows its value straight from the step (post-refactor
+    // `text_input` keeps the borrow), and the caller iterates steps
+    // owned by `self` anyway.
+    fn login_script_step_row<'a>(&'a self, i: usize, step: &'a LoginStep) -> Element<'a, Message> {
         let expect_text = match &step.expect {
             Some(ExpectPattern::Suffix(s)) => s.clone(),
             // A regex is shown with the marker the parser uses, so the
@@ -251,7 +255,9 @@ impl Oryxis {
 
         let expect_id = iced::widget::Id::from(format!("set-login-step-expect-{i}"));
         self.settings_nav_record(crate::keynav::RowAction::input(expect_id.clone()));
-        let expect_input = text_input(t("login_script_prompt_ph"), &expect_text)
+        // Owned value: `expect_text` is derived per row and text_input
+        // borrows its fragments for the element's lifetime.
+        let expect_input = text_input(t("login_script_prompt_ph"), expect_text)
             .id(expect_id)
             .on_input(move |v| Message::Settings(SettingsMessage::LoginScriptStepExpect(i, v)))
             .padding(8)
