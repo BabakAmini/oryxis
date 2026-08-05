@@ -206,7 +206,8 @@ impl Oryxis {
             | MonitorMessage::DashSelectHost(..)
             | MonitorMessage::DashCloseDetail
             | MonitorMessage::DashSearchChanged(..)
-            | MonitorMessage::DashToggleListView) => self
+            | MonitorMessage::DashToggleListView
+            | MonitorMessage::DashSortBy(..)) => self
                 .handle_monitor_dash(m)
                 .unwrap_or_else(crate::dispatch::unrouted),
             MonitorMessage::KillFinished(stamp, outcome) => {

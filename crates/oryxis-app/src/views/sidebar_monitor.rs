@@ -15,6 +15,15 @@ use crate::state::TerminalSidebarTab;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
 
+/// Which surface is rendering [`Oryxis::monitor_vitals_body`]. Decides
+/// the keyboard-walk recorder and whether port rows carry the kill
+/// menu (sidebar only: it resolves through the focused pane).
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum MonitorVitalsSurface {
+    Sidebar,
+    Dashboard,
+}
+
 impl Oryxis {
     pub(crate) fn monitor_tab_content(&self) -> Element<'_, Message> {
         // Disconnected mid-view (the tab button hides next frame).
@@ -42,11 +51,7 @@ impl Oryxis {
             return self.monitor_opt_in(conn_id);
         }
 
-        let Some(sample) = self
-            .monitor
-            .series
-            .get(&conn_id)
-            .and_then(|s| s.latest())
+        let Some(body) = self.monitor_vitals_body(conn_id, MonitorVitalsSurface::Sidebar)
         else {
             // Probing, or the first probe failed.
             return match &self.monitor_error {
@@ -54,12 +59,58 @@ impl Oryxis {
                 None => placeholder(t("monitor_sampling")),
             };
         };
+
+        iced::widget::scrollable(body)
+            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .height(Length::Fill)
+            .into()
+    }
+
+    /// The vitals body shared by the sidebar Monitor tab and the
+    /// dashboard's detail panel (issue #95 follow-up, owner call: the
+    /// two surfaces must present a host identically, collapsible
+    /// sections included). `None` until the host has a sample.
+    ///
+    /// The surface picks how interactive rows join the keyboard walk
+    /// (sidebar rows vs dashboard content actions) and what a port
+    /// row offers: the kill menu resolves its session through the
+    /// focused pane, which the dashboard doesn't have, so there the
+    /// rows keep only the local-forward action (which just prefills
+    /// the rule editor and works from anywhere).
+    pub(crate) fn monitor_vitals_body<'a>(
+        &'a self,
+        conn_id: uuid::Uuid,
+        surface: MonitorVitalsSurface,
+    ) -> Option<Element<'a, Message>> {
+        let sample = self.monitor.series.get(&conn_id).and_then(|s| s.latest())?;
         let spark = self
             .monitor
             .series
             .get(&conn_id)
             .map(|s| s.cpu_series())
             .unwrap_or_default();
+
+        // One recorder for the interactive rows, so the walk matches
+        // the surface that is actually on screen.
+        let nav_row = |action: Message,
+                       menu: Option<Message>,
+                       el: Element<'a, Message>|
+         -> Element<'a, Message> {
+            match surface {
+                MonitorVitalsSurface::Sidebar => {
+                    let mut row = crate::keynav::SidebarRow::button(action);
+                    if let Some(menu) = menu {
+                        row = row.with_menu(menu);
+                    }
+                    self.sidebar_nav_slot(row, TerminalSidebarTab::Monitor, 6.0, el)
+                }
+                MonitorVitalsSurface::Dashboard => self.content_action_slot(
+                    crate::keynav::RowAction::activate(action),
+                    6.0,
+                    el,
+                ),
+            }
+        };
 
         let mut body = column![].spacing(14).padding(Padding {
             top: 12.0,
@@ -149,12 +200,9 @@ impl Oryxis {
         // (`monitor_disks_open`), so the common one-or-two-mount host is
         // unchanged; the count on the header is the affordance either way.
         if !sample.disks.is_empty() {
-            body = body.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::Monitor(
-                    MonitorMessage::ToggleDisks,
-                )),
-                TerminalSidebarTab::Monitor,
-                6.0,
+            body = body.push(nav_row(
+                Message::Monitor(MonitorMessage::ToggleDisks),
+                None,
                 disks_header(sample.disks.len(), self.monitor_disks_open),
             ));
             if self.monitor_disks_open {
@@ -172,12 +220,9 @@ impl Oryxis {
         // busy host listens on dozens. Each row offers a local forward,
         // which is the whole point of surfacing them here.
         if !sample.ports.is_empty() {
-            body = body.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::Monitor(
-                    MonitorMessage::TogglePorts,
-                )),
-                TerminalSidebarTab::Monitor,
-                6.0,
+            body = body.push(nav_row(
+                Message::Monitor(MonitorMessage::TogglePorts),
+                None,
                 ports_header(sample.ports.len(), self.monitor_ports_open),
             ));
             if self.monitor_ports_open {
@@ -192,25 +237,23 @@ impl Oryxis {
                             p.bind.clone(),
                         ))
                     });
-                    // Every row carries a menu (issue #96): killing the
-                    // process is proto-agnostic, so UDP rows became
-                    // actionable too and join the keyboard walk, where
-                    // before only forwardable TCP rows were recorded.
-                    let menu = Message::Monitor(MonitorMessage::ShowPortMenu(Box::new(p.clone())));
+                    // The kill menu (issue #96) resolves its session
+                    // through the focused pane, so it only exists on
+                    // the sidebar surface; the dashboard's rows never
+                    // offer an action that would silently no-op.
+                    let menu = matches!(surface, MonitorVitalsSurface::Sidebar).then(|| {
+                        Message::Monitor(MonitorMessage::ShowPortMenu(Box::new(p.clone())))
+                    });
                     let row = port_row(p, forward.clone(), menu.clone());
                     // Enter keeps doing what a left click does (forward
                     // a TCP port); rows with no primary action activate
-                    // their menu instead of being a dead stop.
-                    let nav = crate::keynav::SidebarRow::button(
-                        forward.unwrap_or_else(|| menu.clone()),
-                    )
-                    .with_menu(menu);
-                    body = body.push(self.sidebar_nav_slot(
-                        nav,
-                        TerminalSidebarTab::Monitor,
-                        6.0,
-                        row,
-                    ));
+                    // their menu instead of being a dead stop. A
+                    // dashboard UDP row has neither and stays
+                    // informational (not recorded).
+                    match forward.or_else(|| menu.clone()) {
+                        Some(action) => body = body.push(nav_row(action, menu, row)),
+                        None => body = body.push(row),
+                    }
                 }
             }
         }
@@ -225,10 +268,7 @@ impl Oryxis {
             );
         }
 
-        iced::widget::scrollable(body)
-            .id(iced::widget::Id::new("sidebar-list-scroll"))
-            .height(Length::Fill)
-            .into()
+        Some(body.into())
     }
 
     /// Opt-in prompt for a host that hasn't enabled monitoring. The
@@ -359,7 +399,7 @@ fn disks_header<'a>(count: usize, open: bool) -> Element<'a, Message> {
 fn port_row<'a>(
     port: &'a crate::monitor::model::PortStat,
     forward: Option<Message>,
-    menu: Message,
+    menu: Option<Message>,
 ) -> Element<'a, Message> {
     let name = port.process.clone().unwrap_or_else(|| "-".to_string());
     // A specific bind is shown next to the process: it tells the user
@@ -394,11 +434,13 @@ fn port_row<'a>(
     .align_y(iced::Alignment::Center);
 
     let padding = Padding { top: 3.0, right: 8.0, bottom: 3.0, left: 20.0 };
-    // A UDP row has no primary click, but it still owns a menu, so it
+    // A UDP row has no primary click, but where it owns a menu it
     // renders as a button too: without one it would be the only row in
-    // the tab with no hover feedback, which reads as disabled.
-    let body: Element<'a, Message> = match forward {
-        Some(msg) => {
+    // the tab with no hover feedback, which reads as disabled. On the
+    // dashboard surface (no menu) a UDP row is plain text on purpose:
+    // there is genuinely nothing it can do there.
+    let body: Element<'a, Message> = match (forward, menu.clone()) {
+        (Some(msg), _) => {
             let btn = iced::widget::button(content)
                 .on_press(msg)
                 .padding(padding)
@@ -406,14 +448,18 @@ fn port_row<'a>(
                 .style(port_row_style);
             crate::views::terminal::icon_tooltip(btn.into(), t("monitor_forward_port"))
         }
-        None => iced::widget::button(content)
-            .on_press(menu.clone())
+        (None, Some(menu_msg)) => iced::widget::button(content)
+            .on_press(menu_msg)
             .padding(padding)
             .width(Length::Fill)
             .style(port_row_style)
             .into(),
+        (None, None) => container(content).padding(padding).width(Length::Fill).into(),
     };
-    iced::widget::MouseArea::new(body).on_right_press(menu).into()
+    match menu {
+        Some(menu) => iced::widget::MouseArea::new(body).on_right_press(menu).into(),
+        None => body,
+    }
 }
 
 /// Shared hover/press feedback for a port row.

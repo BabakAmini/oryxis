@@ -49,7 +49,6 @@ pub(crate) enum DashLink {
 }
 
 /// Dashboard state hanging off the app.
-#[derive(Default)]
 pub(crate) struct MonitorDash {
     pub links: HashMap<Uuid, DashLink>,
     /// One-second counter driving the per-host stagger, so N hosts
@@ -67,6 +66,38 @@ pub(crate) struct MonitorDash {
     /// explicit action inside the panel, never the card click (owner
     /// call on the first live build).
     pub selected: Option<Uuid>,
+    /// Table-mode sort column and direction. Session-only: a sort is
+    /// a working posture, not a preference worth a vault row.
+    pub sort_key: DashSortKey,
+    pub sort_asc: bool,
+}
+
+impl Default for MonitorDash {
+    fn default() -> Self {
+        Self {
+            links: HashMap::new(),
+            tick: 0,
+            stamp: 0,
+            search: String::new(),
+            selected: None,
+            sort_key: DashSortKey::Label,
+            // A-z out of the box; `derive(Default)` would boot the
+            // table sorted Z-a.
+            sort_asc: true,
+        }
+    }
+}
+
+/// Sortable columns of the dashboard's table (list) mode.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum DashSortKey {
+    #[default]
+    Label,
+    Cpu,
+    Mem,
+    Net,
+    Disk,
+    Uptime,
 }
 
 impl MonitorDash {

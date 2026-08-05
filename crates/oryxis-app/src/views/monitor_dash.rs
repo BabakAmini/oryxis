@@ -23,7 +23,7 @@ use crate::state::DashLink;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
 
-use super::sidebar_monitor::{fmt_bytes_short, fmt_uptime, gauge_block, sparkline, stat_row};
+use super::sidebar_monitor::{fmt_bytes_short, fmt_uptime, gauge_block};
 
 /// Card width in grid mode, matching the host cards so the two grids
 /// read as one family.
@@ -31,6 +31,11 @@ const CARD_W: f32 = crate::app::CARD_WIDTH;
 
 impl Oryxis {
     pub(crate) fn view_monitor_dash(&self) -> Element<'_, Message> {
+        // Content actions are recorded during render: without this
+        // clear the 1 s heartbeat re-render would append the whole
+        // surface again every tick, and the keyboard walk would drown
+        // in stale duplicate rows (live owner report, 05/08).
+        self.keynav_clear_content();
         let fleet = self.dash_hosts();
 
         if fleet.is_empty() {
@@ -124,29 +129,32 @@ impl Oryxis {
             - 48.0)
             .max(0.0);
         let list_mode = self.prefs.monitor_dash_list_view;
-        let cols = if list_mode {
-            2.min((available / 360.0).max(1.0) as usize).max(1)
+        let body: Element<'_, Message> = if list_mode {
+            self.dash_table(hosts)
         } else {
-            crate::widgets::card_grid_columns(available, CARD_W, 12.0).max(1)
-        };
-
-        let mut grid = column![].spacing(12);
-        for chunk in hosts.chunks(cols) {
-            let mut row_items: Vec<Element<'_, Message>> = Vec::new();
-            for conn_id in chunk {
-                row_items.push(self.dash_card(*conn_id, list_mode));
-                row_items.push(Space::new().width(12).into());
+            let cols = crate::widgets::card_grid_columns(available, CARD_W, 12.0).max(1);
+            let mut grid = column![].spacing(12);
+            for chunk in hosts.chunks(cols) {
+                let mut row_items: Vec<Element<'_, Message>> = Vec::new();
+                for conn_id in chunk {
+                    row_items.push(self.dash_card(*conn_id));
+                    row_items.push(Space::new().width(12).into());
+                }
+                grid = grid.push(dir_row(row_items).align_y(iced::Alignment::Start));
             }
-            grid = grid.push(dir_row(row_items).align_y(iced::Alignment::Start));
-        }
+            grid.into()
+        };
 
         let content = column![
             toolbar,
             scrollable(
-                container(grid)
+                container(body)
                     .padding(Padding { top: 0.0, right: 24.0, bottom: 24.0, left: 24.0 })
                     .width(Length::Fill),
             )
+            // Stable id so the keyboard walk can keep the selected
+            // row scrolled into view (content_scroll_meta).
+            .id(iced::widget::Id::new("monitor-dash-scroll"))
             .height(Length::Fill),
         ];
 
@@ -163,7 +171,7 @@ impl Oryxis {
     /// One host's vitals card. Click (and Enter, via the recorded
     /// content action) opens the detail panel; nothing on the card
     /// itself touches the host.
-    fn dash_card(&self, conn_id: uuid::Uuid, list_mode: bool) -> Element<'_, Message> {
+    fn dash_card(&self, conn_id: uuid::Uuid) -> Element<'_, Message> {
         let Some(conn) = self.connections.iter().find(|c| c.id == conn_id) else {
             return Space::new().into();
         };
@@ -275,15 +283,10 @@ impl Oryxis {
 
         let selected = self.monitor_dash.selected == Some(conn_id);
         let msg = Message::Monitor(MonitorMessage::DashSelectHost(conn_id));
-        let width = if list_mode {
-            Length::Fill
-        } else {
-            Length::Fixed(CARD_W)
-        };
-        let card = button(container(inner).padding(14).width(width))
+        let card = button(container(inner).padding(14).width(Length::Fixed(CARD_W)))
             .on_press(msg.clone())
             .padding(0)
-            .width(width)
+            .width(Length::Fixed(CARD_W))
             .style(move |_, status| {
                 let bg = match status {
                     BtnStatus::Hovered => OryxisColors::t().bg_hover,
@@ -321,8 +324,6 @@ impl Oryxis {
             .map(|c| c.label.clone())
             .unwrap_or_default();
         let link = self.monitor_dash.links.get(&conn_id);
-        let series = self.monitor.series.get(&conn_id);
-        let latest = series.and_then(|s| s.latest());
 
         let close = self.content_action_slot(
             crate::keynav::RowAction::activate(Message::Monitor(
@@ -355,133 +356,41 @@ impl Oryxis {
             .into(),
         );
 
-        let mut body = column![].spacing(14);
-        match link {
-            Some(DashLink::Failed(e)) => {
-                body = body
-                    .push(text(e.clone()).size(12).color(OryxisColors::t().error))
-                    .push(self.content_action_slot(
-                        crate::keynav::RowAction::activate(Message::Monitor(
-                            MonitorMessage::DashRetry(conn_id),
-                        )),
-                        6.0,
-                        crate::widgets::styled_button(
-                            t("retry"),
-                            Message::Monitor(MonitorMessage::DashRetry(conn_id)),
-                            OryxisColors::t().accent,
-                        ),
-                    ));
-            }
-            _ => {
-                if let Some(sample) = latest {
-                    if let Some(s) = series {
-                        let cpu_series = s.cpu_series();
-                        if cpu_series.len() > 1 {
-                            body = body.push(sparkline(&cpu_series));
-                        }
-                    }
-                    body = body.push(match &sample.cpu {
-                        Some(cpu) => gauge_block(
-                            t("monitor_cpu"),
-                            cpu.pct,
-                            &format!("{:.0}%", cpu.pct),
-                        ),
-                        None => gauge_block(t("monitor_cpu"), 0.0, "-"),
-                    });
-                    if let Some(mem) = &sample.mem {
-                        if mem.total > 0 {
-                            body = body.push(gauge_block(
-                                t("monitor_mem"),
-                                mem.pct(),
-                                &format!(
-                                    "{} / {}",
-                                    fmt_bytes_short(mem.used),
-                                    fmt_bytes_short(mem.total)
-                                ),
-                            ));
-                        }
-                        if mem.swap_total > 0 {
-                            let pct =
-                                mem.swap_used as f32 / mem.swap_total as f32 * 100.0;
-                            body = body.push(gauge_block(
-                                t("monitor_swap"),
-                                pct,
-                                &format!(
-                                    "{} / {}",
-                                    fmt_bytes_short(mem.swap_used),
-                                    fmt_bytes_short(mem.swap_total)
-                                ),
-                            ));
-                        }
-                    }
-                    if let Some(load) = &sample.load {
-                        body = body.push(stat_row(
-                            t("monitor_load"),
-                            format!("{:.2} {:.2} {:.2}", load.one, load.five, load.fifteen),
-                        ));
-                    }
-                    if let Some(net) = &sample.net {
-                        body = body.push(stat_row(
-                            t("monitor_net"),
-                            format!(
-                                "\u{2193}{}/s \u{2191}{}/s",
-                                fmt_bytes_short(net.rx_bps),
-                                fmt_bytes_short(net.tx_bps)
-                            ),
-                        ));
-                    }
-                    if let Some(uptime) = sample.uptime_secs {
-                        body = body.push(stat_row(t("monitor_uptime"), fmt_uptime(uptime)));
-                    }
-                    for gpu in &sample.gpus {
-                        let label = gpu.name.as_deref().unwrap_or("GPU");
-                        let vram = match (gpu.mem_used, gpu.mem_total) {
-                            (Some(u), Some(t)) => format!(
-                                " {} / {}",
-                                fmt_bytes_short(u),
-                                fmt_bytes_short(t)
-                            ),
-                            _ => String::new(),
-                        };
-                        body = body.push(gauge_block(
-                            label,
-                            gpu.util_pct,
-                            &format!("{:.0}%{vram}", gpu.util_pct),
-                        ));
-                    }
-                    if !sample.disks.is_empty() {
-                        let mut disks = column![].spacing(8);
-                        for d in &sample.disks {
-                            disks = disks.push(gauge_block(
-                                &d.mount,
-                                d.pct(),
-                                &format!(
-                                    "{} / {}",
-                                    fmt_bytes_short(d.used),
-                                    fmt_bytes_short(d.total)
-                                ),
-                            ));
-                        }
-                        body = body
-                            .push(
-                                text(t("monitor_disk"))
-                                    .size(12)
-                                    .color(OryxisColors::t().text_secondary),
-                            )
-                            .push(disks);
-                    }
-                } else {
-                    body = body.push(
-                        text(match link {
-                            Some(DashLink::Live(_)) => t("monitor_sampling"),
-                            _ => t("monitor_dash_connecting"),
-                        })
-                        .size(12)
-                        .color(OryxisColors::t().text_muted),
-                    );
-                }
-            }
-        }
+        // The vitals themselves come from the SAME renderer as the
+        // terminal's Monitor sidebar tab (owner call: the two surfaces
+        // must present a host identically, collapsible Disks / Ports
+        // sections included).
+        let body: Element<'_, Message> = match link {
+            Some(DashLink::Failed(e)) => column![
+                text(e.clone()).size(12).color(OryxisColors::t().error),
+                Space::new().height(12),
+                self.content_action_slot(
+                    crate::keynav::RowAction::activate(Message::Monitor(
+                        MonitorMessage::DashRetry(conn_id),
+                    )),
+                    6.0,
+                    crate::widgets::styled_button(
+                        t("retry"),
+                        Message::Monitor(MonitorMessage::DashRetry(conn_id)),
+                        OryxisColors::t().accent,
+                    ),
+                ),
+            ]
+            .into(),
+            _ => match self.monitor_vitals_body(
+                conn_id,
+                super::sidebar_monitor::MonitorVitalsSurface::Dashboard,
+            ) {
+                Some(body) => body,
+                None => text(match link {
+                    Some(DashLink::Live(_)) => t("monitor_sampling"),
+                    _ => t("monitor_dash_connecting"),
+                })
+                .size(12)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+            },
+        };
 
         // Explicit connect action: the one place the dashboard opens a
         // terminal (focuses an existing tab when one is live).
@@ -527,6 +436,216 @@ impl Oryxis {
             ..Default::default()
         })
         .into()
+    }
+}
+
+impl Oryxis {
+    /// Table (list) mode: one row per host, metric columns, sortable
+    /// by clicking a header (owner call: a list is a table, not wider
+    /// cards). Row click selects the host like a card click.
+    fn dash_table(&self, hosts: Vec<uuid::Uuid>) -> Element<'_, Message> {
+        use crate::state::DashSortKey as K;
+
+        // Latest-sample metrics per host, `None` sorting last so hosts
+        // that haven't answered yet sink to the bottom either way.
+        let metrics = |id: &uuid::Uuid| {
+            let latest = self.monitor.series.get(id).and_then(|s| s.latest());
+            let cpu = latest.and_then(|s| s.cpu.map(|c| c.pct));
+            let mem = latest.and_then(|s| s.mem.map(|m| m.pct()));
+            let net = latest
+                .and_then(|s| s.net.map(|n| n.rx_bps.saturating_add(n.tx_bps)));
+            let disk = latest.and_then(|s| {
+                s.disks
+                    .iter()
+                    .filter(|d| d.total > 0)
+                    .map(|d| d.pct())
+                    .max_by(f32::total_cmp)
+            });
+            let uptime = latest.and_then(|s| s.uptime_secs);
+            (cpu, mem, net, disk, uptime)
+        };
+
+        let key = self.monitor_dash.sort_key;
+        let asc = self.monitor_dash.sort_asc;
+        let mut rows: Vec<uuid::Uuid> = hosts;
+        // `hosts` arrives label-sorted ascending (dash_hosts), so the
+        // Label key only needs the direction flip.
+        match key {
+            K::Label => {}
+            _ => {
+                let rank = |id: &uuid::Uuid| -> Option<f64> {
+                    let (cpu, mem, net, disk, uptime) = metrics(id);
+                    match key {
+                        K::Label => None,
+                        K::Cpu => cpu.map(f64::from),
+                        K::Mem => mem.map(f64::from),
+                        K::Net => net.map(|n| n as f64),
+                        K::Disk => disk.map(f64::from),
+                        K::Uptime => uptime.map(|u| u as f64),
+                    }
+                };
+                // Stable sort keeps the label order inside ties.
+                rows.sort_by(|a, b| match (rank(a), rank(b)) {
+                    (Some(x), Some(y)) => x.total_cmp(&y),
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => std::cmp::Ordering::Equal,
+                });
+            }
+        }
+        if !asc {
+            rows.reverse();
+        }
+
+        // Header: one button per column; the active column carries the
+        // direction glyph. Widths mirror the row cells below.
+        let header_cell = |label: &str, col: K, width: Length| -> Element<'_, Message> {
+            let marker = if key == col {
+                if asc { " \u{25b4}" } else { " \u{25be}" }
+            } else {
+                ""
+            };
+            let msg = Message::Monitor(MonitorMessage::DashSortBy(col));
+            self.content_action_slot(
+                crate::keynav::RowAction::activate(msg.clone()),
+                4.0,
+                button(
+                    text(format!("{label}{marker}"))
+                        .size(11)
+                        .color(OryxisColors::t().text_secondary),
+                )
+                .on_press(msg)
+                .padding(Padding { top: 4.0, right: 6.0, bottom: 4.0, left: 6.0 })
+                .width(width)
+                .style(|_, status| {
+                    let bg = match status {
+                        BtnStatus::Hovered | BtnStatus::Pressed => {
+                            OryxisColors::t().bg_hover
+                        }
+                        _ => Color::TRANSPARENT,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border {
+                            radius: Radius::from(4.0),
+                            ..Default::default()
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into(),
+            )
+        };
+        const W_CPU: f32 = 70.0;
+        const W_MEM: f32 = 150.0;
+        const W_NET: f32 = 150.0;
+        const W_DISK: f32 = 80.0;
+        const W_UP: f32 = 90.0;
+        let header = dir_row(vec![
+            header_cell(t("hosts"), K::Label, Length::Fill),
+            header_cell(t("monitor_cpu"), K::Cpu, Length::Fixed(W_CPU)),
+            header_cell(t("monitor_mem"), K::Mem, Length::Fixed(W_MEM)),
+            header_cell(t("monitor_net"), K::Net, Length::Fixed(W_NET)),
+            header_cell(t("monitor_disk"), K::Disk, Length::Fixed(W_DISK)),
+            header_cell(t("monitor_uptime"), K::Uptime, Length::Fixed(W_UP)),
+        ])
+        .align_y(iced::Alignment::Center);
+
+        let mut table = column![header, Space::new().height(4)].spacing(2);
+        for conn_id in rows {
+            let Some(conn) = self.connections.iter().find(|c| c.id == conn_id) else {
+                continue;
+            };
+            let link = self.monitor_dash.links.get(&conn_id);
+            let dot_color = match link {
+                Some(DashLink::Live(_)) => OryxisColors::t().success,
+                Some(DashLink::Connecting) | None => OryxisColors::t().warning,
+                Some(DashLink::Failed(_)) => OryxisColors::t().error,
+            };
+            let (cpu, _mem_pct, _net, disk, uptime) = metrics(&conn_id);
+            let latest = self.monitor.series.get(&conn_id).and_then(|s| s.latest());
+            let cell = |value: String, width: f32| -> Element<'_, Message> {
+                text(value)
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .color(OryxisColors::t().text_primary)
+                    .width(Length::Fixed(width))
+                    .into()
+            };
+            let host_cell: Element<'_, Message> = dir_row(vec![
+                text("●").size(9).color(dot_color).into(),
+                Space::new().width(6).into(),
+                text(conn.label.clone())
+                    .size(12)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .width(Length::Fill)
+            .into();
+            let mem_text = match latest.and_then(|s| s.mem) {
+                Some(m) if m.total > 0 => format!(
+                    "{} / {}",
+                    fmt_bytes_short(m.used),
+                    fmt_bytes_short(m.total)
+                ),
+                _ => "-".into(),
+            };
+            let net_text = match latest.and_then(|s| s.net) {
+                Some(n) => format!(
+                    "\u{2193}{}/s \u{2191}{}/s",
+                    fmt_bytes_short(n.rx_bps),
+                    fmt_bytes_short(n.tx_bps)
+                ),
+                None => "-".into(),
+            };
+            let row_inner = dir_row(vec![
+                host_cell,
+                cell(cpu.map_or("-".into(), |c| format!("{c:.0}%")), W_CPU),
+                cell(mem_text, W_MEM),
+                cell(net_text, W_NET),
+                cell(disk.map_or("-".into(), |d| format!("{d:.0}%")), W_DISK),
+                cell(uptime.map_or("-".into(), fmt_uptime), W_UP),
+            ])
+            .align_y(iced::Alignment::Center);
+
+            let selected = self.monitor_dash.selected == Some(conn_id);
+            let msg = Message::Monitor(MonitorMessage::DashSelectHost(conn_id));
+            let row = button(
+                container(row_inner)
+                    .padding(Padding { top: 6.0, right: 6.0, bottom: 6.0, left: 6.0 })
+                    .width(Length::Fill),
+            )
+            .on_press(msg.clone())
+            .padding(0)
+            .width(Length::Fill)
+            .style(move |_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                    BtnStatus::Pressed => OryxisColors::t().bg_selected,
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        color: if selected {
+                            OryxisColors::t().accent
+                        } else {
+                            Color::TRANSPARENT
+                        },
+                        width: 1.0,
+                    },
+                    ..Default::default()
+                }
+            });
+            table = table.push(self.content_action_slot(
+                crate::keynav::RowAction::activate(msg),
+                6.0,
+                row.into(),
+            ));
+        }
+        table.into()
     }
 }
 

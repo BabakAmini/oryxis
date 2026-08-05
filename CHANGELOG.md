@@ -16,13 +16,16 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   and pooled with an idle TTL, so leaving the view and coming right
   back doesn't redial the fleet. Cards show CPU and memory gauges
   plus network, fullest-disk and GPU at a glance; clicking one opens
-  a detail panel with the CPU sparkline, swap, load, every disk, GPUs
-  and uptime, and the explicit "Open terminal" / "Retry" actions (a
-  card click never opens a session by itself). Search and the shared
-  host-tag filter narrow the grid, a toggle switches between the card
-  grid and a two-column list, polling only runs while the view is
-  visible, and the same sample rings feed this view, the sidebar
-  Monitor tab and the status bar, so they can never disagree.
+  a detail panel rendered by the same code as the per-session Monitor
+  sidebar (CPU sparkline, swap, load, GPUs, collapsible disk and
+  listening-port sections), plus the explicit "Open terminal" /
+  "Retry" actions (a card click never opens a session by itself).
+  Search and the shared host-tag filter narrow the fleet, a toggle
+  switches between the card grid and a table sortable by any column
+  (label, CPU, memory, network, disk, uptime), polling only runs
+  while the view is visible, and the same sample rings feed this
+  view, the sidebar Monitor tab and the status bar, so they can
+  never disagree.
 - **Downloadable terminal font pack (#109).** The terminal font picker
   now carries a curated catalog of popular Nerd Font builds: JetBrains
   Mono, CaskaydiaCove (Cascadia Code), Fira Code, Hack, MesloLGS (the

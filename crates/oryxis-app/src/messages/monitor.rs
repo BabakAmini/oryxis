@@ -83,4 +83,7 @@ pub enum MonitorMessage {
     DashSearchChanged(String),
     /// Grid <-> list layout toggle, persisted like the host grid's.
     DashToggleListView,
+    /// Table-mode header click: sort by this column, toggling the
+    /// direction when it is already the active one.
+    DashSortBy(crate::state::DashSortKey),
 }

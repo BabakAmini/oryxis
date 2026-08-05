@@ -92,6 +92,18 @@ impl Oryxis {
                 self.monitor_dash.search = s;
                 Ok(Task::none())
             }
+            MonitorMessage::DashSortBy(key) => {
+                if self.monitor_dash.sort_key == key {
+                    self.monitor_dash.sort_asc = !self.monitor_dash.sort_asc;
+                } else {
+                    self.monitor_dash.sort_key = key;
+                    // Metrics start descending (the hot host first is
+                    // what a fleet sort is for); labels start A-z.
+                    self.monitor_dash.sort_asc =
+                        matches!(key, crate::state::DashSortKey::Label);
+                }
+                Ok(Task::none())
+            }
             MonitorMessage::DashToggleListView => {
                 self.prefs.monitor_dash_list_view = !self.prefs.monitor_dash_list_view;
                 self.persist_setting(
@@ -269,9 +281,16 @@ impl Oryxis {
             return Task::none();
         }
         let stamp = self.monitor_stamp;
-        // Vitals only (owner call): the ports section comes back empty,
-        // the parser keeps its position-based split.
-        let command = crate::monitor::probe::linux_probe_command_vitals();
+        // Vitals only (owner call), EXCEPT the host whose detail panel
+        // is open: its panel shows the sidebar's full presentation,
+        // ports section included, so that one host pays for the full
+        // probe. The unused slot stays in place either way (the parser
+        // splits by position).
+        let command = if self.monitor_dash.selected == Some(conn_id) {
+            crate::monitor::probe::linux_probe_command()
+        } else {
+            crate::monitor::probe::linux_probe_command_vitals()
+        };
         Task::perform(
             async move {
                 let payload = match &transport {

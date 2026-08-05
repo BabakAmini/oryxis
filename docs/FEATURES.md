@@ -191,10 +191,12 @@ coming next, see the [Roadmap](../README.md#roadmap).
   connection dialed with the stored credentials (strict host key,
   TOTP autofill) and pooled with an idle TTL. Cards carry CPU /
   memory gauges plus net, disk and GPU at a glance; clicking one
-  opens a detail panel (sparkline, swap, load, every disk, GPUs,
-  uptime) with explicit open-terminal and retry actions. Search and
-  the host-tag filter narrow the grid, a toggle switches grid and
-  two-column list, and polling only runs while the view is visible.
+  opens a detail panel with the exact presentation of the per-session
+  Monitor sidebar (sparkline, swap, load, GPUs, collapsible disk and
+  listening-port sections) plus explicit open-terminal and retry
+  actions. Search and the host-tag filter narrow the fleet, a toggle
+  switches between the card grid and a table sortable by any column,
+  and polling only runs while the view is visible.
 - **GPU gauges.** Utilization, VRAM and temperature per device, from
   `nvidia-smi` where it exists and the amdgpu sysfs counters otherwise.
   The section renders only when the host answers, so machines without a

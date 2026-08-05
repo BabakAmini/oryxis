@@ -801,6 +801,13 @@ impl Oryxis {
             View::Proxies => ("proxies-list-scroll", 56.0),
             View::KnownHosts => ("known-hosts-scroll", 48.0),
             View::Settings => (self.settings_section.scroll_id(), 52.0),
+            // Table rows ~34 px, cards ~150: the walk is row-per-item
+            // either way, so the height only tunes when scrolling
+            // starts.
+            View::Monitoring => (
+                "monitor-dash-scroll",
+                if self.prefs.monitor_dash_list_view { 34.0 } else { 150.0 },
+            ),
             _ => return None,
         };
         Some((iced::widget::Id::new(id), row_h))
