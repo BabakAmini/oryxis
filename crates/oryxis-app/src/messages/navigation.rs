@@ -6,6 +6,10 @@ use crate::state::{View};
 #[derive(Debug, Clone)]
 pub enum NavigationMessage {
     ChangeView(View),
+    /// Clicked the Home button or the burger-menu Hosts entry.
+    /// Resolves to OpenGroup when inside a folder, ChangeView(Dashboard)
+    /// at root — decided at click time, not render time.
+    GoHome,
     QuickHostInput(String),
     QuickHostContinue,
     OpenGroup(Uuid),

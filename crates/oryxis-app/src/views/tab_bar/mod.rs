@@ -61,7 +61,7 @@ pub(crate) const CHIP_W: f32 = 38.0;
 /// Maximum width a tab claims when it has the room. Sized to fit a typical
 /// label like "user@hostname.example.com" without truncation. The active
 /// tab always uses this; inactives only when there's space.
-pub(crate) const TAB_NATURAL_WIDTH: f32 = 200.0;
+pub(crate) const TAB_NATURAL_WIDTH: f32 = 240.0;
 /// Floor below which we don't shrink, once a tab gets this narrow the
 /// label is mostly ellipses anyway, and going lower kills hit-target ergonomics.
 /// Picked to fit "OS-badge + ~8 chars + ellipsis" comfortably.

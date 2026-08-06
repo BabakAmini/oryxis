@@ -4,7 +4,7 @@ use super::*;
 pub(crate) fn area_tab<'a>(
     label: &'a str,
     glyph: iced::widget::Text<'a>,
-    view: View,
+    on_press: Message,
     is_active: bool,
     solid_fill: bool,
 ) -> Element<'a, Message> {
@@ -50,7 +50,7 @@ pub(crate) fn area_tab<'a>(
                 .center_y(Length::Fixed(SQUARE)),
         )
         .padding(0)
-        .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
+        .on_press(on_press.clone())
         .style(style)
         .into()
     } else {
@@ -75,7 +75,7 @@ pub(crate) fn area_tab<'a>(
             .center_y(Length::Fixed(TAB_HEIGHT))
             .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 6.0 }),
         )
-        .on_press(Message::Navigation(NavigationMessage::ChangeView(view)))
+        .on_press(on_press)
         .style(style)
         .into()
     };

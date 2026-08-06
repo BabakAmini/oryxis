@@ -37,6 +37,16 @@ impl Oryxis {
                 return self.panel_nav_tab_resolved(forward, focused);
             }
             // -- Navigation --
+            NavigationMessage::GoHome => {
+                if let Some(gid) = self.active_group {
+                    return Task::done(Message::Navigation(
+                        NavigationMessage::OpenGroup(gid),
+                    ));
+                }
+                return Task::done(Message::Navigation(
+                    NavigationMessage::ChangeView(View::Dashboard),
+                ));
+            }
             NavigationMessage::ChangeView(view) => {
                 // Navigating away from the Shortcuts editor cancels
                 // any pending capture so the next keystroke doesn't
@@ -190,7 +200,13 @@ impl Oryxis {
             }
             NavigationMessage::OpenGroup(gid) => {
                 self.active_group = Some(gid);
+                self.active_view = View::Dashboard;
+                self.active_tab = None;
                 self.host_search.clear();
+                // Dismiss any open overlay that belongs to the previous
+                // surface (burger menu, kebab, etc.), same as ChangeView.
+                self.panels.burger_menu = false;
+                self.overlay = None;
                 // Auto-trigger resolve when the user opens a dynamic
                 // group, saves an extra click. Re-resolve when there's
                 // no cache yet, or when the cached list has gone stale
