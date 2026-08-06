@@ -29,7 +29,9 @@ impl Oryxis {
         // Home stays reachable on Ctrl+Shift+1 (the vault section slot)
         // and on its house icon.
         if self.prefs.tab_slot_includes_home {
-            slots.push(Message::Navigation(NavigationMessage::ChangeView(View::Dashboard)));
+            // `GoHome`, not `ChangeView`: this slot IS the house chip, so
+            // the key has to keep the folder the click keeps.
+            slots.push(Message::Navigation(NavigationMessage::GoHome));
         }
         slots.extend(self.ordered_tab_refs().iter().filter_map(|r| self.tab_ref_select_msg(r)));
         slots.into_iter().nth(slot)

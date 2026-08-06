@@ -57,7 +57,7 @@ impl Oryxis {
         area_tab(
             "",
             iced_fonts::lucide::house(),
-            View::Dashboard,
+            Message::Navigation(NavigationMessage::GoHome),
             nav_active && in_vault_area,
             solid_fill,
         )

@@ -37,7 +37,7 @@ screenshot sftp-path-paste
 # 2. Terminal copy-on-select: the widget queues the copy and the app
 #    performs it through the runtime, so it lands in the emulated
 #    clipboard (before the fix it went straight to the system clipboard).
-click (293, 20)
+click (333, 20)
 expect "Local Shell"
 click "Local Shell"
 timeout 500
