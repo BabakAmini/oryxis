@@ -81,8 +81,8 @@ impl Oryxis {
             SftpMessage::SftpColHovered(side, col) => {
                 self.sftp_chrome.hovered_col = Some((side, col));
             }
-            SftpMessage::SftpColUnhovered => {
-                self.sftp_chrome.hovered_col = None;
+            SftpMessage::SftpColUnhovered(side, col) => {
+                self.sftp_chrome.leave_col((side, col));
             }
             SftpMessage::SftpToggleFilterSearch(side) => {
                 let now = !self.sftp.pane(side).filter_open;

@@ -280,7 +280,7 @@ fn history_row<'a>(
 
     MouseArea::new(row_el)
         .on_enter(Message::CommandHistory(CommandHistoryMessage::HistoryCardHovered(pos)))
-        .on_exit(Message::CommandHistory(CommandHistoryMessage::HistoryCardUnhovered))
+        .on_exit(Message::CommandHistory(CommandHistoryMessage::HistoryCardUnhovered(pos)))
         .on_press(Message::CommandHistory(CommandHistoryMessage::PasteHistoryCommand(entry.id)))
         .into()
 }

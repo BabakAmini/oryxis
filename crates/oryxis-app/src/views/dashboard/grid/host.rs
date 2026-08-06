@@ -291,7 +291,7 @@ impl Oryxis {
             // Wrap in MouseArea for hover tracking and right-click
             let wrapped = MouseArea::new(card_element)
                 .on_enter(Message::Tabs(TabsMessage::CardHovered(idx)))
-                .on_exit(Message::Tabs(TabsMessage::CardUnhovered))
+                .on_exit(Message::Tabs(TabsMessage::CardUnhovered(idx)))
                 .on_right_press(Message::Tabs(TabsMessage::ShowCardMenu(idx)));
 
             host_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), badge_color, DashNavItem::Host(idx)));

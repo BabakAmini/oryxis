@@ -72,35 +72,118 @@ impl HoverState {
         *self = Self::default();
     }
 
-    /// The cursor left the tab at `idx`: drop the highlight ONLY if that
-    /// tab is still the one holding it.
+    /// Drop `slot` ONLY if the item the cursor left is still the one
+    /// holding it. Every `leave_*` below is this, named after its field.
     ///
-    /// Crossing from one chip to the next fires both events in the same
-    /// frame, and their order is the strip's build order, not the order
-    /// the cursor visited them: a `Row` updates its children by index, so
-    /// moving RIGHT TO LEFT publishes the arriving tab's `on_enter` first
-    /// and the departing tab's `on_exit` second. An unconditional clear
-    /// then wipes the hover it had just gained, and the close button never
-    /// appears (the chips sit 1 px apart, so there is no gap frame to
-    /// resettle it). Testing the index makes the pair order-independent.
-    pub(crate) fn leave_tab(&mut self, idx: usize) {
-        if self.tab == Some(idx) {
-            self.tab = None;
+    /// Crossing from one item to the next fires both events in the SAME
+    /// frame, and their order is the list's build order, not the order the
+    /// cursor visited them: a `Row` / `Column` updates its children by
+    /// index, so moving RIGHT TO LEFT (or BOTTOM TO TOP) publishes the
+    /// arriving item's `on_enter` first and the departing item's `on_exit`
+    /// second. An unconditional clear then wipes the hover it had just
+    /// gained, and the floating actions never appear. Testing the key
+    /// makes the pair order-independent.
+    ///
+    /// A gap between items only hides it: the guard runs per pointer
+    /// event, so any move long enough to skip the gap in one frame (an
+    /// ordinary flick of the wrist) delivers the pair back to back. The
+    /// tab strip put 1 px between chips and broke every time; the SFTP
+    /// rows have none and broke "maybe one time in ten" (a drag that
+    /// never armed, see `SftpRowExit`).
+    fn leave<T: PartialEq>(slot: &mut Option<T>, left: T) {
+        if slot.as_ref() == Some(&left) {
+            *slot = None;
         }
     }
 
-    /// Same for the SFTP chips, which are a second list in the same strip
-    /// and so cross into (and out of) the terminal ones.
+    /// Terminal tab chip, and the SFTP chips beside it in the same strip.
+    pub(crate) fn leave_tab(&mut self, idx: usize) {
+        Self::leave(&mut self.tab, idx);
+    }
+
     pub(crate) fn leave_sftp_tab(&mut self, idx: usize) {
-        if self.sftp_tab == Some(idx) {
-            self.sftp_tab = None;
-        }
+        Self::leave(&mut self.sftp_tab, idx);
+    }
+
+    /// Dashboard: host cards, folder cards, session-group cards.
+    pub(crate) fn leave_card(&mut self, idx: usize) {
+        Self::leave(&mut self.card, idx);
+    }
+
+    pub(crate) fn leave_folder_card(&mut self, gid: Uuid) {
+        Self::leave(&mut self.folder_card, gid);
+    }
+
+    pub(crate) fn leave_session_group_card(&mut self, idx: usize) {
+        Self::leave(&mut self.session_group_card, idx);
+    }
+
+    /// Keychain: key cards and identity cards, two grids on one screen.
+    pub(crate) fn leave_key_card(&mut self, idx: usize) {
+        Self::leave(&mut self.key_card, idx);
+    }
+
+    pub(crate) fn leave_identity_card(&mut self, idx: usize) {
+        Self::leave(&mut self.identity_card, idx);
+    }
+
+    /// Snippets, from both the full screen and the terminal sidebar.
+    pub(crate) fn leave_snippet_card(&mut self, idx: usize) {
+        Self::leave(&mut self.snippet_card, idx);
+    }
+
+    pub(crate) fn leave_port_forward_card(&mut self, idx: usize) {
+        Self::leave(&mut self.port_forward_card, idx);
+    }
+
+    pub(crate) fn leave_local_terminal_card(&mut self, idx: usize) {
+        Self::leave(&mut self.local_terminal_card, idx);
+    }
+
+    /// Cloud accounts and the dynamic-group cards on the dashboard.
+    pub(crate) fn leave_cloud_card(&mut self, id: Uuid) {
+        Self::leave(&mut self.cloud_card, id);
+    }
+
+    pub(crate) fn leave_dynamic_group_card(&mut self, id: Uuid) {
+        Self::leave(&mut self.dynamic_group_card, id);
+    }
+
+    /// Theme galleries: the user's own and the built-ins, terminal and UI.
+    pub(crate) fn leave_theme_card(&mut self, idx: usize) {
+        Self::leave(&mut self.theme_card, idx);
+    }
+
+    pub(crate) fn leave_builtin_theme_card(&mut self, idx: usize) {
+        Self::leave(&mut self.builtin_theme_card, idx);
+    }
+
+    pub(crate) fn leave_ui_theme_card(&mut self, idx: usize) {
+        Self::leave(&mut self.ui_theme_card, idx);
+    }
+
+    pub(crate) fn leave_builtin_ui_theme_card(&mut self, idx: usize) {
+        Self::leave(&mut self.builtin_ui_theme_card, idx);
+    }
+
+    /// History: the command-history cards and the session-log rows.
+    pub(crate) fn leave_history_card(&mut self, idx: usize) {
+        Self::leave(&mut self.history_card, idx);
+    }
+
+    pub(crate) fn leave_log_row(&mut self, id: Uuid) {
+        Self::leave(&mut self.log_row, id);
+    }
+
+    /// Files sidebar row.
+    pub(crate) fn leave_files_row(&mut self, idx: usize) {
+        Self::leave(&mut self.files_row, idx);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::HoverState;
+    use super::{HoverState, Uuid};
 
     /// The regression: the cursor moves from tab 1 onto tab 0, so the
     /// enter lands before the exit. The stale exit must not take the new
@@ -140,5 +223,40 @@ mod tests {
 
         assert_eq!(hover.tab, Some(3));
         assert_eq!(hover.sftp_tab, None);
+    }
+
+    /// The id-keyed lists (folder / cloud / dynamic-group cards, log rows)
+    /// re-sort under the cursor, so they carry a `Uuid` instead of a
+    /// position. The guard is the same compare, and it has to hold for a
+    /// key that is not `Copy`-cheap ordering.
+    #[test]
+    fn an_id_keyed_list_guards_the_same_way() {
+        let (a, b) = (Uuid::from_u128(1), Uuid::from_u128(2));
+        let mut hover = HoverState { log_row: Some(b), ..Default::default() };
+
+        // Walking UP the list: row `a` enters, then row `b` leaves.
+        hover.log_row = Some(a);
+        hover.leave_log_row(b);
+        assert_eq!(hover.log_row, Some(a));
+
+        hover.leave_log_row(a);
+        assert_eq!(hover.log_row, None);
+    }
+
+    /// Every list gets its own field, so an exit from one can never reach
+    /// into another even when both are on screen (the Keychain shows the
+    /// key grid and the identity grid at once).
+    #[test]
+    fn lists_on_the_same_screen_do_not_clear_each_other() {
+        let mut hover = HoverState {
+            key_card: Some(0),
+            identity_card: Some(4),
+            ..Default::default()
+        };
+
+        hover.leave_key_card(0);
+
+        assert_eq!(hover.key_card, None);
+        assert_eq!(hover.identity_card, Some(4));
     }
 }

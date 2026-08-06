@@ -21,8 +21,8 @@ impl Oryxis {
             SidebarFilesMessage::SidebarFilesRowHovered(idx) => {
                 self.hover.files_row = Some(idx);
             }
-            SidebarFilesMessage::SidebarFilesRowUnhovered => {
-                self.hover.files_row = None;
+            SidebarFilesMessage::SidebarFilesRowUnhovered(idx) => {
+                self.hover.leave_files_row(idx);
             }
             SidebarFilesMessage::SidebarFilesSelectRow(path, is_dir) => {
                 // Single-click selects the row (highlight); double-click

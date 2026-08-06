@@ -412,8 +412,8 @@ impl Oryxis {
             PortForwardMessage::PortForwardCardHovered(idx) => {
                 self.hover.port_forward_card = Some(idx);
             }
-            PortForwardMessage::PortForwardCardUnhovered => {
-                self.hover.port_forward_card = None;
+            PortForwardMessage::PortForwardCardUnhovered(idx) => {
+                self.hover.leave_port_forward_card(idx);
             }
             PortForwardMessage::PortForwardSearchChanged(v) => self.port_forward_search = v,
         }

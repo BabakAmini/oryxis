@@ -402,8 +402,8 @@ impl Oryxis {
             CloudMessage::CloudCardHovered(id) => {
                 self.hover.cloud_card = Some(id);
             }
-            CloudMessage::CloudCardUnhovered => {
-                self.hover.cloud_card = None;
+            CloudMessage::CloudCardUnhovered(id) => {
+                self.hover.leave_cloud_card(id);
             }
             CloudMessage::CloudSearchChanged(v) => self.cloud_search = v,
             CloudMessage::ShowCloudProviderPicker => {

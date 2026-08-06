@@ -472,7 +472,7 @@ impl Oryxis {
 
         let mut area = MouseArea::new(row_el)
             .on_enter(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowHovered(pos)))
-            .on_exit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowUnhovered))
+            .on_exit(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRowUnhovered(pos)))
             .on_press(press)
             .interaction(iced::mouse::Interaction::Pointer);
         // Right-click opens the row's context menu (Open / Open SFTP

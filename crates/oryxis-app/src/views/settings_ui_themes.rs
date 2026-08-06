@@ -469,7 +469,7 @@ impl Oryxis {
         }
         MouseArea::new(stack)
             .on_enter(Message::Settings(SettingsMessage::UiThemeCardHovered(idx)))
-            .on_exit(Message::Settings(SettingsMessage::UiThemeCardUnhovered))
+            .on_exit(Message::Settings(SettingsMessage::UiThemeCardUnhovered(idx)))
             .into()
     }
 
@@ -516,7 +516,7 @@ impl Oryxis {
         }
         MouseArea::new(stack)
             .on_enter(Message::Settings(SettingsMessage::UiThemeBuiltinCardHovered(idx)))
-            .on_exit(Message::Settings(SettingsMessage::UiThemeBuiltinCardUnhovered))
+            .on_exit(Message::Settings(SettingsMessage::UiThemeBuiltinCardUnhovered(idx)))
             .into()
     }
 

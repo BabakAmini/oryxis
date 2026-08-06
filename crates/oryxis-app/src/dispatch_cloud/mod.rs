@@ -61,7 +61,7 @@ impl Oryxis {
             | CloudMessage::DeleteCloudProfile(..)
             | CloudMessage::ShowCloudCardMenu(..)
             | CloudMessage::CloudCardHovered(..)
-            | CloudMessage::CloudCardUnhovered
+            | CloudMessage::CloudCardUnhovered(..)
             | CloudMessage::ShowCloudProviderPicker) => self
                 .handle_cloud_form(m)
                 .unwrap_or_else(crate::dispatch::unrouted),
@@ -116,7 +116,7 @@ impl Oryxis {
             | CloudMessage::DeleteDynamicGroup(..)
             | CloudMessage::ShowDynamicGroupCardMenu(..)
             | CloudMessage::DynamicGroupCardHovered(..)
-            | CloudMessage::DynamicGroupCardUnhovered) => self
+            | CloudMessage::DynamicGroupCardUnhovered(..)) => self
                 .handle_cloud_dynamic_group(m)
                 .unwrap_or_else(crate::dispatch::unrouted),
             m @ (CloudMessage::PluginSessionEnded(..)

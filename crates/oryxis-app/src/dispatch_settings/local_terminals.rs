@@ -256,8 +256,8 @@ impl Oryxis {
             SettingsMessage::LocalTerminalCardHovered(idx) => {
                 self.hover.local_terminal_card = Some(idx);
             }
-            SettingsMessage::LocalTerminalCardUnhovered => {
-                self.hover.local_terminal_card = None;
+            SettingsMessage::LocalTerminalCardUnhovered(idx) => {
+                self.hover.leave_local_terminal_card(idx);
             }
             SettingsMessage::LocalTerminalFormLabelChanged(v) => {
                 self.local_terminal_form.label = v;

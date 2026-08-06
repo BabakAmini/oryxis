@@ -433,7 +433,7 @@ impl Oryxis {
 
                 let wrapped = MouseArea::new(folder_card)
                     .on_enter(Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)))
-                    .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered))
+                    .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered(gid)))
                     .on_right_press(Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)));
                 group_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), folder_bg, DashNavItem::Group(gid)));
             }
@@ -630,7 +630,7 @@ impl Oryxis {
                 });
                 let wrapped = MouseArea::new(folder_card)
                     .on_enter(Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)))
-                    .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered))
+                    .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered(gid)))
                     .on_right_press(Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)));
                 group_cards.push((Element::from(container(wrapped).width(Length::Fill).clip(true)), folder_bg, DashNavItem::Group(gid)));
             }
@@ -826,7 +826,7 @@ impl Oryxis {
         // card convention).
         let wrapped = MouseArea::new(folder_element)
             .on_enter(Message::Tabs(TabsMessage::FolderCardHovered(gid)))
-            .on_exit(Message::Tabs(TabsMessage::FolderCardUnhovered))
+            .on_exit(Message::Tabs(TabsMessage::FolderCardUnhovered(gid)))
             .on_right_press(Message::Tabs(TabsMessage::ShowFolderActions(gid)));
         (
             Element::from(container(wrapped).width(Length::Fill).clip(true)),

@@ -109,7 +109,7 @@ pub enum SftpMessage {
     SftpColDragStart(crate::state::SftpPaneSide, crate::state::SftpColumn),
     /// Cursor entered / left a column header (reorder drop target).
     SftpColHovered(crate::state::SftpPaneSide, crate::state::SftpColumn),
-    SftpColUnhovered,
+    SftpColUnhovered(crate::state::SftpPaneSide, crate::state::SftpColumn),
     /// Toggle this pane's collapsed filter popover (narrow layout).
     SftpToggleFilterSearch(crate::state::SftpPaneSide),
     /// Toggle the FileZilla-style message-log panel at the bottom of the view.
@@ -151,7 +151,7 @@ pub enum SftpMessage {
     /// slow-click rename to the name itself, Explorer / Finder style.
     SftpNameHovered(crate::state::SftpPaneSide, String),
     /// The cursor left a file-name label.
-    SftpNameUnhovered,
+    SftpNameUnhovered(crate::state::SftpPaneSide, String),
     /// Deferred slow-click rename `(side, path, click generation)`: sent
     /// a double-click window after the arming release and dropped when a
     /// newer click has bumped the generation meanwhile.

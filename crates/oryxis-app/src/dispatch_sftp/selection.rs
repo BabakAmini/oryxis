@@ -246,8 +246,8 @@ impl Oryxis {
                 }
                 self.sftp.hovered_name = Some((side, path));
             }
-            SftpMessage::SftpNameUnhovered => {
-                self.sftp.hovered_name = None;
+            SftpMessage::SftpNameUnhovered(side, path) => {
+                self.sftp.leave_name((side, path));
             }
             SftpMessage::SftpSlowRenameFire(side, path, generation) => {
                 if !slow_rename_still_valid(

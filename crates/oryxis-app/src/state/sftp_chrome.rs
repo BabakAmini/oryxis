@@ -31,6 +31,23 @@ pub(crate) struct SftpChrome {
     pub(crate) hovered_col: Option<(crate::state::SftpPaneSide, crate::state::SftpColumn)>,
 }
 
+impl SftpChrome {
+    /// The cursor left this header: drop the highlight only while that
+    /// header is still the one holding it. Headers are siblings in one
+    /// `Row`, so crossing them right to left delivers the arriving
+    /// header's enter BEFORE the departing header's exit (see
+    /// `HoverState::leave`), and an unconditional clear would drop the
+    /// reorder drop target the cursor had just acquired.
+    pub(crate) fn leave_col(
+        &mut self,
+        col: (crate::state::SftpPaneSide, crate::state::SftpColumn),
+    ) {
+        if self.hovered_col == Some(col) {
+            self.hovered_col = None;
+        }
+    }
+}
+
 impl Default for SftpChrome {
     fn default() -> Self {
         Self {

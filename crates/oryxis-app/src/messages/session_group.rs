@@ -29,5 +29,5 @@ pub enum SessionGroupMessage {
     /// Open the shared icon/color picker targeting the session-group form.
     ShowSessionGroupIconPicker,
     SessionGroupCardHovered(usize),
-    SessionGroupCardUnhovered,
+    SessionGroupCardUnhovered(usize),
 }

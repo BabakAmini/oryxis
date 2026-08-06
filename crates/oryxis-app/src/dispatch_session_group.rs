@@ -253,8 +253,8 @@ impl Oryxis {
                 self.hover.session_group_card = Some(idx);
                 Task::none()
             }
-            SessionGroupMessage::SessionGroupCardUnhovered => {
-                self.hover.session_group_card = None;
+            SessionGroupMessage::SessionGroupCardUnhovered(idx) => {
+                self.hover.leave_session_group_card(idx);
                 Task::none()
             }
 

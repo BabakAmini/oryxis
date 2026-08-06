@@ -46,7 +46,7 @@ pub enum CloudMessage {
     /// to the cursor like the host-card menu.
     ShowCloudCardMenu(Uuid),
     CloudCardHovered(Uuid),
-    CloudCardUnhovered,
+    CloudCardUnhovered(uuid::Uuid),
     /// Open the cloud-provider picker dropdown next to the "+ Host"
     /// button (only when at least one cloud profile is configured).
     ShowCloudProviderPicker,
@@ -209,5 +209,5 @@ pub enum CloudMessage {
     /// ⋮ menu on a dynamic-group card.
     ShowDynamicGroupCardMenu(Uuid),
     DynamicGroupCardHovered(Uuid),
-    DynamicGroupCardUnhovered,
+    DynamicGroupCardUnhovered(uuid::Uuid),
 }

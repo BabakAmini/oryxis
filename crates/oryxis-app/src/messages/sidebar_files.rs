@@ -28,7 +28,7 @@ pub enum SidebarFilesMessage {
     SidebarFilesListed(Uuid, u64, String, Vec<oryxis_ssh::SftpEntry>),
     SidebarFilesError(Uuid, u64, String),
     SidebarFilesRowHovered(usize),
-    SidebarFilesRowUnhovered,
+    SidebarFilesRowUnhovered(usize),
     /// Left-click on a row: single-click selects it (highlight); a quick
     /// double-click on a directory enters it.
     SidebarFilesSelectRow(String, bool),

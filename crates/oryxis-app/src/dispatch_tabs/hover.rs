@@ -13,32 +13,32 @@ impl Oryxis {
             TabsMessage::CardHovered(idx) => {
                 self.hover.card = Some(idx);
             }
-            TabsMessage::CardUnhovered => {
-                self.hover.card = None;
+            TabsMessage::CardUnhovered(idx) => {
+                self.hover.leave_card(idx);
             }
             TabsMessage::FolderCardHovered(gid) => {
                 self.hover.folder_card = Some(gid);
             }
-            TabsMessage::FolderCardUnhovered => {
-                self.hover.folder_card = None;
+            TabsMessage::FolderCardUnhovered(gid) => {
+                self.hover.leave_folder_card(gid);
             }
             TabsMessage::KeyCardHovered(idx) => {
                 self.hover.key_card = Some(idx);
             }
-            TabsMessage::KeyCardUnhovered => {
-                self.hover.key_card = None;
+            TabsMessage::KeyCardUnhovered(idx) => {
+                self.hover.leave_key_card(idx);
             }
             TabsMessage::IdentityCardHovered(idx) => {
                 self.hover.identity_card = Some(idx);
             }
-            TabsMessage::IdentityCardUnhovered => {
-                self.hover.identity_card = None;
+            TabsMessage::IdentityCardUnhovered(idx) => {
+                self.hover.leave_identity_card(idx);
             }
             TabsMessage::SnippetCardHovered(idx) => {
                 self.hover.snippet_card = Some(idx);
             }
-            TabsMessage::SnippetCardUnhovered => {
-                self.hover.snippet_card = None;
+            TabsMessage::SnippetCardUnhovered(idx) => {
+                self.hover.leave_snippet_card(idx);
             }
             TabsMessage::SettingsTabHovered => {
                 self.hover.settings_tab = true;

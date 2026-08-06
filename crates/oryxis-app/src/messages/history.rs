@@ -62,7 +62,7 @@ pub enum HistoryMessage {
     DeleteSessionLog(usize),
     /// Hover tracking for clickable session rows in the Logs view.
     LogRowHovered(Uuid),
-    LogRowUnhovered,
+    LogRowUnhovered(uuid::Uuid),
     #[allow(dead_code)]
     ClearSessionLogs,
     #[allow(dead_code)]

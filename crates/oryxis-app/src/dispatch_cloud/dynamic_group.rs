@@ -388,8 +388,8 @@ impl Oryxis {
             CloudMessage::DynamicGroupCardHovered(gid) => {
                 self.hover.dynamic_group_card = Some(gid);
             }
-            CloudMessage::DynamicGroupCardUnhovered => {
-                self.hover.dynamic_group_card = None;
+            CloudMessage::DynamicGroupCardUnhovered(id) => {
+                self.hover.leave_dynamic_group_card(id);
             }
             m => return Err(m),
         }

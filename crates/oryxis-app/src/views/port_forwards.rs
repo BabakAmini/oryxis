@@ -316,7 +316,7 @@ impl Oryxis {
             // Right-click opens the same kebab menu, the app-wide rule.
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
                 .on_enter(Message::PortForward(PortForwardMessage::PortForwardCardHovered(idx)))
-                .on_exit(Message::PortForward(PortForwardMessage::PortForwardCardUnhovered))
+                .on_exit(Message::PortForward(PortForwardMessage::PortForwardCardUnhovered(idx)))
                 .on_right_press(Message::PortForward(PortForwardMessage::ShowPortForwardMenu(idx)))
                 .into();
             let card_el: Element<'_, Message> =

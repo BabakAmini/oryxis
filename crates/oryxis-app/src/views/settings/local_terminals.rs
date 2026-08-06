@@ -212,7 +212,7 @@ impl Oryxis {
         }
         iced::widget::MouseArea::new(stack)
             .on_enter(Message::Settings(SettingsMessage::LocalTerminalCardHovered(idx)))
-            .on_exit(Message::Settings(SettingsMessage::LocalTerminalCardUnhovered))
+            .on_exit(Message::Settings(SettingsMessage::LocalTerminalCardUnhovered(idx)))
             .into()
     }
 

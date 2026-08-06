@@ -747,6 +747,6 @@ fn snippet_row<'a>(
 
     MouseArea::new(row_el)
         .on_enter(Message::Tabs(TabsMessage::SnippetCardHovered(idx)))
-        .on_exit(Message::Tabs(TabsMessage::SnippetCardUnhovered))
+        .on_exit(Message::Tabs(TabsMessage::SnippetCardUnhovered(idx)))
         .into()
 }

@@ -5,7 +5,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub enum CommandHistoryMessage {
     HistoryCardHovered(usize),
-    HistoryCardUnhovered,
+    HistoryCardUnhovered(usize),
     /// Re-run a captured command in the active terminal (+ Enter).
     RunHistoryCommand(Uuid),
     /// Insert a captured command WITHOUT the trailing newline.

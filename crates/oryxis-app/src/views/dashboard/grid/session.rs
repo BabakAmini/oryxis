@@ -139,7 +139,7 @@ impl Oryxis {
 
         let wrapped = MouseArea::new(card_element)
             .on_enter(Message::SessionGroup(SessionGroupMessage::SessionGroupCardHovered(idx)))
-            .on_exit(Message::SessionGroup(SessionGroupMessage::SessionGroupCardUnhovered))
+            .on_exit(Message::SessionGroup(SessionGroupMessage::SessionGroupCardUnhovered(idx)))
             .on_right_press(Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(idx)));
 
         (

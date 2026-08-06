@@ -76,7 +76,7 @@ pub enum SettingsMessage {
     /// Hover tracking for the floating clone icon on a BUILT-IN terminal
     /// theme card in the settings grid.
     ThemeBuiltinCardHovered(usize),
-    ThemeBuiltinCardUnhovered,
+    ThemeBuiltinCardUnhovered(usize),
     UiThemeEditorNew,
     UiThemeEditorEdit(usize),
     UiThemeEditorClose,
@@ -114,13 +114,13 @@ pub enum SettingsMessage {
     /// Hover tracking for the floating clone icon on a BUILT-IN app
     /// theme card in the Interface grid.
     UiThemeBuiltinCardHovered(usize),
-    UiThemeBuiltinCardUnhovered,
+    UiThemeBuiltinCardUnhovered(usize),
     UiThemeCardHovered(usize),
-    UiThemeCardUnhovered,
+    UiThemeCardUnhovered(usize),
     /// Hover tracking for the floating edit / delete icons on a custom
     /// theme card.
     ThemeCardHovered(usize),
-    ThemeCardUnhovered,
+    ThemeCardUnhovered(usize),
     /// Open the compact color-picker popover for a slot (anchored at the
     /// cursor).
     ThemeEditorOpenPicker(crate::state::ThemeColorSlot),
@@ -455,7 +455,7 @@ pub enum SettingsMessage {
     AddLocalTerminalSubmit,
     /// Hover tracking for the per-card remove action.
     LocalTerminalCardHovered(usize),
-    LocalTerminalCardUnhovered,
+    LocalTerminalCardUnhovered(usize),
     SettingCloudAutoRefreshToggle,
     SettingCloudAutoRefreshIntervalChanged(String),
     SettingCloudAutoArchiveToggle,

@@ -268,7 +268,7 @@ impl Oryxis {
             | SftpMessage::SftpColAutoFit(..)
             | SftpMessage::SftpColDragStart(..)
             | SftpMessage::SftpColHovered(..)
-            | SftpMessage::SftpColUnhovered
+            | SftpMessage::SftpColUnhovered(..)
             | SftpMessage::SftpToggleFilterSearch(..)
             | SftpMessage::SftpToggleLog
             | SftpMessage::SftpLogResizeStart
@@ -300,7 +300,7 @@ impl Oryxis {
             | SftpMessage::SftpRowEnter(..)
             | SftpMessage::SftpRowExit(..)
             | SftpMessage::SftpNameHovered(..)
-            | SftpMessage::SftpNameUnhovered
+            | SftpMessage::SftpNameUnhovered(..)
             | SftpMessage::SftpSlowRenameFire(..)
             | SftpMessage::SftpMouseLeftPressed
             | SftpMessage::SftpSelectRow(..)) => self

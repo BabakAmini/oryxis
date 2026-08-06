@@ -61,6 +61,6 @@ pub enum PortForwardMessage {
     /// out a backoff that has already climbed to its ceiling.
     PortForwardAgentCensus(Vec<String>),
     PortForwardCardHovered(usize),
-    PortForwardCardUnhovered,
+    PortForwardCardUnhovered(usize),
     PortForwardSearchChanged(String),
 }

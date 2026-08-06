@@ -582,7 +582,7 @@ impl Oryxis {
             // card convention).
             let wrapped: Element<'_, Message> = MouseArea::new(card_btn)
                 .on_enter(Message::Tabs(TabsMessage::SnippetCardHovered(idx)))
-                .on_exit(Message::Tabs(TabsMessage::SnippetCardUnhovered))
+                .on_exit(Message::Tabs(TabsMessage::SnippetCardUnhovered(idx)))
                 .on_right_press(Message::Snippet(SnippetMessage::ShowSnippetMenu(idx)))
                 .into();
             let card_el: Element<'_, Message> =

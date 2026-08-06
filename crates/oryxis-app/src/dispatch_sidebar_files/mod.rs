@@ -172,7 +172,7 @@ impl Oryxis {
         match message {
             m @ (
                 SidebarFilesMessage::SidebarFilesRowHovered(..)
-                | SidebarFilesMessage::SidebarFilesRowUnhovered
+                | SidebarFilesMessage::SidebarFilesRowUnhovered(..)
                 | SidebarFilesMessage::SidebarFilesSelectRow(..)
                 | SidebarFilesMessage::SidebarFilesToggleFollow
                 | SidebarFilesMessage::SidebarFilesToggleHidden

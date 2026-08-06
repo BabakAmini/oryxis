@@ -20,8 +20,8 @@ impl Oryxis {
             CommandHistoryMessage::HistoryCardHovered(idx) => {
                 self.hover.history_card = Some(idx);
             }
-            CommandHistoryMessage::HistoryCardUnhovered => {
-                self.hover.history_card = None;
+            CommandHistoryMessage::HistoryCardUnhovered(idx) => {
+                self.hover.leave_history_card(idx);
             }
             CommandHistoryMessage::CmdHistorySearchChanged(v) => {
                 self.cmd_history_search = v;

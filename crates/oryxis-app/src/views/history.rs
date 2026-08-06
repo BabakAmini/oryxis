@@ -1192,7 +1192,7 @@ impl Oryxis {
                 let mut area = iced::widget::MouseArea::new(card)
                     .on_press(open)
                     .on_enter(Message::History(HistoryMessage::LogRowHovered(log_id)))
-                    .on_exit(Message::History(HistoryMessage::LogRowUnhovered))
+                    .on_exit(Message::History(HistoryMessage::LogRowUnhovered(log_id)))
                     .interaction(iced::mouse::Interaction::Pointer);
                 match &row.kind {
                     TimelineKind::Session { idx, .. } => {

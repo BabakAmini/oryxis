@@ -78,15 +78,15 @@ impl Oryxis {
             ) => self.handle_tabs_window(m),
             m @ (
                 TabsMessage::CardHovered(..)
-                | TabsMessage::CardUnhovered
+                | TabsMessage::CardUnhovered(..)
                 | TabsMessage::FolderCardHovered(..)
-                | TabsMessage::FolderCardUnhovered
+                | TabsMessage::FolderCardUnhovered(..)
                 | TabsMessage::KeyCardHovered(..)
-                | TabsMessage::KeyCardUnhovered
+                | TabsMessage::KeyCardUnhovered(..)
                 | TabsMessage::IdentityCardHovered(..)
-                | TabsMessage::IdentityCardUnhovered
+                | TabsMessage::IdentityCardUnhovered(..)
                 | TabsMessage::SnippetCardHovered(..)
-                | TabsMessage::SnippetCardUnhovered
+                | TabsMessage::SnippetCardUnhovered(..)
                 | TabsMessage::SettingsTabHovered
                 | TabsMessage::SettingsTabUnhovered
                 | TabsMessage::TabHovered(..)

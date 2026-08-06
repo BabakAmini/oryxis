@@ -309,7 +309,7 @@ pub(crate) fn header_cell<'a>(
     )
     .on_press(Message::Sftp(SftpMessage::SftpColDragStart(side, col)))
     .on_enter(Message::Sftp(SftpMessage::SftpColHovered(side, col)))
-    .on_exit(Message::Sftp(SftpMessage::SftpColUnhovered))
+    .on_exit(Message::Sftp(SftpMessage::SftpColUnhovered(side, col)))
     // Grab hint normally; grabbing while a reorder drag is active so the
     // user gets cursor feedback that the drag took.
     .interaction(if dragging {

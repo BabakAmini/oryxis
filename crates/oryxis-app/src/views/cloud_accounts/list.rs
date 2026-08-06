@@ -330,7 +330,7 @@ impl Oryxis {
 
                 let wrapped = MouseArea::new(card_element)
                     .on_enter(Message::Cloud(CloudMessage::CloudCardHovered(cp_id)))
-                    .on_exit(Message::Cloud(CloudMessage::CloudCardUnhovered))
+                    .on_exit(Message::Cloud(CloudMessage::CloudCardUnhovered(cp_id)))
                     .on_right_press(Message::Cloud(CloudMessage::ShowCloudCardMenu(cp_id)));
 
                 let card_el: Element<'_, Message> =

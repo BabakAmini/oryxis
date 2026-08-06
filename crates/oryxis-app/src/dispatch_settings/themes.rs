@@ -435,8 +435,8 @@ impl Oryxis {
             SettingsMessage::ThemeCardHovered(idx) => {
                 self.hover.theme_card = Some(idx);
             }
-            SettingsMessage::ThemeCardUnhovered => {
-                self.hover.theme_card = None;
+            SettingsMessage::ThemeCardUnhovered(idx) => {
+                self.hover.leave_theme_card(idx);
             }
             SettingsMessage::ThemeEditorNew => {
                 // Seed from the active terminal palette so the user starts
@@ -566,8 +566,8 @@ impl Oryxis {
             SettingsMessage::UiThemeCardHovered(idx) => {
                 self.hover.ui_theme_card = Some(idx);
             }
-            SettingsMessage::UiThemeCardUnhovered => {
-                self.hover.ui_theme_card = None;
+            SettingsMessage::UiThemeCardUnhovered(idx) => {
+                self.hover.leave_ui_theme_card(idx);
             }
             SettingsMessage::ThemeEditorEdit(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx) {
@@ -652,8 +652,8 @@ impl Oryxis {
             SettingsMessage::ThemeBuiltinCardHovered(idx) => {
                 self.hover.builtin_theme_card = Some(idx);
             }
-            SettingsMessage::ThemeBuiltinCardUnhovered => {
-                self.hover.builtin_theme_card = None;
+            SettingsMessage::ThemeBuiltinCardUnhovered(idx) => {
+                self.hover.leave_builtin_theme_card(idx);
             }
             SettingsMessage::ThemeClone(idx) => {
                 if let Some(theme) = self.custom_terminal_themes.get(idx) {
@@ -770,8 +770,8 @@ impl Oryxis {
             SettingsMessage::UiThemeBuiltinCardHovered(idx) => {
                 self.hover.builtin_ui_theme_card = Some(idx);
             }
-            SettingsMessage::UiThemeBuiltinCardUnhovered => {
-                self.hover.builtin_ui_theme_card = None;
+            SettingsMessage::UiThemeBuiltinCardUnhovered(idx) => {
+                self.hover.leave_builtin_ui_theme_card(idx);
             }
             SettingsMessage::UiThemeClone(idx) => {
                 if let Some(theme) = self.custom_ui_themes.get(idx) {

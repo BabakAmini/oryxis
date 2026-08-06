@@ -166,9 +166,9 @@ impl Oryxis {
             | SettingsMessage::UiThemeImportBrowse
             | SettingsMessage::UiThemeImportFileLoaded(..)
             | SettingsMessage::UiThemeBuiltinCardHovered(..)
-            | SettingsMessage::UiThemeBuiltinCardUnhovered
+            | SettingsMessage::UiThemeBuiltinCardUnhovered(..)
             | SettingsMessage::UiThemeCardHovered(..)
-            | SettingsMessage::UiThemeCardUnhovered
+            | SettingsMessage::UiThemeCardUnhovered(..)
             | SettingsMessage::ThemeClone(..)
             | SettingsMessage::ThemeCloneBuiltin(..)
             | SettingsMessage::ThemeExport(..)
@@ -177,9 +177,9 @@ impl Oryxis {
             | SettingsMessage::ThemeImportBrowse
             | SettingsMessage::ThemeImportFileLoaded(..)
             | SettingsMessage::ThemeBuiltinCardHovered(..)
-            | SettingsMessage::ThemeBuiltinCardUnhovered
+            | SettingsMessage::ThemeBuiltinCardUnhovered(..)
             | SettingsMessage::ThemeCardHovered(..)
-            | SettingsMessage::ThemeCardUnhovered
+            | SettingsMessage::ThemeCardUnhovered(..)
             | SettingsMessage::ThemeEditorOpenPicker(..)
             | SettingsMessage::ThemeEditorClosePicker
             | SettingsMessage::LocalConfigThemeChanged(..)
@@ -208,7 +208,7 @@ impl Oryxis {
             | SettingsMessage::LocalTerminalFormTagsChanged(..)
             | SettingsMessage::AddLocalTerminalSubmit
             | SettingsMessage::LocalTerminalCardHovered(..)
-            | SettingsMessage::LocalTerminalCardUnhovered) => {
+            | SettingsMessage::LocalTerminalCardUnhovered(..)) => {
                 self.handle_settings_local_terminals(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SettingsMessage::SettingToggleShowStatusBar

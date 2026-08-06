@@ -184,8 +184,8 @@ pub(crate) fn name_label_widget<'a>(
     // pixels wide rather than cutting off the end of the name.
     let hit_w = approx_text_width(name, 12.0).min(avail).max(1.0);
     let probe = MouseArea::new(Space::new().width(Length::Fixed(hit_w)).height(Length::Fill))
-        .on_enter(Message::Sftp(SftpMessage::SftpNameHovered(side, path)))
-        .on_exit(Message::Sftp(SftpMessage::SftpNameUnhovered));
+        .on_enter(Message::Sftp(SftpMessage::SftpNameHovered(side, path.clone())))
+        .on_exit(Message::Sftp(SftpMessage::SftpNameUnhovered(side, path)));
     let layered = iced::widget::stack![
         label,
         container(probe)

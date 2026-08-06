@@ -561,6 +561,19 @@ impl Default for SftpState {
 }
 
 impl SftpState {
+    /// The cursor left this name label: drop the highlight only while that
+    /// label is still the one holding it. The probes are one per row in a
+    /// single `Column`, so walking UP the list delivers the arriving row's
+    /// enter BEFORE the departing row's exit (see `HoverState::leave`),
+    /// and an unconditional clear would disarm the slow-click rename the
+    /// cursor had just armed. `hovered_row` next door learned this the
+    /// hard way, see `SftpRowExit`.
+    pub(crate) fn leave_name(&mut self, name: (SftpPaneSide, String)) {
+        if self.hovered_name.as_ref() == Some(&name) {
+            self.hovered_name = None;
+        }
+    }
+
     pub(crate) fn pane(&self, side: SftpPaneSide) -> &PaneState {
         match side {
             SftpPaneSide::Left => &self.left,
