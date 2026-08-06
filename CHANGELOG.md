@@ -153,6 +153,15 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   write. On by default; one toggle in Settings > Terminal.
 
 ### Fixed
+- **The Monitor tab lists one disk per device, not one per mount.**
+  `df` reports mounts rather than storage, so a rooted Android phone
+  answered with 176 disk rows, nearly all of them `/system/bin/*` bind
+  mounts repeating the system partition's figures, and the status bar
+  picked one of those as the busiest disk. Pseudo filesystems are now
+  filtered on a wider list, one row survives per source device (its
+  shallowest mount point), and a bind mount whose numbers repeat a real
+  device is dropped. A CIFS share, a mergerfs pool and ZFS datasets are
+  none of those and stay.
 - **A master password change no longer orphaned TOTP secrets.** The
   re-encryption pass did not list the connections table's
   `totp_secret` column, so changing the master password left every
