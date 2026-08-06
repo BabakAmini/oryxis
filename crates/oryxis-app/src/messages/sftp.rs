@@ -86,8 +86,9 @@ pub enum SftpMessage {
     SftpRemountPane(crate::state::SftpPaneSide, usize),
     /// Cursor entered the SFTP tab at this index (hover + live-slide target).
     SftpTabHovered(usize),
-    /// Cursor left the SFTP tab strip.
-    SftpTabUnhovered,
+    /// Cursor left the SFTP tab at this index. Indexed for the same reason
+    /// `TabsMessage::TabUnhovered` is.
+    SftpTabUnhovered(usize),
     SftpPickerSearch(String),
     SftpToggleHidden(crate::state::SftpPaneSide),
     SftpFilter(crate::state::SftpPaneSide, String),

@@ -65,8 +65,8 @@ impl Oryxis {
                     self.slide_tab_in_order(drag.from_id, target);
                 }
             }
-            TabsMessage::TabUnhovered => {
-                self.hover.tab = None;
+            TabsMessage::TabUnhovered(idx) => {
+                self.hover.leave_tab(idx);
             }
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.

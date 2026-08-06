@@ -234,7 +234,7 @@ pub(crate) fn sftp_session_tab<'a>(
     });
     MouseArea::new(tab_btn)
         .on_enter(Message::Sftp(SftpMessage::SftpTabHovered(idx)))
-        .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered))
+        .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered(idx)))
         .on_right_press(Message::Sftp(SftpMessage::ShowSftpTabMenu(idx)))
         .into()
 }
@@ -439,7 +439,7 @@ pub(crate) fn sftp_pinned_chip<'a>(idx: usize, is_active: bool, badge_accent: Co
     });
     MouseArea::new(tab_btn)
         .on_enter(Message::Sftp(SftpMessage::SftpTabHovered(idx)))
-        .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered))
+        .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered(idx)))
         .on_right_press(Message::Sftp(SftpMessage::ShowSftpTabMenu(idx)))
         .into()
 }
@@ -907,7 +907,7 @@ pub(crate) fn session_tab<'a>(
 
     MouseArea::new(tab_el)
         .on_enter(Message::Tabs(TabsMessage::TabHovered(idx)))
-        .on_exit(Message::Tabs(TabsMessage::TabUnhovered))
+        .on_exit(Message::Tabs(TabsMessage::TabUnhovered(idx)))
         .on_right_press(Message::Tabs(TabsMessage::ShowTabMenu(idx)))
         .into()
 }
@@ -1227,7 +1227,7 @@ pub(crate) fn pinned_tab_chip<'a>(
     });
     MouseArea::new(btn)
         .on_enter(Message::Tabs(TabsMessage::TabHovered(idx)))
-        .on_exit(Message::Tabs(TabsMessage::TabUnhovered))
+        .on_exit(Message::Tabs(TabsMessage::TabUnhovered(idx)))
         .on_right_press(Message::Tabs(TabsMessage::ShowTabMenu(idx)))
         .into()
 }

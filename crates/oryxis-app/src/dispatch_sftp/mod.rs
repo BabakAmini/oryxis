@@ -237,7 +237,7 @@ impl Oryxis {
             | SftpMessage::ShowSftpTabMenu(..)
             | SftpMessage::CloseOtherSftpTabs(..)
             | SftpMessage::SftpTabHovered(..)
-            | SftpMessage::SftpTabUnhovered) => self
+            | SftpMessage::SftpTabUnhovered(..)) => self
                 .handle_sftp_tabs(m)
                 .unwrap_or_else(crate::dispatch::unrouted),
             m @ (SftpMessage::SftpRemoteLoaded(..)

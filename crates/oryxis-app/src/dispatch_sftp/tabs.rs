@@ -121,8 +121,8 @@ impl Oryxis {
                     self.slide_tab_in_order(drag.from_id, target);
                 }
             }
-            SftpMessage::SftpTabUnhovered => {
-                self.hover.sftp_tab = None;
+            SftpMessage::SftpTabUnhovered(idx) => {
+                self.hover.leave_sftp_tab(idx);
             }
             SftpMessage::NewSftpTab => {
                 self.overlay = None;

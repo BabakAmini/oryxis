@@ -12,7 +12,10 @@ pub enum TabsMessage {
     /// so tear it down without asking again (issue #112).
     ConfirmCloseGroupedTab(usize),
     TabHovered(usize),
-    TabUnhovered,
+    /// Cursor left the tab at this index. It carries the index because the
+    /// next tab's enter can arrive FIRST (see `HoverState::leave_tab`), so
+    /// the clear has to know whose exit it is.
+    TabUnhovered(usize),
     /// Cursor entered the trailing drop zone (the `+` button area) during an
     /// active tab-reorder drag: slide the dragged tab to the end of its
     /// partition, the one slot the live-slide can't otherwise reach.
