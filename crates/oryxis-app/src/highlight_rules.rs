@@ -10,14 +10,19 @@
 //! is compiled once and then matched against every visible row of every
 //! repaint.
 
-use oryxis_core::models::{HighlightRule, MAX_HIGHLIGHT_RULES};
+use oryxis_core::models::{HighlightRule, HostHighlightRules, MAX_HIGHLIGHT_RULES};
 use oryxis_terminal::{CompiledRule, CompiledRules};
 use std::sync::Arc;
 
 use crate::app::Oryxis;
 
-/// The setting the rule list lives in, as a JSON array.
+/// The setting the GLOBAL rule list lives in, as a JSON array. A host's
+/// own rules live on its connection row instead, so they ride sync and
+/// the portable export like every other per-host field.
 pub(crate) const SETTING_KEY: &str = "terminal_highlight_rules";
+
+/// How many hosts' resolved rule sets are kept compiled at once.
+const MAX_CACHED_HOSTS: usize = 64;
 
 /// Colour a rule falls back to when its stored value is not a colour.
 /// Amber, which reads on both the light and the dark terminal themes; a
@@ -54,6 +59,16 @@ pub(crate) const RULE_COLOR_PRESETS: [&str; 6] = [
 pub(crate) fn compile(rules: &[HighlightRule]) -> (Arc<CompiledRules>, Vec<(String, String)>) {
     let mut compiled = Vec::new();
     let mut errors = Vec::new();
+    // Said out loud rather than trimmed quietly: a host appending its
+    // rules to a full global list is the one way to reach the cap
+    // without the editor having refused anything.
+    let enabled = rules.iter().filter(|r| r.enabled).count();
+    if enabled > MAX_HIGHLIGHT_RULES {
+        tracing::warn!(
+            "{enabled} enabled highlight rules resolve for this host; \
+             only the first {MAX_HIGHLIGHT_RULES} are applied"
+        );
+    }
     for rule in rules.iter().filter(|r| r.enabled).take(MAX_HIGHLIGHT_RULES) {
         let color = oryxis_terminal::parse_hex_color(&rule.color).unwrap_or(FALLBACK_COLOR);
         match CompiledRule::new(
@@ -70,6 +85,25 @@ pub(crate) fn compile(rules: &[HighlightRule]) -> (Arc<CompiledRules>, Vec<(Stri
         }
     }
     (Arc::new(CompiledRules::new(compiled)), errors)
+}
+
+/// The rules that actually apply on a host: its own, plus the global
+/// list unless it asked to replace them.
+///
+/// The host's rules come FIRST because order is precedence (the first
+/// matching rule paints the cell), and the more specific list is the one
+/// that should win. `replace` with an empty host list is meaningful: it
+/// resolves to nothing at all, which is how a noisy host turns
+/// highlighting off.
+pub(crate) fn effective_rules(
+    global: &[HighlightRule],
+    host: Option<&HostHighlightRules>,
+) -> Vec<HighlightRule> {
+    match host {
+        None => global.to_vec(),
+        Some(h) if h.replace => h.rules.clone(),
+        Some(h) => h.rules.iter().chain(global.iter()).cloned().collect(),
+    }
 }
 
 /// Whether `pattern` is something the terminal can actually run, as the
@@ -102,6 +136,66 @@ impl Oryxis {
             tracing::warn!("highlight rule {id} did not compile: {err}");
         }
         self.prefs.compiled_highlight_rules = compiled;
+    }
+
+    /// The compiled rules a pane on `conn_id` should paint and watch
+    /// with: the global list, plus (or replaced by) that host's own.
+    ///
+    /// Called once per output batch, so it is cached. The cache key
+    /// carries a SIGNATURE of the inputs rather than being invalidated
+    /// by hand: the global digest is already computed (`CompiledRules::
+    /// hash`), and the host's rules are a handful of small structs, so
+    /// checking is cheap and cannot go stale. Manual invalidation would
+    /// have to be remembered at every site that edits a host, imports
+    /// one, or receives one over sync, and one of them would eventually
+    /// be missed.
+    pub(crate) fn highlight_rules_for(&self, conn_id: Option<uuid::Uuid>) -> Arc<CompiledRules> {
+        let global = self.prefs.compiled_highlight_rules.clone();
+        let Some(id) = conn_id else {
+            return global;
+        };
+        let Some(host) = self
+            .connections
+            .iter()
+            .find(|c| c.id == id)
+            .and_then(|c| c.highlight_rules.as_ref())
+        else {
+            return global;
+        };
+        let sig = {
+            use std::hash::{Hash, Hasher};
+            let mut h = std::collections::hash_map::DefaultHasher::new();
+            global.hash().hash(&mut h);
+            host.hash(&mut h);
+            h.finish()
+        };
+        // The hit is cloned OUT of the borrow rather than returned from
+        // inside an `if let`: a temporary `Ref` in the scrutinee lives
+        // for the whole `if let`, which would still be alive at the
+        // `borrow_mut` below on a miss. That is a `BorrowMutError`
+        // panic in the render path, and the borrow checker cannot see
+        // it.
+        let cached = self
+            .highlight_rules_cache
+            .borrow()
+            .get(&id)
+            .and_then(|(cached_sig, rules)| (*cached_sig == sig).then(|| rules.clone()));
+        if let Some(rules) = cached {
+            return rules;
+        }
+        let effective = effective_rules(&self.prefs.highlight_rules, Some(host));
+        let (compiled, errors) = compile(&effective);
+        for (rule_id, err) in &errors {
+            tracing::warn!("highlight rule {rule_id} did not compile: {err}");
+        }
+        // Bounded: one entry per host that has had a pane open. Dropping
+        // the whole map at the cap is fine, it costs one recompile.
+        let mut cache = self.highlight_rules_cache.borrow_mut();
+        if cache.len() >= MAX_CACHED_HOSTS {
+            cache.clear();
+        }
+        cache.insert(id, (sig, compiled.clone()));
+        compiled
     }
 
     /// Persist the current rule list and apply it.
@@ -208,5 +302,50 @@ mod tests {
         assert!(validate("(unclosed", false).is_ok());
         assert!(validate("(unclosed", true).is_err());
         assert!(validate("", false).is_err());
+    }
+
+    #[test]
+    fn a_host_without_rules_gets_exactly_the_global_list() {
+        let global = vec![rule("a", "ERROR")];
+        assert_eq!(effective_rules(&global, None), global);
+    }
+
+    #[test]
+    fn appending_puts_the_host_first_because_order_is_precedence() {
+        // Both lists match "ERROR"; the host's colour must be the one
+        // that paints, so its rule has to come first.
+        let global = vec![rule("g", "ERROR")];
+        let host = HostHighlightRules {
+            rules: vec![rule("h", "ERROR")],
+            replace: false,
+        };
+        let out = effective_rules(&global, Some(&host));
+        assert_eq!(out.len(), 2);
+        assert_eq!(out[0].id, "h");
+        assert_eq!(out[1].id, "g");
+    }
+
+    #[test]
+    fn replacing_drops_the_global_list() {
+        let global = vec![rule("g", "ERROR")];
+        let host = HostHighlightRules {
+            rules: vec![rule("h", "WARN")],
+            replace: true,
+        };
+        let out = effective_rules(&global, Some(&host));
+        assert_eq!(out.len(), 1);
+        assert_eq!(out[0].id, "h");
+    }
+
+    #[test]
+    fn replacing_with_nothing_turns_highlighting_off_on_that_host() {
+        // The noisy-host escape hatch, and the reason `replace` with an
+        // empty list is not the same as "no override".
+        let global = vec![rule("g", "ERROR")];
+        let host = HostHighlightRules { rules: Vec::new(), replace: true };
+        assert!(effective_rules(&global, Some(&host)).is_empty());
+        // ... whereas an all-default override IS the same as none.
+        assert!(HostHighlightRules::default().is_empty());
+        assert_eq!(HostHighlightRules::default().into_option(), None);
     }
 }

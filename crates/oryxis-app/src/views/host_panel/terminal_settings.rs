@@ -181,6 +181,15 @@ impl Oryxis {
         for row in self.hp_backdrop_rows() {
             appearance_items = appearance_items.push(Space::new().height(12)).push(row);
         }
+        // This host's own highlight rules, last for the same reason:
+        // build order is record order for the keyboard walk. The block
+        // itself is the one from Settings, pointed at the host's list.
+        appearance_items = appearance_items
+            .push(Space::new().height(18))
+            .push(self.highlight_rules_block(
+                crate::state::RuleScope::Host,
+                &self.editor_form.highlight_rules.rules,
+            ));
         appearance_items.into()
     }
 

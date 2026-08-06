@@ -507,24 +507,27 @@ pub enum SettingsMessage {
     LoginScriptDelete(uuid::Uuid),
     // ── Highlight rules (C6) ──
     // The user's own colouring rules and the action a match may fire.
-    // Everything lives in Settings > Terminal: the list, the inline
-    // editor, and the delete confirmation.
+    // ONE editor serves two lists: the global one in Settings > Terminal
+    // and a host's own in the host editor, so the variants that address
+    // a list carry a `RuleScope` and the rest work on the open form.
     /// Open the editor on a blank rule.
-    HighlightRuleAdd,
+    HighlightRuleAdd(crate::state::RuleScope),
     /// Open the editor on the rule at this index.
-    HighlightRuleEdit(usize),
+    HighlightRuleEdit(crate::state::RuleScope, usize),
     /// Close the editor, discarding the working copy.
     HighlightRuleCancelEdit,
     /// Commit the working copy (validating the pattern first).
     HighlightRuleSave,
     /// Switch a rule off / on without deleting it.
-    HighlightRuleToggleEnabled(usize),
+    HighlightRuleToggleEnabled(crate::state::RuleScope, usize),
     /// Move a rule one place towards the front (`true`) or the back.
     /// Order is precedence: the first matching rule paints the cell.
-    HighlightRuleMove(usize, bool),
-    HighlightRuleRequestDelete(usize),
+    HighlightRuleMove(crate::state::RuleScope, usize, bool),
+    HighlightRuleRequestDelete(crate::state::RuleScope, usize),
     HighlightRuleCancelDelete,
-    HighlightRuleDelete(usize),
+    HighlightRuleDelete(crate::state::RuleScope, usize),
+    /// The host's append-vs-replace pick, by localized label.
+    HighlightRuleHostModeChanged(String),
     HighlightRuleNameChanged(String),
     HighlightRulePatternChanged(String),
     HighlightRuleToggleRegex,

@@ -391,6 +391,7 @@ impl Oryxis {
         // over sync).
         conn.terminal_appearance =
             self.editor_form.terminal_appearance.clone().into_option();
+        conn.highlight_rules = self.editor_form.highlight_rules.clone().into_option();
         conn.icon_style = self.editor_form.icon_style.clone();
         conn.encoding = self.editor_form.encoding.clone();
         conn.terminal_type = self.editor_form.terminal_type.clone();
@@ -659,6 +660,7 @@ impl Oryxis {
             use_totp: has_totp,
             terminal_theme: conn.terminal_theme.clone(),
             terminal_appearance: conn.terminal_appearance.clone().unwrap_or_default(),
+            highlight_rules: conn.highlight_rules.clone().unwrap_or_default(),
             keepalive_interval: conn
                 .keepalive_interval
                 .map(|n| n.to_string())

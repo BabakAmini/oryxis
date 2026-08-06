@@ -398,6 +398,9 @@ impl VaultStore {
         // threshold in MB (NULL = russh default).
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN quirks TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN terminal_appearance TEXT;");
+        // C6: this host's own highlight rules plus the append /
+        // replace choice (JSON blob, NULL = follow the global list).
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN highlight_rules TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rekey_limit_mb INTEGER;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN monitor_enabled INTEGER DEFAULT 0;");
 

@@ -44,7 +44,7 @@ mod toggles;
 mod appearance;
 mod defaults;
 mod highlight_rules;
-pub(crate) use highlight_rules::{action_label, action_options};
+pub(crate) use highlight_rules::{action_label, action_options, host_mode_options};
 mod local_terminals;
 mod login_scripts;
 // The reconnect respawn (`dispatch_tabs/lifecycle.rs`) spawns the
@@ -417,7 +417,7 @@ impl Oryxis {
                 | SettingsMessage::LoginScriptDelete(..)
             ) => self.handle_settings_login_scripts(m),
             m @ (
-                SettingsMessage::HighlightRuleAdd
+                SettingsMessage::HighlightRuleAdd(..)
                 | SettingsMessage::HighlightRuleEdit(..)
                 | SettingsMessage::HighlightRuleCancelEdit
                 | SettingsMessage::HighlightRuleSave
@@ -433,6 +433,7 @@ impl Oryxis {
                 | SettingsMessage::HighlightRuleColorChanged(..)
                 | SettingsMessage::HighlightRuleActionChanged(..)
                 | SettingsMessage::HighlightRuleSnippetChanged(..)
+                | SettingsMessage::HighlightRuleHostModeChanged(..)
             ) => self
                 .handle_settings_highlight_rules(m)
                 .unwrap_or_else(crate::dispatch::unrouted),

@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 /// sound on every OS we ship to, so "notify plus beep" would be a
 /// combination almost nobody wants; a user who genuinely wants two
 /// effects writes two rules with the same pattern.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum TriggerAction {
     /// Colour the match, nothing else. The default, and the only action
@@ -57,7 +57,7 @@ impl TriggerAction {
 
 /// One highlight rule: what to look for, how to paint it, and what to do
 /// about it.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct HighlightRule {
     /// Stable identity, minted by the app as a `Uuid` string. Rules are
     /// reorderable and deletable, so the per-session trigger state
@@ -108,6 +108,41 @@ impl Default for HighlightRule {
             enabled: true,
             action: TriggerAction::None,
         }
+    }
+}
+
+/// One host's own highlight rules, and what they do to the global list.
+///
+/// Unlike the per-host backdrop, which resolves field by field because
+/// each field is a single value, this is a LIST, so "inherit" is not one
+/// answer but two: add mine to the global ones, or use only mine. Both
+/// are real (a rule that only matters on the log server; a host that
+/// wants exactly its own set and nothing else), so it is the user's
+/// choice per host rather than a decision the product makes for them.
+///
+/// `replace` with an empty list is meaningful: it is "no highlighting at
+/// all on this host", which is the noisy-host escape hatch.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub struct HostHighlightRules {
+    #[serde(default)]
+    pub rules: Vec<HighlightRule>,
+    /// `false` (the default) appends to the global list; `true` uses
+    /// only this host's rules.
+    #[serde(default)]
+    pub replace: bool,
+}
+
+impl HostHighlightRules {
+    /// True when this host changes nothing, so it can be stored as
+    /// `None` instead of an empty object (byte-identical to the
+    /// payloads that existed before this type).
+    pub fn is_empty(&self) -> bool {
+        self.rules.is_empty() && !self.replace
+    }
+
+    /// `None` when nothing is overridden, for storing on the connection.
+    pub fn into_option(self) -> Option<Self> {
+        if self.is_empty() { None } else { Some(self) }
     }
 }
 

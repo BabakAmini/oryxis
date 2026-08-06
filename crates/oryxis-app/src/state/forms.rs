@@ -294,6 +294,9 @@ pub(crate) struct ConnectionForm {
     /// open. `None` on every field is "inherit the global setting",
     /// which is what an untouched host carries.
     pub terminal_appearance: oryxis_core::models::TerminalAppearance,
+    /// Mirrors `Connection.highlight_rules` while the editor is open
+    /// (C6): this host's own rules plus the append / replace choice.
+    pub highlight_rules: oryxis_core::models::HostHighlightRules,
     /// Per-host SSH keepalive override (raw text). Empty string means
     /// inherit the global setting; "0" disables keepalive on this host;
     /// any positive integer overrides the global value. Stored as a
@@ -963,8 +966,21 @@ pub(crate) struct IdentityForm {
 /// paints and watches from, so a half-typed pattern must not reach it.
 /// `editing` is the index being edited, `None` when the editor is
 /// closed; a new rule is edited at the index it will occupy.
+/// Which list a highlight-rule edit is aimed at. The editor, its
+/// messages and its handler are shared between Settings (the global
+/// list) and the host editor (that host's own), because they edit the
+/// same kind of thing; only the list they commit to differs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum RuleScope {
+    #[default]
+    Global,
+    Host,
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct HighlightRuleForm {
+    /// Whose list is being edited.
+    pub scope: RuleScope,
     /// Which rule the editor is open on. `None` = list only.
     pub editing: Option<usize>,
     /// Whether that index is a rule being CREATED (it is not in the list
@@ -1091,6 +1107,7 @@ impl Default for ConnectionForm {
             use_totp: false,
             terminal_theme: None,
             terminal_appearance: Default::default(),
+            highlight_rules: Default::default(),
             keepalive_interval: String::new(),
             mac_address: String::new(),
             login_script_id: None,

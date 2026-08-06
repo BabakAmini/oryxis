@@ -10,6 +10,16 @@ use super::*;
 
 use oryxis_core::models::{HighlightRule, TriggerAction, MAX_HIGHLIGHT_RULES, MAX_PATTERN_LEN};
 
+use crate::state::RuleScope;
+
+/// The append / replace pick-list, in display order.
+pub(crate) fn host_mode_options() -> [&'static str; 2] {
+    [
+        crate::i18n::t("hl_host_mode_append"),
+        crate::i18n::t("hl_host_mode_replace"),
+    ]
+}
+
 /// The action pick-list, in display order.
 pub(crate) fn action_options() -> Vec<(TriggerAction, &'static str)> {
     vec![
@@ -34,20 +44,42 @@ pub(crate) fn action_label(action: &TriggerAction) -> &'static str {
 }
 
 impl Oryxis {
+    /// The rule list a scope addresses. Settings edits the global one;
+    /// the host editor edits the open form's, which is committed to the
+    /// connection when the editor is saved.
+    fn rules_of(&mut self, scope: RuleScope) -> &mut Vec<HighlightRule> {
+        match scope {
+            RuleScope::Global => &mut self.prefs.highlight_rules,
+            RuleScope::Host => &mut self.editor_form.highlight_rules.rules,
+        }
+    }
+
+    /// Persist after a change. The global list writes its setting
+    /// straight away; a host's rules are part of the editor's working
+    /// copy and reach the vault when the host is saved, so there is
+    /// nothing to write here.
+    fn commit_rules(&mut self, scope: RuleScope) {
+        if scope == RuleScope::Global {
+            self.save_highlight_rules();
+        }
+    }
+
     pub(super) fn handle_settings_highlight_rules(
         &mut self,
         message: SettingsMessage,
     ) -> Result<Task<Message>, SettingsMessage> {
         match message {
-            SettingsMessage::HighlightRuleAdd => {
-                if self.prefs.highlight_rules.len() >= MAX_HIGHLIGHT_RULES {
+            SettingsMessage::HighlightRuleAdd(scope) => {
+                if self.rules_of(scope).len() >= MAX_HIGHLIGHT_RULES {
                     return Ok(self.show_toast(
                         crate::i18n::t("hl_rule_limit")
                             .replace("{max}", &MAX_HIGHLIGHT_RULES.to_string()),
                     ));
                 }
+                let at = self.rules_of(scope).len();
                 self.highlight_rule_form = crate::state::HighlightRuleForm {
-                    editing: Some(self.prefs.highlight_rules.len()),
+                    scope,
+                    editing: Some(at),
                     creating: true,
                     rule: HighlightRule {
                         id: uuid::Uuid::new_v4().to_string(),
@@ -60,15 +92,23 @@ impl Oryxis {
                     ..Default::default()
                 };
             }
-            SettingsMessage::HighlightRuleEdit(idx) => {
-                if let Some(rule) = self.prefs.highlight_rules.get(idx) {
+            SettingsMessage::HighlightRuleEdit(scope, idx) => {
+                if let Some(rule) = self.rules_of(scope).get(idx).cloned() {
                     self.highlight_rule_form = crate::state::HighlightRuleForm {
+                        scope,
                         editing: Some(idx),
                         creating: false,
-                        rule: rule.clone(),
+                        rule,
                         ..Default::default()
                     };
                 }
+            }
+            SettingsMessage::HighlightRuleHostModeChanged(label) => {
+                // Replace is the deliberate choice, so anything that is
+                // not it means append; that also makes an unknown label
+                // (a stale localized string) land on the safe side.
+                self.editor_form.highlight_rules.replace =
+                    label == crate::i18n::t("hl_host_mode_replace");
             }
             SettingsMessage::HighlightRuleCancelEdit => {
                 self.highlight_rule_form = crate::state::HighlightRuleForm::default();
@@ -148,44 +188,59 @@ impl Oryxis {
                 let Some(idx) = self.highlight_rule_form.editing else {
                     return Ok(Task::none());
                 };
-                if self.highlight_rule_form.creating {
-                    self.prefs.highlight_rules.push(rule);
-                } else if let Some(slot) = self.prefs.highlight_rules.get_mut(idx) {
+                let scope = self.highlight_rule_form.scope;
+                let creating = self.highlight_rule_form.creating;
+                let list = self.rules_of(scope);
+                if creating {
+                    list.push(rule);
+                } else if let Some(slot) = list.get_mut(idx) {
                     *slot = rule;
                 }
-                self.highlight_rule_form = crate::state::HighlightRuleForm::default();
-                self.save_highlight_rules();
+                self.highlight_rule_form = crate::state::HighlightRuleForm {
+                    scope,
+                    ..Default::default()
+                };
+                self.commit_rules(scope);
             }
-            SettingsMessage::HighlightRuleToggleEnabled(idx) => {
-                if let Some(rule) = self.prefs.highlight_rules.get_mut(idx) {
+            SettingsMessage::HighlightRuleToggleEnabled(scope, idx) => {
+                if let Some(rule) = self.rules_of(scope).get_mut(idx) {
                     rule.enabled = !rule.enabled;
-                    self.save_highlight_rules();
+                    self.commit_rules(scope);
                 }
             }
-            SettingsMessage::HighlightRuleMove(idx, up) => {
+            SettingsMessage::HighlightRuleMove(scope, idx, up) => {
                 let other = if up { idx.checked_sub(1) } else { Some(idx + 1) };
+                let list = self.rules_of(scope);
                 if let Some(other) = other
-                    && other < self.prefs.highlight_rules.len()
-                    && idx < self.prefs.highlight_rules.len()
+                    && other < list.len()
+                    && idx < list.len()
                 {
-                    self.prefs.highlight_rules.swap(idx, other);
+                    list.swap(idx, other);
                     // The editor addresses rules by index, so a move
                     // under an open editor would retarget it.
-                    self.highlight_rule_form = crate::state::HighlightRuleForm::default();
-                    self.save_highlight_rules();
+                    self.highlight_rule_form = crate::state::HighlightRuleForm {
+                        scope,
+                        ..Default::default()
+                    };
+                    self.commit_rules(scope);
                 }
             }
-            SettingsMessage::HighlightRuleRequestDelete(idx) => {
+            SettingsMessage::HighlightRuleRequestDelete(scope, idx) => {
+                self.highlight_rule_form.scope = scope;
                 self.highlight_rule_form.confirm_delete = Some(idx);
             }
             SettingsMessage::HighlightRuleCancelDelete => {
                 self.highlight_rule_form.confirm_delete = None;
             }
-            SettingsMessage::HighlightRuleDelete(idx) => {
-                if idx < self.prefs.highlight_rules.len() {
-                    self.prefs.highlight_rules.remove(idx);
-                    self.highlight_rule_form = crate::state::HighlightRuleForm::default();
-                    self.save_highlight_rules();
+            SettingsMessage::HighlightRuleDelete(scope, idx) => {
+                let list = self.rules_of(scope);
+                if idx < list.len() {
+                    list.remove(idx);
+                    self.highlight_rule_form = crate::state::HighlightRuleForm {
+                        scope,
+                        ..Default::default()
+                    };
+                    self.commit_rules(scope);
                 }
             }
             // Routed here by the parent; anything else is a grouping

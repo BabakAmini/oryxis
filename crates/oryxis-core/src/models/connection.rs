@@ -258,6 +258,15 @@ pub struct Connection {
     /// Resolve via [`super::terminal_appearance::TerminalAppearance`].
     #[serde(default)]
     pub terminal_appearance: Option<super::terminal_appearance::TerminalAppearance>,
+    /// This host's own highlight rules, and whether they add to the
+    /// global list or replace it (C6). `None` = the host has none and
+    /// follows the global list, which is what every existing payload
+    /// carries. Its own column rather than a field of
+    /// `terminal_appearance`: that one holds four small `Option`s about
+    /// one picture, and a list of rules inside it would make both
+    /// unreadable.
+    #[serde(default)]
+    pub highlight_rules: Option<super::highlight_rule::HostHighlightRules>,
     /// Per-host SSH rekey threshold in megabytes (`None` = russh default).
     /// A plain additive column; rides sync / export like the algorithm
     /// overrides above.
@@ -330,6 +339,7 @@ impl Connection {
             sidebar_auto_open: None,
             quirks: None,
             terminal_appearance: None,
+            highlight_rules: None,
             rekey_limit_mb: None,
             sftp_initial_path: None,
         }
@@ -590,6 +600,19 @@ mod tests {
         value.as_object_mut().unwrap().remove("keepalive_interval");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.keepalive_interval, None);
+    }
+
+    /// A peer or export that predates per-host highlight rules carries
+    /// no `highlight_rules` key, and must land as `None` = "follow the
+    /// global list", not as an empty override that would silently mean
+    /// something else once `replace` exists.
+    #[test]
+    fn highlight_rules_legacy_payload_defaults_to_none() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("highlight_rules");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.highlight_rules, None);
     }
 
     /// Same contract for the Wake-on-LAN MAC: a payload written before

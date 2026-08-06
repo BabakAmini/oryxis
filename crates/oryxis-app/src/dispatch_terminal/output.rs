@@ -433,7 +433,12 @@ impl Oryxis {
                 // makes them universal: every pane, whatever created it,
                 // passes through this funnel, and the setter is a
                 // pointer comparison when the set has not changed.
-                let highlight_rules = self.prefs.compiled_highlight_rules.clone();
+                // Resolved for the PANE'S HOST: the global list plus (or
+                // replaced by) that host's own rules. Cached and keyed by
+                // a signature of its inputs, so this is a lookup rather
+                // than a recompile.
+                let rules_conn_id = self.pane_by_id(pane_id).and_then(|p| p.saved_conn_id());
+                let highlight_rules = self.highlight_rules_for(rules_conn_id);
                 // What each action-bearing rule should DO, resolved
                 // before the borrow because the actions themselves need
                 // the whole app (a toast, a snippet, a confirmation).

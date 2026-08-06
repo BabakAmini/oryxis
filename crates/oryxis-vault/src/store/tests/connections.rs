@@ -808,3 +808,42 @@ fn login_script_columns_never_carry_a_secret() {
         "target password leaked into the plaintext login_script column: {raw_ref}"
     );
 }
+
+#[test]
+fn per_host_highlight_rules_round_trip() {
+    use oryxis_core::models::{HighlightRule, HostHighlightRules, TriggerAction};
+    let vault = unlocked_vault();
+    // Guards the JSON column and its positional index in
+    // `store/connections.rs`: a wrong index reloads silently as None,
+    // which reads as "this host follows the global rules" and would be
+    // indistinguishable from working.
+    let mut plain = Connection::new("plain", "example.com");
+    plain.highlight_rules = None;
+    vault.save_connection(&plain, None).unwrap();
+
+    let mut fancy = Connection::new("fancy", "example.com");
+    fancy.highlight_rules = Some(HostHighlightRules {
+        rules: vec![HighlightRule {
+            id: "r1".into(),
+            name: "Disk full".into(),
+            pattern: "No space left".into(),
+            is_regex: false,
+            case_sensitive: true,
+            color: "#ff0000".into(),
+            enabled: true,
+            action: TriggerAction::Beep,
+        }],
+        replace: true,
+    });
+    vault.save_connection(&fancy, None).unwrap();
+
+    let list = vault.list_connections().unwrap();
+    assert_eq!(
+        list.iter().find(|c| c.id == plain.id).unwrap().highlight_rules,
+        None
+    );
+    assert_eq!(
+        list.iter().find(|c| c.id == fancy.id).unwrap().highlight_rules,
+        fancy.highlight_rules
+    );
+}

@@ -403,6 +403,7 @@ impl Oryxis {
                 login_scripts: Vec::new(),
                 login_script_generation: 0,
                 login_script_form: crate::state::LoginScriptForm::default(),
+                highlight_rules_cache: std::cell::RefCell::new(std::collections::HashMap::new()),
                 highlight_rule_form: crate::state::HighlightRuleForm::default(),
                 trigger_confirm: None,
                 cloud_profiles: Vec::new(),

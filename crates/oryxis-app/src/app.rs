@@ -648,6 +648,17 @@ pub struct Oryxis {
     /// run cannot abort the one that replaced it.
     pub(crate) login_script_generation: u64,
     pub(crate) login_script_form: crate::state::LoginScriptForm,
+    /// Resolved + compiled highlight rules per host, keyed by connection
+    /// id and validated by a signature of its inputs (see
+    /// `highlight_rules_for`), so the entry can never go stale.
+    /// A `RefCell` because BOTH consumers need it and one of them is
+    /// `view()`: the widget paints from the same resolved set the
+    /// backend watches with, and a rule that coloured one pattern while
+    /// firing on another would be the worst kind of bug here. Same
+    /// pattern as the keynav recording.
+    pub(crate) highlight_rules_cache: std::cell::RefCell<
+        std::collections::HashMap<uuid::Uuid, (u64, std::sync::Arc<oryxis_terminal::CompiledRules>)>,
+    >,
     /// Settings > Terminal: the inline editor for one highlight rule.
     /// The list itself is a preference (`prefs.highlight_rules`).
     pub(crate) highlight_rule_form: crate::state::HighlightRuleForm,

@@ -322,6 +322,19 @@ pub(crate) struct LoginScriptRun {
     pub generation: u64,
 }
 
+impl Pane {
+    /// The SAVED connection this pane runs on, if any. `None` for local
+    /// shells, cloud / ephemeral panes, and quick-connect hosts, which
+    /// live outside `Oryxis::connections` and so carry no stored
+    /// per-host settings to look up.
+    pub fn saved_conn_id(&self) -> Option<Uuid> {
+        match &self.origin {
+            PaneOrigin::Host(id) => Some(*id),
+            PaneOrigin::QuickHost(_) | PaneOrigin::Local(_) | PaneOrigin::Ephemeral => None,
+        }
+    }
+}
+
 /// What one highlight rule has done on one pane this session (C6).
 #[derive(Debug, Default)]
 pub(crate) struct TriggerRuntime {

@@ -457,7 +457,11 @@ vulnerability disclosure policy.
   HOST printed, and that must not be a way for a server to choose what
   runs on it. Actions do not fire inside full-screen applications
   (tmux, vim, htop), which repaint the screen instead of printing lines;
-  the colouring still works there.
+  the colouring still works there. Every host can carry rules of its own
+  in `Host editor → Terminal`, and choose whether they add to the global
+  ones or are the only ones that apply; replacing with an empty list is
+  how a noisy host turns highlighting off entirely. Per-host rules ride
+  sync and the portable export with the rest of the connection.
 - **23 languages.** English, Português, Español, Français, Deutsch,
   Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית,
   한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย,
