@@ -157,9 +157,15 @@ pub(crate) fn parse_linux(
         net,
         disks: {
             // POSIX `df -kP` keeps the mount in column 6; macOS `df -k`
-            // pads extra inode columns and puts it last.
-            let d = parse_df(df);
-            if d.is_empty() { super::probe_bsd::parse_df_bsd(df) } else { d }
+            // pads extra inode columns and puts it last. Both dialects
+            // hand their rows to the SAME mount rules, so the pseudo /
+            // bind-mount / duplicate handling can't differ by host
+            // (issue #135: filtering inside one parser only would let
+            // the other one resurrect every row it dropped).
+            let rows = parse_df(df);
+            let rows =
+                if rows.is_empty() { super::probe_bsd::parse_df_bsd(df) } else { rows };
+            filter_mounts(rows)
         },
         gpus: parse_gpu(gpu),
         ports: parse_listening_ports_any(sockets),
@@ -272,20 +278,28 @@ fn parse_net_dev(netdev: &str) -> Option<(u64, u64)> {
     saw_any.then_some((rx, tx))
 }
 
-/// `df -kP` -> per-mount used/total in bytes, real filesystems only.
+/// One `df` row, before the mount rules run. The source column is what
+/// decides whether a row is a real filesystem, a bind mount or a
+/// duplicate, and it is never rendered, so it rides here instead of
+/// widening [`DiskStat`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct RawMount {
+    pub source: String,
+    pub stat: DiskStat,
+}
+
+/// `df -kP` -> one row per line, in the order `df` printed them, sizes
+/// already in bytes. Every filtering decision belongs to
+/// [`filter_mounts`], so this is pure column shape.
 ///
 /// POSIX output is one line per filesystem with a fixed column order, so
 /// the mount point is everything after the 5th field (mount points can
 /// contain spaces; the preceding numeric columns cannot).
-fn parse_df(df: &str) -> Vec<DiskStat> {
+fn parse_df(df: &str) -> Vec<RawMount> {
     let mut out = Vec::new();
     for line in df.lines().skip(1) {
         let fields: Vec<&str> = line.split_whitespace().collect();
         if fields.len() < 6 {
-            continue;
-        }
-        let source = fields[0];
-        if is_pseudo_fs(source) {
             continue;
         }
         let Ok(total_kb) = fields[1].parse::<u64>() else { continue };
@@ -293,25 +307,119 @@ fn parse_df(df: &str) -> Vec<DiskStat> {
         if total_kb == 0 {
             continue;
         }
+        // The mount point opens column 6 and is absolute. macOS's
+        // non-POSIX `df -k` pads three inode columns in between, so a
+        // relative field here means the row is in the OTHER dialect and
+        // belongs to `probe_bsd::parse_df_bsd` rather than to a guess
+        // (this parser used to accept those rows and label them
+        // "500000 700000 42% /").
+        if !fields[5].starts_with('/') {
+            continue;
+        }
         // Rejoin the mount point, which may contain spaces.
         let mount = fields[5..].join(" ");
-        out.push(DiskStat {
-            mount,
-            used: used_kb.saturating_mul(1024),
-            total: total_kb.saturating_mul(1024),
+        out.push(RawMount {
+            source: fields[0].to_string(),
+            stat: DiskStat {
+                mount,
+                used: used_kb.saturating_mul(1024),
+                total: total_kb.saturating_mul(1024),
+            },
         });
     }
     out
 }
 
+/// The mount rules (issue #135), applied to whichever dialect answered.
+///
+/// A `df` listing is not a list of storage: it is a list of MOUNTS, and
+/// one device can appear under dozens of them. A Magisk'd Android phone
+/// reported 176, every `/system/bin/*` bind mount repeating `/system`'s
+/// figures, which also handed the status bar's "worst disk" segment a
+/// bind mount to name. Three rules, in order:
+///
+/// 1. Drop pseudo filesystems ([`is_pseudo_fs`]): they measure RAM or a
+///    kernel interface, never storage.
+/// 2. Keep ONE row per source device, the shallowest mount point. Every
+///    deeper mount of the same source is a bind mount of a filesystem
+///    already listed. Btrfs subvolumes collapse under the same rule,
+///    which is deliberate: `/` and `/home` on one device report the
+///    same pool figures, so two rows would be the same answer twice.
+/// 3. Drop a row whose SOURCE is itself a path (Android's `/data/media`,
+///    a plain `mount --bind`) when its numbers match a device-backed
+///    row exactly. The path shape alone can't decide it: a CIFS share
+///    (`//nas/backup`) and a mergerfs pool (`/mnt/disk1`) are
+///    path-shaped too and duplicate nothing.
+fn filter_mounts(rows: Vec<RawMount>) -> Vec<DiskStat> {
+    let real: Vec<RawMount> =
+        rows.into_iter().filter(|m| !is_pseudo_fs(&m.source)).collect();
+
+    // Rule 2. `keep` holds indices into `real`: a source's first row
+    // claims the slot and later rows only UPGRADE it, so the survivor
+    // keeps the position `df` gave the device rather than jumping to
+    // wherever its shallowest mount happened to be printed.
+    let mut keep: Vec<usize> = Vec::new();
+    for (i, m) in real.iter().enumerate() {
+        match keep.iter().position(|&k| real[k].source == m.source) {
+            Some(slot) => {
+                if is_shallower(&m.stat.mount, &real[keep[slot]].stat.mount) {
+                    keep[slot] = i;
+                }
+            }
+            None => keep.push(i),
+        }
+    }
+
+    // Rule 3. Measured against the DEVICE-backed survivors only, so the
+    // outcome can't depend on which of two bind mounts `df` printed
+    // first (the device row is the one that must survive).
+    let device_sizes: Vec<(u64, u64)> = keep
+        .iter()
+        .filter(|&&i| !is_path_source(&real[i].source))
+        .map(|&i| (real[i].stat.used, real[i].stat.total))
+        .collect();
+    keep.retain(|&i| {
+        !is_path_source(&real[i].source)
+            || !device_sizes.contains(&(real[i].stat.used, real[i].stat.total))
+    });
+
+    keep.into_iter().map(|i| real[i].stat.clone()).collect()
+}
+
+/// Mount `a` is more primary than `b`: fewer path components first
+/// (`/system` beats `/system/bin/am`), then the shorter string, then the
+/// lexicographically smaller one. Total and stable, so the survivor of a
+/// device's mounts never depends on `df`'s ordering.
+fn is_shallower(a: &str, b: &str) -> bool {
+    let depth = |p: &str| p.split('/').filter(|s| !s.is_empty()).count();
+    (depth(a), a.len(), a) < (depth(b), b.len(), b)
+}
+
+/// A source naming a DIRECTORY rather than a device or a remote export.
+/// `/dev/...` is a device node and `//host/share` is CIFS, so both are
+/// excluded; what is left is a bind mount of a path that some other row
+/// already measures.
+fn is_path_source(source: &str) -> bool {
+    source.starts_with('/') && !source.starts_with("//") && !source.starts_with("/dev/")
+}
+
 /// Virtual / kernel filesystems that would clutter the disk list without
 /// telling the user anything about free space.
+///
+/// Matched on the SOURCE column because POSIX `df` prints no filesystem
+/// type (`-T` is a GNU extension that toybox / busybox — i.e. every
+/// Android host — reject), and a pseudo filesystem names itself there.
+/// `rootfs` is deliberately absent: on Android it is the only row
+/// mounting `/`, so filtering it would delete the root filesystem.
 fn is_pseudo_fs(source: &str) -> bool {
     matches!(
         source,
         "tmpfs"
             | "devtmpfs"
+            | "devfs"
+            | "ramfs"
             | "overlay"
+            | "overlayfs"
             | "shm"
             | "proc"
             | "sysfs"
@@ -319,6 +427,22 @@ fn is_pseudo_fs(source: &str) -> bool {
             | "cgroup2"
             | "devpts"
             | "squashfs"
+            | "debugfs"
+            | "tracefs"
+            | "securityfs"
+            | "selinuxfs"
+            | "pstore"
+            | "configfs"
+            | "bpf"
+            | "binfmt_misc"
+            | "mqueue"
+            | "hugetlbfs"
+            | "fusectl"
+            | "nsfs"
+            | "efivarfs"
+            | "autofs"
+            | "rpc_pipefs"
+            | "sunrpc"
             | "udev"
             | "none"
     ) || source.starts_with("/dev/loop")
@@ -657,6 +781,87 @@ mod tests {
         assert_eq!(mounts, vec!["/", "/mnt/my disk"]);
         assert_eq!(sample.disks[0].used, 4_000_000 * 1024);
         assert_eq!(sample.disks[0].pct(), 40.0);
+    }
+
+    /// Issue #135, reported from a Magisk'd Android phone over Termux:
+    /// 176 disk rows, nearly all of them `/system/bin/*` bind mounts of
+    /// the SYSTEM partition, which also gave the status bar's worst-disk
+    /// segment a bind mount to name.
+    #[test]
+    fn android_bind_mounts_collapse_to_one_row_per_device() {
+        let sys = "/dev/block/platform/13540000.dwmmc0/by-name/SYSTEM";
+        let df = format!(
+            "Filesystem 1024-blocks Used Available Capacity Mounted on\n\
+             rootfs      1258291    8704  1249587  1% /\n\
+             {sys}       4718592 4299161   419431 92% /system\n\
+             {sys}       4718592 4299161   419431 92% /system/bin\n\
+             {sys}       4718592 4299161   419431 92% /system/bin/am\n\
+             {sys}       4718592 4299161   419431 92% /system/bin/wvkprov\n\
+             {sys}       4718592 4299161   419431 92% /system/priv-app/Settings\n\
+             /dev/block/platform/13540000.dwmmc0/by-name/CACHE   197632    12288   181248  7% /cache\n\
+             /dev/block/platform/13540000.dwmmc0/by-name/USERDATA 24117248 10485760 13631488 45% /data\n\
+             /dev/block/platform/13540000.dwmmc0/by-name/EFS       16384     2969    13312 19% /efs\n\
+             tmpfs       1363148    3482  1359666  1% /dev\n\
+             magisk      1363148    3482  1359666  1% /sbin\n\
+             /data/media 24117248 10485760 13631488 45% /storage/emulated\n"
+        );
+        let (sample, _) = parse_linux(&payload(["", "", "", "", &df, "", ""]), None, t0());
+        let mounts: Vec<&str> = sample.disks.iter().map(|d| d.mount.as_str()).collect();
+        assert_eq!(mounts, vec!["/", "/system", "/cache", "/data", "/efs", "/sbin"]);
+        // The device's PRIMARY mount is what survives, not whichever
+        // bind mount `df` happened to print (that is the row the status
+        // bar names when a disk fills up).
+        assert_eq!(sample.disks[1].mount, "/system");
+        assert_eq!(sample.disks[1].pct().round(), 91.0);
+        // `/storage/emulated` is a bind mount of `/data/media`: a
+        // path-shaped source repeating a device row's figures.
+        assert!(!mounts.contains(&"/storage/emulated"));
+        // `magisk` at /sbin is a tmpfs, but POSIX `df` prints no
+        // filesystem type and the source doesn't say so, so it stays a
+        // row rather than being guessed away.
+        assert_eq!(sample.disks[5].mount, "/sbin");
+    }
+
+    #[test]
+    fn real_filesystems_survive_the_bind_mount_rules() {
+        let df = "Filesystem   1024-blocks      Used Available Capacity Mounted on\n\
+                  /dev/sda1       10000000   4000000   6000000      40% /\n\
+                  //nas/backup   500000000 100000000 400000000      20% /mnt/backup\n\
+                  /mnt/disk1     200000000  50000000 150000000      25% /mnt/pool\n\
+                  tank/home      300000000  30000000 270000000      10% /home\n\
+                  /dev/sda1       10000000   4000000   6000000      40% /var/lib/docker/btrfs\n";
+        let (sample, _) = parse_linux(&payload(["", "", "", "", df, "", ""]), None, t0());
+        let mounts: Vec<&str> = sample.disks.iter().map(|d| d.mount.as_str()).collect();
+        // A CIFS share and a mergerfs pool are path-shaped sources that
+        // duplicate nothing; a ZFS dataset is its own source. Only the
+        // second mount of /dev/sda1 collapses.
+        assert_eq!(mounts, vec!["/", "/mnt/backup", "/mnt/pool", "/home"]);
+    }
+
+    #[test]
+    fn the_bsd_fallback_cannot_resurrect_filtered_rows() {
+        // Every row is pseudo, so the Linux rules leave nothing. The
+        // macOS fallback must not re-parse the same text and hand them
+        // all back (it only runs when the POSIX SHAPE found nothing).
+        let df = "Filesystem 1024-blocks Used Available Capacity Mounted on\n\
+                  tmpfs         1000000     0   1000000       0% /dev/shm\n\
+                  devfs             200   200         0     100% /dev\n";
+        let (sample, _) = parse_linux(&payload(["", "", "", "", df, "", ""]), None, t0());
+        assert!(sample.disks.is_empty());
+    }
+
+    #[test]
+    fn the_bsd_dialect_gets_the_same_mount_rules() {
+        // macOS `df -k`: extra inode columns, mount last. devfs is
+        // pseudo here too, and a second mount of the same device
+        // collapses onto its shallowest mount point.
+        let df = "Filesystem   1024-blocks      Used Available Capacity iused ifree %iused  Mounted on\n\
+                  /dev/disk1s1   488245288 200000000 288245288    41%  500000  700000   42%   /\n\
+                  devfs                200       200         0   100%     600       0  100%   /dev\n\
+                  /dev/disk1s1   488245288 200000000 288245288    41%  500000  700000   42%   /System/Volumes/Data\n";
+        let (sample, _) = parse_linux(&payload(["", "", "", "", df, "", ""]), None, t0());
+        let mounts: Vec<&str> = sample.disks.iter().map(|d| d.mount.as_str()).collect();
+        assert_eq!(mounts, vec!["/"]);
     }
 
     #[test]

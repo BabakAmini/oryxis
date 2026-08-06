@@ -14,6 +14,7 @@
 //! the engine uses; FreeBSD's `kern.cp_time` does fit and is supported.
 
 use super::model::{DiskStat, LoadStat, MemStat, PortStat};
+use super::probe::RawMount;
 
 /// FreeBSD `sysctl -n kern.cp_time`: `user nice sys intr idle` in ticks,
 /// the same shape as Linux's `/proc/stat` line, so it feeds the very
@@ -201,7 +202,11 @@ pub(crate) fn parse_netstat_an(text: &str) -> Vec<PortStat> {
 
 /// `df -k` without POSIX mode (macOS prints extra columns): the mount
 /// point is the LAST field rather than the sixth.
-pub(crate) fn parse_df_bsd(text: &str) -> Vec<DiskStat> {
+///
+/// Rows come back raw, source column included: the pseudo / bind-mount /
+/// duplicate rules live in `probe::filter_mounts`, which both dialects
+/// share (issue #135).
+pub(crate) fn parse_df_bsd(text: &str) -> Vec<RawMount> {
     let mut out = Vec::new();
     for line in text.lines().skip(1) {
         let f: Vec<&str> = line.split_whitespace().collect();
@@ -218,10 +223,13 @@ pub(crate) fn parse_df_bsd(text: &str) -> Vec<DiskStat> {
         if !mount.starts_with('/') {
             continue;
         }
-        out.push(DiskStat {
-            mount,
-            used: used_kb.saturating_mul(1024),
-            total: total_kb.saturating_mul(1024),
+        out.push(RawMount {
+            source: f[0].to_string(),
+            stat: DiskStat {
+                mount,
+                used: used_kb.saturating_mul(1024),
+                total: total_kb.saturating_mul(1024),
+            },
         });
     }
     out
@@ -327,10 +335,13 @@ mod tests {
         let text = "Filesystem   1024-blocks      Used Available Capacity iused ifree %iused  Mounted on\n\
                     /dev/disk1s1   488245288 200000000 288245288    41%  500000  700000   42%   /\n\
                     devfs                200       200         0   100%     600     0     100%   /dev\n";
+        // Raw rows, source column included: pseudo filesystems (devfs
+        // here) are the shared filter's job, not this parser's.
         let disks = parse_df_bsd(text);
         assert_eq!(disks.len(), 2);
-        assert_eq!(disks[0].mount, "/");
-        assert_eq!(disks[0].used, 200_000_000 * 1024);
-        assert_eq!(disks[1].mount, "/dev");
+        assert_eq!(disks[0].stat.mount, "/");
+        assert_eq!(disks[0].source, "/dev/disk1s1");
+        assert_eq!(disks[0].stat.used, 200_000_000 * 1024);
+        assert_eq!(disks[1].stat.mount, "/dev");
     }
 }
