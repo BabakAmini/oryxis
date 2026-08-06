@@ -361,3 +361,57 @@
         );
         assert!(ws.selection.is_none(), "an unfocused pane declines the chord");
     }
+
+    /// The attach-time reset the app feeds on every fresh session
+    /// (`SESSION_ATTACH_MODE_RESET`) must clear every mode the widget's
+    /// mouse-report gate reads. Guard for the reconnect-garbage bug: stale
+    /// 1000/1002/1003/1006 left by a dead session made the widget keep
+    /// synthesizing SGR reports into a shell that never asked for them,
+    /// and the shell's echo of those reports landed on screen as text.
+    /// Regression at the gate level: with the modes cleared, a pointer
+    /// move must produce NO report.
+    #[test]
+    fn attach_reset_clears_mouse_tracking_and_blocks_reports() {
+        use alacritty_terminal::term::TermMode;
+
+        let mut term = TerminalState::new_no_pty(80, 24).unwrap();
+        // A dead tmux/vim session left any-motion tracking (1003), SGR
+        // encoding (1006), bracketed paste (2004) and a hidden cursor.
+        term.process(b"\x1b[?1003h\x1b[?1006h\x1b[?2004h\x1b[?25l");
+        assert!(
+            term.backend.term.mode().intersects(TermMode::MOUSE_MODE),
+            "precondition: stale mouse tracking armed"
+        );
+
+        term.process(crate::SESSION_ATTACH_MODE_RESET);
+
+        let mode = *term.backend.term.mode();
+        assert!(
+            !mode.intersects(TermMode::MOUSE_MODE),
+            "mouse tracking cleared"
+        );
+        assert!(!mode.contains(TermMode::SGR_MOUSE), "SGR encoding cleared");
+        assert!(
+            !mode.contains(TermMode::BRACKETED_PASTE),
+            "bracketed paste cleared"
+        );
+        assert!(mode.contains(TermMode::SHOW_CURSOR), "cursor shown again");
+
+        // The widget's report gate reads the mode back from the state: a
+        // pointer move must not synthesize a report any more.
+        let view = TerminalView::<()>::new(Arc::new(Mutex::new(term)));
+        let mut ws = TerminalWidgetState::default();
+        let ev = iced::Event::Mouse(mouse::Event::CursorMoved {
+            position: Point::new(40.0, 40.0),
+        });
+        let action = view.handle_mouse_report(
+            &mut ws,
+            &ev,
+            bounds(),
+            mouse::Cursor::Available(Point::new(40.0, 40.0)),
+            mode,
+            80,
+            24,
+        );
+        assert!(action.is_none(), "no SGR report after the attach reset");
+    }

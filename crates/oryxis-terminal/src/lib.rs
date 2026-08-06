@@ -26,6 +26,18 @@ pub use widget::{
 };
 pub use pty::PtyHandle;
 
+/// DECRST/DECSET sequence the app feeds a pane the moment a fresh
+/// session attaches (`Oryxis::wire_connected_pane`): clears the
+/// emulator modes a previous session's apps may have left armed —
+/// mouse tracking (1000/1002/1003), SGR mouse encoding (1006),
+/// bracketed paste (2004) — and re-shows a cursor the old app hid.
+/// A fresh shell never re-issues those requests, so leaving them
+/// armed made the widget keep synthesizing mouse reports into a
+/// shell that did not ask for them, whose echo of those reports
+/// landed on screen as garbage after a reconnect.
+pub const SESSION_ATTACH_MODE_RESET: &[u8] =
+    b"\x1b[?1000;1002;1003;1006l\x1b[?2004l\x1b[?25h";
+
 // The backend exposes `Term` and grid types in its public surface
 // (`TerminalBackend::term`), so consumers that inspect the grid (the
 // app's session player tests, the harness) need the crate's types

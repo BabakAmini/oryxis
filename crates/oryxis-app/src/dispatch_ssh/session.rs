@@ -286,6 +286,16 @@ impl Oryxis {
                     // The reconnect dial resolved; re-arm ReconnectTab.
                     pane.connecting = false;
                     if let Ok(mut state) = pane.terminal.lock() {
+                        // The shell that armed these modes is gone; the
+                        // fresh one never re-issued them, so clear the
+                        // leftovers before its first output arrives: stale
+                        // mouse tracking would keep the widget reporting
+                        // pointer moves into it (the shell's echo of those
+                        // reports lands on screen as garbage), stale
+                        // bracketed paste would wrap pastes the new shell
+                        // never asked for, and a cursor the old app hid
+                        // stays hidden. See `SESSION_ATTACH_MODE_RESET`.
+                        state.process(oryxis_terminal::SESSION_ATTACH_MODE_RESET);
                         // Serial has no viewport, so no resize sender;
                         // SSH/Telnet forward window changes to the peer.
                         if let Some(rtx) = session.resize_sender() {
