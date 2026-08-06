@@ -18,6 +18,7 @@ impl<Message> TerminalView<Message> {
             reset_scroll_on_output: false,
             bold_is_bright: true,
             keyword_highlight: true,
+            highlight_rules: std::sync::Arc::default(),
             performance: false,
             perf_overlay: false,
             net_hud: None,
@@ -208,6 +209,17 @@ impl<Message> TerminalView<Message> {
 
     pub fn with_keyword_highlight(mut self, on: bool) -> Self {
         self.keyword_highlight = on;
+        self
+    }
+
+    /// The user's own highlight rules. See
+    /// [`TerminalView::highlight_rules`]; pass the same set the pane's
+    /// backend was given.
+    pub fn with_highlight_rules(
+        mut self,
+        rules: std::sync::Arc<crate::highlight_rules::CompiledRules>,
+    ) -> Self {
+        self.highlight_rules = rules;
         self
     }
 

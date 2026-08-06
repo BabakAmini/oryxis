@@ -524,6 +524,7 @@ impl Oryxis {
             .with_reset_scroll_on_output(self.prefs.scrollback_reset_output)
             .with_bold_is_bright(self.prefs.bold_is_bright)
             .with_keyword_highlight(self.prefs.keyword_highlight)
+            .with_highlight_rules(self.prefs.compiled_highlight_rules.clone())
             .with_performance(self.prefs.performance_mode)
             .with_perf_overlay(self.prefs.perf_overlay)
             .with_privacy(self.privacy_active_for_label(&pane.label))

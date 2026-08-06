@@ -325,6 +325,22 @@ impl TerminalState {
         self.backend.osc.take_command_lines()
     }
 
+    /// Install the compiled highlight rules this pane matches against.
+    /// The widget paints from the same set, so a rule's colour and its
+    /// action always refer to the same pattern.
+    pub fn set_highlight_rules(
+        &mut self,
+        rules: std::sync::Arc<crate::highlight_rules::CompiledRules>,
+    ) {
+        self.backend.set_highlight_rules(rules);
+    }
+
+    /// Drain the highlight rules that fired on this pane's output since
+    /// the last call.
+    pub fn take_trigger_hits(&mut self) -> Vec<crate::trigger::TriggerHit> {
+        self.backend.take_trigger_hits()
+    }
+
     /// Require `nonce` on every `OSC 633 ; E` this pane accepts (the value
     /// baked into the shell-integration snippet installed on the host).
     pub fn set_shell_command_nonce(&mut self, nonce: Option<String>) {

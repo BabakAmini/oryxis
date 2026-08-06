@@ -5967,6 +5967,7 @@ dependencies = [
  "alacritty_terminal",
  "iced",
  "portable-pty",
+ "regex",
  "tokio",
  "tracing",
  "vte",

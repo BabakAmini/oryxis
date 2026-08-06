@@ -117,6 +117,7 @@ where
             selecting: widget_state.selecting,
             privacy: self.privacy,
             keyword_highlight: self.keyword_highlight,
+            highlight_rules_hash: self.highlight_rules.hash(),
             performance: self.performance,
             smart_contrast: self.smart_contrast,
             bold_is_bright: self.bold_is_bright,
@@ -537,6 +538,14 @@ where
         } else {
             Vec::new()
         };
+        // The user's own rules, in their own list. They are gated only by
+        // performance mode: a rule is an explicit request, so the
+        // automatic detectors' toggle has no say over it.
+        let rule_highlights = if !self.performance && !self.highlight_rules.is_empty() {
+            detect_rule_highlights(&row_chars, self.highlight_rules.rules())
+        } else {
+            Vec::new()
+        };
         let highlights_dur = highlights_start.map(|t| t.elapsed()).unwrap_or_default();
 
         // Privacy Mode: the IP / user@host span the cursor is over right
@@ -643,11 +652,17 @@ where
             }
 
             // Syntax highlight override (only when text has default/foreground
-            // color). Gated on `keyword_highlight` so Privacy Mode, which also
+            // color). A user rule wins over the automatic detectors: it was
+            // asked for by name, they are a heuristic. The automatic half is
+            // gated on `keyword_highlight` so Privacy Mode, which also
             // populates `highlights`, doesn't tint tokens when tinting is off.
-            if self.keyword_highlight
-                && let Some(hl_color) = highlight_color_at(&highlights, cd.row, cd.col)
-            {
+            if let Some(hl_color) = highlight_color_at(&rule_highlights, cd.row, cd.col).or_else(
+                || {
+                    self.keyword_highlight
+                        .then(|| highlight_color_at(&highlights, cd.row, cd.col))
+                        .flatten()
+                },
+            ) {
                 // Only override if the cell isn't already colored by the application
                 let fg_is_default =
                     (fg.r - palette.foreground.r).abs() < 0.02

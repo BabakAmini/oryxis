@@ -957,6 +957,26 @@ pub(crate) struct IdentityForm {
 /// records whether the stored row carries one, [`SecretInput`] tracks
 /// whether the user edited the field this session, so save can
 /// distinguish "leave as-is" from "clear" from "set".
+/// The inline editor for one highlight rule (Settings > Terminal).
+///
+/// A working copy, not a live edit: the rule list is what the terminal
+/// paints and watches from, so a half-typed pattern must not reach it.
+/// `editing` is the index being edited, `None` when the editor is
+/// closed; a new rule is edited at the index it will occupy.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct HighlightRuleForm {
+    /// Which rule the editor is open on. `None` = list only.
+    pub editing: Option<usize>,
+    /// Whether that index is a rule being CREATED (it is not in the list
+    /// yet) rather than an existing one being changed.
+    pub creating: bool,
+    pub rule: oryxis_core::models::HighlightRule,
+    /// Inline validation error (bad regex, empty pattern).
+    pub error: Option<String>,
+    /// Index pending delete confirmation.
+    pub confirm_delete: Option<usize>,
+}
+
 /// Settings > Connection management surface for login scripts. The
 /// host editor creates them (that is where the user already is when
 /// they need one); this is where they are renamed, re-authored step by

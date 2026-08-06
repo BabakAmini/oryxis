@@ -8,6 +8,9 @@
 //!   flush machinery (and its timing/alignment helpers).
 //! - `keyboard`: the `KeyboardEvent` chord resolver and PTY key
 //!   routing.
+//! - `triggers`: what a user highlight rule DOES when it matches
+//!   (notification / beep / snippet), including the confirmation that
+//!   keeps remote output from choosing which snippet runs.
 //!
 //! The small arms (pane focus/split/close, search bar, broadcast
 //! toggles, paste/copy, context menu, IME commit) stay here.
@@ -17,6 +20,9 @@
 mod drop;
 mod keyboard;
 mod output;
+mod triggers;
+
+pub(crate) use triggers::TriggerConfirmCard;
 
 use iced::Task;
 
@@ -353,6 +359,9 @@ impl Oryxis {
                 {
                     pane.bell_flash = false;
                 }
+            }
+            TerminalMessage::TriggerConfirmDecision(allow) => {
+                self.resolve_trigger_confirm(allow);
             }
             TerminalMessage::TerminalSyncFlush(pane_id) => {
                 if let Some(pane) = self

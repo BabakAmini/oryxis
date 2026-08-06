@@ -68,6 +68,7 @@ mod dispatch_zmodem;
 mod fonts;
 #[cfg(feature = "harness")]
 mod harness;
+mod highlight_rules;
 mod i18n;
 mod key_encode;
 mod keynav;

@@ -648,6 +648,13 @@ pub struct Oryxis {
     /// run cannot abort the one that replaced it.
     pub(crate) login_script_generation: u64,
     pub(crate) login_script_form: crate::state::LoginScriptForm,
+    /// Settings > Terminal: the inline editor for one highlight rule.
+    /// The list itself is a preference (`prefs.highlight_rules`).
+    pub(crate) highlight_rule_form: crate::state::HighlightRuleForm,
+    /// The pending "may this highlight rule run its snippet on this
+    /// session" question (C6). A security prompt: the thing that asked
+    /// for it is remote output.
+    pub(crate) trigger_confirm: Option<crate::dispatch_terminal::TriggerConfirmCard>,
 
     // Cloud Accounts, CloudProfile rows + the wizard form. Wizard is
     // intentionally minimal in v0.6 PR 3: provider + AWS profile auth

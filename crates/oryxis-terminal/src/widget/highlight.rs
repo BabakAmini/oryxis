@@ -30,6 +30,11 @@ enum HighlightKind {
     /// 2026-07-19 because hostile output could abuse it to display a
     /// real IP unmasked, and only the class-off demotion remains.)
     VersionQuad,
+    /// A user-defined highlight rule's match. Produced by
+    /// [`detect_rule_highlights`], which the draw pass keeps in a list of
+    /// its own so an explicit rule always wins over the automatic
+    /// detectors and neither pass perturbs the other's overlap math.
+    Rule,
 }
 
 impl HighlightKind {
@@ -205,6 +210,77 @@ pub fn ipv6_is_local(s: &str) -> bool {
     (seg0 & 0xffc0) == 0xfe80 || (seg0 & 0xfe00) == 0xfc00
 }
 
+/// One row's text (one char per column, blanks filled in) plus, for a
+/// row that is not pure ASCII, the map from byte offset back to column.
+/// Both scanners work in byte offsets and convert at the end; see the
+/// comment at the call site for why.
+fn row_text(cols: &[(u16, char)]) -> (String, Option<Vec<u16>>) {
+    let max_col = cols.iter().map(|(c, _)| *c).max().unwrap_or(0) as usize;
+    let mut chars = vec![' '; max_col + 1];
+    for &(col, ch) in cols {
+        if (col as usize) <= max_col {
+            chars[col as usize] = ch;
+        }
+    }
+    let row_str: String = chars.iter().collect();
+    let byte_col: Option<Vec<u16>> = (!row_str.is_ascii()).then(|| {
+        let mut map = vec![0u16; row_str.len()];
+        for (col, (b, ch)) in row_str.char_indices().enumerate() {
+            for off in 0..ch.len_utf8() {
+                map[b + off] = col as u16;
+            }
+        }
+        map
+    });
+    (row_str, byte_col)
+}
+
+/// Spans matched by the user's own highlight rules.
+///
+/// Kept apart from [`detect_highlights`] rather than folded into it, for
+/// two reasons. The automatic detectors resolve overlaps against each
+/// other (a path inside a URL is not a second highlight), and a user
+/// rule must not join that negotiation: it was asked for explicitly, so
+/// it wins outright, which the draw pass implements by consulting this
+/// list first. And the two passes are gated independently: rules paint
+/// whether or not the automatic "Keyword highlighting" toggle is on.
+pub(crate) fn detect_rule_highlights(
+    row_chars: &[(u16, Vec<(u16, char)>)],
+    rules: &[crate::highlight_rules::CompiledRule],
+) -> Vec<Highlight> {
+    let mut highlights = Vec::new();
+    let mut spans = Vec::new();
+    for (row, cols) in row_chars {
+        let (row_str, byte_col) = row_text(cols);
+        // A row is blanks-padded to its last printable column, so the
+        // trailing run of spaces is not text the user can see. Matching
+        // against the trimmed view keeps a rule like `\s+$` from
+        // painting the whole rest of the line.
+        let trimmed = row_str.trim_end();
+        if trimmed.is_empty() {
+            continue;
+        }
+        for rule in rules {
+            spans.clear();
+            rule.find_spans(trimmed, &mut spans);
+            for &(start, end) in &spans {
+                let (start_col, end_col) = match &byte_col {
+                    Some(map) => (map[start], map[end - 1]),
+                    None => (start as u16, (end - 1) as u16),
+                };
+                highlights.push(Highlight {
+                    row: *row,
+                    start_col,
+                    end_col,
+                    color: rule.color,
+                    kind: HighlightKind::Rule,
+                });
+            }
+        }
+    }
+    highlights
+}
+
 /// Scan row text for IPv4/IPv6 addresses, URLs, and Unix file paths (no
 /// regex). Takes `(row, non-blank cells)` pairs; rows with no printable
 /// chars are simply absent (the draw pass builds this per frame, so a
@@ -227,17 +303,6 @@ pub(crate) fn detect_highlights(
 
     for (row, cols) in row_chars {
         let row = *row;
-        let max_col = cols.iter().map(|(c, _)| *c).max().unwrap_or(0) as usize;
-        let mut chars = vec![' '; max_col + 1];
-        for &(col, ch) in cols {
-            if (col as usize) <= max_col {
-                chars[col as usize] = ch;
-            }
-        }
-        let row_str: String = chars.iter().collect();
-        let bytes = row_str.as_bytes();
-        let len = bytes.len();
-
         // The scanners below all walk `bytes` and record BYTE offsets in
         // `start_col`/`end_col`. The row string holds exactly one char per
         // column, so a char's index IS its column; on a pure-ASCII row the
@@ -248,15 +313,9 @@ pub(crate) fn detect_highlights(
         // `dominated` overlap checks compare spans of the same row), and
         // the finished row's spans are remapped to columns at the end of
         // this loop body via `byte_col`.
-        let byte_col: Option<Vec<u16>> = (!row_str.is_ascii()).then(|| {
-            let mut map = vec![0u16; len];
-            for (col, (b, ch)) in row_str.char_indices().enumerate() {
-                for off in 0..ch.len_utf8() {
-                    map[b + off] = col as u16;
-                }
-            }
-            map
-        });
+        let (row_str, byte_col) = row_text(cols);
+        let bytes = row_str.as_bytes();
+        let len = bytes.len();
         let row_first_span = highlights.len();
 
         // --- URLs: "http://" or "https://" followed by non-whitespace ---
@@ -1844,5 +1903,75 @@ mod tests {
         let (uri_b, segs_b) = osc8_link_run(&b.term, 1, 1).expect("link B");
         assert_eq!(uri_b, "https://b.com");
         assert_eq!(segs_b, vec![(1, 0, 2)]);
+    }
+
+    fn user_rule(pattern: &str, color: Color) -> crate::highlight_rules::CompiledRule {
+        crate::highlight_rules::CompiledRule::new("r", "n", pattern, false, false, color, false)
+            .unwrap()
+    }
+
+    #[test]
+    fn a_user_rule_paints_every_occurrence() {
+        let rows = rows_from("ERROR here and ERROR there");
+        let red = Color::from_rgb8(255, 0, 0);
+        let hs = detect_rule_highlights(&rows, &[user_rule("ERROR", red)]);
+        assert_eq!(hs.len(), 2);
+        assert_eq!((hs[0].start_col, hs[0].end_col), (0, 4));
+        assert_eq!((hs[1].start_col, hs[1].end_col), (15, 19));
+        assert_eq!(highlight_color_at(&hs, 0, 2), Some(red));
+        // Between the two matches nothing is painted.
+        assert_eq!(highlight_color_at(&hs, 0, 8), None);
+    }
+
+    #[test]
+    fn a_user_rule_after_a_wide_character_lands_on_the_right_columns() {
+        // Same trap the automatic detectors hit: a multi-byte char shifts
+        // every later BYTE offset past its column, so an unremapped span
+        // would paint the wrong cells.
+        let rows = rows_from("日本ERROR");
+        let red = Color::from_rgb8(255, 0, 0);
+        let hs = detect_rule_highlights(&rows, &[user_rule("ERROR", red)]);
+        assert_eq!(hs.len(), 1);
+        assert_eq!((hs[0].start_col, hs[0].end_col), (2, 6));
+    }
+
+    #[test]
+    fn a_user_rule_cannot_paint_the_blank_padding_after_the_text() {
+        // Rows are padded with blanks out to the last printable column;
+        // a whitespace rule must not treat that padding as content.
+        let rows = rows_from("done");
+        let hs = detect_rule_highlights(
+            &rows,
+            &[crate::highlight_rules::CompiledRule::new(
+                "r",
+                "n",
+                r"\s+",
+                true,
+                false,
+                Color::WHITE,
+                false,
+            )
+            .unwrap()],
+        );
+        assert!(hs.is_empty());
+    }
+
+    #[test]
+    fn rule_spans_are_not_privacy_spans() {
+        // A rule matching an address must not make it maskable, and must
+        // not stop the address's own detector from masking it either:
+        // the two passes are separate lists.
+        let rows = rows_from("host 8.8.8.8 up");
+        let rule_hs = detect_rule_highlights(&rows, &[user_rule("8.8.8.8", Color::WHITE)]);
+        assert!(!rule_hs.is_empty());
+        assert!(!is_privacy_cell(&rule_hs, 0, 6));
+        let auto = detect_highlights(
+            &rows,
+            &TerminalPalette::default(),
+            true,
+            &[],
+            PrivacyClasses::default(),
+        );
+        assert!(is_privacy_cell(&auto, 0, 6));
     }
 }

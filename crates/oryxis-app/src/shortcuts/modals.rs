@@ -36,6 +36,7 @@ impl Oryxis {
             // gated separately by `connecting.is_none()` at the render site.
             Modal::HostKey => self.pending_host_key.is_some(),
             Modal::AgentConfirm => self.agent.pending_confirm.is_some(),
+            Modal::TriggerConfirm => self.trigger_confirm.is_some(),
             Modal::TerminalThemeGallery => self.panels.terminal_theme_gallery,
             Modal::UiThemeGallery => self.panels.ui_theme_gallery,
             Modal::ThemeEditor => self.theme_ui.editor.is_some(),
@@ -126,6 +127,10 @@ impl Oryxis {
                     card.respond(false);
                 }
             }
+            // Esc refuses, and the refusal is remembered for the
+            // session: a rule that could re-ask on the next matching
+            // line would be a way to wear the user down.
+            Modal::TriggerConfirm => self.resolve_trigger_confirm(false),
             Modal::ThemeEditor => {
                 self.theme_ui.editor = None;
                 self.theme_ui.color_popover = None;

@@ -10,6 +10,11 @@ portable-pty = { workspace = true }
 iced = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+# User-defined highlight rules compile to regular expressions, including
+# the plain-text ones (through `regex::escape`), so pattern matching has
+# one implementation instead of two. The engine has no backtracking,
+# which is what makes it safe to run a user's pattern over remote output.
+regex = { workspace = true }
 # No `arboard` here on purpose: this crate never touches the system
 # clipboard itself. Every copy / paste is queued in `host_clipboard` and
 # performed by the host through the iced runtime, so the process only ever

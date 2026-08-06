@@ -322,6 +322,42 @@ pub(crate) struct LoginScriptRun {
     pub generation: u64,
 }
 
+/// What one highlight rule has done on one pane this session (C6).
+#[derive(Debug, Default)]
+pub(crate) struct TriggerRuntime {
+    /// When the rule's action last ran, so a log full of the same word
+    /// produces one notification rather than one per line.
+    pub last_fired: Option<std::time::Instant>,
+    /// The user's answer to "may this rule type into this session".
+    /// `None` = never asked, `Some(false)` = refused, and a refusal is
+    /// remembered for the session so a hostile stream cannot re-ask
+    /// until the user clicks the wrong button.
+    pub snippet_allowed: Option<bool>,
+    /// Set while the confirmation is on screen, so the next matching
+    /// line does not queue a second one behind it.
+    pub asking: bool,
+}
+
+/// How long a rule waits before its action can run again on the same
+/// pane. Output arrives in bursts (a `tail -f` on a failing service, a
+/// build printing the same warning per file), and a notification per
+/// line is not a notification, it is a denial of service on the user's
+/// attention.
+pub(crate) const TRIGGER_COOLDOWN: std::time::Duration = std::time::Duration::from_secs(5);
+
+impl TriggerRuntime {
+    /// Whether the action may run now, stamping the time when it may.
+    pub fn take_turn(&mut self, now: std::time::Instant) -> bool {
+        if let Some(last) = self.last_fired
+            && now.duration_since(last) < TRIGGER_COOLDOWN
+        {
+            return false;
+        }
+        self.last_fired = Some(now);
+        true
+    }
+}
+
 /// One terminal pane, owns its alacritty grid and (optionally) the
 /// remote session feeding it. A `TerminalTab` holds one or more panes
 /// in a `pane_grid::State`, which owns their split layout.
@@ -445,6 +481,15 @@ pub(crate) struct Pane {
     /// types, or the session dies, so a lingering runner can never
     /// answer a prompt from the shell the user is now driving.
     pub login_script: Option<LoginScriptRun>,
+    /// Per-rule trigger bookkeeping for this pane's session (C6), keyed
+    /// by rule id: when it last fired, and whether the user has allowed
+    /// its snippet to be sent.
+    ///
+    /// Session-scoped on purpose. The grant is consent to let REMOTE
+    /// output type into this shell, so it dies with the session it was
+    /// given for, exactly like the agent server's per-fingerprint
+    /// grants die at vault lock.
+    pub triggers: std::collections::HashMap<String, TriggerRuntime>,
     /// The password prompt this pane last raised a suggestion popup for
     /// (issue #117): `(prompt text, absolute grid row)`.
     ///
@@ -592,6 +637,7 @@ impl Pane {
             last_output: None,
             zmodem_detector: oryxis_zmodem::ZmodemDetector::new(),
             login_script: None,
+            triggers: std::collections::HashMap::new(),
             password_prompt_sig: None,
             zmodem: None,
             drop_upload: None,
@@ -726,4 +772,36 @@ pub(crate) enum DropProgress {
     Done,
     Failed(String),
     Cancelled,
+}
+
+#[cfg(test)]
+mod trigger_tests {
+    use super::{TriggerRuntime, TRIGGER_COOLDOWN};
+    use std::time::Instant;
+
+    #[test]
+    fn a_rule_fires_once_and_then_waits_out_its_cooldown() {
+        // The case this exists for: `tail -f` on a log that repeats the
+        // same word. One notification, not one per line.
+        let mut rt = TriggerRuntime::default();
+        let t0 = Instant::now();
+        assert!(rt.take_turn(t0));
+        assert!(!rt.take_turn(t0));
+        assert!(!rt.take_turn(t0 + TRIGGER_COOLDOWN - std::time::Duration::from_millis(1)));
+        assert!(rt.take_turn(t0 + TRIGGER_COOLDOWN));
+    }
+
+    #[test]
+    fn a_refusal_is_remembered_and_a_grant_is_too() {
+        // Both answers stick for the session: a rule that could re-ask
+        // on the next matching line would be a way to wear the user
+        // down, and a grant that expired per line would be a dialog
+        // storm.
+        let mut rt = TriggerRuntime::default();
+        assert_eq!(rt.snippet_allowed, None);
+        rt.snippet_allowed = Some(false);
+        assert_eq!(rt.snippet_allowed, Some(false));
+        rt.snippet_allowed = Some(true);
+        assert_eq!(rt.snippet_allowed, Some(true));
+    }
 }

@@ -439,6 +439,14 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("keyword_highlight") {
                 self.prefs.keyword_highlight = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting(crate::highlight_rules::SETTING_KEY) {
+                self.prefs.highlight_rules = crate::highlight_rules::parse_setting(&v);
+                // Compiled here rather than lazily on the first frame:
+                // the first pane must be able to paint (and watch) from
+                // the moment it opens.
+                self.prefs.compiled_highlight_rules =
+                    crate::highlight_rules::compile(&self.prefs.highlight_rules).0;
+            }
             if let Ok(Some(v)) = vault.get_setting("command_history") {
                 self.prefs.command_history = v == "true";
             }

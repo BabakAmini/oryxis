@@ -444,6 +444,20 @@ vulnerability disclosure policy.
   change after that is live. Linux (Wayland, or X11 with a compositor)
   and macOS; on Windows the graphics stack usually reports no
   transparent surface, where the setting simply has no effect.
+- **Highlight rules.** `Settings → Terminal → Highlight rules` colours
+  the text you care about: a pattern (plain text or a regular
+  expression, case-insensitive by default), a colour, and an optional
+  action when it shows up. Your rules beat the automatic URL / IP / path
+  detection, and the first matching rule wins, so the list is ordered.
+  The action can be a desktop notification, a sound, or typing one of
+  your snippets into that session, with a per-rule cooldown so a log
+  full of the same word is one notification and not a hundred. Sending a
+  snippet asks first, once per rule per session, showing the line that
+  matched and the snippet's text: the trigger is decided by output the
+  HOST printed, and that must not be a way for a server to choose what
+  runs on it. Actions do not fire inside full-screen applications
+  (tmux, vim, htop), which repaint the screen instead of printing lines;
+  the colouring still works there.
 - **23 languages.** English, Português, Español, Français, Deutsch,
   Italiano, 简体中文, 繁體中文, 日本語, Русский, فارسی, العربية, עברית,
   한국어, Polski, Türkçe, Bahasa Indonesia, Tiếng Việt, Українська, ไทย,

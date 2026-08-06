@@ -10,6 +10,7 @@
 use iced::Task;
 
 use crate::app::{TerminalMessage, Message, Oryxis};
+use oryxis_core::models::TriggerAction;
 
 /// Flush a pane's recorded-output buffer to the vault once it reaches
 /// this size, so a burst (e.g. an `apt upgrade` dump) doesn't sit in
@@ -426,6 +427,32 @@ impl Oryxis {
                 // Snapshot the (Copy) bell mode before borrowing self.tabs; the
                 // bell action runs while the pane is borrowed.
                 let bell_mode = self.prefs.bell_mode;
+                // The compiled highlight rules, installed on the pane's
+                // backend just before it processes the batch. Handing
+                // them over HERE rather than at pane creation is what
+                // makes them universal: every pane, whatever created it,
+                // passes through this funnel, and the setter is a
+                // pointer comparison when the set has not changed.
+                let highlight_rules = self.prefs.compiled_highlight_rules.clone();
+                // What each action-bearing rule should DO, resolved
+                // before the borrow because the actions themselves need
+                // the whole app (a toast, a snippet, a confirmation).
+                // Empty unless some rule carries an action, which is the
+                // normal case and keeps this a no-op allocation.
+                let trigger_actions: std::collections::HashMap<String, TriggerAction> =
+                    if highlight_rules.any_triggers() {
+                        self.prefs
+                            .highlight_rules
+                            .iter()
+                            .filter(|r| r.enabled && r.action.is_trigger())
+                            .map(|r| (r.id.clone(), r.action.clone()))
+                            .collect()
+                    } else {
+                        std::collections::HashMap::new()
+                    };
+                // Rules that fired on this batch and cleared their
+                // cooldown: (rule id, rule name, the matching line).
+                let mut fired_triggers: Vec<(String, String, String)> = Vec::new();
                 // Notification policy + focus snapshot before the tabs borrow.
                 let notif_mode = self.prefs.notification_mode;
                 let win_focused = self.window_focused;
@@ -506,7 +533,27 @@ impl Oryxis {
                         && !had_login_script
                         && pane.login_script.is_none();
                     if let Ok(mut state) = pane.terminal.lock() {
+                        state.set_highlight_rules(highlight_rules);
                         state.process(&bytes);
+                        // Highlight rules that fired on this batch (C6).
+                        // Drained inside the lock (the scanner lives in
+                        // the backend), filtered by the per-pane cooldown
+                        // here, and ACTED ON after the borrow: an action
+                        // is a notification, a beep or a snippet, and all
+                        // three need the whole app.
+                        if !trigger_actions.is_empty() {
+                            let now = std::time::Instant::now();
+                            for hit in state.take_trigger_hits() {
+                                if !trigger_actions.contains_key(&hit.rule_id) {
+                                    continue;
+                                }
+                                let runtime = pane.triggers.entry(hit.rule_id.clone()).or_default();
+                                if !runtime.take_turn(now) {
+                                    continue;
+                                }
+                                fired_triggers.push((hit.rule_id, hit.rule_name, hit.line));
+                            }
+                        }
                         // Grid size this batch was processed at, for the
                         // recording's resize marks below.
                         size_now = Some((state.cols(), state.rows()));
@@ -788,6 +835,14 @@ impl Oryxis {
                 // (a native popup for the thing you're already watching is just
                 // noise) and falls back to a toast if the native call fails (no
                 // daemon / no AppUserModelID on a non-installed Windows build).
+                // Highlight-rule actions (C6). After the pane borrow,
+                // because every one of them needs the whole app; the
+                // cooldown has already been paid inside it.
+                for (rule_id, rule_name, line) in fired_triggers {
+                    if let Some(action) = trigger_actions.get(&rule_id) {
+                        self.run_trigger_action(pane_id, &rule_id, &rule_name, &line, action);
+                    }
+                }
                 let mut toast_shown = false;
                 if let Some((label, text)) = pending_notification {
                     let trimmed = text.trim();

@@ -104,6 +104,12 @@ pub(crate) enum Modal {
     /// sibling confirms, the SAFE button is the default row (see
     /// `build_monitor_kill_dialog`).
     MonitorKill,
+    /// "A highlight rule wants to run a snippet on this session" (C6).
+    /// A security prompt like `AgentConfirm`: what asked for it is
+    /// REMOTE output, so it must block input (Enter must never fall
+    /// through to the PTY behind it) and Esc refuses, which is also
+    /// remembered for the session.
+    TriggerConfirm,
 }
 
 impl Modal {
@@ -145,6 +151,7 @@ impl Modal {
         Modal::AgentConfirm,
         Modal::CertificateViewer,
         Modal::MonitorKill,
+        Modal::TriggerConfirm,
     ];
 
     /// Modals Esc dismisses, in topmost-first priority order (the order
@@ -167,6 +174,9 @@ impl Modal {
         Modal::HostKey,
         // Sibling security prompt: Esc denies the signature (safe default).
         Modal::AgentConfirm,
+        // Same class: Esc refuses to let remote output type into the
+        // session, and the refusal sticks for the session.
+        Modal::TriggerConfirm,
         // The error dialog can pop over another flow, so it dismisses
         // before the heavier editors below; the two confirm dialogs
         // follow in the same lightweight-confirm group.
@@ -239,7 +249,8 @@ impl Modal {
             | Modal::SftpPicker
             | Modal::AgentConfirm
             | Modal::CertificateViewer
-            | Modal::MonitorKill => true,
+            | Modal::MonitorKill
+            | Modal::TriggerConfirm => true,
         }
     }
 }
@@ -288,10 +299,11 @@ mod tests {
                 | Modal::SftpPicker
                 | Modal::AgentConfirm
                 | Modal::CertificateViewer
-                | Modal::MonitorKill => {}
+                | Modal::MonitorKill
+                | Modal::TriggerConfirm => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 35, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 36, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

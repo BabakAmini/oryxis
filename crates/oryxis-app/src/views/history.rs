@@ -546,6 +546,10 @@ impl Oryxis {
                 .with_reset_scroll_on_output(false)
                 .with_bold_is_bright(self.prefs.bold_is_bright)
                 .with_keyword_highlight(self.prefs.keyword_highlight)
+                // Colours only: this backend is never given the rules, so
+                // a recording can be read without its triggers firing
+                // again years later.
+                .with_highlight_rules(self.prefs.compiled_highlight_rules.clone())
                 .with_performance(self.prefs.performance_mode)
                 .with_privacy(mask)
                 .with_privacy_terms(&self.privacy_terms())

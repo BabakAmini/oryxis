@@ -154,4 +154,7 @@ pub enum TerminalMessage {
     TerminalClearScrollback(Uuid),
     /// Clear a pane's visual-bell flash after its short display window.
     TerminalBellFlashEnd(Uuid),
+    /// The answer to "may this highlight rule run its snippet on this
+    /// session" (C6). Remembered for the session either way.
+    TriggerConfirmDecision(bool),
 }

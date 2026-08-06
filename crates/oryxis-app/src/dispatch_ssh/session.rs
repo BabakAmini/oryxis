@@ -187,6 +187,12 @@ impl Oryxis {
                         // anything any more (issue #117).
                         p.login_script = None;
                         p.password_prompt_sig = None;
+                        // Trigger grants and cooldowns belong to the
+                        // session they were given for (C6): permission
+                        // to let REMOTE output type into this shell must
+                        // not be inherited by whatever the reconnect
+                        // lands on.
+                        p.triggers.clear();
                         p.session_log_id
                     });
                     // Same for the suggestion popup, if it was this
@@ -194,6 +200,9 @@ impl Oryxis {
                     // would silently drop it. Scoped to the pane, since
                     // a split tab's siblings are still live.
                     self.dismiss_password_suggest_for(pane_id);
+                    // Same for a confirmation still on screen: it asks
+                    // about a session that no longer exists.
+                    self.reset_triggers_for_pane(pane_id);
                     if let Some(log_id) = log_id
                         && let Some(vault) = &self.vault
                     {

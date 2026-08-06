@@ -246,7 +246,6 @@ tracks it interactively.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
-- **Terminal:** keyword highlighting with user-defined trigger actions.
 - **tmux session manager:** a terminal-sidebar tab listing the tmux
   sessions on the current host with attach / create / kill, read over
   the live connection; nothing installed on the server, as always.

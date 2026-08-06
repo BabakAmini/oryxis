@@ -164,8 +164,7 @@ estável é a **v0.12.0**; o histórico completo está no
 [CHANGELOG.md](CHANGELOG.md) e o roadmap interativo na
 [discussão de roadmap](https://github.com/wilsonglasser/oryxis/discussions/67).
 Entre as frentes em andamento: FIDO2 nativo (falar direto com a chave
-de segurança por USB / NFC), melhorias de terminal (realce de
-palavras-chave com ações de gatilho), cliente Mosh nativo, suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
+de segurança por USB / NFC), cliente Mosh nativo, suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
 pedidos recentes da comunidade: gerenciador de sessões tmux na barra
 lateral e visão em árvore dos hosts.
 

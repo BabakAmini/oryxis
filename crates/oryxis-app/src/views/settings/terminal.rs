@@ -1077,6 +1077,11 @@ impl Oryxis {
                     Space::new().height(8),
                     appearance_section,
                     Space::new().height(12),
+                    // Right after the appearance card: rules are what
+                    // the grid looks like too, just the half the user
+                    // writes themselves.
+                    self.highlight_rules_section(),
+                    Space::new().height(12),
                     theme_picker_section,
                     Space::new().height(18),
                     gh(crate::i18n::t("terminal_group_split_panes")),

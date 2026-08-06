@@ -162,8 +162,7 @@ Oryxis はおよそ週次で小さくリリースし、機能は準備ができ�
 [CHANGELOG.md](CHANGELOG.md)、インタラクティブなロードマップは
 [ロードマップ Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 にあります。進行中の方向性：ネイティブ FIDO2（USB / NFC でセキュ
-リティキーと直接通信）、ターミナル強化（トリガーアクション付きの
-キーワードハイライト）、ネイティブ Mosh クライアント、東アジアの曖昧幅（ambiguous width）オプション。コミュ
+リティキーと直接通信）、ネイティブ Mosh クライアント、東アジアの曖昧幅（ambiguous width）オプション。コミュ
 ニティからの要望も予定に入っています：サイドバーの tmux セッ
 ションマネージャー、ホストのツリービュー。
 

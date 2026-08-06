@@ -462,6 +462,23 @@ impl Oryxis {
             );
         }
 
+        // "A highlight rule wants to run a snippet" (C6): the same class
+        // of prompt as the agent one above, and for the same reason, so
+        // it sits with it. Clicking outside refuses.
+        if let Some(ref card) = self.trigger_confirm {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.build_trigger_confirm_dialog(card),
+                    Some(Message::Terminal(TerminalMessage::TriggerConfirmDecision(
+                        false,
+                    ))),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Careful-paste confirmation: a clipboard paste containing a line
         // break is parked in `pending_paste` and previewed here (line
         // count + first lines) before anything reaches the session, so a

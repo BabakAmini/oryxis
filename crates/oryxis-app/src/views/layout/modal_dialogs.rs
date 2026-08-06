@@ -275,6 +275,101 @@ impl Oryxis {
         dialog.into()
     }
 
+    /// "A highlight rule wants to run a snippet on this session" (C6).
+    ///
+    /// A security prompt, and it is worded like one: what asked for it
+    /// is REMOTE OUTPUT, so the dialog shows the line that matched and
+    /// the snippet's actual text, not just their names. The default
+    /// (and Esc, and a click outside) is Don't send.
+    pub(crate) fn build_trigger_confirm_dialog<'a>(
+        &'a self,
+        card: &'a crate::dispatch_terminal::TriggerConfirmCard,
+    ) -> Element<'a, Message> {
+        self.modal_nav_reset();
+        let rule = if card.rule_name.trim().is_empty() {
+            crate::i18n::t("highlight_rules").to_string()
+        } else {
+            card.rule_name.clone()
+        };
+
+        let info = column![
+            text(crate::i18n::t("trigger_confirm_title"))
+                .size(16)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(6),
+            text(crate::i18n::t("trigger_confirm_body"))
+                .size(13)
+                .color(OryxisColors::t().text_secondary),
+            Space::new().height(12),
+            crate::widgets::panel_field(
+                crate::i18n::t("trigger_confirm_rule"),
+                text(rule).size(13).color(OryxisColors::t().text_primary).into(),
+            ),
+            Space::new().height(8),
+            crate::widgets::panel_field(
+                crate::i18n::t("trigger_confirm_line"),
+                text(card.line.clone())
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .color(OryxisColors::t().text_secondary)
+                    .into(),
+            ),
+            Space::new().height(8),
+            crate::widgets::panel_field(
+                &card.snippet_label,
+                text(card.snippet_body.clone())
+                    .size(11)
+                    .font(iced::Font::MONOSPACE)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+            ),
+        ];
+
+        let buttons = crate::widgets::dir_row(vec![
+            self.modal_nav_slot_default(
+                crate::keynav::RowAction::activate(Message::Terminal(
+                    TerminalMessage::TriggerConfirmDecision(false),
+                )),
+                6.0,
+                true,
+                styled_button(
+                    crate::i18n::t("trigger_confirm_deny"),
+                    Message::Terminal(TerminalMessage::TriggerConfirmDecision(false)),
+                    OryxisColors::t().bg_hover,
+                ),
+            ),
+            Space::new().width(8).into(),
+            self.modal_nav_slot(
+                crate::keynav::RowAction::activate(Message::Terminal(
+                    TerminalMessage::TriggerConfirmDecision(true),
+                )),
+                6.0,
+                false,
+                styled_button(
+                    crate::i18n::t("trigger_confirm_allow"),
+                    Message::Terminal(TerminalMessage::TriggerConfirmDecision(true)),
+                    OryxisColors::t().accent,
+                ),
+            ),
+        ]);
+
+        container(
+            column![info, Space::new().height(16), buttons]
+                .padding(24)
+                .width(440),
+        )
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border {
+                radius: Radius::from(12.0),
+                color: OryxisColors::t().border,
+                width: 1.0,
+            },
+            ..Default::default()
+        })
+        .into()
+    }
+
     /// The one-entry Import hub (owner call: ONE standardized import):
     /// names every supported source, and the "Choose file" picker's
     /// result is format-detected from its content, so the user never

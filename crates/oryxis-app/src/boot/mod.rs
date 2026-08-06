@@ -403,6 +403,8 @@ impl Oryxis {
                 login_scripts: Vec::new(),
                 login_script_generation: 0,
                 login_script_form: crate::state::LoginScriptForm::default(),
+                highlight_rule_form: crate::state::HighlightRuleForm::default(),
+                trigger_confirm: None,
                 cloud_profiles: Vec::new(),
                 cloud_form: crate::state::CloudForm::default(),
                 editor_parent_combo: iced::widget::combo_box::State::new(Vec::new()),

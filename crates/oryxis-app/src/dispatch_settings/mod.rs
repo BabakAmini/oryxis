@@ -43,6 +43,8 @@ mod timers;
 mod toggles;
 mod appearance;
 mod defaults;
+mod highlight_rules;
+pub(crate) use highlight_rules::{action_label, action_options};
 mod local_terminals;
 mod login_scripts;
 // The reconnect respawn (`dispatch_tabs/lifecycle.rs`) spawns the
@@ -414,6 +416,26 @@ impl Oryxis {
                 | SettingsMessage::LoginScriptCancelDelete
                 | SettingsMessage::LoginScriptDelete(..)
             ) => self.handle_settings_login_scripts(m),
+            m @ (
+                SettingsMessage::HighlightRuleAdd
+                | SettingsMessage::HighlightRuleEdit(..)
+                | SettingsMessage::HighlightRuleCancelEdit
+                | SettingsMessage::HighlightRuleSave
+                | SettingsMessage::HighlightRuleToggleEnabled(..)
+                | SettingsMessage::HighlightRuleMove(..)
+                | SettingsMessage::HighlightRuleRequestDelete(..)
+                | SettingsMessage::HighlightRuleCancelDelete
+                | SettingsMessage::HighlightRuleDelete(..)
+                | SettingsMessage::HighlightRuleNameChanged(..)
+                | SettingsMessage::HighlightRulePatternChanged(..)
+                | SettingsMessage::HighlightRuleToggleRegex
+                | SettingsMessage::HighlightRuleToggleCaseSensitive
+                | SettingsMessage::HighlightRuleColorChanged(..)
+                | SettingsMessage::HighlightRuleActionChanged(..)
+                | SettingsMessage::HighlightRuleSnippetChanged(..)
+            ) => self
+                .handle_settings_highlight_rules(m)
+                .unwrap_or_else(crate::dispatch::unrouted),
         }
     }
 }

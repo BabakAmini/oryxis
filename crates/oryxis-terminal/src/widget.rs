@@ -310,6 +310,10 @@ struct RenderKey {
     selecting: bool,
     privacy: bool,
     keyword_highlight: bool,
+    /// `CompiledRules::hash` (0 with no rules): editing a rule's pattern,
+    /// colour or enabled flag must repaint the grid, and without this the
+    /// change would only appear on the next output batch.
+    highlight_rules_hash: u64,
     performance: bool,
     smart_contrast: bool,
     bold_is_bright: bool,
@@ -477,7 +481,17 @@ pub struct TerminalView<Message = ()> {
     bold_is_bright: bool,
     /// When true, the terminal scans visible rows for URLs / IPs / paths
     /// and tints them. Disable to recover frame time in dense UIs.
+    ///
+    /// This governs the AUTOMATIC detectors only. The user's own
+    /// [`highlight_rules`](Self::highlight_rules) are explicit requests
+    /// and paint regardless, so a rule cannot be silently killed by a
+    /// toggle somewhere else in Settings.
     keyword_highlight: bool,
+    /// The user's own highlight rules, compiled by the app and shared
+    /// with the pane's backend (which watches the output stream for the
+    /// ones carrying an action), so the colour and the trigger can never
+    /// come from different patterns.
+    highlight_rules: std::sync::Arc<crate::highlight_rules::CompiledRules>,
     /// Performance mode: skip the per-frame highlight scan (keyword
     /// tinting plus URL / IP / path detection) to save CPU on weak or
     /// software render paths. The scan still runs when

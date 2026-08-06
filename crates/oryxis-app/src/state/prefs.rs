@@ -122,6 +122,15 @@ pub(crate) struct AppPrefs {
     /// pane hands a strip back to the grid on the edges it shares.
     pub(crate) pane_gap: String,
     pub(crate) keyword_highlight: bool,
+    /// The user's own highlight rules, as stored (`terminal_highlight_rules`,
+    /// a JSON array). This is the editable list; the terminal never sees
+    /// it directly.
+    pub(crate) highlight_rules: Vec<oryxis_core::models::HighlightRule>,
+    /// The same rules compiled, shared with every pane's widget AND with
+    /// its backend (which watches the output stream for the rules that
+    /// carry an action). Rebuilt on every edit, never per frame: a
+    /// pattern is compiled once and matched millions of times.
+    pub(crate) compiled_highlight_rules: std::sync::Arc<oryxis_terminal::CompiledRules>,
     /// Performance mode: trade visual niceties for CPU on weak / software
     /// render paths. When on, the terminal skips the per-frame keyword /
     /// URL / IP / path highlight scan (kept only when Privacy Mode needs
@@ -513,6 +522,8 @@ impl Default for AppPrefs {
             pane_border_inactive: true,
             pane_gap: "0".to_string(),
             keyword_highlight: true,
+            highlight_rules: Vec::new(),
+            compiled_highlight_rules: std::sync::Arc::default(),
             performance_mode: false,
             perf_overlay: false,
             smart_contrast: true,

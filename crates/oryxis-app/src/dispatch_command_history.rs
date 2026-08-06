@@ -211,7 +211,11 @@ impl Oryxis {
     /// the PTY receives (keys, paste, snippet Run / Paste, every broadcast
     /// target) and never for typing that belongs to another surface, such as
     /// the sidebar's chat or search inputs.
-    fn write_bytes_to_pane(pane: &mut crate::state::Pane, bytes: &[u8], snap_to_bottom: bool) {
+    pub(crate) fn write_bytes_to_pane(
+        pane: &mut crate::state::Pane,
+        bytes: &[u8],
+        snap_to_bottom: bool,
+    ) {
         if let Some(ref session) = pane.session {
             let _ = session.write(bytes);
             if snap_to_bottom

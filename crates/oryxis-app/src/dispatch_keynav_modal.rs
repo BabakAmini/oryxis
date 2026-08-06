@@ -112,7 +112,11 @@ impl Oryxis {
                     // Kill-the-process confirm (issue #96): Cancel is
                     // the default-ringed action, so a stray Enter can
                     // never take a remote service down.
-                    | Modal::MonitorKill => SurfaceFamily::Confirm,
+                    | Modal::MonitorKill
+                    // "Let this rule run a snippet" (C6): Don't send is
+                    // the default-ringed action, so a stray Enter can
+                    // never hand the session to remote output.
+                    | Modal::TriggerConfirm => SurfaceFamily::Confirm,
                     // Rename inputs (on_submit), editors, pickers with
                     // their own model: out of this layer. That includes
                     // the theme IMPORT modals: their multiline paste

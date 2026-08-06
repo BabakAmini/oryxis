@@ -47,12 +47,13 @@ settle
 # label is a label). The coordinate is deterministic because this file
 # declares its own viewport, and if a row is ever inserted above this
 # one the failure is the explicit `absent` below rather than a silent
-# pass. It has caught that four times already: 1784 -> 1830 when the
+# pass. It has caught that five times already: 1784 -> 1830 when the
 # #117 password-autofill row joined the section above, 1830 -> 1858 when
 # the #109 font-pack hint line landed under the font picker, 1858 ->
 # 1927 when the background-opacity row joined Appearance, 1927 -> 1991
-# when the background-image row joined it.
-click (1340, 1991)
+# when the background-image row joined it, 1991 -> 2091 when the
+# highlight-rules block landed after Appearance.
+click (1340, 2091)
 settle
 absent "Copy shell integration snippet"
 absent "Rotate key"

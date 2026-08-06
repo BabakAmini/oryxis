@@ -216,6 +216,9 @@ impl Oryxis {
                 .with_right_click_action(self.prefs.terminal_right_click.to_widget())
                 .with_bold_is_bright(self.prefs.bold_is_bright)
                 .with_keyword_highlight(self.prefs.keyword_highlight)
+                // Same as the history viewer: the replay is painted by
+                // the rules, never watched by them.
+                .with_highlight_rules(self.prefs.compiled_highlight_rules.clone())
                 .with_performance(self.prefs.performance_mode)
                 .with_privacy(mask)
                 .with_privacy_terms(&self.privacy_terms())

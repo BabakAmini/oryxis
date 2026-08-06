@@ -505,4 +505,33 @@ pub enum SettingsMessage {
     LoginScriptRequestDelete(uuid::Uuid),
     LoginScriptCancelDelete,
     LoginScriptDelete(uuid::Uuid),
+    // ── Highlight rules (C6) ──
+    // The user's own colouring rules and the action a match may fire.
+    // Everything lives in Settings > Terminal: the list, the inline
+    // editor, and the delete confirmation.
+    /// Open the editor on a blank rule.
+    HighlightRuleAdd,
+    /// Open the editor on the rule at this index.
+    HighlightRuleEdit(usize),
+    /// Close the editor, discarding the working copy.
+    HighlightRuleCancelEdit,
+    /// Commit the working copy (validating the pattern first).
+    HighlightRuleSave,
+    /// Switch a rule off / on without deleting it.
+    HighlightRuleToggleEnabled(usize),
+    /// Move a rule one place towards the front (`true`) or the back.
+    /// Order is precedence: the first matching rule paints the cell.
+    HighlightRuleMove(usize, bool),
+    HighlightRuleRequestDelete(usize),
+    HighlightRuleCancelDelete,
+    HighlightRuleDelete(usize),
+    HighlightRuleNameChanged(String),
+    HighlightRulePatternChanged(String),
+    HighlightRuleToggleRegex,
+    HighlightRuleToggleCaseSensitive,
+    HighlightRuleColorChanged(String),
+    /// Action pick-list, by localized label.
+    HighlightRuleActionChanged(String),
+    /// Which snippet the "send a snippet" action runs, by label.
+    HighlightRuleSnippetChanged(String),
 }

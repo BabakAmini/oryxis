@@ -208,7 +208,24 @@ pub struct TerminalBackend {
     /// shift per mark is exactly the silent per-batch cost class #104
     /// hunts.
     marks: std::collections::VecDeque<crate::osc::PositionedShellMark>,
+    /// Watches the output for the highlight rules that carry an action.
+    /// Inert (an early return, no accumulation) while no such rule
+    /// exists, which is the normal case and the whole state of a replay
+    /// surface like the session player.
+    trigger: crate::trigger::TriggerScanner,
+    /// The rules the scanner runs. Shared with the widget, which paints
+    /// the same set, so a rule can never colour one thing and fire on
+    /// another.
+    rules: std::sync::Arc<crate::highlight_rules::CompiledRules>,
+    /// Trigger hits captured by `process`, drained by `take_trigger_hits`.
+    /// Bounded for the same reason `marks` is: an undrained pane must not
+    /// grow without limit.
+    hits: std::collections::VecDeque<crate::trigger::TriggerHit>,
 }
+
+/// How many undrained trigger hits a backend holds. The app drains after
+/// every output batch, so reaching this means nothing is listening.
+const MAX_PENDING_HITS: usize = 256;
 
 impl TerminalBackend {
     pub fn new(cols: u16, rows: u16) -> Self {
@@ -249,7 +266,32 @@ impl TerminalBackend {
             osc: crate::osc::OscSniffer::default(),
             screen_title: crate::screen_title::ScreenTitleFilter::default(),
             marks: std::collections::VecDeque::new(),
+            trigger: crate::trigger::TriggerScanner::default(),
+            rules: std::sync::Arc::default(),
+            hits: std::collections::VecDeque::new(),
         }
+    }
+
+    /// Install the compiled highlight rules. The same set the widget
+    /// paints with, so the scanner and the colours can never disagree.
+    ///
+    /// Cheap to call on every output batch (a pointer comparison), which
+    /// is how the app installs them: panes are created down half a dozen
+    /// paths (ssh, telnet, serial, local, session groups) and a rule set
+    /// that had to be pushed at creation would eventually miss one.
+    pub fn set_highlight_rules(
+        &mut self,
+        rules: std::sync::Arc<crate::highlight_rules::CompiledRules>,
+    ) {
+        if std::sync::Arc::ptr_eq(&self.rules, &rules) {
+            return;
+        }
+        self.rules = rules;
+    }
+
+    /// Drain the trigger hits captured since the last call.
+    pub fn take_trigger_hits(&mut self) -> Vec<crate::trigger::TriggerHit> {
+        std::mem::take(&mut self.hits).into()
     }
 
     /// Update the word-delimiter set used by double-click semantic
@@ -276,6 +318,35 @@ impl TerminalBackend {
             }
         }
         let bytes = filtered.as_ref();
+        // Watch for the rules that carry an action, on the same filtered
+        // stream the emulator sees. Outside the `catch_unwind` below
+        // because it is ours: a panic here is a bug to surface, not
+        // third-party parser state to recover from. Suppression is read
+        // BEFORE the batch: a chunk that enters the alternate screen
+        // still ends with whatever the shell printed on its way in.
+        if self.rules.any_triggers() {
+            self.trigger.set_suppressed(
+                self.term
+                    .mode()
+                    .contains(alacritty_terminal::term::TermMode::ALT_SCREEN),
+            );
+            let rules = self.rules.clone();
+            for hit in self.trigger.feed(bytes, &rules) {
+                if self.hits.len() >= MAX_PENDING_HITS {
+                    // Said out loud rather than dropped quietly: the app
+                    // drains after every batch, so a full queue means
+                    // nothing is listening, and the symptom (actions
+                    // that stop firing) gives no other clue.
+                    if self.hits.len() == MAX_PENDING_HITS {
+                        tracing::warn!(
+                            "trigger hits are not being drained; dropping the oldest"
+                        );
+                    }
+                    self.hits.pop_front();
+                }
+                self.hits.push_back(hit);
+            }
+        }
         // Sniff OSC 7/133/9 before handing the bytes to the emulator (which
         // ignores those OSC numbers); a no-op for the common no-OSC chunk.
         let events = self.osc.feed(bytes);
@@ -762,5 +833,38 @@ mod tests {
         let second = backend.password_prompt_at_cursor().expect("second prompt");
         assert_eq!(first.text, second.text, "same text, by construction");
         assert_ne!(first.abs_line, second.abs_line, "different rows: two prompts");
+    }
+
+    #[test]
+    fn a_rule_with_an_action_fires_on_the_output_stream() {
+        // The whole path in one place: install the compiled rules, feed
+        // bytes the way the app does, drain what fired.
+        let mut b = TerminalBackend::new(80, 24);
+        let rule = crate::highlight_rules::CompiledRule::new(
+            "r1",
+            "Disk",
+            "No space left",
+            false,
+            false,
+            iced::Color::WHITE,
+            true,
+        )
+        .unwrap();
+        b.set_highlight_rules(std::sync::Arc::new(
+            crate::highlight_rules::CompiledRules::new(vec![rule]),
+        ));
+        b.process(b"writing: No space left on device\r\n");
+        let hits = b.take_trigger_hits();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].rule_id, "r1");
+        // Drained, so the next batch starts clean.
+        assert!(b.take_trigger_hits().is_empty());
+    }
+
+    #[test]
+    fn a_backend_with_no_rules_never_collects_hits() {
+        let mut b = TerminalBackend::new(80, 24);
+        b.process(b"No space left on device\r\n");
+        assert!(b.take_trigger_hits().is_empty());
     }
 }
