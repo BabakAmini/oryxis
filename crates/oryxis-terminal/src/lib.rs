@@ -12,7 +12,9 @@ pub mod colors;
 pub mod mouse;
 
 pub use backend::{set_clipboard_access, set_default_scrollback, TerminalBackend, DEFAULT_WORD_DELIMITERS};
-pub use host_clipboard::{take_clipboard_requests, ClipboardRequest, ClipboardSink};
+pub use host_clipboard::{
+    has_primary_selection, take_clipboard_requests, ClipboardRequest, ClipboardSink,
+};
 pub use input_tracker::{InputTracker, SubmittedLine};
 pub use highlight_rules::{parse_hex_color, CompiledRule, CompiledRules};
 pub use osc::{PositionedShellMark, Progress, ShellMark};

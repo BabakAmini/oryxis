@@ -3597,7 +3597,7 @@ dependencies = [
  "libc",
  "percent-encoding",
  "pin-project-lite",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -3645,7 +3645,7 @@ dependencies = [
 [[package]]
 name = "iced"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_core",
  "iced_debug",
@@ -3663,7 +3663,7 @@ dependencies = [
 [[package]]
 name = "iced_core"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "bitflags 2.11.1",
  "bytes",
@@ -3682,7 +3682,7 @@ dependencies = [
 [[package]]
 name = "iced_debug"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_core",
  "iced_futures",
@@ -3713,7 +3713,7 @@ dependencies = [
 [[package]]
 name = "iced_futures"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "futures",
  "iced_core",
@@ -3727,7 +3727,7 @@ dependencies = [
 [[package]]
 name = "iced_graphics"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "bitflags 2.11.1",
  "bytemuck",
@@ -3742,13 +3742,12 @@ dependencies = [
  "raw-window-handle",
  "rustc-hash 2.1.2",
  "thiserror 2.0.18",
- "unicode-segmentation",
 ]
 
 [[package]]
 name = "iced_highlighter"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_core",
  "two-face",
@@ -3757,7 +3756,7 @@ dependencies = [
 [[package]]
 name = "iced_program"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_graphics",
  "iced_runtime",
@@ -3766,7 +3765,7 @@ dependencies = [
 [[package]]
 name = "iced_renderer"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_graphics",
  "iced_tiny_skia",
@@ -3778,7 +3777,7 @@ dependencies = [
 [[package]]
 name = "iced_runtime"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "bytes",
  "iced_core",
@@ -3789,7 +3788,7 @@ dependencies = [
 [[package]]
 name = "iced_selector"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_core",
 ]
@@ -3797,7 +3796,7 @@ dependencies = [
 [[package]]
 name = "iced_test"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_futures",
  "iced_program",
@@ -3813,7 +3812,7 @@ dependencies = [
 [[package]]
 name = "iced_tester"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_test",
  "iced_widget",
@@ -3824,7 +3823,7 @@ dependencies = [
 [[package]]
 name = "iced_tiny_skia"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "bytemuck",
  "cosmic-text",
@@ -3841,7 +3840,7 @@ dependencies = [
 [[package]]
 name = "iced_wgpu"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "bitflags 2.11.1",
  "bytemuck",
@@ -3861,7 +3860,7 @@ dependencies = [
 [[package]]
 name = "iced_widget"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "iced_highlighter",
  "iced_renderer",
@@ -3877,7 +3876,7 @@ dependencies = [
 [[package]]
 name = "iced_winit"
 version = "0.15.0-dev"
-source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#2b7e9b1c481cf38cacb5ab804b352995ff2c733b"
+source = "git+https://github.com/wilsonglasser/iced?branch=oryxis#9a6682e8955c763a550558e377c9b0c2a5ba90f9"
 dependencies = [
  "arboard",
  "iced_debug",
@@ -6774,7 +6773,7 @@ dependencies = [
  "quinn-udp",
  "rustc-hash 2.1.2",
  "rustls",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -6813,7 +6812,7 @@ dependencies = [
  "cfg_aliases 0.2.1",
  "libc",
  "once_cell",
- "socket2 0.6.3",
+ "socket2 0.5.10",
  "tracing",
  "windows-sys 0.60.2",
 ]

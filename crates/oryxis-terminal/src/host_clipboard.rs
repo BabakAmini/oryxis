@@ -30,6 +30,10 @@ pub enum ClipboardRequest {
     /// Write this text to the system clipboard (copy-on-select, the copy
     /// chord, right-click copy, OSC 52 store).
     Write(String),
+    /// Publish this text as the system PRIMARY selection (finishing a
+    /// selection with the mouse). Only ever queued where a PRIMARY
+    /// selection exists, see [`write_primary_text`].
+    WritePrimary(String),
     /// Read the system clipboard and hand the text to this sink (OSC 52
     /// load, the widget's own paste fallback).
     Read(ClipboardSink),
@@ -56,6 +60,9 @@ impl std::fmt::Debug for ClipboardRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Write(text) => write!(f, "Write({} chars)", text.chars().count()),
+            Self::WritePrimary(text) => {
+                write!(f, "WritePrimary({} chars)", text.chars().count())
+            }
             Self::Read(_) => write!(f, "Read(..)"),
         }
     }
@@ -105,6 +112,25 @@ pub(crate) fn write_text(text: &str) {
         return;
     }
     request(ClipboardRequest::Write(text.to_string()));
+}
+
+/// Queue a "publish this as the PRIMARY selection" request.
+///
+/// A no-op off X11 / Wayland, and deliberately so: only there is PRIMARY a
+/// separate buffer. Everywhere else the runtime serves a PRIMARY write from
+/// the ordinary clipboard, so publishing here would wipe the user's Ctrl+C
+/// every time they highlighted a word.
+pub(crate) fn write_primary_text(text: &str) {
+    if !cfg!(target_os = "linux") || text.is_empty() {
+        return;
+    }
+    request(ClipboardRequest::WritePrimary(text.to_string()));
+}
+
+/// Whether this platform has a PRIMARY selection of its own. Gates both
+/// halves of the feature, so the widget and the host can't disagree.
+pub fn has_primary_selection() -> bool {
+    cfg!(target_os = "linux")
 }
 
 /// Queue a "read the clipboard, then run this" request.
@@ -167,6 +193,29 @@ mod tests {
         let _serial = exclusive();
         write_text("");
         assert!(take_clipboard_requests().is_empty());
+    }
+
+    #[test]
+    fn primary_writes_are_queued_only_where_primary_exists() {
+        let _serial = exclusive();
+        write_primary_text("selected");
+        let reqs = take_clipboard_requests();
+
+        if has_primary_selection() {
+            assert_eq!(reqs.len(), 1);
+            match &reqs[0] {
+                ClipboardRequest::WritePrimary(text) => assert_eq!(text, "selected"),
+                other => panic!("expected a primary write, got {other:?}"),
+            }
+        } else {
+            // Off X11 / Wayland the runtime would serve this from the
+            // ordinary clipboard, so every selection would clobber the
+            // user's Ctrl+C. Queueing nothing is the whole guard.
+            assert!(reqs.is_empty(), "primary write leaked to a platform without PRIMARY");
+        }
+
+        write_primary_text("");
+        assert!(take_clipboard_requests().is_empty(), "empty selections are never published");
     }
 
     #[test]

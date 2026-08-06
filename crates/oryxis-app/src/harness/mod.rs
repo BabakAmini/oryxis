@@ -662,10 +662,25 @@ where
     ///   testable at all: the app's copies go through the iced runtime, so
     ///   they land in the emulated clipboard where a test can see them.
     ///
+    /// A `primary` right after the verb addresses the emulated PRIMARY
+    /// selection instead (`clipboard primary is "text"`), the separate
+    /// buffer the terminal publishes selections to on X11 / Wayland.
+    ///
     /// `Ok(line)` is the response to print, `Err(reason)` a failed assert or
     /// a syntax error (the batch runner turns either into a test failure).
     fn clipboard_command(&mut self, rest: &str) -> Result<String, String> {
-        let current = match self.emulator.clipboard() {
+        let (primary, rest) = match rest.strip_prefix("primary") {
+            Some(rest) if rest.is_empty() || rest.starts_with(char::is_whitespace) => {
+                (true, rest.trim())
+            }
+            _ => (false, rest),
+        };
+        let slot = if primary {
+            self.emulator.clipboard_primary()
+        } else {
+            self.emulator.clipboard()
+        };
+        let current = match slot {
             Some(clipboard::Content::Text(text)) => Some(text.clone()),
             _ => None,
         };
@@ -685,22 +700,32 @@ where
                 None => Err(format!("clipboard is {want:?}, got nothing")),
             };
         }
+        let label = if primary { "clipboard primary" } else { "clipboard" };
         if rest.is_empty() {
-            return Ok(match self.emulator.clipboard() {
-                Some(clipboard::Content::Text(text)) => format!("clipboard {text:?}"),
-                Some(clipboard::Content::Html(html)) => format!("clipboard html {html:?}"),
-                Some(clipboard::Content::Files(files)) => format!("clipboard files {files:?}"),
-                Some(_) => "clipboard <non-text content>".into(),
-                None => "clipboard empty".into(),
+            let slot = if primary {
+                self.emulator.clipboard_primary()
+            } else {
+                self.emulator.clipboard()
+            };
+            return Ok(match slot {
+                Some(clipboard::Content::Text(text)) => format!("{label} {text:?}"),
+                Some(clipboard::Content::Html(html)) => format!("{label} html {html:?}"),
+                Some(clipboard::Content::Files(files)) => format!("{label} files {files:?}"),
+                Some(_) => format!("{label} <non-text content>"),
+                None => format!("{label} empty"),
             });
         }
         // The wire protocol is line-based, so multi-line content (PEM blocks)
         // rides in as `\n` escapes.
         let text = parse_quoted(rest)
             .map(|text| commands::unescape_clipboard(&text))
-            .ok_or_else(|| "clipboard wants a quoted string: clipboard \"secret\"".to_string())?;
-        self.emulator
-            .set_clipboard(Some(clipboard::Content::Text(text)));
+            .ok_or_else(|| format!("{label} wants a quoted string: {label} \"secret\""))?;
+        let content = Some(clipboard::Content::Text(text));
+        if primary {
+            self.emulator.set_clipboard_primary(content);
+        } else {
+            self.emulator.set_clipboard(content);
+        }
         Ok("ok".into())
     }
 

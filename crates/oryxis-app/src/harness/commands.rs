@@ -20,7 +20,7 @@ instructions: click [right] \"Text\"|#id|(x, y) / press / release / move <target
               type enter|escape|tab|backspace / type ctrl+k / type ctrl+shift+f
               press enter / release tab / expect \"Text\"
 harness:      screenshot [name] / texts / find \"Text\" / absent \"Text\" (assert)
-              clipboard [\"text\"] / clipboard is \"text\" (assert)
+              clipboard [primary] [\"text\"] / clipboard [primary] is \"text\" (assert)
               wait <ms> / settle [idle_ms] / timeout <ms> / save <path.ice>
               reset [wipe] / status / help / quit
 responses:    == ok | == fail <instr> | == timeout | == shot <path> | == error <..>";

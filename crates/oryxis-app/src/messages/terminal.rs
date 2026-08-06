@@ -102,6 +102,14 @@ pub enum TerminalMessage {
     /// tab rides along because the read resolves later and the user may have
     /// switched tabs in between.
     TerminalPasteResolved(Uuid, Option<super::Redacted>),
+    /// PRIMARY selection handed back by the runtime for a middle-click /
+    /// Shift+Insert paste, with the tab it was requested FROM and the text
+    /// that pane last selected itself. The system buffer wins (the user may
+    /// have highlighted in another window), the pane's own selection is the
+    /// fallback, and an empty pair falls through to the clipboard, which is
+    /// what the gesture did before a pane had ever been selected in.
+    /// Only ever sent where `oryxis_terminal::has_primary_selection` holds.
+    TerminalPasteSelectionResolved(Uuid, Option<super::Redacted>, super::Redacted),
     /// Careful-paste confirmation: send the multi-line text held in
     /// `pending_paste` to the tab it was captured for (not the currently
     /// active one, which may have changed since).

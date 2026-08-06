@@ -31,6 +31,23 @@ pub(crate) fn write_clipboard_text(text: String) -> Task<Message> {
     iced::clipboard::write(text).discard()
 }
 
+/// Read the PRIMARY selection as text, best-effort, as a `Task`.
+///
+/// Only meaningful where [`oryxis_terminal::has_primary_selection`] holds:
+/// elsewhere the runtime serves PRIMARY from the ordinary clipboard, so a
+/// caller that skipped the gate would silently read (and, on the write side,
+/// overwrite) the user's Ctrl+C.
+pub(crate) fn read_primary_text(
+    to_message: impl Fn(Option<String>) -> Message + Send + 'static,
+) -> Task<Message> {
+    iced::clipboard::read_primary(iced::clipboard::Kind::Text).map(move |result| {
+        to_message(match result.as_deref() {
+            Ok(iced::clipboard::Content::Text(text)) => Some(text.clone()),
+            _ => None,
+        })
+    })
+}
+
 /// Perform the clipboard work `oryxis-terminal` queued for us (copy-on-select,
 /// the copy chord, right-click copy, OSC 52 store / load, the widget's paste
 /// fallbacks). Drained once per `update()` so the widget layer never needs a
@@ -48,6 +65,11 @@ pub(crate) fn serve_terminal_clipboard_requests() -> Option<Task<Message>> {
         .into_iter()
         .map(|request| match request {
             ClipboardRequest::Write(text) => write_clipboard_text(text),
+            // Queued only where a PRIMARY selection exists (the terminal
+            // crate gates it), so this never lands on the clipboard.
+            ClipboardRequest::WritePrimary(text) => {
+                iced::clipboard::write_primary(text).discard()
+            }
             // The sink is the terminal crate's own closure (an OSC 52 reply,
             // a PTY paste); it only formats text and writes bytes to a
             // channel, so running it in the task chain is safe.

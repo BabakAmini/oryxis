@@ -555,9 +555,6 @@ impl Oryxis {
             TerminalMessage::TerminalPasteSelection(pane_id, text) => {
                 self.overlay = None;
                 let text = text.into_inner();
-                if text.is_empty() {
-                    return Task::none();
-                }
                 // Paste into the pane the gesture came from, not the
                 // focused one: they agree for middle-click and the chord,
                 // but the context menu can outlive a focus change.
@@ -565,12 +562,51 @@ impl Oryxis {
                 else {
                     return Task::none();
                 };
-                // Deliberately does NOT touch the system clipboard: X11
-                // PRIMARY is a separate buffer, and `copy_on_select` is
-                // the setting for people who also want selections on the
-                // clipboard. Pasting through the normal path keeps the
-                // careful-paste and paste-guard gates.
+                // On X11 / Wayland the desktop owns PRIMARY, so ask it
+                // first: the user may have highlighted in another window,
+                // and answering from our own buffer would ignore that.
+                // The widget publishes here even with nothing remembered
+                // for exactly this case.
+                if oryxis_terminal::has_primary_selection() {
+                    return crate::dispatch_global::read_primary_text(move |primary| {
+                        Message::Terminal(TerminalMessage::TerminalPasteSelectionResolved(
+                            tab_id,
+                            primary.map(Into::into),
+                            text.clone().into(),
+                        ))
+                    });
+                }
+                if text.is_empty() {
+                    return Task::none();
+                }
+                // Deliberately does NOT touch the system clipboard: PRIMARY
+                // is a separate buffer, and `copy_on_select` is the setting
+                // for people who also want selections on the clipboard.
+                // Pasting through the normal path keeps the careful-paste
+                // and paste-guard gates.
                 self.paste_text_into_tab(tab_id, &text);
+            }
+            TerminalMessage::TerminalPasteSelectionResolved(tab_id, primary, remembered) => {
+                let primary = primary.map(crate::messages::Redacted::into_inner);
+                let remembered = remembered.into_inner();
+
+                match primary.filter(|text| !text.is_empty()) {
+                    Some(text) => self.paste_text_into_tab(tab_id, &text),
+                    None if !remembered.is_empty() => {
+                        self.paste_text_into_tab(tab_id, &remembered);
+                    }
+                    // Nothing anywhere: fall through to the clipboard, the
+                    // long-standing behaviour of the gesture in a pane that
+                    // was never selected in.
+                    None => {
+                        return crate::dispatch_global::read_clipboard_text(move |text| {
+                            Message::Terminal(TerminalMessage::TerminalPasteResolved(
+                                tab_id,
+                                text.map(Into::into),
+                            ))
+                        });
+                    }
+                }
             }
             TerminalMessage::TerminalDropFlush => {
                 return self.handle_terminal_drop_flush();

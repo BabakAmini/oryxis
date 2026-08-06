@@ -874,6 +874,11 @@ where
             if let Some((ref text, sel, cols, total)) = finished {
                 widget_state.primary_selection = Some(text.clone());
                 widget_state.primary_ghost = Some((sel, cols, total));
+                // Where the platform has a real PRIMARY selection, hand it
+                // the same text: selecting here then middle-clicking in any
+                // other window is what a Linux user expects, and it is the
+                // half of the buffer we could never provide on our own.
+                crate::host_clipboard::write_primary_text(text);
             }
             // Auto-copy the just-finished selection when the setting is
             // enabled (XTerm / iTerm behaviour). When `right_click_copy`
@@ -1398,8 +1403,25 @@ where
                 widget_state.selection = None;
                 widget_state.select_anchor = None;
                 widget_state.selecting = false;
-                if !self.copy_on_select
-                    && let Some(text) = widget_state.primary_selection.clone()
+                // Where the platform owns a PRIMARY selection the host
+                // resolves the text (system PRIMARY, then this pane's
+                // remembered selection, then the clipboard), so publish
+                // even with nothing remembered: the system buffer may hold
+                // a selection made in another window, which is the whole
+                // point of the gesture there. That holds under
+                // `copy_on_select` too, whose single-buffer model is about
+                // the CLIPBOARD, not about ignoring the desktop's own
+                // selection. Everywhere else the buffer is ours alone: no
+                // remembered text means the clipboard fallback below.
+                let remembered = if crate::host_clipboard::has_primary_selection() {
+                    Some(widget_state.primary_selection.clone().unwrap_or_default())
+                } else if self.copy_on_select {
+                    None
+                } else {
+                    widget_state.primary_selection.clone()
+                };
+
+                if let Some(text) = remembered
                     && let Some(to_message) = self.on_paste_selection.as_ref()
                 {
                     return Some(CanvasAction::publish(to_message(text)).and_capture());
