@@ -361,3 +361,148 @@
         );
         assert!(ws.selection.is_none(), "an unfocused pane declines the chord");
     }
+
+    /// Everything a dead session can leave armed, in one pane, so the
+    /// reset is asserted against the state it exists for.
+    fn state_with_stale_modes() -> TerminalState {
+        let mut term = TerminalState::new_no_pty(80, 24).unwrap();
+        // What a killed tmux / vim leaves behind: any-motion tracking
+        // (1003) with both encodings (1005/1006), focus reporting (1004),
+        // bracketed paste (2004), application cursor keys (1), autowrap
+        // off (7) and a hidden cursor (25).
+        term.process(b"\x1b[?1;1003;1004;1005;1006;2004h\x1b[?7;25l");
+        term
+    }
+
+    /// The reset the app feeds on disconnect and on every fresh session
+    /// (`SESSION_MODE_RESET`) must clear every mode the widget's
+    /// mouse-report gate reads. Guard for the reconnect-garbage bug: stale
+    /// 1000/1002/1003/1006 left by a dead session made the widget keep
+    /// synthesizing SGR reports into a shell that never asked for them,
+    /// and the shell's echo of those reports landed on screen as text.
+    /// Regression at the gate level: with the modes cleared, a pointer
+    /// move must produce NO report.
+    #[test]
+    fn session_reset_clears_mouse_tracking_and_blocks_reports() {
+        use alacritty_terminal::term::TermMode;
+
+        let mut term = state_with_stale_modes();
+        assert!(
+            term.backend.term.mode().intersects(TermMode::MOUSE_MODE),
+            "precondition: stale mouse tracking armed"
+        );
+
+        term.process(crate::SESSION_MODE_RESET);
+
+        let mode = *term.backend.term.mode();
+        assert!(
+            !mode.intersects(TermMode::MOUSE_MODE),
+            "mouse tracking cleared"
+        );
+        assert!(!mode.contains(TermMode::SGR_MOUSE), "SGR encoding cleared");
+        assert!(!mode.contains(TermMode::UTF8_MOUSE), "UTF-8 encoding cleared");
+        assert!(
+            !mode.contains(TermMode::FOCUS_IN_OUT),
+            "focus reporting cleared"
+        );
+        assert!(
+            !mode.contains(TermMode::BRACKETED_PASTE),
+            "bracketed paste cleared"
+        );
+        assert!(
+            !mode.contains(TermMode::APP_CURSOR),
+            "application cursor keys cleared"
+        );
+        assert!(mode.contains(TermMode::LINE_WRAP), "autowrap back on");
+        assert!(mode.contains(TermMode::SHOW_CURSOR), "cursor shown again");
+
+        // The widget's report gate reads the mode back from the state: a
+        // pointer move must not synthesize a report any more.
+        let view = TerminalView::<()>::new(Arc::new(Mutex::new(term)));
+        let mut ws = TerminalWidgetState::default();
+        let ev = iced::Event::Mouse(mouse::Event::CursorMoved {
+            position: Point::new(40.0, 40.0),
+        });
+        let action = view.handle_mouse_report(
+            &mut ws,
+            &ev,
+            bounds(),
+            mouse::Cursor::Available(Point::new(40.0, 40.0)),
+            mode,
+            80,
+            24,
+        );
+        assert!(action.is_none(), "no SGR report after the session reset");
+    }
+
+    /// The scrolling region a dead full-screen app left behind would pin
+    /// the new shell's output inside its band, and DECSTBM homes the
+    /// cursor, which is why the reset wraps it in DECSC/DECRC: the
+    /// region goes back to the whole screen and the cursor stays where
+    /// the session left it.
+    #[test]
+    fn session_reset_restores_the_scrolling_region_without_moving_the_cursor() {
+        use alacritty_terminal::index::{Column, Line};
+
+        let mut term = TerminalState::new_no_pty(80, 24).unwrap();
+        // A band over the top 5 lines, cursor parked inside the pane.
+        term.process(b"\x1b[1;5r\x1b[10;3H");
+        let before = term.backend.term.grid().cursor.point;
+        assert_eq!(before, alacritty_terminal::index::Point::new(Line(9), Column(2)));
+
+        term.process(crate::SESSION_MODE_RESET);
+        assert_eq!(
+            term.backend.term.grid().cursor.point, before,
+            "the region reset must not home the cursor"
+        );
+
+        // One line per row, no trailing newline: with the band still
+        // armed the text would scroll inside rows 1-5 and the bottom of
+        // the screen would stay empty.
+        term.process(b"\x1b[H");
+        for i in 0..24 {
+            term.process(format!("L{i}").as_bytes());
+            if i < 23 {
+                term.process(b"\r\n");
+            }
+        }
+        let last = (0..3)
+            .map(|c| term.backend.term.grid()[Line(23)][Column(c)].c)
+            .collect::<String>();
+        assert_eq!(last, "L23", "output must reach the bottom row again");
+    }
+
+    /// A connection killed inside tmux / vim leaves the pane on the
+    /// alternate screen. `LEAVE_ALT_SCREEN` puts it back on the real
+    /// buffer (with its scrollback) exactly as the app's own clean exit
+    /// would have, and is a no-op on a pane that never entered.
+    #[test]
+    fn leave_alt_screen_restores_the_primary_buffer() {
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::TermMode;
+
+        let mut term = TerminalState::new_no_pty(80, 24).unwrap();
+        term.process(b"shell output");
+        // A full-screen app takes over and dies mid-frame.
+        term.process(b"\x1b[?1049h\x1b[Happ frame");
+        assert!(term.backend.term.mode().contains(TermMode::ALT_SCREEN));
+
+        term.process(crate::LEAVE_ALT_SCREEN);
+
+        assert!(
+            !term.backend.term.mode().contains(TermMode::ALT_SCREEN),
+            "back on the primary buffer"
+        );
+        let row0 = (0..12)
+            .map(|c| term.backend.term.grid()[Line(0)][Column(c)].c)
+            .collect::<String>();
+        assert_eq!(row0, "shell output", "the real buffer is back");
+
+        // Idempotent: a pane that never entered stays put.
+        term.process(crate::LEAVE_ALT_SCREEN);
+        assert!(!term.backend.term.mode().contains(TermMode::ALT_SCREEN));
+        let row0 = (0..12)
+            .map(|c| term.backend.term.grid()[Line(0)][Column(c)].c)
+            .collect::<String>();
+        assert_eq!(row0, "shell output");
+    }
