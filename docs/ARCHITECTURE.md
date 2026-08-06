@@ -12,12 +12,14 @@ that the app composes.
 | Slide-in editors . Split panes . Modals & overlays                 |
 +------------------------------+-------------------------------------+
 | Connection engines           | Encrypted vault                     |
-| oryxis-ssh    russh, auto-   | oryxis-vault                        |
+| oryxis-ssh     russh, auto-  | oryxis-vault                        |
 |   auth, jump hosts, proxies, | SQLite, Argon2id,                   |
 |   -L/-R/-D, SFTP, TOFU       | ChaCha20-Poly1305 per-field,        |
-| oryxis-telnet RFC 854/1143   | session logs / recordings,          |
-| oryxis-serial COM / tty      | .oryxis export / import             |
-| oryxis-zmodem sz/rz engine   |                                     |
+| oryxis-telnet  RFC 854/1143  | session logs / recordings,          |
+| oryxis-serial  COM / tty     | .oryxis export / import             |
+| oryxis-zmodem  sz/rz engine  |                                     |
+| oryxis-archive tar/zip over  |                                     |
+|   SFTP + local codecs        |                                     |
 +--------------------------------------------------------------------+
 | Cloud providers + plugin subsystem                                 |
 | oryxis-cloud              provider trait (discovery + transport)   |
@@ -53,7 +55,7 @@ that the app composes.
 | `oryxis-telnet` | Native Telnet engine: RFC 854/855 option negotiation (RFC 1143 state machine), NAWS, terminal-type, charset transcoding |
 | `oryxis-serial` | Serial console sessions: COM / `/dev/tty*`, configurable baud, framing, flow control, line endings, local echo |
 | `oryxis-zmodem` | ZMODEM transfer engine: auto-detects `sz` / `rz` on the byte stream over SSH, Telnet and serial |
-| `oryxis-archive` | Archive operations for the SFTP file browser: browse and read/write zip and tar over local and remote (ranged) reads, transport-agnostic |
+| `oryxis-archive` | SFTP archive operations: remote `tar` / `unzip` / `zip` command synthesis with safe quoting (POSIX + Windows), local zip / tar.gz codecs, zip central-directory browsing over ranged reads |
 | `oryxis-vault` | Encrypted vault: SQLite + Argon2id + ChaCha20-Poly1305 per-field + session logs / recordings + `.oryxis` export/import |
 | `oryxis-biometric` | Biometric / OS-keyring app unlock: Windows Hello, macOS Touch ID (Keychain user presence), Linux Secret Service |
 | `oryxis-sync` | P2P sync engine: QUIC (quinn) + mDNS + STUN + signaling + HTTP relay fallback + Ed25519/X25519 + LWW conflict resolution |
