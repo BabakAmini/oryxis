@@ -262,29 +262,11 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center)
                 .into(),
             );
-        } else if matches!(app.image.as_deref(), Some("")) {
-            // "None" picked but nothing to browse yet: still offer the
-            // picker, so choosing a file is one click from here rather
-            // than a trip back through the mode picker.
-            rows.push(
-                dir_row(vec![
-                    Space::new().width(Length::Fill).into(),
-                    self.panel_nav_slot(
-                        crate::keynav::RowAction::activate(Message::Editor(
-                            EditorMessage::EditorBgImageBrowse,
-                        )),
-                        8.0,
-                        crate::widgets::styled_button_opt(
-                            crate::i18n::t("browse"),
-                            Some(Message::Editor(EditorMessage::EditorBgImageBrowse)),
-                            OryxisColors::t().accent,
-                        ),
-                    ),
-                ])
-                .align_y(iced::Alignment::Center)
-                .into(),
-            );
         }
+        // No Browse row in the other two states on purpose: picking
+        // "Custom picture" in the row above opens the dialog itself, so
+        // a second entry point would only ever be a button that repeats
+        // the choice the user just made.
 
         // Fit and fade matter only when a picture actually applies to
         // this host, whether its own or the inherited one.

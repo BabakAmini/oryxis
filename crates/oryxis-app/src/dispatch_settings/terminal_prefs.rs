@@ -377,31 +377,9 @@ impl Oryxis {
                 }
             }
             SettingsMessage::TerminalBgImageBrowse => {
-                return Ok(Task::perform(
-                    tokio::task::spawn_blocking(move || {
-                        rfd::FileDialog::new()
-                            .set_title(crate::i18n::t("terminal_bg_image"))
-                            // The formats iced's image pipeline decodes.
-                            // SVG is deliberately absent: it goes through
-                            // a different renderer path than raster
-                            // handles, so offering it here would pick a
-                            // file that silently never draws.
-                            .add_filter(
-                                crate::i18n::t("terminal_bg_filter"),
-                                &["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"],
-                            )
-                            .pick_file()
-                            .map(|p| p.to_string_lossy().to_string())
-                            .ok_or_else(|| "cancelled".to_string())
-                    }),
-                    |result| {
-                        let r = match result {
-                            Ok(r) => r,
-                            Err(e) => Err(format!("Thread error: {e}")),
-                        };
-                        Message::Settings(SettingsMessage::TerminalBgImagePicked(r))
-                    },
-                ));
+                return Ok(Self::pick_background_image(|r| {
+                    Message::Settings(SettingsMessage::TerminalBgImagePicked(r))
+                }));
             }
             SettingsMessage::TerminalBgImagePicked(result) => {
                 // "cancelled" and thread errors stay silent: the user

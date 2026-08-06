@@ -7,6 +7,40 @@
 use super::*;
 
 impl Oryxis {
+    /// Open the OS picture picker off the event loop and deliver the
+    /// path through `on_pick`. Shared by the host editor's Browse button
+    /// and by choosing "Custom picture" in the mode row, which is the
+    /// same request phrased two ways. `Err` is a cancel and every
+    /// consumer ignores it, leaving the previous choice in place.
+    pub(crate) fn pick_background_image(
+        on_pick: impl Fn(Result<String, String>) -> Message + Send + 'static,
+    ) -> Task<Message> {
+        Task::perform(
+            tokio::task::spawn_blocking(move || {
+                rfd::FileDialog::new()
+                    .set_title(crate::i18n::t("terminal_bg_image"))
+                    // The formats iced's image pipeline decodes. SVG is
+                    // deliberately absent: it goes through a different
+                    // renderer path than raster handles, so offering it
+                    // would pick a file that silently never draws.
+                    .add_filter(
+                        crate::i18n::t("terminal_bg_filter"),
+                        &["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"],
+                    )
+                    .pick_file()
+                    .map(|p| p.to_string_lossy().to_string())
+                    .ok_or_else(|| "cancelled".to_string())
+            }),
+            move |result| {
+                let r = match result {
+                    Ok(r) => r,
+                    Err(e) => Err(format!("Thread error: {e}")),
+                };
+                on_pick(r)
+            },
+        )
+    }
+
     pub(super) fn handle_editor_terminal(&mut self, message: EditorMessage) -> Task<Message> {
         match message {
             EditorMessage::EditorOpenThemePicker => {
@@ -35,39 +69,26 @@ impl Oryxis {
                 // Three states, because "inherit" and "none" are
                 // genuinely different answers once a global picture
                 // exists: inherit shows it, none is this host opting
-                // out. `Some(path)` is only ever set by the picker.
-                self.editor_form.terminal_appearance.image =
-                    if label == crate::i18n::t("appearance_inherit") {
-                        None
-                    } else if label == crate::i18n::t("none") {
-                        Some(String::new())
-                    } else {
-                        // "Custom picture" while none is chosen yet
-                        // leaves the field alone; Browse fills it.
-                        self.editor_form.terminal_appearance.image.clone()
-                    };
+                // out.
+                if label == crate::i18n::t("appearance_inherit") {
+                    self.editor_form.terminal_appearance.image = None;
+                } else if label == crate::i18n::t("none") {
+                    self.editor_form.terminal_appearance.image = Some(String::new());
+                } else {
+                    // "Custom picture" IS the request to choose one, so
+                    // it opens the dialog rather than parking the row on
+                    // a state with no file behind it. Cancelling leaves
+                    // the previous choice untouched, which is why the
+                    // field is not cleared first.
+                    return Self::pick_background_image(|r| {
+                        Message::Editor(EditorMessage::EditorBgImagePicked(r))
+                    });
+                }
             }
             EditorMessage::EditorBgImageBrowse => {
-                return Task::perform(
-                    tokio::task::spawn_blocking(move || {
-                        rfd::FileDialog::new()
-                            .set_title(crate::i18n::t("terminal_bg_image"))
-                            .add_filter(
-                                crate::i18n::t("terminal_bg_filter"),
-                                &["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"],
-                            )
-                            .pick_file()
-                            .map(|p| p.to_string_lossy().to_string())
-                            .ok_or_else(|| "cancelled".to_string())
-                    }),
-                    |result| {
-                        let r = match result {
-                            Ok(r) => r,
-                            Err(e) => Err(format!("Thread error: {e}")),
-                        };
-                        Message::Editor(EditorMessage::EditorBgImagePicked(r))
-                    },
-                );
+                return Self::pick_background_image(|r| {
+                    Message::Editor(EditorMessage::EditorBgImagePicked(r))
+                });
             }
             EditorMessage::EditorBgImagePicked(result) => {
                 if let Ok(path) = result {
