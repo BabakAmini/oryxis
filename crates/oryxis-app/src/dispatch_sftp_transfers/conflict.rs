@@ -49,7 +49,7 @@ impl Oryxis {
                 // here: standalone single-file conflict, and in-transfer
                 // multi-file conflict with sticky decisions.
                 let (pending_item, pending_slot, slot_count) =
-                    self.sftp.transfer.as_mut().map_or(
+                    self.sftp.transfer.state.as_mut().map_or(
                         (None, None, 0usize),
                         |t| {
                             if apply_to_all {
@@ -71,7 +71,7 @@ impl Oryxis {
                         // also drops the rest of the queue so the user
                         // doesn't keep getting prompted.
                         if apply_to_all
-                            && let Some(t) = self.sftp.transfer.as_mut()
+                            && let Some(t) = self.sftp.transfer.state.as_mut()
                         {
                             t.queue.clear();
                         }
@@ -92,11 +92,11 @@ impl Oryxis {
                     // client only if the slot index is somehow stale.
                     let client = self
                         .sftp
-                        .transfer
+                        .transfer.state
                         .as_ref()
                         .and_then(|t| t.clients.get(slot as usize).cloned())
                         .unwrap_or(client);
-                    if let Some(t) = self.sftp.transfer.as_mut()
+                    if let Some(t) = self.sftp.transfer.state.as_mut()
                         && (slot as usize) < t.busy_slots.len()
                     {
                         t.busy_slots[slot as usize] = true;
@@ -188,7 +188,7 @@ impl Oryxis {
                 // resolve handler knows which destination the user is
                 // about to act on. The queue stays stalled here until
                 // the modal is answered.
-                if let Some(transfer) = self.sftp.transfer.as_mut() {
+                if let Some(transfer) = self.sftp.transfer.state.as_mut() {
                     transfer.pending_conflict_item = Some(item);
                     transfer.pending_conflict_slot = Some(slot);
                     transfer.paused = true;

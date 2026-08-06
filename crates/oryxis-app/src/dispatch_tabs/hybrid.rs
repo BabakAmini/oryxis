@@ -219,7 +219,7 @@ impl Oryxis {
                 } else {
                     &tab.files_state
                 };
-            if st.transfer.is_some() {
+            if st.transfer.state.is_some() {
                 self.set_toast(
                     crate::i18n::t("tab_detach_sftp_busy").to_string(),
                 );
@@ -286,7 +286,7 @@ impl Oryxis {
                 } else {
                     &tab.files_state
                 };
-            if st.transfer.is_some() {
+            if st.transfer.state.is_some() {
                 self.set_toast(crate::i18n::t("tab_detach_sftp_busy").to_string());
                 return Task::perform(
                     async {

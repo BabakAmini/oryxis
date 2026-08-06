@@ -28,8 +28,8 @@ impl Oryxis {
             SftpMessage::SftpTransferQueueReady(_, state) => {
                 let slot_count = state.busy_slots.len().max(1);
                 // Fresh transfer: reset the per-file panel log + collapse it.
-                self.sftp.transfer_done_log.clear();
-                self.sftp.transfer_panel_open = false;
+                self.sftp.transfer.done_log.clear();
+                self.sftp.transfer.panel_open = false;
                 let verb_key = match state.kind {
                     crate::state::TransferKind::Upload => "sftp_log_uploading",
                     crate::state::TransferKind::Download => "sftp_log_downloading",
@@ -52,11 +52,11 @@ impl Oryxis {
                 // worker from a previous/cancelled transfer (whose task may
                 // still be draining) can't keep incrementing this transfer's
                 // counter and spike the bar to 100% before its first byte.
-                self.sftp.transfer_bytes_total =
+                self.sftp.transfer.bytes_total =
                     state.queue.iter().filter_map(|i| i.size).sum();
-                self.sftp.transfer_bytes_done =
+                self.sftp.transfer.bytes_done =
                     std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
-                self.sftp.transfer = Some(state);
+                self.sftp.transfer.state = Some(state);
                 // Kick off one Next per slot so the worker pool fills
                 // up immediately. Each completion will dispatch its
                 // own Next to keep the chain going.
@@ -66,7 +66,7 @@ impl Oryxis {
                 return Ok(Task::batch(initial));
             }
             SftpMessage::SftpTransferNext(_) => {
-                let Some(transfer) = self.sftp.transfer.as_mut() else {
+                let Some(transfer) = self.sftp.transfer.state.as_mut() else {
                     return Ok(Task::none());
                 };
                 if transfer.paused {
@@ -121,7 +121,7 @@ impl Oryxis {
                         // before the queue could drain (issue #115).
                         let move_sources = transfer.move_sources.take();
                         let move_client = transfer.clients.first().cloned();
-                        self.sftp.transfer = None;
+                        self.sftp.transfer.state = None;
                         self.push_sftp_log(
                             crate::state::SftpLogLevel::Ok,
                             format!("{} {}", crate::i18n::t("sftp_log_transfer_done"), root_label),
@@ -189,7 +189,7 @@ impl Oryxis {
                 let multi = transfer.total > 1;
                 // Shared live-byte counter the worker increments as chunks
                 // move; the tick subscription polls it for the bar.
-                let bytes_done = self.sftp.transfer_bytes_done.clone();
+                let bytes_done = self.sftp.transfer.bytes_done.clone();
                 match kind {
                     crate::state::TransferKind::Upload => {
                         let Some(client) = transfer.clients.get(slot as usize).cloned() else {
@@ -276,9 +276,9 @@ impl Oryxis {
                 // `current` is the label set when this item was dispatched
                 // (exact at the relay's concurrency of 1; an approximation
                 // at higher concurrency, good enough for a status list).
-                let finished = self.sftp.transfer.as_ref().and_then(|t| t.current.clone());
+                let finished = self.sftp.transfer.state.as_ref().and_then(|t| t.current.clone());
                 let mut refill = 1usize;
-                if let Some(transfer) = self.sftp.transfer.as_mut() {
+                if let Some(transfer) = self.sftp.transfer.state.as_mut() {
                     transfer.completed += 1;
                     transfer.current = None;
                     if (slot as usize) < transfer.busy_slots.len() {
@@ -294,7 +294,7 @@ impl Oryxis {
                     }
                 }
                 if let Some(label) = finished {
-                    self.sftp.transfer_done_log.push(label);
+                    self.sftp.transfer.done_log.push(label);
                 }
                 let next: Vec<Task<Message>> = (0..refill)
                     .map(|_| Task::done(Message::Sftp(SftpMessage::SftpTransferNext(owner))))
@@ -305,9 +305,9 @@ impl Oryxis {
                 // Errors abort the whole transfer, the in-flight item
                 // failed and we don't try to be clever about retrying
                 // siblings (a network blip is likely to nuke them all).
-                let kind = self.sftp.transfer.as_ref().map(|t| t.kind);
-                let relay_dest = self.sftp.transfer.as_ref().and_then(|t| t.dest_side);
-                self.sftp.transfer = None;
+                let kind = self.sftp.transfer.state.as_ref().map(|t| t.kind);
+                let relay_dest = self.sftp.transfer.state.as_ref().and_then(|t| t.dest_side);
+                self.sftp.transfer.state = None;
                 match kind {
                     Some(crate::state::TransferKind::DuplicateLocal) => {
                         self.sftp.pane_mut(local_side).error = Some(e);
@@ -323,9 +323,9 @@ impl Oryxis {
                 }
             }
             SftpMessage::SftpCancelTransfer => {
-                let kind = self.sftp.transfer.as_ref().map(|t| t.kind);
-                let relay_dest = self.sftp.transfer.as_ref().and_then(|t| t.dest_side);
-                self.sftp.transfer = None;
+                let kind = self.sftp.transfer.state.as_ref().map(|t| t.kind);
+                let relay_dest = self.sftp.transfer.state.as_ref().and_then(|t| t.dest_side);
+                self.sftp.transfer.state = None;
                 // The in-flight item can't be aborted mid-byte (russh-sftp
                 // doesn't expose a cancel token), but no further items
                 // will run, and the user can refresh to see the partial
@@ -352,7 +352,7 @@ impl Oryxis {
             }
             SftpMessage::SftpTransferTick => {}
             SftpMessage::SftpToggleTransferPanel => {
-                self.sftp.transfer_panel_open = !self.sftp.transfer_panel_open;
+                self.sftp.transfer.panel_open = !self.sftp.transfer.panel_open;
             }
             m => return Err(m),
         }

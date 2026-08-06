@@ -361,7 +361,7 @@ pub(crate) struct SftpState {
     /// Folder transfer in progress (upload / download / local duplicate).
     /// Drives the bottom-of-view progress bar and serializes the queue
     /// of per-item operations so the SFTP connection isn't slammed.
-    pub transfer: Option<TransferState>,
+    pub transfer: TransferSlot,
     /// One-shot destination override for the next upload, set by the
     /// drag-and-drop handler when the cursor lands on a specific remote
     /// folder, consumed by `SftpUpload` / `SftpUploadFolder`.
@@ -392,12 +392,6 @@ pub(crate) struct SftpState {
     /// of the current metadata + the user's in-progress edits to the
     /// permission bits so Apply can diff.
     pub properties: Option<PropertiesView>,
-    /// True when the per-file progress panel (a dropdown above the
-    /// transfer strip) is expanded. Toggled by clicking the strip.
-    pub transfer_panel_open: bool,
-    /// Labels of the items finished so far in the active transfer, for
-    /// the per-file panel. Cleared when a new transfer starts.
-    pub transfer_done_log: Vec<String>,
     /// Type-ahead search buffer: characters typed while a row is selected,
     /// used to jump the selection to the first matching entry. Reset after
     /// a short pause between keystrokes.
@@ -438,13 +432,6 @@ pub(crate) struct SftpState {
     /// to the *next* match for that character instead of narrowing the buffer,
     /// so pressing one letter repeatedly cycles through all its matches.
     pub type_ahead_cycle: bool,
-    /// Bytes transferred so far in the active transfer, incremented by the
-    /// SFTP engine as chunks move. Drives the live progress bar (polled by
-    /// a tick subscription while a transfer runs).
-    pub transfer_bytes_done: Arc<std::sync::atomic::AtomicU64>,
-    /// Total bytes the active transfer will move (sum of file sizes), for
-    /// the bar's denominator. 0 when unknown (falls back to item counts).
-    pub transfer_bytes_total: u64,
     /// FileZilla-style message log for this SFTP tab: connect / list /
     /// transfer / error events. In-memory only, capped to the most recent
     /// `SFTP_LOG_CAP` entries. Shown when `log_open`.
@@ -527,7 +514,7 @@ impl Default for SftpState {
             hovered_row: None,
             row_press: crate::widgets::new_press_hit_cell(),
             drag: None,
-            transfer: None,
+            transfer: TransferSlot::default(),
             upload_dest_override: None,
             download_dest_override: None,
             selected_rows: Vec::new(),
@@ -535,8 +522,6 @@ impl Default for SftpState {
             edit_watches: Vec::new(),
             overwrite_prompt: None,
             properties: None,
-            transfer_panel_open: false,
-            transfer_done_log: Vec::new(),
             type_ahead: String::new(),
             type_ahead_at: None,
             type_ahead_committed: String::new(),
@@ -546,8 +531,6 @@ impl Default for SftpState {
             swallow_next_activate: false,
             type_ahead_gen: 0,
             type_ahead_cycle: false,
-            transfer_bytes_done: Arc::new(std::sync::atomic::AtomicU64::new(0)),
-            transfer_bytes_total: 0,
             log: Vec::new(),
             log_open: false,
             log_height: SFTP_LOG_DEFAULT_H,
@@ -919,6 +902,30 @@ pub(crate) struct TransferItem {
     /// hint so each file skips an extra `stat` round trip. `None` for
     /// uploads, local duplicates, and directories.
     pub size: Option<u64>,
+}
+
+/// One owner's transfer and everything drawn alongside it.
+///
+/// The dual-pane surface keeps these as loose fields on `SftpState` for
+/// historical reasons; a new owner gets them grouped, and
+/// `Oryxis::transfer_*` reads either shape. Only the queue runner and the
+/// conflict resolver go through those accessors: the dual-pane entry
+/// points (row menus, drag and drop, OS drops) are surface-specific and
+/// keep touching `self.sftp` directly.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct TransferSlot {
+    pub state: Option<TransferState>,
+    /// Bytes moved so far, written by the SFTP engine as chunks land and
+    /// polled a few times a second for the bar. Replaced (never reset) per
+    /// transfer, so a lingering worker from a cancelled one cannot spike
+    /// the successor's count.
+    pub bytes_done: std::sync::Arc<std::sync::atomic::AtomicU64>,
+    /// Sum of the known item sizes; 0 means "unknown", and the bar falls
+    /// back to counting items.
+    pub bytes_total: u64,
+    /// Labels of the items finished so far, for the per-file panel.
+    pub done_log: Vec<String>,
+    pub panel_open: bool,
 }
 
 #[derive(Debug, Clone)]

@@ -1337,7 +1337,7 @@ fn is_wsl_root(path: &std::path::Path) -> bool {
 /// the hybrid Close-SFTP-session guard so the two paths can never
 /// diverge on what counts as discardable.
 pub(crate) fn sftp_state_has_unsaved(st: &crate::state::SftpState) -> bool {
-    st.transfer.is_some() || !st.edit_watches.is_empty()
+    st.transfer.state.is_some() || !st.edit_watches.is_empty()
 }
 
 fn list_wsl_distros_for_pane() -> Vec<String> {

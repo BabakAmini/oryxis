@@ -75,7 +75,7 @@ impl Oryxis {
         // Stack the panes with the optional progress strip below, when a
         // folder transfer is running we surface a thin status bar with
         // counts + a cancel button, otherwise the panes own all the space.
-        let panes_area: Element<'_, Message> = if let Some(transfer) = &self.sftp.transfer {
+        let panes_area: Element<'_, Message> = if let Some(transfer) = &self.sftp.transfer.state {
             // Clicking the strip toggles a per-file panel that rises above
             // it. (Clicking the inner Cancel button also cancels, which
             // clears the transfer and hides both, so the extra toggle is
@@ -83,14 +83,14 @@ impl Oryxis {
             let strip = MouseArea::new(transfer_progress_strip(
                 transfer,
                 self.sftp
-                    .transfer_bytes_done
+                    .transfer.bytes_done
                     .load(std::sync::atomic::Ordering::Relaxed),
-                self.sftp.transfer_bytes_total,
+                self.sftp.transfer.bytes_total,
             ))
             .on_press(Message::Sftp(SftpMessage::SftpToggleTransferPanel));
             let mut col = column![panes].width(Length::Fill).height(Length::Fill);
-            if self.sftp.transfer_panel_open {
-                col = col.push(transfer_file_panel(transfer, &self.sftp.transfer_done_log));
+            if self.sftp.transfer.panel_open {
+                col = col.push(transfer_file_panel(transfer, &self.sftp.transfer.done_log));
             }
             col.push(strip).into()
         } else {

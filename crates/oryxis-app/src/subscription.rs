@@ -304,9 +304,9 @@ impl Oryxis {
         // smoothly. Idle otherwise. Scans every SFTP surface (live buffer,
         // parked standalone tabs, parked hybrid tabs' `files_state`) so a
         // backgrounded transfer keeps the bar live when refocused.
-        if self.sftp.transfer.is_some()
-            || self.sftp_tabs.iter().any(|t| t.state.transfer.is_some())
-            || self.tabs.iter().any(|t| t.files_state.transfer.is_some())
+        if self.sftp.transfer.state.is_some()
+            || self.sftp_tabs.iter().any(|t| t.state.transfer.state.is_some())
+            || self.tabs.iter().any(|t| t.files_state.transfer.state.is_some())
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(120))
