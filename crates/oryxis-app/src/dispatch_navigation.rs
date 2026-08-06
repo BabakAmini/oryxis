@@ -38,14 +38,24 @@ impl Oryxis {
             }
             // -- Navigation --
             NavigationMessage::GoHome => {
-                if let Some(gid) = self.active_group {
-                    return Task::done(Message::Navigation(
-                        NavigationMessage::OpenGroup(gid),
-                    ));
-                }
-                return Task::done(Message::Navigation(
+                // The Home tab lands on the vault surface the user left,
+                // folder included. It goes THROUGH `ChangeView` rather
+                // than setting `active_view` itself: leaving a view runs
+                // a pile of teardown (Monitoring's idle TTL, the keynav
+                // item lists, open overlays, the Shortcuts capture) that
+                // a second copy here would drift from silently. Then
+                // re-open the group `ChangeView` just reset to root.
+                let group = self.active_group;
+                let leave = self.handle_navigation(
                     NavigationMessage::ChangeView(View::Dashboard),
-                ));
+                );
+                let Some(gid) = group else {
+                    return leave;
+                };
+                let enter = self.handle_navigation(
+                    NavigationMessage::OpenGroup(gid),
+                );
+                return Task::batch([leave, enter]);
             }
             NavigationMessage::ChangeView(view) => {
                 // Navigating away from the Shortcuts editor cancels
@@ -103,8 +113,11 @@ impl Oryxis {
                 self.keynav.subnav_items.borrow_mut().clear();
                 self.keynav_clear_content();
                 self.keynav.settings_row_actions.borrow_mut().clear();
-                // Navigating to the host list (Home tab / Hosts pill)
-                // returns to the root, not whichever group was last open.
+                // Navigating to the host list (Hosts pill, its burger
+                // entry, Ctrl+Shift+1) returns to the root, not whichever
+                // group was last open, and stays the one-click way back
+                // out of a nested folder. The Home tab is the opposite
+                // door: `GoHome` re-opens the folder right after this.
                 if view == View::Dashboard {
                     self.active_group = None;
                 }
@@ -200,13 +213,7 @@ impl Oryxis {
             }
             NavigationMessage::OpenGroup(gid) => {
                 self.active_group = Some(gid);
-                self.active_view = View::Dashboard;
-                self.active_tab = None;
                 self.host_search.clear();
-                // Dismiss any open overlay that belongs to the previous
-                // surface (burger menu, kebab, etc.), same as ChangeView.
-                self.panels.burger_menu = false;
-                self.overlay = None;
                 // Auto-trigger resolve when the user opens a dynamic
                 // group, saves an extra click. Re-resolve when there's
                 // no cache yet, or when the cached list has gone stale

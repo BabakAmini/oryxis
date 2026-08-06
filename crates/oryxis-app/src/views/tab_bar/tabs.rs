@@ -50,7 +50,7 @@ pub(crate) fn area_tab<'a>(
                 .center_y(Length::Fixed(SQUARE)),
         )
         .padding(0)
-        .on_press(on_press.clone())
+        .on_press(on_press)
         .style(style)
         .into()
     } else {

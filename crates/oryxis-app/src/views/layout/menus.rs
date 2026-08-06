@@ -600,7 +600,11 @@ impl Oryxis {
             section("vault", hk_hosts),
             indent(item(
                 "hosts",
-                Message::Navigation(NavigationMessage::GoHome),
+                // Mirrors the Hosts sub-nav pill (same list, same
+                // destination) and the shortcut this row renders next to
+                // itself: the vault section, at its root. The Home tab is
+                // the door that keeps the folder (`GoHome`).
+                Message::Navigation(NavigationMessage::ChangeView(View::Dashboard)),
                 self.hotkey_label_for_vault_slot(1)
             )),
             indent(item(
