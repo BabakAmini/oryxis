@@ -193,6 +193,19 @@ impl Oryxis {
                         // not be inherited by whatever the reconnect
                         // lands on.
                         p.triggers.clear();
+                        // The emulator's modes belong to the session too,
+                        // and the program that armed them is not around
+                        // to disarm them. Until they are cleared the dead
+                        // pane still reports the mouse to nobody instead
+                        // of selecting text, and the wheel still sends
+                        // arrow keys instead of walking the scrollback,
+                        // so the user cannot copy the output they
+                        // disconnected on. The alternate screen is left
+                        // alone on purpose: that frozen frame IS what
+                        // they are reading.
+                        if let Ok(mut state) = p.terminal.lock() {
+                            state.process(oryxis_terminal::SESSION_MODE_RESET);
+                        }
                         p.session_log_id
                     });
                     // Same for the suggestion popup, if it was this
@@ -286,16 +299,20 @@ impl Oryxis {
                     // The reconnect dial resolved; re-arm ReconnectTab.
                     pane.connecting = false;
                     if let Ok(mut state) = pane.terminal.lock() {
-                        // The shell that armed these modes is gone; the
-                        // fresh one never re-issued them, so clear the
-                        // leftovers before its first output arrives: stale
-                        // mouse tracking would keep the widget reporting
-                        // pointer moves into it (the shell's echo of those
-                        // reports lands on screen as garbage), stale
-                        // bracketed paste would wrap pastes the new shell
-                        // never asked for, and a cursor the old app hid
-                        // stays hidden. See `SESSION_ATTACH_MODE_RESET`.
-                        state.process(oryxis_terminal::SESSION_ATTACH_MODE_RESET);
+                        // Whatever armed the emulator's modes died with
+                        // the previous session, and the fresh shell never
+                        // re-issues them, so clear the leftovers before
+                        // its first output arrives. `SshDisconnected`
+                        // already cleared most of them, but this is the
+                        // one point EVERY session (ssh / telnet / serial,
+                        // fresh, reconnected or split) goes through, so
+                        // it stays the fail-safe rather than trusting a
+                        // disconnect message that a stalled transport may
+                        // never deliver. Alt screen first: leaving it
+                        // puts the cursor back in the real buffer, which
+                        // is where the region reset must land.
+                        state.process(oryxis_terminal::LEAVE_ALT_SCREEN);
+                        state.process(oryxis_terminal::SESSION_MODE_RESET);
                         // Serial has no viewport, so no resize sender;
                         // SSH/Telnet forward window changes to the peer.
                         if let Some(rtx) = session.resize_sender() {
