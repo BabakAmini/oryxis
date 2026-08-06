@@ -373,6 +373,20 @@ impl Oryxis {
                 self.prefs.terminal_opacity =
                     percent.clamp(crate::theme::MIN_TERMINAL_OPACITY, 100);
             }
+            if let Ok(Some(v)) = vault.get_setting("terminal_bg_image") {
+                self.prefs.terminal_bg_image = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("terminal_bg_fit") {
+                // Normalized through the enum so a hand-edited row can
+                // only ever produce a fit the renderer knows.
+                self.prefs.terminal_bg_fit =
+                    oryxis_terminal::BgFit::from_str_or_default(&v).as_str().to_string();
+            }
+            if let Ok(Some(v)) = vault.get_setting("terminal_bg_dim")
+                && let Ok(percent) = v.parse::<u8>()
+            {
+                self.prefs.terminal_bg_dim = percent.min(100);
+            }
             if let Ok(Some(v)) = vault.get_setting("copy_on_select") {
                 self.prefs.copy_on_select = v == "true";
             }

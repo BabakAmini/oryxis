@@ -252,6 +252,12 @@ pub struct Connection {
     /// [`super::terminal_quirks::DEFAULT_QUIRKS`].
     #[serde(default)]
     pub quirks: Option<super::terminal_quirks::TerminalQuirks>,
+    /// Per-host terminal backdrop overrides (opacity, background
+    /// picture). `None` = inherit every global setting, which is what an
+    /// untouched host carries and what keeps old payloads unchanged.
+    /// Resolve via [`super::terminal_appearance::TerminalAppearance`].
+    #[serde(default)]
+    pub terminal_appearance: Option<super::terminal_appearance::TerminalAppearance>,
     /// Per-host SSH rekey threshold in megabytes (`None` = russh default).
     /// A plain additive column; rides sync / export like the algorithm
     /// overrides above.
@@ -323,6 +329,7 @@ impl Connection {
             privacy_mode: None,
             sidebar_auto_open: None,
             quirks: None,
+            terminal_appearance: None,
             rekey_limit_mb: None,
             sftp_initial_path: None,
         }

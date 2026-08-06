@@ -277,6 +277,11 @@ impl Oryxis {
             | SettingsMessage::ToggleCarefulPaste
             | SettingsMessage::ToggleBoldIsBright
             | SettingsMessage::TerminalOpacityChanged(..)
+            | SettingsMessage::TerminalBgImageBrowse
+            | SettingsMessage::TerminalBgImagePicked(..)
+            | SettingsMessage::TerminalBgImageCleared
+            | SettingsMessage::TerminalBgFitChanged(..)
+            | SettingsMessage::TerminalBgDimChanged(..)
             | SettingsMessage::TogglePaneBorderInactive
             | SettingsMessage::PaneGapChanged(..)
             | SettingsMessage::OpenTerminalThemeGallery

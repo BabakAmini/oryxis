@@ -290,6 +290,10 @@ pub(crate) struct ConnectionForm {
     /// global pick"; `Some(name)` pins this host to the named palette.
     /// Mirrors `Connection.terminal_theme` while the editor is open.
     pub terminal_theme: Option<String>,
+    /// Mirrors `Connection.terminal_appearance` while the editor is
+    /// open. `None` on every field is "inherit the global setting",
+    /// which is what an untouched host carries.
+    pub terminal_appearance: oryxis_core::models::TerminalAppearance,
     /// Per-host SSH keepalive override (raw text). Empty string means
     /// inherit the global setting; "0" disables keepalive on this host;
     /// any positive integer overrides the global value. Stored as a
@@ -1066,6 +1070,7 @@ impl Default for ConnectionForm {
             totp_visible: false,
             use_totp: false,
             terminal_theme: None,
+            terminal_appearance: Default::default(),
             keepalive_interval: String::new(),
             mac_address: String::new(),
             login_script_id: None,

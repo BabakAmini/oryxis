@@ -385,6 +385,12 @@ impl Oryxis {
             && self.editor_form.x11_forwarding;
         conn.session_logging = self.editor_form.session_logging;
         conn.terminal_theme = self.editor_form.terminal_theme.clone();
+        // Stored as `None` when nothing is overridden, so a host whose
+        // overrides were cleared goes back to being byte-identical to
+        // one that never had any (and stops shipping an empty object
+        // over sync).
+        conn.terminal_appearance =
+            self.editor_form.terminal_appearance.clone().into_option();
         conn.icon_style = self.editor_form.icon_style.clone();
         conn.encoding = self.editor_form.encoding.clone();
         conn.terminal_type = self.editor_form.terminal_type.clone();
@@ -652,6 +658,7 @@ impl Oryxis {
             totp_visible: false,
             use_totp: has_totp,
             terminal_theme: conn.terminal_theme.clone(),
+            terminal_appearance: conn.terminal_appearance.clone().unwrap_or_default(),
             keepalive_interval: conn
                 .keepalive_interval
                 .map(|n| n.to_string())
@@ -762,7 +769,13 @@ impl Oryxis {
                 | EditorMessage::EditorMacAddressChanged(..)
             ) => self.handle_editor_network(m),
             m @ (
-                EditorMessage::EditorOpenThemePicker
+                EditorMessage::EditorOpacityChanged(..)
+                | EditorMessage::EditorBgImageBrowse
+                | EditorMessage::EditorBgImagePicked(..)
+                | EditorMessage::EditorBgImageModeChanged(..)
+                | EditorMessage::EditorBgFitChanged(..)
+                | EditorMessage::EditorBgDimChanged(..)
+                | EditorMessage::EditorOpenThemePicker
                 | EditorMessage::EditorCloseThemePicker
                 | EditorMessage::EditorTerminalThemeChanged(..)
                 | EditorMessage::EditorEncodingChanged(..)

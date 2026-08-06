@@ -397,6 +397,7 @@ impl VaultStore {
         // (JSON blob, NULL = all-xterm defaults) and the SSH rekey
         // threshold in MB (NULL = russh default).
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN quirks TEXT;");
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN terminal_appearance TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rekey_limit_mb INTEGER;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN monitor_enabled INTEGER DEFAULT 0;");
 

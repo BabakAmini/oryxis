@@ -122,22 +122,15 @@ impl Oryxis {
     }
 
     /// The alpha the terminal backdrop is painted with right now, or
-    /// `None` when it is opaque. Folds the user's setting together with
-    /// what is actually on screen, so nothing else has to repeat the
-    /// pair of conditions.
+    /// `None` when it is opaque. Resolved through [`Oryxis::active_terminal_appearance`], which
+    /// folds in the per-host override and settles the picture-vs-opacity
+    /// precedence. Files mode is excluded there: `view_terminal` returns
+    /// early for it, before the layer that would carry the alpha, so
+    /// fading would leave the root container not painting and nothing
+    /// painting in its place. It is also the right answer on its own
+    /// terms, a file listing is content to read.
     pub(crate) fn terminal_backdrop_alpha(&self) -> Option<f32> {
-        // Files mode returns early in `view_terminal`, before the layer
-        // that would carry the alpha, so a tab showing the dual-pane
-        // file browser is not a terminal on screen: fading here would
-        // leave the root container not painting and nothing painting in
-        // its place. It is also the right answer on its own terms, a
-        // file listing is content to read, like every other view that
-        // stays opaque.
-        if self.terminal_surface_visible() && !self.sftp_surface_visible() {
-            crate::theme::terminal_bg_alpha()
-        } else {
-            None
-        }
+        self.active_terminal_appearance().alpha
     }
 
     /// Width currently occupied by the left vault nav rail (the vertical

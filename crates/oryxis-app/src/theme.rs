@@ -88,17 +88,18 @@ pub const MIN_TERMINAL_OPACITY: u8 = 30;
 /// default, and where the ring starts) downwards.
 pub const OPACITY_STEPS: [u8; 11] = [100, 95, 90, 85, 80, 75, 70, 60, 50, 40, 30];
 
-/// The alpha the terminal backdrop must be painted with, or `None` when
-/// the terminal is opaque (either the user asked for 100, or the window
-/// was born opaque and cannot show anything behind it). The single
-/// authority for "is the terminal translucent right now": callers branch
-/// on this, never on the raw setting.
-pub fn terminal_bg_alpha() -> Option<f32> {
-    let percent = terminal_opacity();
+/// The alpha a given opacity resolves to, or `None` when the terminal
+/// ends up opaque (the value is 100, or the window was born opaque and
+/// cannot show anything behind it). The single authority for "is the
+/// terminal translucent right now": callers branch on this, never on
+/// the raw setting, and a per-host override goes through the same gate
+/// as the global one, so a host asking for 70% on an opaque window
+/// renders exactly like one asking for 100%, not like a hole.
+pub fn alpha_for_opacity(percent: u8) -> Option<f32> {
     if !window_transparent() || percent >= 100 {
         return None;
     }
-    Some(f32::from(percent) / 100.0)
+    Some(f32::from(percent.max(MIN_TERMINAL_OPACITY)) / 100.0)
 }
 
 /// Active *custom* UI theme colors, if any. A non-null pointer (to a

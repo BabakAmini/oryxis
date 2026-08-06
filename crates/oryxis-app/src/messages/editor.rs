@@ -6,6 +6,20 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub enum EditorMessage {
     EditorOpenThemePicker,
+    /// Host editor: per-host background opacity, as the picker's label
+    /// (an "Inherit" sentinel clears the override).
+    EditorOpacityChanged(String),
+    /// Host editor: pick / clear / lay out / fade this host's own
+    /// background picture. `Picked` carries the dialog result, where
+    /// `Err` is a cancel and stays silent.
+    EditorBgImageBrowse,
+    EditorBgImagePicked(Result<String, String>),
+    /// Cycles the picture override: global picture -> none on this host
+    /// -> back to inheriting. Three states, so the row can express "no
+    /// picture HERE" against a global one.
+    EditorBgImageModeChanged(String),
+    EditorBgFitChanged(String),
+    EditorBgDimChanged(String),
     EditorCloseThemePicker,
     /// Empty string == "inherit the global theme".
     EditorTerminalThemeChanged(String),

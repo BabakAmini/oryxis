@@ -158,9 +158,12 @@ fn muted_label_remains_legible_against_surface() {
 #[test]
 fn terminal_alpha_needs_both_a_transparent_window_and_a_reduced_setting() {
     use crate::theme::{
-        MIN_TERMINAL_OPACITY, OPACITY_STEPS, set_terminal_opacity, set_window_transparent,
-        terminal_bg_alpha, terminal_opacity,
+        MIN_TERMINAL_OPACITY, OPACITY_STEPS, alpha_for_opacity, set_terminal_opacity,
+        set_window_transparent, terminal_opacity,
     };
+    // The global setting is what the app passes when a host has no
+    // override, so the test drives it through the same door.
+    let terminal_bg_alpha = || alpha_for_opacity(terminal_opacity());
     // One test, not four: these are process globals, and parallel test
     // threads sharing them would make separate cases flaky.
 

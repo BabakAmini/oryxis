@@ -32,3 +32,27 @@ click "Search settings"
 type "transparency"
 settle
 expect "Background opacity"
+# Background picture. The fit and fade rows deliberately do NOT exist
+# until a picture is set (a control that governs nothing should not be
+# on screen), so their absence here is the assertion, not an oversight.
+# Picking a file needs the OS dialog, which the harness cannot drive:
+# the geometry that would follow is unit-tested instead
+# (widget::background::tests).
+type ctrl+a
+type "wallpaper"
+settle
+expect "Background image"
+absent "Image fit"
+absent "Fade image"
+# Per-host overrides live in the host editor's Terminal card, in the
+# same build order the keyboard walk records. The pickers' VALUES are
+# invisible to text selectors, so this pins the rows themselves; which
+# value each one resolves to is unit-tested (terminal_appearance::tests).
+click (19, 20)
+settle
+click "Hosts"
+settle
+click "Continue"
+settle
+expect "Background opacity"
+expect "Background image"

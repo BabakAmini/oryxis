@@ -100,6 +100,19 @@ pub(crate) struct AppPrefs {
     /// `theme::terminal_bg_alpha()`, which also knows whether the
     /// window was actually created with a transparent surface.
     pub(crate) terminal_opacity: u8,
+    /// Path to the global terminal background picture, empty = none.
+    /// Persisted as `terminal_bg_image`. A host can override it (or opt
+    /// out of it) through its own `terminal_appearance`.
+    pub(crate) terminal_bg_image: String,
+    /// How that picture is laid into the pane
+    /// (`cover` / `contain` / `stretch` / `center` / `tile`), persisted
+    /// as `terminal_bg_fit`.
+    pub(crate) terminal_bg_fit: String,
+    /// How far the picture is faded towards the terminal background
+    /// colour, in percent. Defaults high: a photograph at full strength
+    /// makes terminal text unreadable, and a first-run that looks broken
+    /// is worse than one that looks subtle.
+    pub(crate) terminal_bg_dim: u8,
     /// Draw the thin separator outline on UNFOCUSED panes. The focused
     /// pane's accent outline is not affected: with the panes flush there
     /// would otherwise be nothing at all marking where one ends.
@@ -494,6 +507,9 @@ impl Default for AppPrefs {
             snippet_tag_filter: false,
             bold_is_bright: true,
             terminal_opacity: 100,
+            terminal_bg_image: String::new(),
+            terminal_bg_fit: oryxis_terminal::BgFit::default().as_str().to_string(),
+            terminal_bg_dim: 55,
             pane_border_inactive: true,
             pane_gap: "0".to_string(),
             keyword_highlight: true,

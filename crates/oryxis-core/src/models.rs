@@ -15,6 +15,7 @@ pub mod cloud;
 pub mod session_group;
 pub mod custom_terminal_theme;
 pub mod custom_ui_theme;
+pub mod terminal_appearance;
 pub mod terminal_quirks;
 
 pub use connection::*;
@@ -34,4 +35,5 @@ pub use cloud::*;
 pub use session_group::*;
 pub use custom_terminal_theme::*;
 pub use custom_ui_theme::*;
+pub use terminal_appearance::*;
 pub use terminal_quirks::*;

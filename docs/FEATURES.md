@@ -427,6 +427,15 @@ vulnerability disclosure policy.
   in both galleries links straight to it; True Black OLED, the first
   contributed pair, ships with the app.
 - **Per-theme button colors** with WCAG contrast guards enforced in CI.
+- **Terminal background image.** `Settings → Terminal → Background
+  image` takes any PNG / JPEG / WebP / BMP / GIF / TIFF, with a fit
+  (cover, fit, stretch, centre, tile) and a fade that dissolves it into
+  the theme's background colour so text stays readable. Drawn per pane;
+  colored blocks a TUI paints stay solid. Every host can override the
+  picture, its fit, its fade and the opacity independently, or opt out
+  of the global picture, in `Host editor → Terminal`. Only the path is
+  stored, so the vault stays small and a moved file falls back to the
+  plain background.
 - **Translucent terminal background.** `Settings → Terminal → Background
   opacity` lets the desktop show through the terminal, down to 30%.
   Panels, tabs and the status bar stay opaque, so nothing you read over

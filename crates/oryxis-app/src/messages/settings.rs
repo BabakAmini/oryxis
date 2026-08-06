@@ -190,6 +190,17 @@ pub enum SettingsMessage {
     /// translucent from an opaque window offers a restart, because the
     /// surface's alpha mode is fixed when the window is created.
     TerminalOpacityChanged(String),
+    /// Open the picture picker for the global terminal background.
+    TerminalBgImageBrowse,
+    /// Result of that picker: the chosen path, or an error string when
+    /// the user cancelled (which is not an error worth surfacing).
+    TerminalBgImagePicked(Result<String, String>),
+    /// Drop the global background picture.
+    TerminalBgImageCleared,
+    /// How the picture is laid into the pane, as the picker's label.
+    TerminalBgFitChanged(String),
+    /// How far the picture is faded back, as the picker's `"55%"` string.
+    TerminalBgDimChanged(String),
     ToggleCopyOnSelect,
     ToggleRightClickCopy,
     ToggleMiddleClickPaste,

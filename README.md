@@ -115,7 +115,8 @@ matching installer. Windows binaries are Authenticode-signed (see
   learned SSH, ZMODEM transfers, local shells, and one-click RDP/VNC
   through an SSH tunnel.
 - **A real terminal.** alacritty-based emulator, split panes, session
-  groups, per-host themes, an optional translucent background, bundled
+  groups, per-host themes, an optional translucent background or
+  background image, bundled
   Nerd Fonts plus a downloadable font pack (JetBrains Mono, Fira Code,
   MesloLGS and more), smart tabs that flag long-running commands, and
   per-host command history.
@@ -269,8 +270,7 @@ tracks it interactively.
   connection reuse, and group settings inheritance (per-parameter
   defaults hosts inherit, Termius-style).
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
-  providers, an East Asian ambiguous-width option, and terminal
-  background images.
+  providers, and an East Asian ambiguous-width option.
 - **AI ops toolkit:** the assistant graduates from generating shell
   strings to typed, structured operations synthesized for the host's
   actual OS, with dry-run previews on every state change, an audit

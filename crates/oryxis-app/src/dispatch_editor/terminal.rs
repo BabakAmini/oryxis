@@ -21,6 +21,83 @@ impl Oryxis {
                     if name.is_empty() { None } else { Some(name) };
                 self.panels.theme_picker = false;
             }
+            EditorMessage::EditorOpacityChanged(label) => {
+                // The sentinel label clears the override; everything
+                // else is one of the "85%" steps.
+                self.editor_form.terminal_appearance.opacity =
+                    if label == crate::i18n::t("appearance_inherit") {
+                        None
+                    } else {
+                        label.trim_end_matches('%').parse::<u8>().ok()
+                    };
+            }
+            EditorMessage::EditorBgImageModeChanged(label) => {
+                // Three states, because "inherit" and "none" are
+                // genuinely different answers once a global picture
+                // exists: inherit shows it, none is this host opting
+                // out. `Some(path)` is only ever set by the picker.
+                self.editor_form.terminal_appearance.image =
+                    if label == crate::i18n::t("appearance_inherit") {
+                        None
+                    } else if label == crate::i18n::t("none") {
+                        Some(String::new())
+                    } else {
+                        // "Custom picture" while none is chosen yet
+                        // leaves the field alone; Browse fills it.
+                        self.editor_form.terminal_appearance.image.clone()
+                    };
+            }
+            EditorMessage::EditorBgImageBrowse => {
+                return Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        rfd::FileDialog::new()
+                            .set_title(crate::i18n::t("terminal_bg_image"))
+                            .add_filter(
+                                crate::i18n::t("terminal_bg_filter"),
+                                &["png", "jpg", "jpeg", "webp", "bmp", "gif", "tiff", "tif"],
+                            )
+                            .pick_file()
+                            .map(|p| p.to_string_lossy().to_string())
+                            .ok_or_else(|| "cancelled".to_string())
+                    }),
+                    |result| {
+                        let r = match result {
+                            Ok(r) => r,
+                            Err(e) => Err(format!("Thread error: {e}")),
+                        };
+                        Message::Editor(EditorMessage::EditorBgImagePicked(r))
+                    },
+                );
+            }
+            EditorMessage::EditorBgImagePicked(result) => {
+                if let Ok(path) = result {
+                    self.editor_form.terminal_appearance.image = Some(path);
+                }
+            }
+            EditorMessage::EditorBgFitChanged(label) => {
+                self.editor_form.terminal_appearance.fit = if label
+                    == crate::i18n::t("appearance_inherit")
+                {
+                    None
+                } else {
+                    oryxis_terminal::BgFit::ALL
+                        .iter()
+                        .copied()
+                        .find(|f| {
+                            crate::i18n::t(crate::terminal_appearance::bg_fit_label_key(*f))
+                                == label
+                        })
+                        .map(|f| f.as_str().to_string())
+                };
+            }
+            EditorMessage::EditorBgDimChanged(label) => {
+                self.editor_form.terminal_appearance.dim =
+                    if label == crate::i18n::t("appearance_inherit") {
+                        None
+                    } else {
+                        label.trim_end_matches('%').parse::<u8>().ok()
+                    };
+            }
             EditorMessage::EditorEncodingChanged(v) => {
                 // "UTF-8" is the implicit default, stored as None so the
                 // SSH engine skips transcoding entirely.

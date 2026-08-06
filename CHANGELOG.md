@@ -7,6 +7,16 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Terminal background image, per host.** Settings > Terminal takes a
+  picture to lay behind the grid, with a fit (cover / fit / stretch /
+  centre / tile) and a fade that dissolves it into the theme's
+  background colour so text stays readable. Every host can override the
+  picture, the fit, the fade and the opacity, or opt out of the global
+  picture entirely: each field inherits on its own, so a host that only
+  changes the fade still follows the global picture. The image is drawn
+  per pane, like Windows Terminal and iTerm2, and blocks a TUI paints
+  itself stay solid. Only the path is stored, never the pixels, so the
+  vault stays small and sync ships bytes instead of megabytes.
 - **Translucent terminal background.** Settings > Terminal >
   Background opacity fades the terminal down to 30% so the desktop
   shows through, while the tab strip, panels, sidebars and the status

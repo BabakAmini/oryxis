@@ -26,6 +26,7 @@ impl<Message> TerminalView<Message> {
             privacy_classes: PrivacyClasses::default(),
             smart_contrast: true,
             transparent_bg: false,
+            background_image: None,
             mouse_reporting: true,
             word_delimiters: crate::backend::DEFAULT_WORD_DELIMITERS.to_string(),
             on_font_size_increase: None,
@@ -148,6 +149,15 @@ impl<Message> TerminalView<Message> {
 
     pub fn with_smart_contrast(mut self, on: bool) -> Self {
         self.smart_contrast = on;
+        self
+    }
+
+    /// Lay a picture behind the grid. `None` (the default) draws the
+    /// palette's background colour as before. The app resolves which
+    /// picture applies (host override, else the global default) before
+    /// building the widget; this only draws what it is handed.
+    pub fn with_background_image(mut self, image: Option<BackgroundImage>) -> Self {
+        self.background_image = image;
         self
     }
 

@@ -533,6 +533,9 @@ impl Oryxis {
             // Translucent terminal: the backdrop is painted once, by the
             // container this canvas sits on (see `base` in `view_terminal`).
             .with_transparent_bg(self.terminal_backdrop_alpha().is_some())
+            // Background picture, resolved from the tab's origin host and
+            // drawn per pane (see `oryxis_terminal::BackgroundImage`).
+            .with_background_image(self.active_terminal_appearance().image)
             // C5: a host with `disable_mouse_reporting` keeps clicks local
             // even when the remote turns on mouse tracking.
             .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)

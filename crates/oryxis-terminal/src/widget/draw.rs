@@ -28,6 +28,16 @@ where
         let perf_on = self.perf_overlay || perf_overlay_enabled();
         let draw_start = perf_on.then(std::time::Instant::now);
 
+        // Ask the renderer how big the picture actually is. `None` while
+        // it is still being decoded (or if the path is unreadable), which
+        // is why the answer is part of the render key: the first frame
+        // would otherwise cache a picture-less grid under a key that
+        // never changes again.
+        let bg_measured = self.background_image.as_ref().and_then(|bg| {
+            use iced::advanced::image::Renderer as _;
+            renderer.measure_image(&bg.handle)
+        });
+
         let cell_w = self.cell_width;
         let cell_h = self.cell_height;
 
@@ -111,6 +121,16 @@ where
             smart_contrast: self.smart_contrast,
             bold_is_bright: self.bold_is_bright,
             transparent_bg: self.transparent_bg,
+            background: self.background_image.as_ref().map(|bg| {
+                (
+                    // Handle ids are stable per source path, so this
+                    // changes exactly when the user picks another file.
+                    bg.handle.id(),
+                    bg.fit,
+                    (bg.dim * 1000.0) as u32,
+                    bg_measured,
+                )
+            }),
             privacy_terms_hash: if self.privacy { hash_terms(&self.privacy_terms) } else { 0 },
             privacy_classes: if self.privacy {
                 self.privacy_classes
@@ -145,7 +165,7 @@ where
         let grid_geometry = widget_state.geometry_cache.draw(
             renderer,
             bounds.size(),
-            |frame| timings = self.draw_grid(frame, widget_state, bounds, perf_on),
+            |frame| timings = self.draw_grid(frame, widget_state, bounds, perf_on, bg_measured),
         );
 
         let mut geometries = vec![grid_geometry];
@@ -197,6 +217,7 @@ where
         widget_state: &TerminalWidgetState,
         bounds: Rectangle,
         perf_on: bool,
+        bg_measured: Option<Size<u32>>,
     ) -> DrawTimings {
         use alacritty_terminal::vte::ansi::{Color as AnsiColor, NamedColor};
 
@@ -449,6 +470,52 @@ where
         // into a plate the user never asked for.
         if !self.transparent_bg {
             frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background);
+        }
+        // Background picture, over the base colour and under everything
+        // else. The colour underneath still matters: it is what shows
+        // through `Contain`'s gaps and through the dim veil, so the pane
+        // reads as the terminal's theme with a picture in it rather than
+        // as a picture with text on top.
+        if let (Some(bg), Some(measured)) = (self.background_image.as_ref(), bg_measured) {
+            // Canvas geometry is pane-local; `bounds` is window-absolute.
+            let local = Rectangle {
+                x: 0.0,
+                y: 0.0,
+                width: bounds.width,
+                height: bounds.height,
+            };
+            if bg.fit == crate::widget::BgFit::Tile {
+                for (x, y) in crate::widget::background::tile_origins(local, measured) {
+                    frame.draw_image(
+                        Rectangle {
+                            x,
+                            y,
+                            width: measured.width as f32,
+                            height: measured.height as f32,
+                        },
+                        &bg.handle,
+                    );
+                }
+            } else {
+                frame.draw_image(
+                    crate::widget::background::place(bg.fit, local, measured),
+                    &bg.handle,
+                );
+            }
+            // The dim veil: the terminal's own background colour at the
+            // requested strength. Text contrast is the whole point, so
+            // this is a veil of the theme colour rather than plain black,
+            // which keeps a light theme light.
+            if bg.dim > 0.0 {
+                frame.fill_rectangle(
+                    Point::ORIGIN,
+                    bounds.size(),
+                    Color {
+                        a: bg.dim.clamp(0.0, 1.0),
+                        ..palette.background
+                    },
+                );
+            }
         }
 
         // --- Detect syntax highlights ---

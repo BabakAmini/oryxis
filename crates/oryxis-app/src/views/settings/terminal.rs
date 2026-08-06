@@ -138,6 +138,67 @@ impl Oryxis {
         .into()
     }
 
+    /// Row for the terminal background picture: its label, the chosen
+    /// file name (or "None"), a Browse button and, once one is set, a
+    /// Remove. Both buttons record keyboard rows in visual order, so
+    /// Tab reaches Remove right after Browse.
+    fn terminal_bg_image_row(&self) -> Element<'_, Message> {
+        let path = self.prefs.terminal_bg_image.trim();
+        // The file NAME, not the whole path: a wallpaper lives six
+        // directories deep and the row would wrap. The full path is
+        // recoverable from the picker, which opens where it left off.
+        let current = if path.is_empty() {
+            crate::i18n::t("none").to_string()
+        } else {
+            std::path::Path::new(path)
+                .file_name()
+                .map(|n| n.to_string_lossy().to_string())
+                .unwrap_or_else(|| path.to_string())
+        };
+        let browse = self.settings_nav_slot(
+            crate::keynav::RowAction::activate(Message::Settings(
+                SettingsMessage::TerminalBgImageBrowse,
+            )),
+            8.0,
+            crate::widgets::styled_button_opt(
+                crate::i18n::t("browse"),
+                Some(Message::Settings(SettingsMessage::TerminalBgImageBrowse)),
+                crate::theme::OryxisColors::t().accent,
+            ),
+        );
+        let mut row: Vec<Element<'_, Message>> = vec![
+            text(crate::i18n::t("terminal_bg_image"))
+                .size(13)
+                .color(crate::theme::OryxisColors::t().text_primary)
+                .into(),
+            Space::new().width(Length::Fill).into(),
+            text(current)
+                .size(12)
+                .color(crate::theme::OryxisColors::t().text_muted)
+                .into(),
+            Space::new().width(10).into(),
+            browse,
+        ];
+        if !path.is_empty() {
+            row.push(Space::new().width(8).into());
+            row.push(self.settings_nav_slot(
+                crate::keynav::RowAction::activate(Message::Settings(
+                    SettingsMessage::TerminalBgImageCleared,
+                )),
+                8.0,
+                crate::widgets::styled_button_opt(
+                    crate::i18n::t("remove"),
+                    Some(Message::Settings(SettingsMessage::TerminalBgImageCleared)),
+                    crate::theme::OryxisColors::t().error,
+                ),
+            ));
+        }
+        crate::widgets::dir_row(row)
+            .align_y(iced::Alignment::Center)
+            .width(Length::Fill)
+            .into()
+    }
+
     /// Sub-row for the command-log folder, shown only while the
     /// live-append toggle is on: the effective folder (default
     /// `~/.oryxis/command-history/`) with a Change button, indented
@@ -580,7 +641,7 @@ impl Oryxis {
 
         // Appearance: what the grid LOOKS like. Font blocks and the theme
         // picker join this card below.
-        let appearance_col = column![
+        let mut appearance_col = column![
             self.nav_toggle_row(crate::i18n::t("bold_bright"), self.prefs.bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(10),
             self.nav_toggle_row(crate::i18n::t("keyword_highlight"), self.prefs.keyword_highlight, Message::Settings(SettingsMessage::ToggleKeywordHighlight)),
@@ -603,6 +664,59 @@ impl Oryxis {
                 .size(11)
                 .color(OryxisColors::t().text_muted),
         ];
+        // Background picture. The fit and dim rows only exist while a
+        // picture is set: they are meaningless without one, and the
+        // optional-features rule says a control that governs nothing
+        // should not be on screen.
+        let has_bg_image = !self.prefs.terminal_bg_image.trim().is_empty();
+        appearance_col = appearance_col
+            .push(Space::new().height(10))
+            .push(self.terminal_bg_image_row())
+            .push(Space::new().height(4))
+            .push(
+                text(crate::i18n::t("terminal_bg_image_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            );
+        if has_bg_image {
+            appearance_col = appearance_col
+                .push(Space::new().height(10))
+                .push(self.nav_pick_row(
+                    crate::i18n::t("terminal_bg_fit"),
+                    oryxis_terminal::BgFit::ALL
+                        .iter()
+                        .map(|f| {
+                            crate::i18n::t(crate::terminal_appearance::bg_fit_label_key(*f))
+                                .to_string()
+                        })
+                        .collect::<Vec<_>>(),
+                    crate::i18n::t(crate::terminal_appearance::bg_fit_label_key(
+                        oryxis_terminal::BgFit::from_str_or_default(&self.prefs.terminal_bg_fit),
+                    ))
+                    .to_string(),
+                    |s: &String| s.clone(),
+                    160.0,
+                    |v| Message::Settings(SettingsMessage::TerminalBgFitChanged(v)),
+                ))
+                .push(Space::new().height(10))
+                .push(self.nav_pick_row(
+                    crate::i18n::t("terminal_bg_dim"),
+                    crate::terminal_appearance::DIM_STEPS
+                        .iter()
+                        .map(|p| format!("{p}%"))
+                        .collect::<Vec<_>>(),
+                    format!("{}%", self.prefs.terminal_bg_dim),
+                    |s: &String| s.clone(),
+                    120.0,
+                    |v| Message::Settings(SettingsMessage::TerminalBgDimChanged(v)),
+                ))
+                .push(Space::new().height(4))
+                .push(
+                    text(crate::i18n::t("terminal_bg_dim_desc"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                );
+        }
 
         // Notifications: everything whose job is to GET YOUR ATTENTION.
         // Smart tabs and its threshold live here rather than with the tab

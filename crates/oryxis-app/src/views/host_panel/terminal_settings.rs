@@ -162,7 +162,7 @@ impl Oryxis {
         // are compact inline rows (label left, picker right) like Auth
         // Method, so the section reads tight instead of three stacked
         // label+description blocks.
-        let appearance_items = column![
+        let mut appearance_items = column![
             text(crate::i18n::t("terminal_theme"))
                 .size(13)
                 .color(OryxisColors::t().text_secondary),
@@ -175,7 +175,206 @@ impl Oryxis {
             Space::new().height(12),
             term_row,
         ];
+        // Backdrop overrides. Built here, after the rows above, because
+        // the keyboard walk records in build order and must match what
+        // the eye sees.
+        for row in self.hp_backdrop_rows() {
+            appearance_items = appearance_items.push(Space::new().height(12)).push(row);
+        }
         appearance_items.into()
+    }
+
+    /// This host's backdrop overrides: opacity, background picture,
+    /// and (once a picture applies here) its fit and fade.
+    ///
+    /// Every picker carries an "Inherit" entry that reads as what it
+    /// resolves to right now, so the row answers "what will this host
+    /// actually look like" without making the user open Settings to
+    /// find out. The picture row has three states rather than two:
+    /// with a global picture set, "inherit" and "none" are different
+    /// answers, and a host that wants a clean terminal needs to be able
+    /// to say the second one.
+    fn hp_backdrop_rows(&self) -> Vec<Element<'_, Message>> {
+        let inherit = crate::i18n::t("appearance_inherit");
+        let app = &self.editor_form.terminal_appearance;
+        let mut rows: Vec<Element<'_, Message>> = Vec::new();
+
+        // Opacity: inherit + the same steps Settings offers.
+        let mut opacity_options = vec![format!(
+            "{inherit} ({}%)",
+            self.prefs.terminal_opacity
+        )];
+        opacity_options.extend(crate::theme::OPACITY_STEPS.iter().map(|p| format!("{p}%")));
+        let opacity_selected = match app.opacity {
+            Some(p) => format!("{p}%"),
+            None => opacity_options[0].clone(),
+        };
+        rows.push(self.hp_backdrop_pick(
+            crate::i18n::t("terminal_opacity"),
+            "editor-pick-bg-opacity",
+            opacity_options,
+            opacity_selected,
+            |v| Message::Editor(EditorMessage::EditorOpacityChanged(v)),
+        ));
+
+        // Picture: inherit / none / this host's own file.
+        let global_name = picture_name(&self.prefs.terminal_bg_image);
+        let custom = crate::i18n::t("appearance_custom_image");
+        let image_options = vec![
+            format!("{inherit} ({global_name})"),
+            crate::i18n::t("none").to_string(),
+            custom.to_string(),
+        ];
+        let image_selected = match app.image.as_deref() {
+            None => image_options[0].clone(),
+            Some("") => image_options[1].clone(),
+            Some(_) => custom.to_string(),
+        };
+        rows.push(self.hp_backdrop_pick(
+            crate::i18n::t("terminal_bg_image"),
+            "editor-pick-bg-image",
+            image_options,
+            image_selected,
+            |v| Message::Editor(EditorMessage::EditorBgImageModeChanged(v)),
+        ));
+
+        // The file itself, only while this host carries its own.
+        if let Some(path) = app.image.as_deref().filter(|p| !p.is_empty()) {
+            rows.push(
+                dir_row(vec![
+                    text(picture_name(path))
+                        .size(12)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(Length::Fill).into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Editor(
+                            EditorMessage::EditorBgImageBrowse,
+                        )),
+                        8.0,
+                        crate::widgets::styled_button_opt(
+                            crate::i18n::t("browse"),
+                            Some(Message::Editor(EditorMessage::EditorBgImageBrowse)),
+                            OryxisColors::t().accent,
+                        ),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into(),
+            );
+        } else if matches!(app.image.as_deref(), Some("")) {
+            // "None" picked but nothing to browse yet: still offer the
+            // picker, so choosing a file is one click from here rather
+            // than a trip back through the mode picker.
+            rows.push(
+                dir_row(vec![
+                    Space::new().width(Length::Fill).into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Editor(
+                            EditorMessage::EditorBgImageBrowse,
+                        )),
+                        8.0,
+                        crate::widgets::styled_button_opt(
+                            crate::i18n::t("browse"),
+                            Some(Message::Editor(EditorMessage::EditorBgImageBrowse)),
+                            OryxisColors::t().accent,
+                        ),
+                    ),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into(),
+            );
+        }
+
+        // Fit and fade matter only when a picture actually applies to
+        // this host, whether its own or the inherited one.
+        let picture_applies = match app.image.as_deref() {
+            Some("") => false,
+            Some(_) => true,
+            None => !self.prefs.terminal_bg_image.trim().is_empty(),
+        };
+        if picture_applies {
+            let global_fit = oryxis_terminal::BgFit::from_str_or_default(
+                &self.prefs.terminal_bg_fit,
+            );
+            let mut fit_options = vec![format!(
+                "{inherit} ({})",
+                crate::i18n::t(crate::terminal_appearance::bg_fit_label_key(global_fit))
+            )];
+            fit_options.extend(oryxis_terminal::BgFit::ALL.iter().map(|f| {
+                crate::i18n::t(crate::terminal_appearance::bg_fit_label_key(*f)).to_string()
+            }));
+            let fit_selected = match app.fit.as_deref() {
+                Some(f) => crate::i18n::t(crate::terminal_appearance::bg_fit_label_key(
+                    oryxis_terminal::BgFit::from_str_or_default(f),
+                ))
+                .to_string(),
+                None => fit_options[0].clone(),
+            };
+            rows.push(self.hp_backdrop_pick(
+                crate::i18n::t("terminal_bg_fit"),
+                "editor-pick-bg-fit",
+                fit_options,
+                fit_selected,
+                |v| Message::Editor(EditorMessage::EditorBgFitChanged(v)),
+            ));
+
+            let mut dim_options =
+                vec![format!("{inherit} ({}%)", self.prefs.terminal_bg_dim)];
+            dim_options.extend(
+                crate::terminal_appearance::DIM_STEPS
+                    .iter()
+                    .map(|p| format!("{p}%")),
+            );
+            let dim_selected = match app.dim {
+                Some(p) => format!("{p}%"),
+                None => dim_options[0].clone(),
+            };
+            rows.push(self.hp_backdrop_pick(
+                crate::i18n::t("terminal_bg_dim"),
+                "editor-pick-bg-dim",
+                dim_options,
+                dim_selected,
+                |v| Message::Editor(EditorMessage::EditorBgDimChanged(v)),
+            ));
+        }
+
+        rows
+    }
+
+    /// One label-left / picker-right row in the backdrop block, wired
+    /// into the panel's keyboard walk like every other host-editor
+    /// select.
+    fn hp_backdrop_pick<'a>(
+        &'a self,
+        label: &'a str,
+        id: &'static str,
+        options: Vec<String>,
+        selected: String,
+        on_select: impl Fn(String) -> Message + 'a,
+    ) -> Element<'a, Message> {
+        let picker = pick_list(Some(selected), options, |s: &String| s.clone())
+            .on_select(on_select)
+            .id(iced::widget::Id::new(id))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+            .width(200)
+            .padding(10)
+            .style(crate::widgets::rounded_pick_list_style);
+        dir_row(vec![
+            text(label)
+                .size(13)
+                .color(OryxisColors::t().text_secondary)
+                .into(),
+            Space::new().width(Length::Fill).into(),
+            self.panel_nav_slot(
+                crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+                crate::widgets::INPUT_RADIUS,
+                picker.into(),
+            ),
+        ])
+        .align_y(iced::Alignment::Center)
+        .into()
     }
 
     pub(super) fn hp_row_session_logging(&self) -> Element<'_, Message> {
@@ -498,4 +697,18 @@ impl Oryxis {
         .spacing(2)
         .into()
     }
+}
+
+/// File name of a picture path for display, or the localized "None"
+/// when there is no path. The full path would wrap the row and is
+/// recoverable from the picker, which reopens where it left off.
+fn picture_name(path: &str) -> String {
+    let path = path.trim();
+    if path.is_empty() {
+        return crate::i18n::t("none").to_string();
+    }
+    std::path::Path::new(path)
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_else(|| path.to_string())
 }
