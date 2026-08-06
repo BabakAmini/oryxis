@@ -220,7 +220,19 @@ impl Oryxis {
             } else if ctx.compact_pins && tab.pinned {
                 return sftp_pinned_chip(idx, is_active, badge_accent, host_accent, ctx.solid_fill, number);
             }
-            return sftp_session_tab(idx, &display_label, is_active, width, badge_accent, host_accent, self.prefs.tab_accent_text, tab.pinned, ctx.solid_fill, number);
+            return sftp_session_tab(
+                idx,
+                &display_label,
+                is_active,
+                width,
+                badge_accent,
+                host_accent,
+                self.prefs.tab_accent_text,
+                tab.pinned,
+                ctx.solid_fill,
+                number,
+                Self::transfer_border(self.sftp_tab_slot(idx)),
+            );
         }
         let tab = &self.tabs[idx];
         let is_active = active_idx == Some(idx);
@@ -485,6 +497,10 @@ impl Oryxis {
                     })
                 })
                 .next();
+            // A Files-mode transfer borrows the same border, for the same
+            // reason: a 3 GB download the user walked away from has to be
+            // visible from the strip, not only from the tab running it.
+            let sftp_progress = Self::transfer_border(self.hybrid_tab_slot(tab));
             session_tab(
                 idx,
                 &display_label,
@@ -503,7 +519,9 @@ impl Oryxis {
                 tab_badge_color,
                 tab.pinned,
                 ctx.solid_fill,
-                zmodem_progress.or(tab.active().progress),
+                // A transfer the user started wins over the shell's own
+                // OSC 9;4 report: it is the thing they are waiting on.
+                zmodem_progress.or(sftp_progress).or(tab.active().progress),
                 files_mode,
                 tab_address,
                 number,

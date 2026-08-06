@@ -1180,6 +1180,65 @@ impl Oryxis {
             .or_else(|| self.active_sftp_id())
     }
 
+    /// A running transfer as the tab strip's progress border, the same
+    /// affordance OSC 9;4 and ZMODEM already draw there.
+    ///
+    /// The point is that a transfer stays visible from OUTSIDE the tab
+    /// running it: the in-tab bar answers "how far along", the strip
+    /// answers "is something still going", which is the question a user
+    /// who switched tabs is asking. `None` when nothing is transferring,
+    /// so the border simply is not drawn.
+    ///
+    /// The percentage rule matches `transfer_progress_strip` exactly: by
+    /// bytes when the sizes are known, by item count otherwise (an
+    /// all-directory transfer has no bytes to speak of). Two surfaces
+    /// disagreeing about the same transfer's progress would be worse than
+    /// either being slightly wrong.
+    pub(crate) fn transfer_border(slot: &crate::state::TransferSlot) -> Option<oryxis_terminal::Progress> {
+        let transfer = slot.state.as_ref()?;
+        let pct = if slot.bytes_total > 0 {
+            let done = slot
+                .bytes_done
+                .load(std::sync::atomic::Ordering::Relaxed)
+                .min(slot.bytes_total);
+            (done as f64 / slot.bytes_total as f64) * 100.0
+        } else if transfer.total > 0 {
+            (transfer.completed as f64 / transfer.total as f64) * 100.0
+        } else {
+            0.0
+        };
+        Some(oryxis_terminal::Progress {
+            // 1 is OSC 9;4's "normal", the determinate bar.
+            state: 1,
+            value: pct.clamp(0.0, 100.0) as u8,
+        })
+    }
+
+    /// Transfer slot of a standalone SFTP tab, honouring the
+    /// swap-on-focus invariant: the surface on screen has its state
+    /// HOISTED into the live buffer, and the tab's own copy is a stale
+    /// parked one. Reading the wrong side leaves a running transfer
+    /// looking frozen at whatever it was when the tab lost focus.
+    pub(crate) fn sftp_tab_slot(&self, idx: usize) -> &crate::state::TransferSlot {
+        if self.active_sftp == Some(idx) && self.hybrid_sftp_owner.is_none() {
+            &self.sftp.transfer
+        } else {
+            &self.sftp_tabs[idx].state.transfer
+        }
+    }
+
+    /// Same, for a terminal tab's Files mode.
+    pub(crate) fn hybrid_tab_slot<'a>(
+        &'a self,
+        tab: &'a crate::state::TerminalTab,
+    ) -> &'a crate::state::TransferSlot {
+        if self.hybrid_sftp_owner == Some(tab._id) {
+            &self.sftp.transfer
+        } else {
+            &tab.files_state.transfer
+        }
+    }
+
     /// Dispatch an SFTP async-continuation message against its owning tab.
     /// Temporarily swaps that tab's parked state into `self.sftp` (no-op if it
     /// is already the focused tab), runs the normal handler chain, then swaps

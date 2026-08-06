@@ -127,6 +127,11 @@ pub(crate) fn sftp_session_tab<'a>(
     solid_fill: bool,
     // Strip position under `tab_number_style`; `None` = numbering off.
     number: Option<TabNumber>,
+    // A running transfer, drawn as the same growing border the terminal
+    // tabs use for OSC 9;4 and ZMODEM. An SFTP tab has no shell to report
+    // progress of its own, so this border only ever means "a transfer
+    // this tab started is still going".
+    progress: Option<oryxis_terminal::Progress>,
 ) -> Element<'a, Message> {
     // The contrast-validated (issue #79) gated accent is what may render
     // as text, border and gradient wash over the strip; the raw brand
@@ -232,7 +237,26 @@ pub(crate) fn sftp_session_tab<'a>(
         };
         button::Style { background: Some(hover_bg), border, ..Default::default() }
     });
-    MouseArea::new(tab_btn)
+    // Same Stack layering as `session_tab`: the canvas takes no input, so
+    // clicks and the right-press menu still reach the button underneath.
+    let tab_el: Element<'_, Message> = match progress {
+        Some(p) if p.value > 0 => {
+            let bar = iced::widget::canvas(TabProgressBorder {
+                fraction: p.value as f32 / 100.0,
+                color: effective_accent,
+            })
+            .width(Length::Fixed(width))
+            .height(Length::Fixed(TAB_ROW_HEIGHT));
+            iced::widget::Stack::new()
+                .width(Length::Fixed(width))
+                .height(Length::Fixed(TAB_ROW_HEIGHT))
+                .push(tab_btn)
+                .push(bar)
+                .into()
+        }
+        _ => tab_btn.into(),
+    };
+    MouseArea::new(tab_el)
         .on_enter(Message::Sftp(SftpMessage::SftpTabHovered(idx)))
         .on_exit(Message::Sftp(SftpMessage::SftpTabUnhovered(idx)))
         .on_right_press(Message::Sftp(SftpMessage::ShowSftpTabMenu(idx)))
