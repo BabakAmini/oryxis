@@ -205,6 +205,49 @@ impl russh_sftp::server::Handler for SftpHandler {
         let size = fs.files.get(path).map(|d| d.len() as u64).unwrap_or(0);
         Ok(attrs_with_size(id, size))
     }
+
+    /// SFTP v3 semantics, which is what the transfers have to cope with:
+    /// FAIL when the destination exists. The scratch-name upload path
+    /// falls back to remove + rename precisely because of this, and that
+    /// fallback only gets exercised if the fake server refuses like a real
+    /// one instead of quietly overwriting.
+    async fn rename(
+        &mut self,
+        id: u32,
+        oldpath: String,
+        newpath: String,
+    ) -> Result<Status, StatusCode> {
+        let mut fs = self.fs.lock().await;
+        if fs.files.contains_key(&newpath) {
+            return Err(StatusCode::Failure);
+        }
+        let data = fs.files.remove(&oldpath).ok_or(StatusCode::NoSuchFile)?;
+        fs.files.insert(newpath, data);
+        Ok(ok_status(id))
+    }
+
+    async fn remove(&mut self, id: u32, filename: String) -> Result<Status, StatusCode> {
+        let mut fs = self.fs.lock().await;
+        fs.files.remove(&filename).ok_or(StatusCode::NoSuchFile)?;
+        Ok(ok_status(id))
+    }
+
+    /// Truncate is SETSTAT carrying only a size, which is how an
+    /// interrupted upload trims its partial back to the contiguous prefix.
+    async fn setstat(
+        &mut self,
+        id: u32,
+        path: String,
+        attrs: FileAttributes,
+    ) -> Result<Status, StatusCode> {
+        let Some(size) = attrs.size else {
+            return Ok(ok_status(id));
+        };
+        let mut fs = self.fs.lock().await;
+        let data = fs.files.get_mut(&path).ok_or(StatusCode::NoSuchFile)?;
+        data.resize(size as usize, 0);
+        Ok(ok_status(id))
+    }
 }
 
 fn attrs_with_size(id: u32, size: u64) -> Attrs {
@@ -641,4 +684,289 @@ async fn harness_ranged_reads() {
         file.read_at(size as u64, 10).await.expect("past").is_empty()
     );
     file.close().await;
+}
+
+/// The scratch file is where an interrupted download's bytes live, so the
+/// target name must stay untouched until the very end and the scratch must
+/// be gone once it is claimed. Both halves matter: the first is what stops
+/// a truncated file from looking complete, the second is what stops the
+/// download folder from filling with debris.
+#[tokio::test]
+async fn harness_download_uses_scratch_then_claims_target() {
+    let (client, fs) = connect_in_memory().await;
+    let size = 9 * 1024 * 1024usize;
+    let payload: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+    fs.lock()
+        .await
+        .files
+        .insert("/scratch.bin".to_string(), payload.clone());
+
+    let tmp = std::env::temp_dir();
+    let dst = tmp.join(format!("oryxis-scratch-{}.bin", std::process::id()));
+    let part = {
+        let mut raw = dst.as_os_str().to_os_string();
+        raw.push(".oryxis-part");
+        std::path::PathBuf::from(raw)
+    };
+    let _ = std::fs::remove_file(&dst);
+    let _ = std::fs::remove_file(&part);
+
+    client
+        .download_to("/scratch.bin", &dst, None)
+        .await
+        .expect("download_to");
+    assert_eq!(std::fs::read(&dst).expect("read dst"), payload);
+    assert!(
+        !part.exists(),
+        "the scratch file must not survive a successful download"
+    );
+    let _ = std::fs::remove_file(&dst);
+}
+
+/// Resume the real `download_to` against the real protocol.
+///
+/// Proving a resume ACTUALLY happened needs more than a correct result: a
+/// download that silently restarted would also produce one. So the server
+/// is given a file that DIFFERS from the scratch file below the verified
+/// tail. Resuming keeps the scratch file's bytes there and yields the
+/// expected content; restarting would overwrite them with the server's and
+/// yield something else.
+#[tokio::test]
+async fn harness_download_resumes_a_valid_scratch_file() {
+    let (client, fs) = connect_in_memory().await;
+    let size = 12 * 1024 * 1024usize;
+    let cut = 8 * 1024 * 1024usize;
+    // What the scratch file holds, and what the finished download must be.
+    let expected: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+    // What the server serves: identical except in the region a resume will
+    // never ask for, which is everything below the tail it verifies.
+    let poison_end = crate::sftp::resumable_prefix(cut as u64) as usize - 64 * 1024;
+    assert!(poison_end > 0, "rewind left no room to poison");
+    let mut served = expected.clone();
+    served[..poison_end].fill(0x5A);
+    fs.lock()
+        .await
+        .files
+        .insert("/resume.bin".to_string(), served);
+
+    let tmp = std::env::temp_dir();
+    let dst = tmp.join(format!("oryxis-resume-{}.bin", std::process::id()));
+    let part = {
+        let mut raw = dst.as_os_str().to_os_string();
+        raw.push(".oryxis-part");
+        std::path::PathBuf::from(raw)
+    };
+    let _ = std::fs::remove_file(&dst);
+    std::fs::write(&part, &expected[..cut]).expect("seed scratch");
+
+    let moved = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    client
+        .download_to_progress("/resume.bin", &dst, None, Some(moved.clone()))
+        .await
+        .expect("resumed download");
+
+    let got = std::fs::read(&dst).expect("read dst");
+    assert_eq!(
+        &got[..poison_end],
+        &expected[..poison_end],
+        "the download restarted instead of resuming (the server's bytes won)"
+    );
+    assert_eq!(
+        &got[poison_end..],
+        &expected[poison_end..],
+        "the resumed remainder does not match the source"
+    );
+    // The counter is seeded with what was already on disk and then only
+    // advanced by real transfers, so a resume totals the file exactly once.
+    assert_eq!(
+        moved.load(std::sync::atomic::Ordering::Relaxed),
+        size as u64,
+        "progress must account for the whole file exactly once"
+    );
+    let _ = std::fs::remove_file(&dst);
+}
+
+/// The other half of the contract: a scratch file whose tail does NOT
+/// match the server is not ours to continue, so the download starts over
+/// and still produces the right bytes. Silent corruption is the failure
+/// this test exists to catch.
+#[tokio::test]
+async fn harness_download_restarts_on_a_mismatched_scratch_file() {
+    let (client, fs) = connect_in_memory().await;
+    let size = 9 * 1024 * 1024usize;
+    let cut = 4 * 1024 * 1024usize;
+    let payload: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+    fs.lock()
+        .await
+        .files
+        .insert("/mismatch.bin".to_string(), payload.clone());
+
+    let tmp = std::env::temp_dir();
+    let dst = tmp.join(format!("oryxis-mismatch-{}.bin", std::process::id()));
+    let part = {
+        let mut raw = dst.as_os_str().to_os_string();
+        raw.push(".oryxis-part");
+        std::path::PathBuf::from(raw)
+    };
+    let _ = std::fs::remove_file(&dst);
+    // Same LENGTH as a valid prefix, different bytes: length alone would
+    // have accepted this and spliced two unrelated files together.
+    std::fs::write(&part, vec![0x5Au8; cut]).expect("seed scratch");
+
+    client
+        .download_to("/mismatch.bin", &dst, None)
+        .await
+        .expect("download after a mismatched scratch file");
+    assert_eq!(
+        std::fs::read(&dst).expect("read dst"),
+        payload,
+        "a mismatched scratch file must be discarded, not spliced"
+    );
+    let _ = std::fs::remove_file(&dst);
+}
+
+/// Upload resume over the real protocol, plus the two refusals that guard
+/// it. The engine never resumes an upload on its own; these exercise what
+/// happens once a caller (having asked the user) turns it on.
+#[tokio::test]
+async fn harness_upload_resume_and_its_refusals() {
+    let (client, fs) = connect_in_memory().await;
+    let size = 12 * 1024 * 1024usize;
+    let cut = 8 * 1024 * 1024usize;
+    let payload: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+
+    let tmp = std::env::temp_dir();
+    let src = tmp.join(format!("oryxis-upresume-{}.bin", std::process::id()));
+    std::fs::write(&src, &payload).expect("write src");
+
+    // A partial upload sitting on the server, correct as far as it goes
+    // except for one poisoned byte well below the tail the resume
+    // verifies. A resume never rewrites that region, so the byte survives;
+    // an upload that silently restarted would erase it. That is what makes
+    // this a test of resuming rather than of uploading.
+    let poison_at = 0usize;
+    let mut partial = payload[..cut].to_vec();
+    partial[poison_at] ^= 0xFF;
+    assert!(
+        crate::sftp::resumable_prefix(cut as u64) as usize > poison_at + 64 * 1024,
+        "poison must sit below the verified tail"
+    );
+    fs.lock()
+        .await
+        .files
+        .insert("/up.bin".to_string(), partial.clone());
+    let moved = std::sync::Arc::new(std::sync::atomic::AtomicU64::new(0));
+    client
+        .upload_from_options(
+            &src,
+            "/up.bin",
+            crate::sftp::UploadOptions {
+                progress: Some(moved.clone()),
+                resume: true,
+                temp_name: false,
+            },
+        )
+        .await
+        .expect("resumed upload");
+    let mut want = payload.clone();
+    want[poison_at] ^= 0xFF;
+    assert_eq!(
+        fs.lock().await.files.get("/up.bin").expect("uploaded"),
+        &want,
+        "the upload restarted instead of resuming (the poisoned byte was rewritten)"
+    );
+    assert_eq!(
+        moved.load(std::sync::atomic::Ordering::Relaxed),
+        size as u64,
+        "progress must account for the whole file exactly once"
+    );
+
+    // Same length, wrong bytes: refused rather than spliced, and the
+    // destination is left exactly as it was.
+    let junk = vec![0x5Au8; cut];
+    fs.lock()
+        .await
+        .files
+        .insert("/bad.bin".to_string(), junk.clone());
+    let err = client
+        .upload_from_options(
+            &src,
+            "/bad.bin",
+            crate::sftp::UploadOptions {
+                resume: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("a mismatched partial must refuse");
+    assert!(
+        err.to_string().contains("do not match"),
+        "unexpected error: {err}"
+    );
+    assert_eq!(
+        fs.lock().await.files.get("/bad.bin").expect("untouched"),
+        &junk,
+        "a refused resume must not touch the destination"
+    );
+
+    // Already at least as long as the source: cannot be a partial copy of
+    // it, so there is nothing to resume.
+    fs.lock()
+        .await
+        .files
+        .insert("/long.bin".to_string(), vec![0u8; size + 1]);
+    let err = client
+        .upload_from_options(
+            &src,
+            "/long.bin",
+            crate::sftp::UploadOptions {
+                resume: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect_err("a longer destination must refuse");
+    assert!(
+        err.to_string().contains("cannot be a partial copy"),
+        "unexpected error: {err}"
+    );
+
+    let _ = std::fs::remove_file(&src);
+}
+
+/// With `temp_name` the real path is claimed only by the closing rename,
+/// so a watcher on the server never sees a growing file under it.
+#[tokio::test]
+async fn harness_upload_temp_name_claims_the_target_at_the_end() {
+    let (client, fs) = connect_in_memory().await;
+    let size = 9 * 1024 * 1024usize;
+    let payload: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
+
+    let tmp = std::env::temp_dir();
+    let src = tmp.join(format!("oryxis-uptemp-{}.bin", std::process::id()));
+    std::fs::write(&src, &payload).expect("write src");
+
+    client
+        .upload_from_options(
+            &src,
+            "/temp.bin",
+            crate::sftp::UploadOptions {
+                temp_name: true,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("upload with a temp name");
+
+    let guard = fs.lock().await;
+    assert_eq!(
+        guard.files.get("/temp.bin").expect("target claimed"),
+        &payload
+    );
+    assert!(
+        !guard.files.contains_key("/temp.bin.oryxis-part"),
+        "the scratch name must not survive a successful upload"
+    );
+    drop(guard);
+    let _ = std::fs::remove_file(&src);
 }

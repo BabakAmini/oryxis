@@ -31,6 +31,27 @@ pub struct SftpEntry {
     pub gid: Option<u32>,
 }
 
+/// Destination-side policy for [`SftpClient::upload_from_options`].
+///
+/// The defaults are the historical behaviour, so the plain
+/// [`upload_from`](SftpClient::upload_from) family keeps meaning exactly
+/// what it always did: truncate the destination and write under its real
+/// name.
+#[derive(Debug, Clone, Default)]
+pub struct UploadOptions {
+    /// Shared counter the UI polls for a live progress bar.
+    pub progress: Option<Arc<std::sync::atomic::AtomicU64>>,
+    /// Continue from the destination's current length instead of
+    /// truncating it. Only ever set from a caller that ASKED the user:
+    /// the check that the existing bytes belong to this file is a tail
+    /// comparison, not a proof (see `RESUME_VERIFY_BYTES`).
+    pub resume: bool,
+    /// Write to a scratch name and rename into place on success, so the
+    /// real name is only ever a finished file. Costs a rename the server
+    /// may forbid, which is why it is a choice and not the default.
+    pub temp_name: bool,
+}
+
 /// Per-path stat snapshot used by the Properties dialog.
 #[derive(Debug, Clone)]
 pub struct RemoteStat {
@@ -299,14 +320,78 @@ impl SftpClient {
         .await
     }
 
+    /// Throw away the bytes an interrupted download left behind.
+    ///
+    /// For CANCEL, which is not the same event as a failure: a failure
+    /// keeps its scratch file because the user still wants the file and a
+    /// later attempt continues from it, while a cancel is the user saying
+    /// they do not, so leaving debris behind would be the surprise.
+    pub async fn discard_download_scratch(local: &std::path::Path) {
+        let _ = tokio::fs::remove_file(part_path(local)).await;
+    }
+
+    /// The upload mirror of [`discard_download_scratch`], for a cancel that
+    /// used [`UploadOptions::temp_name`]. A cancelled upload writing under
+    /// the real name is not swept here: it has already destroyed whatever
+    /// was there, and removing it too would turn a cancel into a delete.
+    pub async fn discard_upload_scratch(&self, remote: &str) {
+        let _ = self.remove_file(&remote_part_path(remote)).await;
+    }
+
+    /// Does `local` hold the same bytes as `remote` over the last
+    /// [`RESUME_VERIFY_BYTES`] before `at`? The question a resume has to
+    /// answer, in both directions: on download `remote` is the source and
+    /// `local` the scratch file we already filled, on upload `remote` is
+    /// the partial sitting on the server and `local` the file being sent.
+    ///
+    /// `false` (rather than an error) for every honest reason not to
+    /// resume: nothing transferred yet, or the remote is shorter than what
+    /// we think we already have, so it cannot contain that range at all.
+    /// Read what [`RESUME_VERIFY_BYTES`] documents before trusting a
+    /// `true`: it rules out a different file, not a different version of
+    /// this one.
+    async fn tail_matches(
+        &self,
+        remote: &str,
+        local: &std::path::Path,
+        at: u64,
+    ) -> Result<bool, SshError> {
+        if at == 0 {
+            return Ok(false);
+        }
+        let span = RESUME_VERIFY_BYTES.min(at);
+        let from = at - span;
+        let f = self.open_ranged(remote).await?;
+        if f.len() < at {
+            f.close().await;
+            return Ok(false);
+        }
+        let remote_tail = f.read_at(from, span as usize).await;
+        f.close().await;
+        let remote_tail = remote_tail?;
+        if remote_tail.len() as u64 != span {
+            return Ok(false);
+        }
+        Ok(read_local_range(local, from, span as usize)? == remote_tail)
+    }
+
     /// Stream a remote file down to a local path without buffering the
     /// whole thing in RAM. Small files take the single-handle sequential
     /// pump; large ones (>= `STREAM_THRESHOLD`) carry a sliding window of
     /// concurrent reads on one handle (see `windowed_download_copy`). The
     /// remote handle is opened under the session lock, then the lock is
     /// released for the copy, so other ops on this client stay responsive.
-    /// On error the partial local file is removed (it would otherwise be a
-    /// deceptive correct-size, zero-filled file).
+    ///
+    /// Bytes land in a scratch file next to the target ([`PART_SUFFIX`])
+    /// and are renamed into place only once the copy completes, so `local`
+    /// is either absent or a finished file, never a plausible-looking
+    /// truncation. A failed transfer KEEPS its scratch file: those bytes
+    /// are what a later call resumes from, and throwing them away is the
+    /// whole reason a dropped 3 GB download used to cost the user the 3 GB
+    /// (a partial at the target name is the thing to avoid, not partial
+    /// bytes as such). Resume is automatic and only ever continues a
+    /// scratch file whose tail still matches the server's, see
+    /// [`RESUME_VERIFY_BYTES`] for exactly how much that proves.
     ///
     /// `size_hint` lets a caller that already knows the remote size (e.g.
     /// from the directory listing it walked) skip the `stat` round trip.
@@ -336,6 +421,35 @@ impl SftpClient {
             Some(s) => s,
             None => self.stat(remote).await?.size,
         };
+        let part = part_path(local);
+
+        // Resume is attempted only on the windowed path. Below the
+        // threshold the verification round trip costs more than re-sending
+        // the bytes it would save, and this decision is automatic, so it
+        // should never spend a round trip it cannot repay.
+        let resume_from = if size >= STREAM_THRESHOLD {
+            match tokio::fs::metadata(&part).await {
+                Ok(m) if m.len() > 0 => {
+                    let have = resumable_prefix(m.len()).min(size);
+                    if have > 0 && self.tail_matches(remote, &part, have).await? {
+                        have
+                    } else {
+                        0
+                    }
+                }
+                _ => 0,
+            }
+        } else {
+            0
+        };
+        // The counter is shared across every file of a batch, so a resume
+        // ADDS what is already on disk rather than storing it: the bar has
+        // to account for bytes this call will never transfer.
+        // Adding zero is a no-op, so the non-resuming case needs no
+        // special path here.
+        if let Some(p) = &progress {
+            p.fetch_add(resume_from, std::sync::atomic::Ordering::Relaxed);
+        }
 
         if size < STREAM_THRESHOLD {
             let remote_file = self
@@ -346,15 +460,13 @@ impl SftpClient {
                         .map_err(|e| SshError::Channel(format!("sftp open({remote}): {e}")))
                 })
                 .await?;
-            let local_file = tokio::fs::File::create(local)
+            // `create` truncates, which is what a from-zero transfer wants
+            // of a scratch file an earlier attempt may have left behind.
+            let local_file = tokio::fs::File::create(&part)
                 .await
-                .map_err(|e| SshError::Channel(format!("create {}: {e}", local.display())))?;
-            let r = self.pump(&label, remote_file, local_file, progress).await;
-            if r.is_err() {
-                // Don't leave a partial download behind.
-                let _ = tokio::fs::remove_file(local).await;
-            }
-            return r;
+                .map_err(|e| SshError::Channel(format!("create {}: {e}", part.display())))?;
+            self.pump(&label, remote_file, local_file, progress).await?;
+            return finish_part(&part, local).await;
         }
 
         // Large file: one streaming handle carrying a sliding window of
@@ -375,27 +487,42 @@ impl SftpClient {
             Ok(a) => a.attrs.size.unwrap_or(size),
             Err(_) => size,
         };
-        let f = tokio::fs::File::create(local)
-            .await
-            .map_err(|e| SshError::Channel(format!("create {}: {e}", local.display())))?;
-        f.set_len(actual)
-            .await
-            .map_err(|e| SshError::Channel(format!("alloc {}: {e}", local.display())))?;
-        drop(f);
-        let mut out = std::fs::OpenOptions::new()
-            .write(true)
-            .open(local)
-            .map_err(|e| SshError::Channel(format!("open {}: {e}", local.display())))?;
+        // `actual` is authoritative and `resume_from` was decided against
+        // the possibly-stale hint, so a file that shrank under us must not
+        // leave the window starting past its end.
+        let resume_from = if resume_from >= actual { 0 } else { resume_from };
+        // A resume must not truncate: keep the scratch file's bytes and
+        // write past them; only a from-zero run creates-or-truncates.
+        //
+        // The full extent is deliberately NOT preallocated. `set_len` here
+        // would make the file's length the size of the DOWNLOAD rather than
+        // of what has been written, and after a crash that length is the
+        // only thing a later attempt has to go on (see `RESUME_REWIND`).
+        // Positioned writes past the end extend the file on their own, so
+        // the reservation bought nothing except an unreadable length: on
+        // Linux `set_len` does not reserve blocks either way.
+        let mut out = if resume_from > 0 {
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(&part)
+                .map_err(|e| SshError::Channel(format!("open {}: {e}", part.display())))?
+        } else {
+            std::fs::File::create(&part)
+                .map_err(|e| SshError::Channel(format!("create {}: {e}", part.display())))?
+        };
 
         let timeout = self.current_op_timeout();
         let raw_read = raw.clone();
         let handle_read = handle.clone();
+        let done = std::sync::atomic::AtomicU64::new(resume_from);
         let result = windowed_download_copy(
+            resume_from,
             actual,
             STREAM_CHUNK as u64,
             STREAM_WINDOW,
             timeout,
             &label,
+            &done,
             move |off, len| {
                 let raw = raw_read.clone();
                 let handle = handle_read.clone();
@@ -409,10 +536,10 @@ impl SftpClient {
             |off, data| {
                 use std::io::{Seek, SeekFrom, Write};
                 out.seek(SeekFrom::Start(off))
-                    .map_err(|e| SshError::Channel(format!("seek {}: {e}", local.display())))?;
+                    .map_err(|e| SshError::Channel(format!("seek {}: {e}", part.display())))?;
                 let n = data.len() as u64;
                 out.write_all(&data)
-                    .map_err(|e| SshError::Channel(format!("write {}: {e}", local.display())))?;
+                    .map_err(|e| SshError::Channel(format!("write {}: {e}", part.display())))?;
                 if let Some(p) = &progress {
                     p.fetch_add(n, std::sync::atomic::Ordering::Relaxed);
                 }
@@ -420,15 +547,26 @@ impl SftpClient {
             },
         )
         .await;
+        // Release the write handle before anything else touches the file:
+        // Windows refuses a second writable open while it lives.
+        drop(out);
         // Best-effort close; the transfer result is what matters.
         let _ = raw.close(handle).await;
-        if result.is_err() {
-            // A failed windowed download leaves a correct-size but
-            // zero-filled (corrupt) file behind, set_len preallocated it.
-            // Remove it so the size doesn't masquerade as a good download.
-            let _ = tokio::fs::remove_file(local).await;
+        if let Err(e) = result {
+            // The target name is only ever claimed by `finish_part`, so a
+            // failure leaves no deceptive file there. The scratch file
+            // stays, trimmed to the contiguous prefix so the holes the
+            // window may have left above it are gone. This is the tidy
+            // path; `RESUME_REWIND` is what covers the untidy one, where
+            // the process never got here at all.
+            if let Ok(f) = tokio::fs::OpenOptions::new().write(true).open(&part).await {
+                let _ = f
+                    .set_len(done.load(std::sync::atomic::Ordering::Relaxed))
+                    .await;
+            }
+            return Err(e);
         }
-        result
+        finish_part(&part, local).await
     }
 
     /// Stream a local file up to a remote path. Mirror of
@@ -449,13 +587,100 @@ impl SftpClient {
         remote: &str,
         progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
     ) -> Result<(), SshError> {
+        self.upload_from_options(
+            local,
+            remote,
+            UploadOptions {
+                progress,
+                ..UploadOptions::default()
+            },
+        )
+        .await
+    }
+
+    /// [`upload_from`](Self::upload_from) with the destination-side policy
+    /// spelled out, see [`UploadOptions`].
+    ///
+    /// Unlike the download direction, NOTHING here is decided on the user's
+    /// behalf. A download owns its destination and can prove what it is
+    /// resuming; an upload is writing into someone else's namespace, where
+    /// a shorter file with a matching tail is only probably the same file
+    /// (see [`RESUME_VERIFY_BYTES`]). So resume is off unless a caller that
+    /// asked the user turns it on, and a resume whose verification fails is
+    /// an ERROR rather than a silent restart: the destination is not ours
+    /// to truncate on a guess.
+    pub async fn upload_from_options(
+        &self,
+        local: &std::path::Path,
+        remote: &str,
+        opts: UploadOptions,
+    ) -> Result<(), SshError> {
+        let UploadOptions {
+            progress,
+            resume,
+            temp_name,
+        } = opts;
         let label = format!("upload({remote})");
         let size = tokio::fs::metadata(local)
             .await
             .map_err(|e| SshError::Channel(format!("stat {}: {e}", local.display())))?
             .len();
+        // Where the bytes actually go. With `temp_name` the final path is
+        // only claimed by the rename at the end, so an interrupted upload
+        // never leaves a plausible-looking file under the real name and a
+        // watcher on the server sees the file appear whole.
+        let target = if temp_name {
+            remote_part_path(remote)
+        } else {
+            remote.to_string()
+        };
 
-        if size < STREAM_THRESHOLD {
+        let resume_from = if resume {
+            match self.stat(&target).await {
+                // No destination yet: a resume request on a fresh path is
+                // just an upload, not an error.
+                Err(_) => 0,
+                Ok(st) if st.size == 0 => 0,
+                Ok(st) if st.size >= size => {
+                    return Err(SshError::Channel(format!(
+                        "sftp resume({remote}): the file already there is {} bytes, this one is {size}, so it cannot be a partial copy of it",
+                        st.size
+                    )));
+                }
+                Ok(st) => {
+                    // Same rewind as the download side, for the same
+                    // reason: the destination's SIZE is the highest offset
+                    // an interrupted window reached, and a crash left no
+                    // chance to trim the holes below it.
+                    let have = resumable_prefix(st.size);
+                    if have == 0 {
+                        // Less already there than the rewind: nothing worth
+                        // continuing, so this is an ordinary upload.
+                        0
+                    } else if self.tail_matches(&target, local, have).await? {
+                        have
+                    } else {
+                        return Err(SshError::Channel(format!(
+                            "sftp resume({remote}): the {} bytes already there do not match this file, so resuming would corrupt it",
+                            st.size
+                        )));
+                    }
+                }
+            }
+        } else {
+            0
+        };
+        // Shared across a batch, so ADD what this call will not transfer
+        // rather than storing it (see the download side).
+        // Adding zero is a no-op, so the non-resuming case needs no
+        // special path here.
+        if let Some(p) = &progress {
+            p.fetch_add(resume_from, std::sync::atomic::Ordering::Relaxed);
+        }
+
+        // A resume has to place its bytes at an offset, which is what the
+        // windowed path does, so it takes that path at any size.
+        if size < STREAM_THRESHOLD && resume_from == 0 {
             let local_file = tokio::fs::File::open(local)
                 .await
                 .map_err(|e| SshError::Channel(format!("open {}: {e}", local.display())))?;
@@ -463,35 +688,34 @@ impl SftpClient {
                 .with_op_timeout(&label, async {
                     let s = self.inner.lock().await;
                     s.open_with_flags(
-                        remote,
+                        &target,
                         OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE,
                     )
                     .await
-                    .map_err(|e| SshError::Channel(format!("sftp open(W,{remote}): {e}")))
+                    .map_err(|e| SshError::Channel(format!("sftp open(W,{target}): {e}")))
                 })
                 .await?;
             let result = self.pump(&label, local_file, remote_file, progress).await;
             if result.is_err() {
-                // TRUNCATE already clobbered any prior remote file; remove the
-                // partial so a failed upload doesn't masquerade as complete.
-                let _ = self.remove_file(remote).await;
+                self.discard_upload_partial(&target, temp_name, 0).await;
+                return result;
             }
-            return result;
+            return self.claim_upload_target(&target, remote, temp_name).await;
         }
 
         // Large file: one streaming handle carrying a sliding window of
-        // concurrent writes. The single open with TRUNCATE clears any
-        // prior contents once; positioned writes lay down the new bytes,
-        // so a smaller new file can't leave a stale tail.
+        // concurrent writes. TRUNCATE clears any prior contents once so a
+        // smaller new file can't leave a stale tail; a resume must NOT ask
+        // for it, since the bytes it is continuing from are the point.
         let raw = self.open_raw_streaming().await?;
+        let mut flags = OpenFlags::WRITE | OpenFlags::CREATE;
+        if resume_from == 0 {
+            flags |= OpenFlags::TRUNCATE;
+        }
         let handle = raw
-            .open(
-                remote,
-                OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE,
-                FileAttributes::empty(),
-            )
+            .open(&target, flags, FileAttributes::empty())
             .await
-            .map_err(|e| SshError::Channel(format!("sftp open(W,{remote}): {e}")))?
+            .map_err(|e| SshError::Channel(format!("sftp open(W,{target}): {e}")))?
             .handle;
         let mut input = std::fs::File::open(local)
             .map_err(|e| SshError::Channel(format!("open {}: {e}", local.display())))?;
@@ -500,12 +724,15 @@ impl SftpClient {
         let timeout = self.current_op_timeout();
         let raw_write = raw.clone();
         let handle_write = handle.clone();
+        let done = std::sync::atomic::AtomicU64::new(resume_from);
         let result = windowed_upload_copy(
+            resume_from,
             size,
             STREAM_CHUNK as u64,
             STREAM_WINDOW,
             timeout,
             &label,
+            &done,
             |off, len| {
                 use std::io::{Read, Seek, SeekFrom};
                 input
@@ -541,17 +768,73 @@ impl SftpClient {
             .close(handle)
             .await
             .map(|_| ())
-            .map_err(|e| SshError::Channel(format!("sftp close({remote}): {e}")));
+            .map_err(|e| SshError::Channel(format!("sftp close({target}): {e}")));
         let result = result.and(close);
-        if result.is_err() {
-            // TRUNCATE clobbered any prior remote file and the window only
-            // laid down part of the new bytes; remove the partial so its
-            // size doesn't masquerade as a complete upload (mirrors the
-            // download and relay paths). A .part + rename is a later
-            // refinement.
-            let _ = self.remove_file(remote).await;
+        if let Err(e) = result {
+            self.discard_upload_partial(
+                &target,
+                temp_name || resume_from > 0,
+                done.load(std::sync::atomic::Ordering::Relaxed),
+            )
+            .await;
+            return Err(e);
         }
-        result
+        self.claim_upload_target(&target, remote, temp_name).await
+    }
+
+    /// What to do with the bytes an interrupted upload left behind.
+    ///
+    /// `keepable` says whether they are somewhere a later resume could use:
+    /// a scratch name, or a destination the caller was already resuming
+    /// into. Then the file is TRIMMED to the contiguous prefix instead of
+    /// removed, because the window can leave holes past it and a hole is
+    /// invisible to the tail check that guards the next resume.
+    ///
+    /// Otherwise the partial sits under the real name, where TRUNCATE
+    /// already destroyed whatever was there and its size would masquerade
+    /// as a complete upload, so it goes.
+    async fn discard_upload_partial(&self, target: &str, keepable: bool, keep: u64) {
+        if !keepable {
+            let _ = self.remove_file(target).await;
+            return;
+        }
+        // No ftruncate in SFTP: SETSTAT with just a size is the truncate.
+        // If the server refuses it the prefix cannot be trusted, and a
+        // partial nobody can resume is only a trap, so drop it.
+        let attrs = FileAttributes {
+            size: Some(keep),
+            ..FileAttributes::default()
+        };
+        let trimmed = match self.open_raw_streaming().await {
+            Ok(raw) => raw.setstat(target, attrs).await.is_ok(),
+            Err(_) => false,
+        };
+        if !trimmed {
+            let _ = self.remove_file(target).await;
+        }
+    }
+
+    /// Move a finished scratch upload onto its real name.
+    ///
+    /// `posix-rename@openssh.com` replaces an existing destination in one
+    /// step; plain SFTP v3 `rename` is specified to fail when the target
+    /// exists, so the fallback has to clear it first and accepts the window
+    /// that opens. Whether the target should be replaced at all was settled
+    /// by conflict resolution before any byte moved.
+    async fn claim_upload_target(
+        &self,
+        target: &str,
+        remote: &str,
+        temp_name: bool,
+    ) -> Result<(), SshError> {
+        if !temp_name {
+            return Ok(());
+        }
+        if self.posix_rename(target, remote).await.is_ok() {
+            return Ok(());
+        }
+        let _ = self.remove_file(remote).await;
+        self.rename(target, remote).await
     }
 
     /// Relay a file directly between two remote servers, `self` (source)
@@ -1101,12 +1384,18 @@ impl RemoteRangedFile {
         let mut buf = vec![0u8; span as usize];
         let raw = self.raw.clone();
         let handle = self.handle.clone();
+        // The range lands in memory, so there is nothing to resume from and
+        // nothing to trim: this reads `[0, span)` of a fresh buffer and
+        // discards the contiguous-prefix counter.
+        let done = std::sync::atomic::AtomicU64::new(0);
         windowed_download_copy(
+            0,
             span,
             STREAM_CHUNK as u64,
             STREAM_WINDOW,
             self.timeout,
             "ranged read",
+            &done,
             move |off, len| {
                 let raw = raw.clone();
                 let handle = handle.clone();
@@ -1118,7 +1407,7 @@ impl RemoteRangedFile {
                         .map_err(|e| SshError::Channel(format!("sftp read({abs}): {e}")))
                 }
             },
-            |off, data| {
+            |off, data: Vec<u8>| {
                 buf[off as usize..off as usize + data.len()].copy_from_slice(&data);
                 Ok(())
             },
@@ -1151,6 +1440,144 @@ const STREAM_THRESHOLD: u64 = 8 * 1024 * 1024;
 /// model). 16 is a deep-enough window for high-latency links without
 /// flooding the server.
 const STREAM_WINDOW: usize = 16;
+
+/// Suffix of the scratch file a transfer writes into before it is renamed
+/// onto the caller's target. Deliberately NOT the conventional `.part`:
+/// one of these can outlive a crash in a user's download folder or on
+/// their server, so it should say who left it, and a file the user
+/// legitimately named `x.part` must never be mistaken for our scratch.
+const PART_SUFFIX: &str = ".oryxis-part";
+
+/// How much of the already-transferred tail is compared before a resume is
+/// allowed. One SFTP read, so the check costs a single round trip.
+///
+/// This is a heuristic and the code must not pretend otherwise: no SFTP
+/// server we can rely on computes checksums (OpenSSH 9.6's `sftp-server`
+/// advertises `posix-rename`, `statvfs`, `fstatvfs`, `hardlink`, `fsync`,
+/// `limits`, `expand-path`, `copy-data`, `home-directory` and
+/// `users-groups-by-id`, and no hash extension at all), so a full proof
+/// would mean re-reading every byte already transferred. What this catches
+/// is the honest mistake, a partial belonging to a completely different
+/// file. What it cannot catch: large runs of zeroes (VM images, sparse
+/// files, preallocated databases, tar padding) match on both sides, and a
+/// versioned prefix (the destination holds v1, the source is now v2
+/// sharing its first N bytes) matches because it genuinely IS a prefix,
+/// of the wrong file. Callers that resume on the user's behalf must say
+/// so; see `UploadOptions::resume`.
+const RESUME_VERIFY_BYTES: u64 = 64 * 1024;
+
+/// How far back from a partial's length a resume starts.
+///
+/// A graceful failure trims the partial to its contiguous prefix, so its
+/// length is exact. A CRASH (kill, power loss, OOM) trims nothing, and
+/// what is left is a file whose length is the highest offset the window
+/// reached, possibly with holes below it. The tail check cannot see such a
+/// hole, because the tail is one of the chunks that DID land.
+///
+/// The window itself bounds the damage. Chunks are dispatched in
+/// increasing offset order and at most `STREAM_WINDOW` are ever in flight,
+/// so at the moment of a crash the unwritten gaps all sit within
+/// `STREAM_WINDOW * STREAM_CHUNK` bytes of the end. Everything below that
+/// is solid, whatever happened. Rewinding by that much unconditionally is
+/// what makes a crash and a clean failure the same case: it costs a few
+/// megabytes of re-transfer on a path that already trimmed itself, and it
+/// removes an entire class of silent corruption on the path that could
+/// not. Do not "optimise" it away by trusting the length.
+const RESUME_REWIND: u64 = STREAM_WINDOW as u64 * STREAM_CHUNK as u64;
+
+/// Largest offset a partial of `len` bytes can be resumed from.
+pub(crate) fn resumable_prefix(len: u64) -> u64 {
+    len.saturating_sub(RESUME_REWIND)
+}
+
+/// Longest single path component almost every filesystem accepts, in
+/// bytes (`NAME_MAX` on Linux, and the same number on NTFS and APFS).
+const NAME_MAX: usize = 255;
+
+/// Shorten `name` so that appending [`PART_SUFFIX`] still fits a path
+/// component. Trimming from the end can make two very long names share a
+/// scratch file, which is strictly better than failing to transfer at all,
+/// and the tail check is what stops a collision from being spliced into
+/// the wrong file.
+fn fit_part_name(name: &str) -> String {
+    let mut base = name.to_string();
+    let budget = NAME_MAX.saturating_sub(PART_SUFFIX.len());
+    while base.len() > budget {
+        // Pops a whole char, so the result stays valid UTF-8.
+        base.pop();
+    }
+    format!("{base}{PART_SUFFIX}")
+}
+
+/// Scratch path a download writes into, next to its target.
+///
+/// The suffix has to FIT: a name already near the limit would otherwise
+/// fail to create, turning a long filename into a failed download.
+pub(crate) fn part_path(local: &std::path::Path) -> std::path::PathBuf {
+    let len = local.file_name().map(|n| n.len()).unwrap_or(0);
+    if len + PART_SUFFIX.len() <= NAME_MAX {
+        // The common case, byte-exact: a name that is not valid UTF-8
+        // (legal on Unix) survives untouched.
+        let mut raw = local.as_os_str().to_os_string();
+        raw.push(PART_SUFFIX);
+        return std::path::PathBuf::from(raw);
+    }
+    let name = local.file_name().unwrap_or_default().to_string_lossy();
+    local.with_file_name(fit_part_name(&name))
+}
+
+/// Scratch path an upload writes into, beside its target on the server.
+fn remote_part_path(remote: &str) -> String {
+    let (dir, name) = match remote.rsplit_once('/') {
+        Some((d, n)) => (d, n),
+        None => ("", remote),
+    };
+    if name.len() + PART_SUFFIX.len() <= NAME_MAX {
+        return format!("{remote}{PART_SUFFIX}");
+    }
+    format!("{dir}/{}", fit_part_name(name))
+}
+
+/// Read `[from, from + span)` out of a local file. Blocking, like the rest
+/// of the local half of the streaming paths (a 64 KiB read next to a
+/// multi-gigabyte transfer is not worth a `spawn_blocking`).
+fn read_local_range(
+    local: &std::path::Path,
+    from: u64,
+    span: usize,
+) -> Result<Vec<u8>, SshError> {
+    use std::io::{Read, Seek, SeekFrom};
+    let disp = local.display();
+    let mut f = std::fs::File::open(local).map_err(|e| SshError::Channel(format!("open {disp}: {e}")))?;
+    f.seek(SeekFrom::Start(from))
+        .map_err(|e| SshError::Channel(format!("seek {disp}: {e}")))?;
+    let mut buf = vec![0u8; span];
+    f.read_exact(&mut buf)
+        .map_err(|e| SshError::Channel(format!("read {disp}: {e}")))?;
+    Ok(buf)
+}
+
+/// Move a finished scratch file onto its target.
+///
+/// The rename is tried FIRST so the Unix path keeps its atomicity (rename
+/// over an existing file is one step there); only when that fails does the
+/// target get cleared, which is what Windows needs since its rename
+/// refuses an existing destination. Whether the target should be replaced
+/// at all was already decided by conflict resolution, before any byte
+/// moved.
+async fn finish_part(part: &std::path::Path, target: &std::path::Path) -> Result<(), SshError> {
+    if tokio::fs::rename(part, target).await.is_ok() {
+        return Ok(());
+    }
+    let _ = tokio::fs::remove_file(target).await;
+    tokio::fs::rename(part, target).await.map_err(|e| {
+        SshError::Channel(format!(
+            "rename {} -> {}: {e}",
+            part.display(),
+            target.display()
+        ))
+    })
+}
 
 /// Copy bytes from `reader` to `writer` in bounded 255 KiB chunks (the
 /// SFTP per-request ceiling, matching `MAX_READ_LENGTH` /
@@ -1222,12 +1649,15 @@ type ReadChunk = Result<(u64, u32, Vec<u8>), SshError>;
 /// arrive (so it needs no locking). Short reads (server returns fewer
 /// bytes than asked) re-queue the remainder. Generic over both sides so
 /// the byte-level logic is unit-tested with in-memory fakes.
+#[allow(clippy::too_many_arguments)]
 async fn windowed_download_copy<RDR, FRDR, WRT>(
+    from: u64,
     size: u64,
     chunk: u64,
     window: usize,
     timeout: std::time::Duration,
     op_name: &str,
+    done: &std::sync::atomic::AtomicU64,
     read_at: RDR,
     mut write_at: WRT,
 ) -> Result<(), SshError>
@@ -1237,12 +1667,21 @@ where
     WRT: FnMut(u64, Vec<u8>) -> Result<(), SshError>,
 {
     let mut pending: std::collections::VecDeque<(u64, u32)> = std::collections::VecDeque::new();
-    let mut start = 0u64;
-    while start < size {
-        let len = chunk.min(size - start) as u32;
-        pending.push_back((start, len));
-        start += len as u64;
+    let mut at = from;
+    while at < size {
+        let len = chunk.min(size - at) as u32;
+        pending.push_back((at, len));
+        at += len as u64;
     }
+    // Chunks finish out of order, so the only honest measure of "how much
+    // of this destination is real" is the CONTIGUOUS prefix, never the
+    // file's length: a chunk that landed past a hole would otherwise make
+    // a later resume start beyond bytes that were never written, and the
+    // tail check cannot see a hole in the middle. `ahead` holds the
+    // completed ranges waiting for that prefix to reach them.
+    let mut ahead: std::collections::BTreeMap<u64, u64> = std::collections::BTreeMap::new();
+    let mut contiguous = from;
+    done.store(contiguous, std::sync::atomic::Ordering::Relaxed);
     let mut inflight: tokio::task::JoinSet<ReadChunk> = tokio::task::JoinSet::new();
     loop {
         while inflight.len() < window {
@@ -1285,6 +1724,11 @@ where
         }
         let got = data.len() as u32;
         write_at(off, data)?;
+        ahead.insert(off, off + got as u64);
+        while let Some(end) = ahead.remove(&contiguous) {
+            contiguous = end;
+        }
+        done.store(contiguous, std::sync::atomic::Ordering::Relaxed);
         if got < reqlen {
             pending.push_front((off + got as u64, reqlen - got));
         }
@@ -1298,12 +1742,15 @@ where
 /// remote write (spawned, so they pipeline). SFTP writes are all-or-error,
 /// so there is no short-write case to re-queue. Generic over both sides
 /// for the same in-memory unit testing as the download path.
+#[allow(clippy::too_many_arguments)]
 async fn windowed_upload_copy<RDR, WRT, FWRT>(
+    from: u64,
     size: u64,
     chunk: u64,
     window: usize,
     timeout: std::time::Duration,
     op_name: &str,
+    done: &std::sync::atomic::AtomicU64,
     mut read_at: RDR,
     write_at: WRT,
 ) -> Result<(), SshError>
@@ -1312,8 +1759,15 @@ where
     WRT: Fn(u64, Vec<u8>) -> FWRT,
     FWRT: std::future::Future<Output = Result<(), SshError>> + Send + 'static,
 {
-    let mut inflight: tokio::task::JoinSet<Result<(), SshError>> = tokio::task::JoinSet::new();
-    let mut off = 0u64;
+    let mut inflight: tokio::task::JoinSet<Result<(u64, u64), SshError>> =
+        tokio::task::JoinSet::new();
+    let mut off = from;
+    // Same contiguous-prefix bookkeeping as the download side, and for the
+    // same reason: the destination's SIZE after a failure is the highest
+    // offset the window happened to reach, which can sit past a hole.
+    let mut ahead: std::collections::BTreeMap<u64, u64> = std::collections::BTreeMap::new();
+    let mut contiguous = from;
+    done.store(contiguous, std::sync::atomic::Ordering::Relaxed);
     loop {
         while inflight.len() < window && off < size {
             let len = chunk.min(size - off) as u32;
@@ -1329,7 +1783,7 @@ where
                         timeout.as_secs()
                     ))
                 })??;
-                Ok(())
+                Ok((off, len as u64))
             });
             off += len as u64;
         }
@@ -1339,7 +1793,13 @@ where
             }
             continue;
         };
-        joined.map_err(|e| SshError::Channel(format!("sftp {op_name} write task: {e}")))??;
+        let (wrote_at, wrote_len) =
+            joined.map_err(|e| SshError::Channel(format!("sftp {op_name} write task: {e}")))??;
+        ahead.insert(wrote_at, wrote_at + wrote_len);
+        while let Some(end) = ahead.remove(&contiguous) {
+            contiguous = end;
+        }
+        done.store(contiguous, std::sync::atomic::Ordering::Relaxed);
     }
     Ok(())
 }
@@ -1434,7 +1894,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{pump_bytes, windowed_download_copy, windowed_relay_copy, windowed_upload_copy};
+    use super::{
+        pump_bytes, windowed_download_copy, windowed_relay_copy, windowed_upload_copy, SshError,
+    };
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -1484,15 +1946,28 @@ mod tests {
     /// "read" that returns the requested slice, and a positioned write
     /// into a destination buffer. Asserts byte-identical reassembly.
     async fn download_round_trip(size: usize, chunk: usize, window: usize) {
+        download_round_trip_from(0, size, chunk, window).await;
+    }
+
+    /// As above but starting at `from`, the resume case: everything below
+    /// the offset must be left exactly as the destination already had it,
+    /// and the contiguous counter must end at the full size.
+    async fn download_round_trip_from(from: usize, size: usize, chunk: usize, window: usize) {
         let src = pattern(size);
+        // Sentinel below `from` stands in for bytes a previous attempt
+        // already wrote: the copy must not touch them.
         let mut dst = vec![0u8; size];
+        dst[..from].fill(0xEE);
         let src_read = src.clone();
+        let done = std::sync::atomic::AtomicU64::new(0);
         windowed_download_copy(
+            from as u64,
             size as u64,
             chunk as u64,
             window,
             Duration::from_secs(5),
             "test",
+            &done,
             move |off, len| {
                 let o = off as usize;
                 let end = (o + len as usize).min(src_read.len());
@@ -1507,7 +1982,20 @@ mod tests {
         )
         .await
         .expect("download");
-        assert_eq!(dst, src, "download reassembly mismatch size={size}");
+        assert_eq!(
+            done.load(std::sync::atomic::Ordering::Relaxed),
+            size as u64,
+            "contiguous prefix must reach the end (from={from} size={size})"
+        );
+        assert!(
+            dst[..from].iter().all(|b| *b == 0xEE),
+            "resume overwrote bytes below the start offset (from={from})"
+        );
+        assert_eq!(
+            dst[from..],
+            src[from..],
+            "download reassembly mismatch from={from} size={size}"
+        );
     }
 
     /// Same, but the fake remote returns at most 1000 bytes per read
@@ -1517,12 +2005,15 @@ mod tests {
         let src = pattern(size);
         let mut dst = vec![0u8; size];
         let src_read = src.clone();
+        let done = std::sync::atomic::AtomicU64::new(0);
         windowed_download_copy(
+            0,
             size as u64,
             chunk as u64,
             window,
             Duration::from_secs(5),
             "test",
+            &done,
             move |off, len| {
                 let o = off as usize;
                 let cap = (len as usize).min(1000);
@@ -1547,12 +2038,15 @@ mod tests {
     #[tokio::test]
     async fn download_overlong_reply_errors() {
         let mut dst = vec![0u8; 1024];
+        let done = std::sync::atomic::AtomicU64::new(0);
         let result = windowed_download_copy(
+            0,
             1024,
             1024,
             2,
             Duration::from_secs(5),
             "test",
+            &done,
             move |_off, len| {
                 // Return double the requested bytes.
                 let data = vec![0xAAu8; len as usize * 2];
@@ -1575,16 +2069,27 @@ mod tests {
     /// Drive `windowed_upload_copy`: serial source reads + concurrent
     /// positioned writes into a shared buffer. Asserts byte-identical.
     async fn upload_round_trip(size: usize, chunk: usize, window: usize) {
+        upload_round_trip_from(0, size, chunk, window).await;
+    }
+
+    /// As above but starting at `from`, the resume case, with the same two
+    /// extra assertions as the download side.
+    async fn upload_round_trip_from(from: usize, size: usize, chunk: usize, window: usize) {
         let src = pattern(size);
-        let dst = Arc::new(Mutex::new(vec![0u8; size]));
+        let mut initial = vec![0u8; size];
+        initial[..from].fill(0xEE);
+        let dst = Arc::new(Mutex::new(initial));
         let src_read = src.clone();
         let dst_write = dst.clone();
+        let done = std::sync::atomic::AtomicU64::new(0);
         windowed_upload_copy(
+            from as u64,
             size as u64,
             chunk as u64,
             window,
             Duration::from_secs(5),
             "test",
+            &done,
             move |off, len| {
                 let o = off as usize;
                 Ok(src_read[o..o + len as usize].to_vec())
@@ -1600,7 +2105,21 @@ mod tests {
         )
         .await
         .expect("upload");
-        assert_eq!(*dst.lock().unwrap(), src, "upload reassembly mismatch size={size}");
+        let out = dst.lock().unwrap();
+        assert_eq!(
+            done.load(std::sync::atomic::Ordering::Relaxed),
+            size as u64,
+            "contiguous prefix must reach the end (from={from} size={size})"
+        );
+        assert!(
+            out[..from].iter().all(|b| *b == 0xEE),
+            "resume overwrote bytes below the start offset (from={from})"
+        );
+        assert_eq!(
+            out[from..],
+            src[from..],
+            "upload reassembly mismatch from={from} size={size}"
+        );
     }
 
     #[tokio::test]
@@ -1637,6 +2156,199 @@ mod tests {
     #[tokio::test]
     async fn windowed_upload_smaller_than_window() {
         upload_round_trip(50 * 1024, 100 * 1024, 16).await;
+    }
+
+    /// Resume from a chunk boundary and from the middle of one: the
+    /// window has to re-derive its chunk grid from the start offset, so an
+    /// offset that is not a multiple of the chunk size is the interesting
+    /// case (the first chunk of the resumed run is a short one).
+    #[tokio::test]
+    async fn windowed_download_resume_chunk_aligned() {
+        download_round_trip_from(200 * 1024, 600 * 1024, 100 * 1024, 4).await;
+    }
+
+    #[tokio::test]
+    async fn windowed_download_resume_mid_chunk() {
+        download_round_trip_from(250 * 1024 + 7, 600 * 1024, 100 * 1024, 4).await;
+    }
+
+    #[tokio::test]
+    async fn windowed_download_resume_last_chunk() {
+        download_round_trip_from(599 * 1024, 600 * 1024, 100 * 1024, 8).await;
+    }
+
+    #[tokio::test]
+    async fn windowed_upload_resume_chunk_aligned() {
+        upload_round_trip_from(200 * 1024, 600 * 1024, 100 * 1024, 4).await;
+    }
+
+    #[tokio::test]
+    async fn windowed_upload_resume_mid_chunk() {
+        upload_round_trip_from(250 * 1024 + 7, 600 * 1024, 100 * 1024, 4).await;
+    }
+
+    #[tokio::test]
+    async fn windowed_upload_resume_last_chunk() {
+        upload_round_trip_from(599 * 1024, 600 * 1024, 100 * 1024, 8).await;
+    }
+
+    /// THE invariant behind resume. The first chunk fails, slowly, so
+    /// every later chunk in the window lands before the failure surfaces.
+    /// The destination then holds real bytes ABOVE a hole, and its LENGTH
+    /// would claim the transfer got far. Resuming from that length would
+    /// skip the hole forever, and the tail check cannot see it (the tail
+    /// is one of the chunks that did land). The contiguous prefix is the
+    /// only honest answer, and here it is zero.
+    #[tokio::test]
+    async fn windowed_download_hole_does_not_advance_prefix() {
+        let size = 600 * 1024usize;
+        let mut dst = vec![0u8; size];
+        let src = Arc::new(pattern(size));
+        let done = std::sync::atomic::AtomicU64::new(0);
+        let result = windowed_download_copy(
+            0,
+            size as u64,
+            100 * 1024,
+            8,
+            Duration::from_secs(5),
+            "test",
+            &done,
+            move |off, len| {
+                let src = src.clone();
+                async move {
+                    if off == 0 {
+                        tokio::time::sleep(Duration::from_millis(200)).await;
+                        return Err(SshError::Channel("first chunk fails".into()));
+                    }
+                    let o = off as usize;
+                    Ok(src[o..(o + len as usize).min(src.len())].to_vec())
+                }
+            },
+            |off, data| {
+                let o = off as usize;
+                dst[o..o + data.len()].copy_from_slice(&data);
+                Ok(())
+            },
+        )
+        .await;
+        result.expect_err("the failing chunk must fail the copy");
+        assert_eq!(
+            done.load(std::sync::atomic::Ordering::Relaxed),
+            0,
+            "bytes written past a hole must not count as resumable progress"
+        );
+    }
+
+    /// The upload mirror: same hole, same reason. Here the consequence is
+    /// worse if it were wrong, since the destination is the user's server
+    /// and the hole would be zeroes inside their file.
+    #[tokio::test]
+    async fn windowed_upload_hole_does_not_advance_prefix() {
+        let size = 600 * 1024usize;
+        let src = pattern(size);
+        let dst = Arc::new(Mutex::new(vec![0u8; size]));
+        let src_read = src.clone();
+        let dst_write = dst.clone();
+        let done = std::sync::atomic::AtomicU64::new(0);
+        let result = windowed_upload_copy(
+            0,
+            size as u64,
+            100 * 1024,
+            8,
+            Duration::from_secs(5),
+            "test",
+            &done,
+            move |off, len| {
+                let o = off as usize;
+                Ok(src_read[o..o + len as usize].to_vec())
+            },
+            move |off, data| {
+                let dst = dst_write.clone();
+                async move {
+                    if off == 0 {
+                        tokio::time::sleep(Duration::from_millis(200)).await;
+                        return Err(SshError::Channel("first chunk fails".into()));
+                    }
+                    let o = off as usize;
+                    dst.lock().unwrap()[o..o + data.len()].copy_from_slice(&data);
+                    Ok(())
+                }
+            },
+        )
+        .await;
+        result.expect_err("the failing chunk must fail the copy");
+        assert_eq!(
+            done.load(std::sync::atomic::Ordering::Relaxed),
+            0,
+            "bytes written past a hole must not count as resumable progress"
+        );
+    }
+
+    /// A resumed run reassembles byte-identically to a from-zero one. The
+    /// point is not that both are correct in isolation, it is that the
+    /// SEAM at the resume offset carries no gap and no overlap.
+    #[tokio::test]
+    async fn resumed_download_matches_from_zero() {
+        let size = 1_000_003usize;
+        let chunk = 99_991usize;
+        let src = pattern(size);
+        let cut = 400_000usize;
+
+        let mut fresh = vec![0u8; size];
+        let src_a = src.clone();
+        let done_a = std::sync::atomic::AtomicU64::new(0);
+        windowed_download_copy(
+            0,
+            size as u64,
+            chunk as u64,
+            8,
+            Duration::from_secs(5),
+            "test",
+            &done_a,
+            move |off, len| {
+                let o = off as usize;
+                let data = src_a[o..(o + len as usize).min(src_a.len())].to_vec();
+                async move { Ok(data) }
+            },
+            |off, data| {
+                let o = off as usize;
+                fresh[o..o + data.len()].copy_from_slice(&data);
+                Ok(())
+            },
+        )
+        .await
+        .expect("fresh download");
+
+        // Second run: the first `cut` bytes are already there (as a real
+        // previous attempt would have left them) and the copy continues.
+        let mut resumed = vec![0u8; size];
+        resumed[..cut].copy_from_slice(&src[..cut]);
+        let src_b = src.clone();
+        let done_b = std::sync::atomic::AtomicU64::new(0);
+        windowed_download_copy(
+            cut as u64,
+            size as u64,
+            chunk as u64,
+            8,
+            Duration::from_secs(5),
+            "test",
+            &done_b,
+            move |off, len| {
+                let o = off as usize;
+                let data = src_b[o..(o + len as usize).min(src_b.len())].to_vec();
+                async move { Ok(data) }
+            },
+            |off, data| {
+                let o = off as usize;
+                resumed[o..o + data.len()].copy_from_slice(&data);
+                Ok(())
+            },
+        )
+        .await
+        .expect("resumed download");
+
+        assert_eq!(fresh, resumed, "resumed result differs from a fresh one");
+        assert_eq!(fresh, src, "fresh download is not the source");
     }
 
     /// Drive `windowed_relay_copy` over in-memory fakes: an async source
@@ -1700,5 +2412,52 @@ mod tests {
         // Source returns <= 1000 bytes per read, forcing each chunk task's
         // read loop to iterate before the write.
         relay_round_trip(600 * 1024, 100 * 1024, 4, 1000).await;
+    }
+}
+
+#[cfg(test)]
+mod scratch_name_tests {
+    use super::{fit_part_name, part_path, remote_part_path, NAME_MAX, PART_SUFFIX};
+
+    #[test]
+    fn ordinary_names_just_get_the_suffix() {
+        assert_eq!(
+            part_path(std::path::Path::new("/tmp/backup.tar.gz")),
+            std::path::PathBuf::from("/tmp/backup.tar.gz.oryxis-part")
+        );
+        assert_eq!(remote_part_path("/srv/backup.tar.gz"), "/srv/backup.tar.gz.oryxis-part");
+        assert_eq!(remote_part_path("relative.bin"), "relative.bin.oryxis-part");
+    }
+
+    /// A name already at the filesystem's component limit must still
+    /// produce a creatable scratch name, or a long filename would become a
+    /// download that cannot start.
+    #[test]
+    fn names_at_the_limit_are_shortened_to_fit() {
+        let long = "x".repeat(NAME_MAX);
+        let fitted = fit_part_name(&long);
+        assert!(fitted.len() <= NAME_MAX, "scratch name still too long");
+        assert!(fitted.ends_with(PART_SUFFIX));
+
+        let path = part_path(&std::path::PathBuf::from(format!("/tmp/{long}")));
+        let name = path.file_name().unwrap().to_string_lossy();
+        assert!(name.len() <= NAME_MAX, "scratch component still too long");
+        assert_eq!(path.parent().unwrap(), std::path::Path::new("/tmp"));
+
+        let remote = remote_part_path(&format!("/srv/data/{long}"));
+        let component = remote.rsplit('/').next().unwrap();
+        assert!(component.len() <= NAME_MAX, "remote scratch component too long");
+        assert!(remote.starts_with("/srv/data/"), "shortening moved the file");
+    }
+
+    /// Shortening must not split a multi-byte character, which would make
+    /// the name invalid UTF-8 on the way out.
+    #[test]
+    fn shortening_respects_char_boundaries() {
+        let long = "é".repeat(NAME_MAX);
+        let fitted = fit_part_name(&long);
+        assert!(fitted.len() <= NAME_MAX);
+        assert!(fitted.ends_with(PART_SUFFIX));
+        assert!(fitted.trim_end_matches(PART_SUFFIX).chars().all(|c| c == 'é'));
     }
 }
