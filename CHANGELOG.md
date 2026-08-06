@@ -7,6 +7,14 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Pick which disks a host reports.** SSH > Integration takes a
+  Monitoring disks choice next to the monitor toggle: Auto keeps the
+  automatic behaviour (one row per storage device), Custom reports only
+  the mount points you list, with `*` matching any text (`/mnt/*`). The
+  choice reaches every surface at once, the Monitor tab, the dashboard,
+  the status bar and the threshold alerts, so a mount you chose not to
+  watch cannot raise a toast either. It rides sync and portable export
+  like any other per-host setting.
 - **Terminal background image, per host.** Settings > Terminal takes a
   picture to lay behind the grid, with a fit (cover / fit / stretch /
   centre / tile) and a fade that dissolves it into the theme's

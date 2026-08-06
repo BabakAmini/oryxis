@@ -56,11 +56,26 @@ impl Oryxis {
                 }
                 match result {
                     Ok(payload) => {
+                        // The host's disk selection (issue #135) is
+                        // applied HERE, before the sample enters the
+                        // ring, so every reader inherits it: sidebar,
+                        // dashboard, status bar, and the threshold
+                        // alerts below, which must never announce a
+                        // mount the user chose not to monitor.
+                        let patterns = self
+                            .connections
+                            .iter()
+                            .find(|c| c.id == conn_id)
+                            .and_then(|c| c.monitor_disks.clone());
                         let series = self.monitor.series.entry(conn_id).or_default();
-                        let (sample, snapshot) = crate::monitor::probe::parse_linux(
+                        let (mut sample, snapshot) = crate::monitor::probe::parse_linux(
                             &payload,
                             series.raw_prev,
                             std::time::Instant::now(),
+                        );
+                        sample.disks = crate::monitor::disks::select_disks(
+                            patterns.as_deref(),
+                            std::mem::take(&mut sample.disks),
                         );
                         series.push(sample, snapshot);
                         // Threshold check on the fresh window. Rising

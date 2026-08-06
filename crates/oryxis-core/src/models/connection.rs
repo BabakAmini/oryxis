@@ -136,6 +136,21 @@ pub struct Connection {
     /// peers, older exports) still deserialize.
     #[serde(default)]
     pub monitor_enabled: bool,
+    /// Which mounts the monitor reports for this host (issue #135).
+    /// `None` is Auto: the probe's own rules keep one row per storage
+    /// device and drop pseudo filesystems and bind mounts, which is
+    /// right on nearly every host. `Some(list)` is Custom: ONLY the
+    /// mounts matching those patterns are reported, for the hosts whose
+    /// mount table no rule can guess (an Android phone, a container
+    /// farm, a NAS with 40 pool members where two matter).
+    ///
+    /// A pattern is a mount path, exact unless it contains `*`, which
+    /// matches any run of characters (`/mnt/*`). `Some(vec![])` is a
+    /// deliberate answer, not an empty value: it is "report no disks on
+    /// this host", the same shape as `HostHighlightRules::replace` with
+    /// an empty list.
+    #[serde(default)]
+    pub monitor_disks: Option<Vec<String>>,
     /// Per-host terminal palette override. When set, takes precedence
     /// over the global `terminal_theme_override` setting and the app
     /// theme fallback. Stored as `TerminalTheme::name()` (e.g.
@@ -319,6 +334,7 @@ impl Connection {
             agent_forwarding: false,
             x11_forwarding: false,
             monitor_enabled: false,
+            monitor_disks: None,
             terminal_theme: None,
             cloud_ref: None,
             initial_command: None,
@@ -655,6 +671,27 @@ mod tests {
         value.as_object_mut().unwrap().remove("monitor_enabled");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert!(!de.monitor_enabled);
+    }
+
+    /// The disk selection is three-state, so the legacy payload must
+    /// land on Auto (`None`) rather than on an empty Custom list, which
+    /// would report no disks at all on every host a legacy peer syncs.
+    #[test]
+    fn monitor_disks_legacy_payload_defaults_to_auto() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("monitor_disks");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.monitor_disks, None);
+
+        // And an explicitly empty list survives the round trip as
+        // itself: "report no disks here" is an answer, not a missing
+        // value.
+        let mut conn = Connection::new("quiet", "10.0.0.2");
+        conn.monitor_disks = Some(Vec::new());
+        let de: Connection =
+            serde_json::from_value(serde_json::to_value(&conn).unwrap()).unwrap();
+        assert_eq!(de.monitor_disks, Some(Vec::new()));
     }
 
     /// Same contract for X11 forwarding: a sync peer or export written

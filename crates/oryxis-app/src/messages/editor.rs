@@ -201,6 +201,12 @@ pub enum EditorMessage {
     /// SSH > Integration: flip the per-host agentless monitoring opt-in
     /// (issue #83).
     EditorToggleMonitorEnabled,
+    /// Switch this host's disk reporting between Auto and Custom
+    /// (issue #135). `true` picks Custom.
+    EditorMonitorDisksCustom(bool),
+    EditorAddMonitorDisk,
+    EditorRemoveMonitorDisk(usize),
+    EditorMonitorDiskChanged(usize, String),
     /// Cycle the per-host session-recording override: Default -> On -> Off.
     EditorCycleSessionLogging,
 }

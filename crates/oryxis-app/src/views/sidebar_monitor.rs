@@ -199,7 +199,17 @@ impl Oryxis {
         // below, so a host with many mounts can collapse them. Starts open
         // (`monitor_disks_open`), so the common one-or-two-mount host is
         // unchanged; the count on the header is the affordance either way.
-        if !sample.disks.is_empty() {
+        // A host on Custom (issue #135) whose patterns match nothing
+        // keeps the section, with a line saying so: dropping it would
+        // read as "this host reports no disks", when what happened is
+        // that a `/dat` typo, or a mount that went away, matched none of
+        // them. On Auto an empty list really does mean the probe found
+        // nothing, and the section stays out of the way.
+        let custom_selection = self
+            .connections
+            .iter()
+            .any(|c| c.id == conn_id && c.monitor_disks.is_some());
+        if !sample.disks.is_empty() || custom_selection {
             body = body.push(nav_row(
                 Message::Monitor(MonitorMessage::ToggleDisks),
                 None,
@@ -212,6 +222,16 @@ impl Oryxis {
                         disk.pct(),
                         &format!("{} / {}", fmt_bytes(disk.used), fmt_bytes(disk.total)),
                     ));
+                }
+                if sample.disks.is_empty() {
+                    body = body.push(
+                        container(
+                            text(t("monitor_disks_no_match"))
+                                .size(11)
+                                .color(OryxisColors::t().text_muted),
+                        )
+                        .padding(Padding { top: 2.0, right: 6.0, bottom: 6.0, left: 8.0 }),
+                    );
                 }
             }
         }

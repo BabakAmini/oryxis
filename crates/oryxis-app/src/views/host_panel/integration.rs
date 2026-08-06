@@ -182,6 +182,155 @@ impl Oryxis {
         }
     }
 
+    /// Which mounts the monitor reports for this host (issue #135):
+    /// Auto (the probe's own rules keep one row per storage device) or
+    /// Custom, a list of mount patterns.
+    ///
+    /// Only rendered while this host is actually monitored, so a host
+    /// with the feature off doesn't carry a setting that does nothing.
+    /// The selection is still SAVED when the row is hidden (unlike the
+    /// SSH-only clamps on `mcp_enabled` / `monitor_enabled`, which are
+    /// live flags): it is stored configuration, and turning monitoring
+    /// off and on again must bring back the list the user typed rather
+    /// than silently resetting the host to Auto.
+    pub(super) fn hp_row_monitor_disks(&self, is_ssh: bool) -> Element<'_, Message> {
+        let monitored = self.prefs.monitor_all_hosts || self.editor_form.monitor_enabled;
+        if !is_ssh || !self.prefs.host_monitoring || !monitored {
+            return empty();
+        }
+        let custom = self.editor_form.monitor_disks_custom;
+        let custom_label = t("monitor_disks_custom").to_string();
+        let selected = if custom { custom_label.clone() } else { t("monitor_disks_auto").to_string() };
+        let options =
+            vec![t("monitor_disks_auto").to_string(), t("monitor_disks_custom").to_string()];
+        // The picker carries the CHOICE, not the label: comparing the
+        // selection against the Custom string happens here, where the
+        // string was built, so the message stays a bool and a language
+        // switch can't reach the dispatcher.
+        let picker = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-monitor-disks")),
+            crate::widgets::INPUT_RADIUS,
+            pick_list(Some(selected), options, |s: &String| s.clone())
+                .on_select(move |v| {
+                    Message::Editor(EditorMessage::EditorMonitorDisksCustom(v == custom_label))
+                })
+                .id(iced::widget::Id::new("editor-pick-monitor-disks"))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+                .width(120)
+                .padding(10)
+                .style(crate::widgets::rounded_pick_list_style)
+                .into(),
+        );
+        // The "+" only exists under Custom: adding a row while the host
+        // is on Auto would build a list nothing reads.
+        let add: Element<'_, Message> = if custom {
+            dir_row(vec![
+                Space::new().width(8).into(),
+                self.panel_nav_slot(
+                    crate::keynav::RowAction::activate(Message::Editor(
+                        EditorMessage::EditorAddMonitorDisk,
+                    )),
+                    4.0,
+                    button(text("+").size(14).color(OryxisColors::t().text_primary))
+                        .on_press(Message::Editor(EditorMessage::EditorAddMonitorDisk))
+                        .style(|_, status| button::Style {
+                            background: Some(Background::Color(match status {
+                                button::Status::Hovered | button::Status::Pressed => {
+                                    OryxisColors::t().bg_selected
+                                }
+                                _ => OryxisColors::t().bg_hover,
+                            })),
+                            border: Border { radius: Radius::from(4.0), ..Default::default() },
+                            text_color: OryxisColors::t().text_primary,
+                            ..Default::default()
+                        })
+                        .padding(Padding { top: 2.0, right: 8.0, bottom: 2.0, left: 8.0 })
+                        .into(),
+                ),
+            ])
+            .into()
+        } else {
+            empty()
+        };
+
+        let mut block = column![
+            dir_row(vec![
+                iced_fonts::lucide::hard_drive()
+                    .size(14)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+                Space::new().width(10).into(),
+                column![
+                    text(t("monitor_disks")).size(13).color(OryxisColors::t().text_secondary),
+                    Space::new().height(2),
+                    text(t("monitor_disks_desc")).size(11).color(OryxisColors::t().text_muted),
+                ]
+                .width(Length::Fill)
+                .into(),
+                Space::new().width(8).into(),
+                picker,
+                add,
+            ])
+            .align_y(iced::Alignment::Center),
+        ];
+
+        if custom {
+            // Same static-id limitation as the env-var / port-forward
+            // rows: the pattern inputs stay mouse-only and the remove
+            // button is the row's keyboard stop.
+            for (i, mount) in self.editor_form.monitor_disks.iter().enumerate() {
+                let idx = i;
+                block = block.push(Space::new().height(8));
+                block = block.push(
+                    dir_row(vec![
+                        text_input("/data", mount)
+                            .on_input(move |v| {
+                                Message::Editor(EditorMessage::EditorMonitorDiskChanged(idx, v))
+                            })
+                            .padding(6)
+                            .width(Length::Fill)
+                            .style(crate::widgets::rounded_input_style)
+                            .align_x(dir_align_x())
+                            .into(),
+                        self.panel_nav_slot(
+                            crate::keynav::RowAction::activate(Message::Editor(
+                                EditorMessage::EditorRemoveMonitorDisk(idx),
+                            )),
+                            4.0,
+                            button(text("\u{00D7}").size(11).color(OryxisColors::t().error))
+                                .on_press(Message::Editor(EditorMessage::EditorRemoveMonitorDisk(
+                                    idx,
+                                )))
+                                .style(|_, status| button::Style {
+                                    background: match status {
+                                        button::Status::Hovered | button::Status::Pressed => {
+                                            Some(Background::Color(OryxisColors::t().bg_hover))
+                                        }
+                                        _ => None,
+                                    },
+                                    border: Border {
+                                        radius: Radius::from(4.0),
+                                        ..Default::default()
+                                    },
+                                    text_color: OryxisColors::t().error,
+                                    ..Default::default()
+                                })
+                                .padding(Padding { top: 2.0, right: 4.0, bottom: 2.0, left: 4.0 })
+                                .into(),
+                        ),
+                    ])
+                    .align_y(iced::Alignment::Center)
+                    .spacing(4),
+                );
+            }
+        }
+
+        container(block)
+            .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 })
+            .into()
+    }
+
     pub(super) fn hp_rd_block(&self, is_rd: bool) -> Element<'_, Message> {
         use oryxis_core::models::connection::ConnectionProtocol as Proto;
         // Remote-desktop rows (RemoteDesktop hosts only): the kind picker

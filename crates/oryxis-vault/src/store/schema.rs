@@ -403,6 +403,12 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN highlight_rules TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN rekey_limit_mb INTEGER;");
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN monitor_enabled INTEGER DEFAULT 0;");
+        // Which mounts the monitor reports for this host (issue #135):
+        // NULL = Auto (the probe's own rules), a JSON list = Custom.
+        // The empty list is a real value there ("no disks on this
+        // host"), which is why it is a nullable JSON column rather than
+        // a comma-separated string.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN monitor_disks TEXT;");
 
         // Per-host tri-state override for auto-opening the terminal
         // sidebar on connect (NULL = follow the global setting).

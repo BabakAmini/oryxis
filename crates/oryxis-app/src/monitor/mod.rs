@@ -14,6 +14,7 @@
 //! synced or exported.
 
 pub(crate) mod alert;
+pub(crate) mod disks;
 pub(crate) mod kill;
 pub(crate) mod model;
 pub(crate) mod probe;

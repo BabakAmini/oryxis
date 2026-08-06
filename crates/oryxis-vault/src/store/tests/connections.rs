@@ -42,6 +42,36 @@ fn connection_address_family_round_trips() {
 }
 
 #[test]
+fn monitor_disks_round_trip_keeps_all_three_states() {
+    // Auto / Custom / Custom-with-nothing are three different answers
+    // (issue #135) and the column has to tell them apart: NULL is Auto,
+    // `[]` is "report no disks on this host". Also guards the positional
+    // index 56 in `store/connections.rs`, where a wrong index reloads
+    // someone else's column as a silent Auto.
+    let vault = unlocked_vault();
+    let mut auto = Connection::new("auto", "example.com");
+    auto.monitor_disks = None;
+    vault.save_connection(&auto, None).unwrap();
+
+    let mut custom = Connection::new("custom", "example.com");
+    custom.monitor_disks = Some(vec!["/".into(), "/mnt/*".into()]);
+    vault.save_connection(&custom, None).unwrap();
+
+    let mut silent = Connection::new("silent", "example.com");
+    silent.monitor_disks = Some(Vec::new());
+    vault.save_connection(&silent, None).unwrap();
+
+    let list = vault.list_connections().unwrap();
+    let by_id = |id| list.iter().find(|c: &&Connection| c.id == id).unwrap();
+    assert_eq!(by_id(auto.id).monitor_disks, None);
+    assert_eq!(
+        by_id(custom.id).monitor_disks.as_deref(),
+        Some(["/".to_string(), "/mnt/*".to_string()].as_slice())
+    );
+    assert_eq!(by_id(silent.id).monitor_disks, Some(Vec::new()));
+}
+
+#[test]
 fn connection_quirks_and_rekey_round_trip() {
     use oryxis_core::models::terminal_quirks::{
         BackspaceMode, FunctionKeyMode, HomeEndMode, OptionAsMeta, Osc52Override, TerminalQuirks,

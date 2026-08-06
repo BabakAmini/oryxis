@@ -253,6 +253,16 @@ pub(crate) struct ConnectionForm {
     /// Opt-in agentless monitoring (issue #83), mirrored from
     /// `Connection.monitor_enabled`.
     pub monitor_enabled: bool,
+    /// Custom disk selection is ON for this host (issue #135), i.e.
+    /// `Connection.monitor_disks` is `Some`. Kept apart from the list so
+    /// the editor can hold an empty Custom list ("report no disks")
+    /// without it collapsing back into Auto on save.
+    pub monitor_disks_custom: bool,
+    /// The mount patterns behind that choice, one per editor row.
+    /// Meaningless while `monitor_disks_custom` is false, and preserved
+    /// across a toggle so flipping to Auto and back doesn't lose what
+    /// the user typed.
+    pub monitor_disks: Vec<String>,
     /// Forward the local ssh-agent socket to the remote shell. See the
     /// matching field on `Connection`.
     pub agent_forwarding: bool,
@@ -1091,6 +1101,8 @@ impl Default for ConnectionForm {
             env_vars: Vec::new(),
             mcp_enabled: true,
             monitor_enabled: false,
+            monitor_disks_custom: false,
+            monitor_disks: Vec::new(),
             agent_forwarding: false,
             x11_forwarding: false,
             session_logging: None,

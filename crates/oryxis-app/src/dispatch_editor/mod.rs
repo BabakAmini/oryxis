@@ -376,6 +376,26 @@ impl Oryxis {
         if original.as_ref().is_some_and(|o| o.monitor_enabled) && !conn.monitor_enabled {
             self.monitor_reset_host(&conn.id);
         }
+        // Disk selection (issue #135). Auto is `None`; Custom keeps the
+        // rows the user typed, blanks dropped (an unfinished row is not
+        // a pattern) but an all-blank list still stored as `Some(vec![])`,
+        // because Custom-with-nothing is the deliberate "report no disks
+        // here" answer and must not silently mean Auto.
+        conn.monitor_disks = self.editor_form.monitor_disks_custom.then(|| {
+            self.editor_form
+                .monitor_disks
+                .iter()
+                .map(|m| m.trim().to_string())
+                .filter(|m| !m.is_empty())
+                .collect()
+        });
+        // The window in the ring was filtered by the OLD selection, so a
+        // change would keep showing stale disks until the next probe
+        // aged them out. Dropping the series makes the next tick rebuild
+        // it under the new rules.
+        if original.as_ref().is_some_and(|o| o.monitor_disks != conn.monitor_disks) {
+            self.monitor_reset_host(&conn.id);
+        }
         conn.agent_forwarding = self.editor_form.agent_forwarding;
         // Same SSH clamp as `mcp_enabled` / `monitor_enabled`: `x11-req`
         // is an SSH channel request, so a host switched to Telnet /
@@ -624,6 +644,10 @@ impl Oryxis {
             }).collect(),
             mcp_enabled: conn.mcp_enabled,
             monitor_enabled: conn.monitor_enabled,
+            // `None` is Auto with an empty row list; Custom keeps its
+            // patterns, the empty list included.
+            monitor_disks_custom: conn.monitor_disks.is_some(),
+            monitor_disks: conn.monitor_disks.clone().unwrap_or_default(),
             agent_forwarding: conn.agent_forwarding,
             x11_forwarding: conn.x11_forwarding,
             session_logging: conn.session_logging,
@@ -803,6 +827,10 @@ impl Oryxis {
             m @ (
                 EditorMessage::EditorToggleMcpEnabled
                 | EditorMessage::EditorToggleMonitorEnabled
+                | EditorMessage::EditorMonitorDisksCustom(..)
+                | EditorMessage::EditorAddMonitorDisk
+                | EditorMessage::EditorRemoveMonitorDisk(..)
+                | EditorMessage::EditorMonitorDiskChanged(..)
                 | EditorMessage::EditorToggleAgentForwarding
                 | EditorMessage::EditorToggleX11Forwarding
                 | EditorMessage::EditorCycleSessionLogging
