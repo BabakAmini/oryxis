@@ -67,9 +67,12 @@ pub fn browse(
                         continue; // Skip self
                     }
 
-                    // Get first address
+                    // Get first address. Addresses are scoped (an IP plus
+                    // the interface it was seen on) since 0.20, because a
+                    // link-local v6 address is only meaningful with its
+                    // zone; we dial by IP, so drop the scope here.
                     if let Some(addr) = info.get_addresses().iter().next() {
-                        let socket_addr = SocketAddr::new(*addr, info.get_port());
+                        let socket_addr = SocketAddr::new(addr.to_ip_addr(), info.get_port());
                         tracing::info!("mDNS discovered peer {} at {}", peer_id, socket_addr);
                         let _ = tx.send(DiscoveredPeer {
                             device_id: peer_id,
