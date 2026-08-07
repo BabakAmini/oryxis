@@ -58,6 +58,20 @@ type escape
 settle
 absent "Edit highlight rule"
 expect "Disk full"
+# Enter saves the form from any field (Save is the modal's default row),
+# and a second rule ADDS rather than replacing: the panel-scope version of
+# this path lost the earlier rules to a stray `on_submit` behind the modal.
+click "Add rule"
+settle
+type "Out of memory"
+click #set-hl-rule-pattern
+type "OOM killer"
+type enter
+settle
+absent "New highlight rule"
+expect "Disk full"
+expect "Out of memory"
+expect "OOM killer"
 # Deleting asks first, and Cancel means the rule stays.
 click "Delete"
 expect "Delete this rule?"

@@ -151,7 +151,22 @@ impl Oryxis {
                 return task;
             }
             EditorMessage::EditorSave => {
-                tracing::warn!("DBG EditorSave reached");
+                // Every field in this panel carries `on_submit(EditorSave)`,
+                // and the fork's `text_input` runs that binding on ANY
+                // Enter, focused or not (the `is_focused` gate in
+                // `from_key_press` sits behind the on_submit shortcut).
+                // A blocking modal owns the keyboard through
+                // `any_modal_blocks_input`, but that governs the global key
+                // subscription, not the widget tree, so an Enter aimed at a
+                // modal OVER this panel also reached here and rebuilt the
+                // working copy under it (a highlight rule added in the modal
+                // was dropped the moment Enter saved it). The panel's own
+                // Save button cannot be clicked while a modal is up (the
+                // scrim absorbs the click), so this only ever discards a
+                // stray Enter.
+                if self.any_modal_blocks_input() {
+                    return Task::none();
+                }
                 if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("editor_label_host_required").to_string());

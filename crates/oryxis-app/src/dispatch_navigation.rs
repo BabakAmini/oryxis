@@ -512,6 +512,20 @@ impl Oryxis {
                 }
             }
             NavigationMessage::QuickHostContinue => {
+                // The field this arrives from carries `on_submit`, and the
+                // fork's `text_input` runs an on_submit binding on ANY
+                // Enter, focused or not (`from_key_press` gates on focus,
+                // the on_submit shortcut in front of it does not). The
+                // empty state stays mounted BEHIND whatever opens over it,
+                // so an Enter meant for a modal on top also arrived here
+                // and rebuilt the host editor's form from scratch, which
+                // discarded everything the modal had just written into it
+                // (a highlight rule added on a new host vanished on Save).
+                // A modal owns the keyboard by contract; the button itself
+                // is unreachable under the scrim.
+                if self.any_modal_blocks_input() {
+                    return Task::none();
+                }
                 // Explicit connect targets (a username, a port, an IP
                 // literal) quick-connect DIRECTLY, no editor stop: the
                 // empty-state rebuild dropped the toolbar search that

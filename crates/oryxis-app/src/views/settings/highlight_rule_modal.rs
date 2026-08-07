@@ -33,10 +33,15 @@ impl Oryxis {
         if self.highlight_rule_form.editing.is_none() {
             return false;
         }
+        // Both arms mirror the predicate the LAYOUT uses, not just the
+        // flag: `panels.host_panel` is read inside a chain that a live
+        // tab and the other Dashboard panels win over
+        // (`active_side_panel`), and `active_view == Settings` says
+        // nothing while a terminal tab is on screen.
         match self.highlight_rule_form.scope {
-            crate::state::RuleScope::Host => self.panels.host_panel,
+            crate::state::RuleScope::Host => self.side_panel_open() && self.panels.host_panel,
             crate::state::RuleScope::Global => {
-                self.active_view == crate::state::View::Settings
+                self.active_tab.is_none() && self.active_view == crate::state::View::Settings
             }
         }
     }
