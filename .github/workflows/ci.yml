@@ -42,11 +42,18 @@ jobs:
             target/
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
+      # --locked makes the committed Cargo.lock authoritative. Two crates
+      # can carry ranges wide enough to land on DIFFERENT majors of the
+      # same dependency and still both resolve (gpu-allocator asks for
+      # `windows = ">=0.53, <=0.62"` while wgpu-hal pins 0.62 and passes
+      # D3D12 types across the boundary), so a silent re-resolve breaks a
+      # build nobody touched, on one platform only. Failing here beats
+      # discovering it in a nightly.
       - name: Check
-        run: cargo check --all-targets
+        run: cargo check --locked --all-targets
 
       - name: Test
-        run: cargo test --workspace
+        run: cargo test --locked --workspace
 
       - name: Clippy
-        run: cargo clippy --workspace -- -D warnings
+        run: cargo clippy --locked --workspace -- -D warnings

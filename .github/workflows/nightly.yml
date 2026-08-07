@@ -68,7 +68,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: linux-x86-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --profile release-with-symbols -p oryxis-app
+      - run: cargo build --locked --profile release-with-symbols -p oryxis-app
       # Split debuginfo out of the binary, then strip it. What ships
       # carries no more symbols than `strip = true` left it, plus one
       # added `.gnu_debuglink` section naming its symbol file; what is
@@ -121,7 +121,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: linux-arm-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --profile release-with-symbols -p oryxis-app
+      - run: cargo build --locked --profile release-with-symbols -p oryxis-app
       # Same split as the x86_64 job above; see the comment there.
       - name: Split debug symbols
         run: |
@@ -160,7 +160,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: macos-arm-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release -p oryxis-app
+      - run: cargo build --locked --release -p oryxis-app
       - name: Package tarball + bare binary
         run: |
           mkdir -p dist
@@ -188,7 +188,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: windows-x86-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --profile release-with-split-debuginfo-packed -p oryxis-app
+      - run: cargo build --locked --profile release-with-split-debuginfo-packed -p oryxis-app
       - name: Package zip & pdb's + bare exe
         shell: pwsh
         run: |
@@ -225,7 +225,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: windows-arm-nightly-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release --target aarch64-pc-windows-msvc -p oryxis-app
+      - run: cargo build --locked --release --target aarch64-pc-windows-msvc -p oryxis-app
       - name: Package portable zip + bare exe
         shell: pwsh
         run: |
@@ -280,7 +280,7 @@ jobs:
           ORYXIS_SIGNING_KEY: ${{ secrets.ORYXIS_SIGNING_KEY }}
         run: |
           set -euo pipefail
-          cargo build --release -p oryxis-plugin-signer
+          cargo build --locked --release -p oryxis-plugin-signer
           for f in dist/*; do
             case "$f" in *.sig) continue ;; esac
             ./target/release/oryxis-plugin-signer sign "$f" > "$f.signinfo"

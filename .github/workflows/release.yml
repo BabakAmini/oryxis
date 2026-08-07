@@ -40,7 +40,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: linux-x86-release-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release
+      - run: cargo build --locked --release
       - name: Package tarball
         run: |
           mkdir -p dist
@@ -100,7 +100,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: linux-arm-release-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release
+      - run: cargo build --locked --release
       - name: Package tarball
         run: |
           mkdir -p dist
@@ -147,7 +147,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: macos-arm-release-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release
+      - run: cargo build --locked --release
       - name: Package tarball
         run: |
           mkdir -p dist
@@ -262,7 +262,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: windows-release-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release
+      - run: cargo build --locked --release
 
       # --- Authenticode-sign oryxis.exe via SignPath, BEFORE it is packaged
       # into the zip or wrapped by the NSIS installers, so the signature rides
@@ -452,7 +452,7 @@ jobs:
             ~/.cargo/git/
             target/
           key: windows-arm-release-${{ hashFiles('**/Cargo.lock') }}
-      - run: cargo build --release --target aarch64-pc-windows-msvc
+      - run: cargo build --locked --release --target aarch64-pc-windows-msvc
 
       # --- Authenticode-sign oryxis.exe via SignPath before packaging (see
       # build-windows for the rationale and skip behavior).
@@ -639,7 +639,7 @@ jobs:
           ORYXIS_SIGNING_KEY: ${{ secrets.ORYXIS_SIGNING_KEY }}
         run: |
           set -euo pipefail
-          cargo build --release -p oryxis-plugin-signer
+          cargo build --locked --release -p oryxis-plugin-signer
           for f in oryxis-*; do
             case "$f" in *.sig) continue ;; esac
             ./target/release/oryxis-plugin-signer sign "$f" > "$f.signinfo"
