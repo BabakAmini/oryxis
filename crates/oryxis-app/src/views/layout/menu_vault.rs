@@ -313,9 +313,10 @@ impl Oryxis {
         // is mounted. A tab still on the host picker has no host to open
         // a shell on, and the entry used to sit there doing nothing when
         // clicked, which reads as broken rather than as not applicable.
-        let has_host = self
-            .sftp_tab_state(idx)
-            .is_some_and(|st| st.right.host_label.is_some() || st.left.host_label.is_some());
+        // Through the one authority, which also answers for a dormant
+        // pinned tab (its panes carry no label until the first focus
+        // re-mounts them, but its spec names the connection).
+        let has_host = self.sftp_tab_terminal_host(idx).is_some();
         let mut items = column![self.menu_item(
             iced_fonts::lucide::plus(),
             crate::i18n::t("new_tab"),

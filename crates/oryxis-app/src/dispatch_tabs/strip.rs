@@ -85,6 +85,11 @@ impl Oryxis {
                 self.overlay = None;
                 if let Some(tab) = self.tabs.get_mut(idx) {
                     tab.pinned = !tab.pinned;
+                    // An explicit re-pin is the one gesture that retires an
+                    // inherited SFTP pin (H5): from here on this tab is
+                    // pinned as the terminal it now is, not as the SFTP tab
+                    // it absorbed.
+                    tab.inherited_pin = None;
                 }
                 self.persist_pinned_tabs();
             }

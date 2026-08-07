@@ -115,6 +115,26 @@ impl Oryxis {
         }
     }
 
+    /// Put the terminal tab `new` into the strip slot the SFTP tab `old`
+    /// occupies, for the "Open terminal" morph (H5). Cross-kind, which is
+    /// why it is not [`Self::replace_tab_order_id`].
+    ///
+    /// Two things make this more than a rename. The morph dispatches
+    /// `ConnectSsh` through `self.update`, and that is the SAME `update`
+    /// (`dispatch.rs`), so `reconcile_tab_order` has ALREADY appended a
+    /// `TabRef::Terminal(new)` at the end by the time we get here; renaming
+    /// the old ref would leave two refs carrying one id, which renders as a
+    /// duplicate chip. And the SFTP tab is still in the strip at this point
+    /// (it is closed after), so its slot is a real index rather than one we
+    /// have to remember across a removal.
+    ///
+    /// Only `tab_order` moves, per the contract on [`Self::place_new_tab_ref`]:
+    /// `Oryxis::tabs` stays append-only, so no `active_tab` /
+    /// `last_terminal_tab` / `connecting.tab_idx` index goes stale.
+    pub(crate) fn morph_tab_order_slot(&mut self, old: uuid::Uuid, new: uuid::Uuid) {
+        morph_order_slot(&mut self.tab_order, old, new);
+    }
+
     /// Move the tab identified by `from_id` to just before `target_id` in
     /// `tab_order`, but only within the same pin partition (can't drag an
     /// unpinned tab above a pinned one, matching the terminal behaviour). Used
@@ -239,9 +259,27 @@ fn placement_index(
     }
 }
 
+/// Pure half of [`Oryxis::morph_tab_order_slot`], so the slot arithmetic
+/// is testable without an `Oryxis`.
+fn morph_order_slot(order: &mut Vec<crate::state::TabRef>, old: uuid::Uuid, new: uuid::Uuid) {
+    use crate::state::TabRef;
+    // Drop the ref the nested reconcile appended (absent on the path that
+    // reuses an existing terminal tab, where it keeps its own slot).
+    order.retain(|r| !matches!(r, TabRef::Terminal(x) if *x == new));
+    match order
+        .iter()
+        .position(|r| matches!(r, TabRef::Sftp(x) if *x == old))
+    {
+        Some(at) => order[at] = TabRef::Terminal(new),
+        // No slot to inherit (the SFTP tab was never in the order): fall
+        // back to the end, where a new tab would have landed anyway.
+        None => order.push(TabRef::Terminal(new)),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::placement_index;
+    use super::{morph_order_slot, placement_index};
     use crate::state::{TabPlacement, TabRef};
     use uuid::Uuid;
 
@@ -322,6 +360,87 @@ mod tests {
         let id = Uuid::from_u128(1);
         assert_eq!(placement_index(&empty, TabPlacement::NextToOriginal, id), None);
         assert_eq!(placement_index(&empty, TabPlacement::Start, id), Some(0));
+    }
+
+    // -- H5: "Open terminal" morphs the SFTP tab into the pair -----------
+
+    #[test]
+    fn the_morphed_tab_inherits_the_sftp_tabs_slot() {
+        let (a, sftp, b) = (Uuid::from_u128(1), Uuid::from_u128(3), Uuid::from_u128(2));
+        let new = Uuid::from_u128(9);
+        // What the strip looks like when the morph runs on the connect
+        // path: the SFTP tab is still in place, and the nested
+        // `reconcile_tab_order` has already appended the freshly
+        // connected terminal tab at the end.
+        let mut order = vec![
+            TabRef::Terminal(a),
+            TabRef::Sftp(sftp),
+            TabRef::Terminal(b),
+            TabRef::Terminal(new),
+        ];
+        morph_order_slot(&mut order, sftp, new);
+        assert_eq!(
+            order,
+            vec![
+                TabRef::Terminal(a),
+                TabRef::Terminal(new),
+                TabRef::Terminal(b),
+            ],
+            "the pair takes the SFTP tab's position, not the end of the strip"
+        );
+    }
+
+    #[test]
+    fn the_appended_ref_is_dropped_rather_than_duplicated() {
+        // Renaming the old ref in place (what `replace_tab_order_id`
+        // does) would leave two refs carrying one id, which renders as a
+        // duplicate chip.
+        let sftp = Uuid::from_u128(3);
+        let new = Uuid::from_u128(9);
+        let mut order = vec![TabRef::Sftp(sftp), TabRef::Terminal(new)];
+        morph_order_slot(&mut order, sftp, new);
+        assert_eq!(
+            order.iter().filter(|r| r.strip_id() == new).count(),
+            1,
+            "exactly one entry for the morphed tab"
+        );
+        assert_eq!(order, vec![TabRef::Terminal(new)]);
+    }
+
+    #[test]
+    fn only_a_tab_born_from_the_gesture_inherits_the_slot() {
+        // Reusing a LIVE terminal must not drag it to the absorbed tab's
+        // position: it already has a slot the user arranged, and moving it
+        // would rewrite an arrangement for the same reason the pin rule
+        // exists. That path never calls this function; closing the SFTP
+        // tab drops its entry on its own. Pinning the asymmetry here so a
+        // future caller does not "simplify" it into always inheriting.
+        let (dest, sftp) = (Uuid::from_u128(1), Uuid::from_u128(3));
+        let order = vec![
+            TabRef::Sftp(sftp),
+            TabRef::Terminal(Uuid::from_u128(2)),
+            TabRef::Terminal(dest),
+        ];
+        let mut inherited = order.clone();
+        morph_order_slot(&mut inherited, sftp, dest);
+        assert_eq!(
+            inherited.first(),
+            Some(&TabRef::Terminal(dest)),
+            "inheriting moves the destination to the absorbed tab's slot, \
+             which is right only when the destination was just born"
+        );
+    }
+
+    #[test]
+    fn a_tab_that_was_never_in_the_order_appends() {
+        let new = Uuid::from_u128(9);
+        let mut order = vec![TabRef::Terminal(Uuid::from_u128(1))];
+        morph_order_slot(&mut order, Uuid::from_u128(404), new);
+        assert_eq!(
+            order,
+            vec![TabRef::Terminal(Uuid::from_u128(1)), TabRef::Terminal(new)],
+            "no slot to inherit falls back to where a new tab lands"
+        );
     }
 }
 

@@ -371,6 +371,16 @@ pub struct Oryxis {
     /// sidebar Files "expand" promotion and consumed (with home-dir
     /// fallback) by the mount pipeline's `initial_remote_listing`.
     pub(crate) sftp_open_at_path: Option<String>,
+    /// One-shot "show Files once this tab has a session", by tab id.
+    ///
+    /// "Open SFTP session" on a tab that is still DIALLING (a dormant
+    /// pinned tab the same click just reopened, most of all) used to
+    /// reconnect and then silently drop the half the user actually asked
+    /// for: the handler needs a live SSH session and there is none yet.
+    /// `SshConnected` consumes this and flips the mode then. Sibling of
+    /// `sftp_open_at_path`, and one-shot for the same reason: a hint that
+    /// outlived its request would open Files on some unrelated reconnect.
+    pub(crate) pending_files_mode: Option<Uuid>,
     /// Click counter behind the deferred slow-click rename: every row
     /// click, right-click and navigation bumps it, and a fire whose
     /// armed generation no longer matches gives up (see

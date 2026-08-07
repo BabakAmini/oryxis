@@ -954,6 +954,46 @@ impl Oryxis {
         })
     }
 
+    /// The host an "Open terminal" gesture on the SFTP tab at `idx` lands
+    /// on, or `None` when the tab has not picked one yet.
+    ///
+    /// Two sources, and the second is the one that is easy to forget: a
+    /// PINNED SFTP tab restored at boot is dormant, so neither pane carries
+    /// a `host_label` until the first focus re-mounts them, but its
+    /// `pending_reopen` spec names the connection outright. Reading only the
+    /// mounted label hides the entry on exactly the tabs a user cared enough
+    /// to pin, which is the opposite of what `79cce345` intended.
+    ///
+    /// One authority so the menu's visibility gate and the handler cannot
+    /// disagree: an entry that draws and then does nothing when clicked is
+    /// the bug that commit set out to fix.
+    pub(crate) fn sftp_tab_terminal_host(&self, idx: usize) -> Option<String> {
+        if let Some(st) = self.sftp_tab_state(idx)
+            && let Some(mounted) = st
+                .right
+                .host_label
+                .clone()
+                .or_else(|| st.left.host_label.clone())
+        {
+            return Some(mounted);
+        }
+        // Dormant: resolve the spec's connection id to today's label
+        // (the host may have been renamed since the pin was written).
+        let crate::state::PinnedTabSpec::Sftp { left, right, .. } =
+            self.sftp_tabs.get(idx)?.pending_reopen.as_ref()?
+        else {
+            return None;
+        };
+        [right, left].into_iter().find_map(|p| match p {
+            crate::state::SftpPaneSpec::Remote(id) => self
+                .connections
+                .iter()
+                .find(|c| c.id == *id)
+                .map(|c| c.label.clone()),
+            crate::state::SftpPaneSpec::Local => None,
+        })
+    }
+
     /// Whether the SFTP tab at `idx` has unsaved work worth a close-guard:
     /// an in-flight transfer or a dirty edit-session. Reads the live buffer
     /// for the active tab, the parked slot otherwise.
@@ -980,6 +1020,9 @@ impl Oryxis {
         let tab = &mut self.tabs[idx];
         tab.files_mode = false;
         *tab.files_state = Default::default();
+        // Same reason as the detach: with the SFTP half gone, an
+        // inherited SFTP pin no longer describes this tab.
+        tab.inherited_pin = None;
         // Back on the terminal surface; select the tab if it wasn't
         // already active (a background close leaves focus).
         if self.active_tab != Some(idx) {

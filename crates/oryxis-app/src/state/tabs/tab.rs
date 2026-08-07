@@ -108,6 +108,15 @@ pub(crate) struct TerminalTab {
     /// reopens it (connect host / spawn local shell), then clears. `None` on
     /// a live tab.
     pub pending_reopen: Option<PinnedTabSpec>,
+    /// Pin spec this tab INHERITED by absorbing a pinned SFTP tab
+    /// ("Open terminal" morphing the pair, H5). Read first by
+    /// [`Self::pin_spec`], so the pin restores as the SFTP tab it was
+    /// pinned as: a pin remembers what it was pinned AS, and the morph
+    /// is session-only. Cleared when the user toggles the pin (an
+    /// explicit re-pin is the one thing that changes it) or when the
+    /// SFTP half is detached / closed again. Deliberately NOT
+    /// `pending_reopen`, which means "dormant, reopen me on select".
+    pub inherited_pin: Option<PinnedTabSpec>,
     /// Hybrid tab state (issue #61): when set, this SSH tab shows its
     /// host's files (the full dual-pane SFTP surface) instead of the
     /// terminal. The PTY keeps running underneath; the tab glyph /
@@ -400,6 +409,7 @@ impl TerminalTab {
             session_group_id: None,
             pinned: false,
             pending_reopen: None,
+            inherited_pin: None,
             files_mode: false,
             files_state: Box::default(),
             broadcast: false,
@@ -424,6 +434,14 @@ impl TerminalTab {
     /// tab keeps the spec it was created with; a live tab derives one from
     /// its focused pane's origin.
     pub fn pin_spec(&self) -> Option<PinnedTabSpec> {
+        // A tab that absorbed a pinned SFTP tab persists the pin it
+        // inherited, not the terminal it became: morphing is a
+        // session-only gesture, so a relaunch must not silently rewrite
+        // an arrangement the user made. Before `pending_reopen`, which a
+        // morphed tab never carries anyway.
+        if let Some(spec) = &self.inherited_pin {
+            return Some(spec.clone());
+        }
         if let Some(spec) = &self.pending_reopen {
             return Some(spec.clone());
         }

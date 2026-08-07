@@ -426,6 +426,7 @@ impl Oryxis {
             session_group_id: Some(group.id),
             pinned: false,
             pending_reopen: None,
+            inherited_pin: None,
             files_mode: false,
             files_state: Box::default(),
             broadcast: false,

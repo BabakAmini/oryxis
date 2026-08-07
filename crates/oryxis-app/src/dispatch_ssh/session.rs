@@ -80,10 +80,32 @@ impl Oryxis {
                     }
                     _ => Task::none(),
                 };
+                // "Open SFTP session" asked for on a tab that had no
+                // session yet (a dormant pinned tab the same click
+                // reopened, or one mid-dial): honour it now that there is
+                // one. One-shot, and matched by tab id, so a reconnect on
+                // some other tab cannot inherit the request.
+                let pending_files = match self.pending_files_mode {
+                    Some(want) if self.pane_tab_index(pane_id).is_some_and(|i| {
+                        self.tabs.get(i).is_some_and(|t| t._id == want)
+                    }) =>
+                    {
+                        self.pending_files_mode = None;
+                        self.pane_tab_index(pane_id)
+                            .map(|i| {
+                                Task::done(Message::Tabs(
+                                    crate::app::TabsMessage::ToggleTabFilesMode(i),
+                                ))
+                            })
+                            .unwrap_or_else(Task::none)
+                    }
+                    _ => Task::none(),
+                };
                 if let Some((conn_id, sess)) = detect_for {
                     return Task::batch([
                         files_sync,
                         hybrid_sftp,
+                        pending_files,
                         login_script_task,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
@@ -91,7 +113,7 @@ impl Oryxis {
                         ),
                     ]);
                 }
-                return Task::batch([files_sync, hybrid_sftp, login_script_task]);
+                return Task::batch([files_sync, hybrid_sftp, pending_files, login_script_task]);
             }
             SshMessage::OsDetected(conn_id, os) => {
                 // Persist + update in-memory list so the icon refreshes.

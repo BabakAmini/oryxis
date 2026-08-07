@@ -55,6 +55,16 @@ impl Oryxis {
             .cloned()
         else {
             self.sftp_open_at_path = None;
+            // No session YET, rather than never: the `select` above
+            // reopened a dormant pinned tab, or one was already dialling.
+            // Dropping the request here is the same defect as the SFTP
+            // tab opening a second tab instead of becoming the pair
+            // (owner, 2026-08-07): the gesture reconnects and quietly
+            // ignores the half that was actually asked for. Remember it
+            // and let `SshConnected` finish the job.
+            if self.connecting.as_ref().is_some_and(|c| c.tab_idx == idx) {
+                self.pending_files_mode = Some(self.tabs[idx]._id);
+            }
             return select;
         };
         // Resolve by the FOCUSED pane (a split tab can host two
@@ -242,6 +252,11 @@ impl Oryxis {
             return Task::none();
         };
         tab.files_mode = false;
+        // The SFTP half is leaving, so an inherited SFTP pin stops being
+        // true of this tab: it is a plain terminal tab again, and the
+        // detached browser is a brand new unpinned SFTP tab. Keeping the
+        // spec would persist an SFTP pin for a tab with no SFTP in it.
+        tab.inherited_pin = None;
         let state = std::mem::take(&mut *tab.files_state);
         let label = state
             .right
@@ -313,42 +328,205 @@ impl Oryxis {
     }
 
     pub(super) fn handle_open_terminal_for_sftp_tab(&mut self, idx: usize) -> Task<Message> {
-        // From an SFTP tab's menu: the way back to a shell on the
-        // mounted host. Focus a live terminal pane on that host,
-        // else connect a new tab (the saved-host pipeline).
+        // From an SFTP tab's menu: the way back to a shell on the mounted
+        // host, and the tab JOINS that shell instead of leaving itself
+        // behind (H5). The reverse gesture already turns a terminal tab
+        // into the pair ("Open SFTP session"), and the owner expects the
+        // symmetry.
+        //
+        // "The same tab" cannot be the same object: the pair is a TERMINAL
+        // tab that can show Files (it owns the session and the pane grid),
+        // and a standalone SFTP tab has neither. So the SFTP tab is
+        // REPLACED by a terminal tab carrying its state as `files_state`,
+        // in the same strip slot. From the user's side that IS the same
+        // tab: Ctrl+Shift+F returns to the browser they had.
         self.overlay = None;
         // Through the one authority: reading `self.sftp` because
         // `active_sftp` points here is wrong whenever a terminal tab in
         // Files mode has hoisted the buffer, and it answers with THAT
-        // tab's host instead of this one's.
-        let Some(st) = self.sftp_tab_state(idx) else {
+        // tab's host instead of this one's. It also covers a dormant
+        // pinned tab, whose panes have no label yet.
+        let Some(host) = self.sftp_tab_terminal_host(idx) else {
             return Task::none();
         };
-        let Some(host) = st
-            .right
-            .host_label
-            .clone()
-            .or_else(|| st.left.host_label.clone())
-        else {
-            return Task::none();
+        // Can this tab travel with the gesture? One case where it cannot:
+        // two panes on two DIFFERENT remote hosts is the server-to-server
+        // surface, which CLAUDE.md keeps standalone on purpose, because a
+        // morph would have to elect one of the hosts and then claim to be
+        // "the pair" of a tab that owns half the surface. That one keeps
+        // the old behaviour (go to a terminal, the SFTP tab stays).
+        //
+        // A DORMANT pinned tab DOES travel, owner report 2026-08-07: it
+        // opened a new tab beside the pinned chip instead of becoming it.
+        // Having no mount yet is not a reason to leave the tab behind, it
+        // only means the pair starts with its Files half unmounted, which
+        // "Open SFTP session" fills in on demand like any terminal tab.
+        let (movable, busy) = match self.sftp_tab_state(idx) {
+            Some(st) => (
+                !(st.left.is_remote
+                    && st.right.is_remote
+                    && st.left.host_label != st.right.host_label),
+                st.transfer.state.is_some(),
+            ),
+            None => (false, false),
         };
-        // Live pane on that host wins (any pane, split included).
-        if let Some(t_idx) = self.tabs.iter().position(|t| {
-            t.pane_grid.panes.values().any(|p| {
-                p.label.trim_end_matches(" (disconnected)") == host
-                    && p.session.as_ref().and_then(|s| s.ssh()).is_some()
-            })
-        }) {
-            return self.update(Message::Tabs(TabsMessage::SelectTab(t_idx)));
+        // An in-flight transfer's continuations are stamped with THIS
+        // tab's id, and `route_sftp_async` resolves that id against
+        // `sftp_tabs`, the terminal tabs and the sidebar panes. Once the
+        // SFTP tab is gone all three miss and the transfer dies silently,
+        // so decline until it finishes: the same answer `DetachTabSftp`
+        // and `CloseTabSftpSession` give, for the same reason.
+        if movable && busy {
+            self.set_toast(crate::i18n::t("tab_detach_sftp_busy").to_string());
+            return Task::perform(
+                async {
+                    tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
+                },
+                |_| Message::ToastClear,
+            );
         }
-        if let Some(ci) = self.connections.iter().position(|c| {
+        // A live pane on that host wins (any pane, split included).
+        // Prefer a tab that is not ALREADY browsing this host, so the
+        // browser has somewhere to land.
+        let live: Vec<usize> = self
+            .tabs
+            .iter()
+            .enumerate()
+            .filter(|(_, t)| {
+                t.pane_grid.panes.values().any(|p| {
+                    p.label.trim_end_matches(" (disconnected)") == host
+                        && p.session.as_ref().and_then(|s| s.ssh()).is_some()
+                })
+            })
+            .map(|(i, _)| i)
+            .collect();
+        if let Some(&first) = live.first() {
+            let free = live
+                .iter()
+                .copied()
+                .find(|&i| !self.tab_has_sftp_session(&self.tabs[i]));
+            return match free.filter(|_| movable) {
+                // The destination already had a slot the user arranged, so
+                // it keeps it: only the absorbed tab's entry goes away.
+                Some(dest) => self.morph_sftp_tab_into(idx, dest, false),
+                // Every candidate already browses this host: the pair the
+                // user is asking for exists, so going there IS the answer
+                // and the standalone tab stays (nothing is discarded).
+                None => self.update(Message::Tabs(TabsMessage::SelectTab(first))),
+            };
+        }
+        let Some(ci) = self.connections.iter().position(|c| {
             c.label == host
                 && c.protocol
                     == oryxis_core::models::connection::ConnectionProtocol::Ssh
-        }) {
-            return self.update(Message::Ssh(SshMessage::ConnectSsh(ci)));
+        }) else {
+            return Task::none();
+        };
+        // Nothing live: connect, and morph into the tab the connect
+        // appends SYNCHRONOUSLY (`start_ssh_tab` pushes before returning
+        // the dial task; `reopen_dormant_tab` rides the same len-check).
+        let before = self.tabs.len();
+        let task = self.update(Message::Ssh(SshMessage::ConnectSsh(ci)));
+        // No tab appeared, so there is nothing to morph into: an
+        // SSM-transport host short-circuits, a terminal can fail to
+        // allocate, and an armed pending split routes the pick into an
+        // existing pane. Today's behaviour, with the SFTP tab intact.
+        if !movable || self.tabs.len() <= before {
+            return task;
         }
-        Task::none()
+        let dest = self.tabs.len() - 1;
+        // Born from THIS gesture, so it inherits the SFTP tab's slot
+        // rather than landing at the end of the strip.
+        Task::batch([task, self.morph_sftp_tab_into(idx, dest, true)])
     }
 
+    /// Move the SFTP tab at `idx` into terminal tab `dest` as its Files
+    /// surface and close it.
+    ///
+    /// `born_here` says whether `dest` was created by this very gesture.
+    /// Only then does it inherit the SFTP tab's strip slot: a terminal tab
+    /// that already existed keeps the position the user gave it, because
+    /// moving it would rewrite an arrangement for the same reason the pin
+    /// rule exists.
+    ///
+    /// Every step is synchronous inside one `update`, and the order is
+    /// load-bearing (see the comments below).
+    fn morph_sftp_tab_into(
+        &mut self,
+        idx: usize,
+        dest: usize,
+        born_here: bool,
+    ) -> Task<Message> {
+        let Some(old_id) = self.sftp_tabs.get(idx).map(|t| t.id) else {
+            return Task::none();
+        };
+        let Some(dest_id) = self.tabs.get(dest).map(|t| t._id) else {
+            return Task::none();
+        };
+        // A pin remembers what it was pinned AS (owner): the morphed tab
+        // persists the SFTP spec, so a relaunch restores the SFTP tab the
+        // user arranged instead of silently rewriting it into a terminal.
+        // That is what makes the gesture reversible enough to ship.
+        let inherited = self.sftp_tabs[idx]
+            .pinned
+            .then(|| self.sftp_pin_spec(idx))
+            .flatten();
+        let custom = self.sftp_tabs[idx].custom_name.clone();
+        // Take the LIVE state through the swap-on-focus invariant: reading
+        // the vec hands back a stale parked copy whenever this tab is the
+        // one hoisted into the buffer. Same predicate as `sftp_tab_state`.
+        let state = if self.active_sftp == Some(idx) && self.hybrid_sftp_owner.is_none() {
+            std::mem::take(&mut self.sftp)
+        } else {
+            std::mem::take(&mut self.sftp_tabs[idx].state)
+        };
+        {
+            // A dormant tab brings no mount, so there is no Files surface
+            // to show yet: the pair starts on its terminal and "Open SFTP
+            // session" fills the other half in, exactly as it would on any
+            // terminal tab. Showing Files mode over an empty state would
+            // just be the host picker wearing the pair's clothes.
+            let mounted =
+                state.right.host_label.is_some() || state.left.host_label.is_some();
+            let tab = &mut self.tabs[dest];
+            *tab.files_state = state;
+            tab.files_mode = mounted;
+            // Inherit the pin, but never over one the destination already
+            // has: a tab the user pinned in its own right keeps its own
+            // spec. An unpinned destination simply carries the pin across,
+            // so absorbing a pinned tab cannot silently lose the pin.
+            if let Some(spec) = inherited.filter(|_| !tab.pinned) {
+                tab.inherited_pin = Some(spec);
+                tab.pinned = true;
+            }
+            // A renamed SFTP tab keeps its name: to the user this is the
+            // same tab. Never over a name the destination already has.
+            if tab.custom_name.is_none() {
+                tab.custom_name = custom;
+            }
+        }
+        // Selecting a Files-mode tab hoists its state into the live
+        // buffer, which is the render invariant, so no manual hoist here.
+        let select = self.update(Message::Tabs(TabsMessage::SelectTab(dest)));
+        // BEFORE the close, which retains the SFTP ref out of `tab_order`:
+        // afterwards there would be no slot left to inherit. A tab that
+        // already had its own slot just lets the close drop the SFTP entry.
+        if born_here {
+            self.morph_tab_order_slot(old_id, dest_id);
+        }
+        // AFTER the select, so `close_sftp_tab` cannot decide the SFTP
+        // surface was left empty and emit the ChangeView that would yank
+        // the user off the tab they just landed on. Its state is already
+        // an empty default, so nothing is discarded.
+        //
+        // Re-resolved by ID rather than reusing `idx`: the select above is
+        // a full nested `update`, and an index captured before it would
+        // silently close a DIFFERENT tab (discarding its state) if
+        // anything in that path dropped an earlier `sftp_tabs` entry.
+        if let Some(i) = self.sftp_tabs.iter().position(|t| t.id == old_id) {
+            let _ = self.close_sftp_tab(i);
+        }
+        self.persist_pinned_tabs();
+        select
+    }
 }
