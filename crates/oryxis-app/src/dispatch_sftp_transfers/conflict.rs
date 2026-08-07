@@ -52,7 +52,16 @@ impl Oryxis {
                     self.transfer_slot_mut(owner).and_then(|s| s.state.as_mut()).map_or(
                         (None, None, 0usize),
                         |t| {
-                            if apply_to_all {
+                            // Resume is deliberately never sticky, even
+                            // with the box ticked: what the engine can
+                            // check is that this destination's last block
+                            // matches THIS source's, which says nothing
+                            // about the next pair. A sticky "continue"
+                            // would be guessing at whether to splice two
+                            // files together, on files it has not seen.
+                            if apply_to_all
+                                && !matches!(action, crate::state::OverwriteAction::Resume)
+                            {
                                 t.overwrite_default = Some(action);
                             }
                             // Resume the worker pool, set paused false

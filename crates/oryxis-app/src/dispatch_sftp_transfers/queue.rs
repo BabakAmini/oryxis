@@ -73,6 +73,9 @@ impl Oryxis {
                 return Ok(Task::batch(initial));
             }
             SftpMessage::SftpTransferNext(_) => {
+                // Read before the slot borrow below, which runs to the end
+                // of the arm.
+                let temp_name = self.prefs.sftp_upload_temp_name;
                 let Some(book) = self.transfer_slot_mut(owner) else {
                     return Ok(Task::none());
                 };
@@ -225,7 +228,14 @@ impl Oryxis {
                             ))));
                         };
                         return Ok(Task::perform(
-                            do_upload_item(client, item, overwrite_default, multi, Some(bytes_done)),
+                            do_upload_item(
+                                client,
+                                item,
+                                overwrite_default,
+                                multi,
+                                Some(bytes_done),
+                                temp_name,
+                            ),
                             move |r| match r {
                                 Ok(TransferStepOutcome::Done) => {
                                     Message::Sftp(SftpMessage::SftpTransferItemDone(owner, slot))

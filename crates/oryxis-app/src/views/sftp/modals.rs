@@ -777,39 +777,62 @@ pub(crate) fn overwrite_modal<'a>(
     ]
     .width(Length::Fill);
 
+    // Continuing is only meaningful when what is already there could BE a
+    // partial copy of what is being sent: shorter than the source, and
+    // not empty. Uploads only, because a download's own partial lives in
+    // a scratch file and resumes without asking, so a finished file at
+    // this destination is not a partial of anything.
+    let can_resume = prompt.direction == crate::state::OverwriteDirection::Upload
+        && prompt.dst_size > 0
+        && prompt.dst_size < prompt.src_size;
+
     if prompt.multi {
         // Sticky decision lets the user clear out a long upload's
         // collisions in one click instead of answering N times.
         content = content.push(Space::new().height(14));
         content = content.push(overwrite_apply_to_all_checkbox(prompt.apply_to_all));
     }
+    if can_resume {
+        content = content.push(Space::new().height(10));
+        content = content.push(
+            text(t("resume_hint"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+        );
+    }
 
     content = content.push(Space::new().height(18));
-    content = content.push(
-        row![
-            ghost_button(
-                t("cancel"),
-                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Cancel)),
-            ),
-            Space::new().width(Length::Fill),
-            outlined_button(
-                t("replace_if_different"),
-                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::ReplaceIfDifferent)),
-            ),
-            Space::new().width(8),
-            outlined_button(
-                t("duplicate"),
-                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Duplicate)),
-            ),
-            Space::new().width(8),
-            primary_button(
-                t("replace"),
-                Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Replace)),
-                OryxisColors::t().error,
-            ),
-        ]
-        .align_y(iced::Alignment::Center),
-    );
+    let mut actions = row![
+        ghost_button(
+            t("cancel"),
+            Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Cancel)),
+        ),
+        Space::new().width(Length::Fill),
+    ]
+    .align_y(iced::Alignment::Center);
+    if can_resume {
+        actions = actions.push(outlined_button(
+            t("resume_transfer"),
+            Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Resume)),
+        ));
+        actions = actions.push(Space::new().width(8));
+    }
+    actions = actions.push(outlined_button(
+        t("replace_if_different"),
+        Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::ReplaceIfDifferent)),
+    ));
+    actions = actions.push(Space::new().width(8));
+    actions = actions.push(outlined_button(
+        t("duplicate"),
+        Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Duplicate)),
+    ));
+    actions = actions.push(Space::new().width(8));
+    actions = actions.push(primary_button(
+        t("replace"),
+        Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Replace)),
+        OryxisColors::t().error,
+    ));
+    content = content.push(actions);
 
     let dialog = container(content.padding(22).width(560))
         .style(|_| container::Style {

@@ -447,6 +447,15 @@ pub(crate) struct AppPrefs {
     /// every time would be noise for most users. The row menu's "Download
     /// to..." asks regardless.
     pub(crate) sftp_ask_download_dir: bool,
+    /// Upload to a scratch name and rename into place on success, so the
+    /// real name only ever appears finished (WinSCP's "transfer to
+    /// temporary filename"). Off by default because the remote side has
+    /// real objections: a directory that forbids rename, a watcher or
+    /// deploy hook keyed on the final name appearing, a quota hook on
+    /// create. The DOWNLOAD side does this unconditionally and is not a
+    /// setting: turning it off would only restore the bug where an
+    /// interrupted download leaves a truncated file under the real name.
+    pub(crate) sftp_upload_temp_name: bool,
     /// TCP connect + SSH transport handshake timeout, in seconds.
     pub(crate) sftp_connect_timeout: String,
     /// Authentication phase timeout, in seconds.
@@ -601,6 +610,7 @@ impl Default for AppPrefs {
             sftp_concurrency: "2".into(),
             sftp_force_osc7: false,
             sftp_ask_download_dir: false,
+            sftp_upload_temp_name: false,
             sftp_connect_timeout: "15".into(),
             sftp_auth_timeout: "30".into(),
             sftp_session_timeout: "10".into(),

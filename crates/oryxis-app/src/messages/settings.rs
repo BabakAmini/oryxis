@@ -211,6 +211,7 @@ pub enum SettingsMessage {
     SettingMonitorIntervalChanged(String),
     ToggleSftpForceOsc7,
     ToggleSftpAskDownloadDir,
+    ToggleSftpUploadTempName,
     /// Settings > SFTP: the single external editor used by the remote
     /// "Open with default text editor" action (issue #84).
     SettingSftpDefaultEditorChanged(String),

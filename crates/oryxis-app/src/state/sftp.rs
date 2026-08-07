@@ -758,6 +758,20 @@ pub(crate) enum OverwriteAction {
     ReplaceIfDifferent,
     /// Upload alongside with a "name copy" suffix instead of overwriting.
     Duplicate,
+    /// Continue the file already there instead of replacing it, treating
+    /// it as an interrupted copy of this one.
+    ///
+    /// Uploads only, and only when the destination is SHORTER than the
+    /// source. Downloads resume by themselves from their own scratch
+    /// file, so a completed file sitting at a download's destination is
+    /// not a partial of anything and this is never offered for one.
+    ///
+    /// Never sticky: what the engine can check is that the destination's
+    /// last block matches the source's, which is a claim about ONE pair
+    /// of files. Applying it to files it has not seen would be a guess,
+    /// and the thing being guessed at is whether to splice two files
+    /// together.
+    Resume,
     /// Don't upload at all.
     Cancel,
 }

@@ -204,6 +204,13 @@ impl Oryxis {
                     if self.prefs.sftp_edit_autosave { "true" } else { "false" },
                 );
             }
+            SettingsMessage::ToggleSftpUploadTempName => {
+                self.prefs.sftp_upload_temp_name = !self.prefs.sftp_upload_temp_name;
+                self.persist_setting(
+                    "sftp_upload_temp_name",
+                    if self.prefs.sftp_upload_temp_name { "true" } else { "false" },
+                );
+            }
             SettingsMessage::ToggleSftpAskDownloadDir => {
                 self.prefs.sftp_ask_download_dir = !self.prefs.sftp_ask_download_dir;
                 self.persist_setting(

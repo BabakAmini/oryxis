@@ -474,6 +474,7 @@ pub(crate) async fn do_upload_item(
     overwrite_default: Option<crate::state::OverwriteAction>,
     multi: bool,
     progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+    temp_name: bool,
 ) -> Result<TransferStepOutcome, String> {
     if item.is_dir {
         // A pre-existing directory is fine (batch uploads merge into it,
@@ -523,7 +524,15 @@ pub(crate) async fn do_upload_item(
         return Ok(TransferStepOutcome::Conflict { prompt, item });
     }
     client
-        .upload_from_progress(std::path::Path::new(&item.src), &item.dst, progress)
+        .upload_from_options(
+            std::path::Path::new(&item.src),
+            &item.dst,
+            oryxis_ssh::UploadOptions {
+                progress,
+                temp_name,
+                ..Default::default()
+            },
+        )
         .await
         .map_err(|e| e.to_string())?;
     Ok(TransferStepOutcome::Done)
@@ -541,6 +550,21 @@ pub(crate) async fn apply_overwrite_for_item(
         crate::state::OverwriteAction::Cancel => Ok(()),
         crate::state::OverwriteAction::Replace => client
             .upload_from(std::path::Path::new(&item.src), &item.dst)
+            .await
+            .map_err(|e| e.to_string()),
+        // The engine re-checks everything the modal used to decide this
+        // was offerable, and REFUSES rather than restarting if the check
+        // fails: the destination is not ours to truncate on a guess, and
+        // the user asked to continue a file, not to replace one.
+        crate::state::OverwriteAction::Resume => client
+            .upload_from_options(
+                std::path::Path::new(&item.src),
+                &item.dst,
+                oryxis_ssh::UploadOptions {
+                    resume: true,
+                    ..Default::default()
+                },
+            )
             .await
             .map_err(|e| e.to_string()),
         crate::state::OverwriteAction::ReplaceIfDifferent => {
@@ -661,6 +685,15 @@ pub(crate) async fn apply_overwrite_for_download_item(
     let dst = std::path::PathBuf::from(&item.dst);
     match action {
         crate::state::OverwriteAction::Cancel => Ok(()),
+        // Never offered on this side (see `OverwriteAction::Resume`): a
+        // finished file at a download's destination is not a partial of
+        // anything, and the real partial lives in its own scratch file
+        // and continues without asking. Loud rather than quietly doing
+        // something else, since reaching here means the modal changed.
+        crate::state::OverwriteAction::Resume => Err(crate::i18n::t(
+            "resume_not_for_downloads",
+        )
+        .to_string()),
         crate::state::OverwriteAction::Replace => client
             .download_to(&item.src, &dst, item.size)
             .await

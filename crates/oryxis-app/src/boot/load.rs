@@ -1116,6 +1116,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sftp_force_osc7") {
                 self.prefs.sftp_force_osc7 = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("sftp_upload_temp_name") {
+                self.prefs.sftp_upload_temp_name = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_ask_download_dir") {
                 self.prefs.sftp_ask_download_dir = v == "true";
             }

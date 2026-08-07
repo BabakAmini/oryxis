@@ -203,6 +203,20 @@ impl Oryxis {
                     self.prefs.sftp_ask_download_dir,
                     Message::Settings(SettingsMessage::ToggleSftpAskDownloadDir),
                 ),
+                Space::new().height(14),
+                text(t("setting_sftp_upload_temp_name"))
+                    .size(13)
+                    .color(OryxisColors::t().text_primary),
+                Space::new().height(4),
+                text(t("setting_sftp_upload_temp_name_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+                Space::new().height(8),
+                self.nav_toggle_row(
+                    t("setting_sftp_upload_temp_name_toggle"),
+                    self.prefs.sftp_upload_temp_name,
+                    Message::Settings(SettingsMessage::ToggleSftpUploadTempName),
+                ),
             ]);
             content_col = content_col
                 .push(osc7_section)
