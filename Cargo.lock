@@ -122,7 +122,7 @@ dependencies = [
 [[package]]
 name = "alacritty_terminal"
 version = "0.26.1-dev"
-source = "git+https://github.com/wilsonglasser/alacritty?branch=windows-sys-0.61#2d76da87b6a59a404f5b53b5a03a3c45f7206826"
+source = "git+https://github.com/wilsonglasser/alacritty#f4ae5489c57b4126cb5223fd04cc50b01cafa808"
 dependencies = [
  "base64 0.22.1",
  "bitflags 2.11.1",
