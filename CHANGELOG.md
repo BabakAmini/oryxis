@@ -160,6 +160,26 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   mirrored into command history) and scrubbed from memory after the
   write. On by default; one toggle in Settings > Terminal.
 
+### Removed
+- **"Force exact directory following (OSC 7)" is gone**, and the app no
+  longer types anything into your shell. That Settings > SFTP toggle
+  wrote a `PROMPT_COMMAND` setup line into the session on connect and
+  tried to erase its own echo afterwards, but nothing guaranteed the
+  shell had reached a prompt when the bytes arrived: on a host with a
+  long MOTD or a slow `/etc/profile.d` they landed first, the terminal
+  echoed them raw, and the self-erasing trailer wiped a region
+  calibrated against a cursor position that never existed. One field
+  report had it leave the setup block on screen and hang the session
+  hard enough to need a reconnect and a Ctrl+C. No other terminal
+  installs shell integration this way (kitty ships a bootstrap and
+  `exec`s the login shell, VS Code injects only into shells it launches
+  itself and documents that plain SSH is out of scope, WezTerm and
+  iTerm2 hand you a snippet), so the snippet is now the supported path
+  and it lives in your own dotfiles: see the new **[cwd
+  guide](docs/CWD.md)**. The Files sidebar keeps following your
+  directory through the window title without it. A stale
+  `sftp_force_osc7` row in an old vault is inert.
+
 ### Fixed
 - **The Monitor tab lists one disk per device, not one per mount.**
   `df` reports mounts rather than storage, so a rooted Android phone

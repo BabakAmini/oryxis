@@ -450,6 +450,28 @@ mod tests {
         assert_eq!(s.take_cwd().as_deref(), Some("/home/my dir"));
     }
 
+    /// The exact payloads the documented shell snippet emits
+    /// (`docs/CWD.md`). That snippet is the only supported way to get
+    /// exact cwd following now that the app no longer types a setup
+    /// line into the shell, so what it encodes and what this parser
+    /// decodes have to be pinned together: it percent-encodes the path
+    /// BYTE by byte under `LC_ALL=C`, which is the half a hand-rolled
+    /// encoder gets wrong (a multi-byte character encoded per CHARACTER
+    /// decodes back to mojibake, and a raw space ends the URL early).
+    #[test]
+    fn osc7_decodes_what_the_documented_snippet_encodes() {
+        for (wire, want) in [
+            ("/tmp/dir%20with%20space", "/tmp/dir with space"),
+            ("/tmp/hash%23and%25pct", "/tmp/hash#and%pct"),
+            ("/tmp/acentua%C3%A7%C3%A3o", "/tmp/acentuação"),
+            // Unreserved by the snippet's safe set, so they travel raw.
+            ("/tmp/plain-._~!'()", "/tmp/plain-._~!'()"),
+        ] {
+            let mut s = sniff(format!("\x1b]7;file://host{wire}\x07").as_bytes());
+            assert_eq!(s.take_cwd().as_deref(), Some(want), "wire: {wire}");
+        }
+    }
+
     #[test]
     fn osc_split_across_feeds_is_reassembled() {
         let mut s = OscSniffer::default();

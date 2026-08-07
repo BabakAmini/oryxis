@@ -150,6 +150,8 @@ matching installer. Windows binaries are Authenticode-signed (see
 The complete inventory lives in the **[feature tour](docs/FEATURES.md)**.
 Using tmux? **[Logs and command history under tmux](docs/TMUX.md)**
 explains what works out of the box and what you install yourself.
+Want the file browser to track your shell exactly?
+**[Following the shell's directory](docs/CWD.md)** has the snippet.
 
 ## Screenshots
 

@@ -209,7 +209,6 @@ pub enum SettingsMessage {
     SettingToggleMonitorStatusBar,
     /// Settings > Connection: seconds between host-monitor probes.
     SettingMonitorIntervalChanged(String),
-    ToggleSftpForceOsc7,
     ToggleSftpAskDownloadDir,
     ToggleSftpUploadTempName,
     /// Settings > SFTP: the single external editor used by the remote

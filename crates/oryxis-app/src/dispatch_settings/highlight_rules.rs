@@ -64,11 +64,34 @@ impl Oryxis {
         }
     }
 
+    /// Close the editor modal, discarding its working copy. Only the
+    /// editor's own fields are cleared: `scope` and `confirm_delete`
+    /// describe the LIST behind the modal (which list is being shown,
+    /// which row is asking to be deleted), and answering one of those
+    /// by closing the other surface would be a surprise.
+    pub(crate) fn close_highlight_rule_editor(&mut self) {
+        let form = &mut self.highlight_rule_form;
+        form.editing = None;
+        form.creating = false;
+        form.rule = HighlightRule::default();
+        form.error = None;
+    }
+
     pub(super) fn handle_settings_highlight_rules(
         &mut self,
         message: SettingsMessage,
     ) -> Result<Task<Message>, SettingsMessage> {
         match message {
+            // Opening the editor takes the keyboard focus into it. That is
+            // the obvious thing for a form that opens ready to be typed
+            // into, and it is also load-bearing: the modal owns the
+            // keyboard through `any_modal_blocks_input`, which governs the
+            // GLOBAL key subscription only. A field left focused BEHIND the
+            // modal still receives the same press through the widget tree,
+            // and the host editor's fields carry `on_submit(EditorSave)`,
+            // so an Enter meant for Save-the-rule also tried to save the
+            // host (which rebuilt the working copy and dropped the rules
+            // added since the panel opened).
             SettingsMessage::HighlightRuleAdd(scope) => {
                 if self.rules_of(scope).len() >= MAX_HIGHLIGHT_RULES {
                     return Ok(self.show_toast(
@@ -91,6 +114,7 @@ impl Oryxis {
                     },
                     ..Default::default()
                 };
+                return Ok(crate::widgets::focus_input("set-hl-rule-name"));
             }
             SettingsMessage::HighlightRuleEdit(scope, idx) => {
                 if let Some(rule) = self.rules_of(scope).get(idx).cloned() {
@@ -101,6 +125,7 @@ impl Oryxis {
                         rule,
                         ..Default::default()
                     };
+                    return Ok(crate::widgets::focus_input("set-hl-rule-name"));
                 }
             }
             SettingsMessage::HighlightRuleHostModeChanged(label) => {
@@ -110,9 +135,7 @@ impl Oryxis {
                 self.editor_form.highlight_rules.replace =
                     label == crate::i18n::t("hl_host_mode_replace");
             }
-            SettingsMessage::HighlightRuleCancelEdit => {
-                self.highlight_rule_form = crate::state::HighlightRuleForm::default();
-            }
+            SettingsMessage::HighlightRuleCancelEdit => self.close_highlight_rule_editor(),
             SettingsMessage::HighlightRuleNameChanged(v) => {
                 self.highlight_rule_form.rule.name = v;
             }

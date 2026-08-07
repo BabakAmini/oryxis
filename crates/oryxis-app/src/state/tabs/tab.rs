@@ -975,43 +975,4 @@ mod terminal_tab_tests {
         assert_eq!(tab.display_label(), "host-a");
     }
 
-    #[test]
-    fn osc7_inject_is_plain_text_and_self_clearing() {
-        let s = OSC7_PROMPT_INJECT;
-        // The remote shell runs through readline (raw mode): sending a raw
-        // control byte would be interpreted as a key, not inserted. Every
-        // escape must travel as literal backslash text for printf to
-        // expand at run time, so the on-the-wire bytes stay printable
-        // (plus the two command-terminating newlines).
-        for b in s.bytes() {
-            assert!(
-                b == b'\n' || (b' '..=b'~').contains(&b),
-                "OSC7 injection must be plain text, found control byte {b:#04x}",
-            );
-        }
-        // Pin the exact wire bytes: this catches escaping/spacing slips in
-        // the multi-line string literal (a glued `}; PROMPT_COMMAND` or a
-        // dropped space would break the shell parse on connect, which we
-        // can't unit-test directly).
-        let expected = "printf '\\x1b7'\n\
-            __oryxis_o7(){ printf '\\033]7;file://%s%s\\007' \
-            \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"; }; \
-            PROMPT_COMMAND=\"__oryxis_o7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"; \
-            precmd_functions+=(__oryxis_o7); printf '\\x1b8\\x1b[1A\\x1b[J'\n";
-        assert_eq!(s, expected);
-        // DECSC uses hex `\x1b7`, never octal `\0337` (which printf would
-        // read as a single octal byte because `7` is an octal digit).
-        assert!(!s.contains(r"\0337"), "octal DECSC would merge the trailing 7");
-        // Registered in both shell families: bash via PROMPT_COMMAND, zsh
-        // via precmd_functions. One without the other silently drops cwd
-        // following on that shell.
-        assert!(s.contains("PROMPT_COMMAND=\""), "missing bash registration");
-        assert!(
-            s.contains("precmd_functions+=(__oryxis_o7)"),
-            "missing zsh registration",
-        );
-        // Two commands, so two newlines: the DECSC save, then the setup
-        // plus the self-clear trailer.
-        assert_eq!(s.matches('\n').count(), 2, "expected exactly two commands");
-    }
 }

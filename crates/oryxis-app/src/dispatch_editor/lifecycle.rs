@@ -151,6 +151,7 @@ impl Oryxis {
                 return task;
             }
             EditorMessage::EditorSave => {
+                tracing::warn!("DBG EditorSave reached");
                 if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("editor_label_host_required").to_string());

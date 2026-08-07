@@ -116,7 +116,12 @@ impl Oryxis {
                     // "Let this rule run a snippet" (C6): Don't send is
                     // the default-ringed action, so a stray Enter can
                     // never hand the session to remote output.
-                    | Modal::TriggerConfirm => SurfaceFamily::Confirm,
+                    | Modal::TriggerConfirm
+                    // The highlight-rule editor is a form, but it walks
+                    // like a confirm: Tab / arrows step its rows, Enter
+                    // fires the default (Save). Its text fields keep the
+                    // caret because it declares `has_input`.
+                    | Modal::HighlightRuleEditor => SurfaceFamily::Confirm,
                     // Rename inputs (on_submit), editors, pickers with
                     // their own model: out of this layer. That includes
                     // the theme IMPORT modals: their multiline paste
@@ -155,6 +160,10 @@ impl Oryxis {
                     // so typing a value never fires the default Confirm and
                     // submits the snippet with partial values.
                     | Modal::SnippetVars
+                    // Name / pattern / hex fields: the caret keeps Space
+                    // (a rule named "Disk full" needs one) and Left /
+                    // Right, except on a picker row the user stepped onto.
+                    | Modal::HighlightRuleEditor
             )
         )
     }
@@ -234,12 +243,23 @@ impl Oryxis {
                 Some(Task::none())
             }
             Named::ArrowLeft | Named::ArrowRight => {
+                let rtl = crate::i18n::is_rtl_layout();
+                let forward = matches!(named, Named::ArrowRight) != rtl;
+                // A picker row the user EXPLICITLY stepped onto cycles
+                // its options even on a surface that also carries text
+                // fields: the ring says which control the arrows act on,
+                // and a picker is never a caret. Explicit only, so a
+                // surface whose default row happens to be a picker keeps
+                // handing Left/Right to whatever field has focus.
+                if matches!(self.keynav.modal.selected, Some((tag, _)) if tag == surface)
+                    && let Some(task) = self.modal_nav_cycle_option(surface, forward)
+                {
+                    return Some(task);
+                }
                 if has_input || family == SurfaceFamily::Picker {
                     // Caret movement in the surface's input.
                     return None;
                 }
-                let rtl = crate::i18n::is_rtl_layout();
-                let forward = matches!(named, Named::ArrowRight) != rtl;
                 // Picker rows cycle their options; plain rows treat
                 // Left/Right as movement (confirm buttons sit side by
                 // side).

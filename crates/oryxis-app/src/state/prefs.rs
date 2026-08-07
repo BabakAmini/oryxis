@@ -435,12 +435,6 @@ pub(crate) struct AppPrefs {
     /// channel on the same SSH connection so they don't fight for the
     /// shared client mutex.
     pub(crate) sftp_concurrency: String,
-    /// Force exact follow-cwd for the terminal Files sidebar by
-    /// injecting a PROMPT_COMMAND OSC 7 emitter into the shell on
-    /// connect. Off by default (opt-in: it modifies the shell env and
-    /// echoes one setup line); the title fallback covers the common
-    /// case without it.
-    pub(crate) sftp_force_osc7: bool,
     /// Ask for the destination folder on every download instead of using
     /// the local pane's current directory. Off by default: in the
     /// dual-pane surface the destination is already on screen, so asking
@@ -608,7 +602,6 @@ impl Default for AppPrefs {
             word_delimiters: oryxis_terminal::DEFAULT_WORD_DELIMITERS.into(),
             hint_mode: crate::util::HintMode::default(),
             sftp_concurrency: "2".into(),
-            sftp_force_osc7: false,
             sftp_ask_download_dir: false,
             sftp_upload_temp_name: false,
             sftp_connect_timeout: "15".into(),

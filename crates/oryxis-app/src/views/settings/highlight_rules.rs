@@ -1,14 +1,16 @@
 //! Settings -> Terminal: the user's own highlight rules (C6).
 //!
-//! A list plus one inline editor, the same shape as the login-automation
-//! block in Settings > Connection. Order is precedence (the first
-//! matching rule paints the cell), which is why the rows carry move
-//! arrows rather than being sorted for the user.
+//! The LIST half: rows, reorder arrows, the enable checkbox and the
+//! delete confirmation, rendered inline in Settings and (narrower) in
+//! the host panel. Creating or changing a rule opens the modal in
+//! `highlight_rule_modal.rs`. Order is precedence (the first matching
+//! rule paints the cell), which is why the rows carry move arrows
+//! rather than being sorted for the user.
 
 use super::*;
 use iced::widget::column;
 
-use oryxis_core::models::{HighlightRule, TriggerAction};
+use oryxis_core::models::HighlightRule;
 
 use crate::state::RuleScope;
 
@@ -37,24 +39,6 @@ impl Oryxis {
         match scope {
             RuleScope::Global => self.settings_nav_slot_labeled(label, action, radius, el),
             RuleScope::Host => self.panel_nav_slot(action, radius, el),
-        }
-    }
-
-    /// A toggle row on the ring that owns this surface.
-    fn hl_toggle_row<'a>(
-        &'a self,
-        scope: RuleScope,
-        label: &'a str,
-        value: bool,
-        msg: Message,
-    ) -> Element<'a, Message> {
-        match scope {
-            RuleScope::Global => self.nav_toggle_row(label, value, msg),
-            RuleScope::Host => self.panel_nav_slot(
-                crate::keynav::RowAction::activate(msg.clone()),
-                8.0,
-                crate::widgets::toggle_row(label, value, msg),
-            ),
         }
     }
 
@@ -104,18 +88,6 @@ impl Oryxis {
         ])
         .align_y(iced::Alignment::Center)
         .into()
-    }
-
-    /// A text input row on the ring that owns this surface.
-    fn hl_input_slot<'a>(
-        &'a self,
-        scope: RuleScope,
-        label: &str,
-        id: &'static str,
-        el: Element<'a, Message>,
-    ) -> Element<'a, Message> {
-        let action = crate::keynav::RowAction::input(iced::widget::Id::new(id));
-        self.hl_nav_slot(scope, label, action, 10.0, el)
     }
 
     /// The list + editor, shared by Settings (the global rules) and the
@@ -196,8 +168,10 @@ impl Oryxis {
                 .push(Space::new().height(10));
         }
 
+        // A rule being created or changed lives in the modal, so the list
+        // here is exactly the saved rules, empty state included.
         let open_here = self.highlight_rule_form.scope == scope;
-        if rules.is_empty() && !(open_here && self.highlight_rule_form.creating) {
+        if rules.is_empty() {
             return col.push(
                 text(t("hl_rule_empty"))
                     .size(12)
@@ -206,9 +180,6 @@ impl Oryxis {
         }
 
         for (idx, rule) in rules.iter().enumerate() {
-            let editing = open_here
-                && self.highlight_rule_form.editing == Some(idx)
-                && !self.highlight_rule_form.creating;
             let confirming = open_here && self.highlight_rule_form.confirm_delete == Some(idx);
             let label = if rule.name.trim().is_empty() {
                 rule.pattern.clone()
@@ -356,17 +327,7 @@ impl Oryxis {
                 );
             }
 
-            if editing {
-                col = col.push(Space::new().height(10)).push(self.highlight_rule_editor());
-            }
-
             col = col.push(Space::new().height(14));
-        }
-
-        // A rule being CREATED has no row of its own yet, so its editor
-        // goes at the end of the list, where the rule itself will land.
-        if open_here && self.highlight_rule_form.creating {
-            col = col.push(self.highlight_rule_editor());
         }
 
         col
@@ -401,215 +362,6 @@ impl Oryxis {
         )
     }
 
-    /// The inline editor for the rule being created or changed.
-    fn highlight_rule_editor(&self) -> Element<'_, Message> {
-        let form = &self.highlight_rule_form;
-        let scope = form.scope;
-        let rule = &form.rule;
-        let snippet_labels: Vec<String> =
-            self.snippets.iter().map(|s| s.label.clone()).collect();
-
-        let mut col = column![
-            text(t("name"))
-                .size(12)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(6),
-            self.hl_input_slot(
-                scope,
-                t("name"),
-                "set-hl-rule-name",
-                text_input(t("hl_rule_name_ph"), &rule.name)
-                    .id(iced::widget::Id::new("set-hl-rule-name"))
-                    .on_input(|v| Message::Settings(SettingsMessage::HighlightRuleNameChanged(v)))
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .into(),
-            ),
-            Space::new().height(10),
-            text(t("hl_rule_pattern"))
-                .size(12)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(6),
-            self.hl_input_slot(
-                scope,
-                t("hl_rule_pattern"),
-                "set-hl-rule-pattern",
-                text_input(
-                    if rule.is_regex { t("hl_rule_pattern_re_ph") } else { t("hl_rule_pattern_ph") },
-                    &rule.pattern,
-                )
-                .id(iced::widget::Id::new("set-hl-rule-pattern"))
-                .on_input(|v| Message::Settings(SettingsMessage::HighlightRulePatternChanged(v)))
-                .padding(10)
-                .font(iced::Font::MONOSPACE)
-                .style(crate::widgets::rounded_input_style)
-                .into(),
-            ),
-            Space::new().height(10),
-            self.hl_toggle_row(
-                scope,
-                t("hl_rule_regex"),
-                rule.is_regex,
-                Message::Settings(SettingsMessage::HighlightRuleToggleRegex),
-            ),
-            self.hl_toggle_row(
-                scope,
-                t("hl_rule_case"),
-                rule.case_sensitive,
-                Message::Settings(SettingsMessage::HighlightRuleToggleCaseSensitive),
-            ),
-            Space::new().height(10),
-            text(t("hl_rule_color"))
-                .size(12)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(6),
-            self.hl_color_row(scope, &rule.color),
-            Space::new().height(12),
-        ];
-
-        // The action, and the snippet picker it needs. Recorded in
-        // display order so the keyboard walk follows the eye.
-        col = col.push(self.hl_pick_row(
-            scope,
-            t("hl_rule_action"),
-            crate::dispatch_settings::action_options()
-                .into_iter()
-                .map(|(_, l)| l.to_string())
-                .collect(),
-            crate::dispatch_settings::action_label(&rule.action).to_string(),
-            200.0,
-            |l| Message::Settings(SettingsMessage::HighlightRuleActionChanged(l)),
-        ));
-        if let TriggerAction::Snippet { id } = &rule.action {
-            let selected = self
-                .snippets
-                .iter()
-                .find(|s| s.id.to_string() == *id)
-                .map(|s| s.label.clone())
-                .unwrap_or_default();
-            col = col.push(self.hl_pick_row(
-                scope,
-                t("hl_rule_snippet"),
-                snippet_labels,
-                selected,
-                200.0,
-                |l| Message::Settings(SettingsMessage::HighlightRuleSnippetChanged(l)),
-            ));
-        }
-        if rule.action.is_trigger() {
-            col = col.push(Space::new().height(4)).push(
-                text(t("hl_rule_trigger_note"))
-                    .size(11)
-                    .color(OryxisColors::t().text_muted),
-            );
-        }
-
-        if let Some(err) = &form.error {
-            col = col
-                .push(Space::new().height(8))
-                .push(text(err.clone()).size(11).color(OryxisColors::t().error));
-        }
-
-        let footer = dir_row(vec![
-            Space::new().width(Length::Fill).into(),
-            self.hl_nav_slot(
-                scope,
-                t("save"),
-                crate::keynav::RowAction::activate(Message::Settings(
-                    SettingsMessage::HighlightRuleSave,
-                )),
-                6.0,
-                styled_button(
-                    t("save"),
-                    Message::Settings(SettingsMessage::HighlightRuleSave),
-                    OryxisColors::t().accent,
-                ),
-            ),
-            Space::new().width(8).into(),
-            self.hl_nav_slot(
-                scope,
-                t("cancel"),
-                crate::keynav::RowAction::activate(Message::Settings(
-                    SettingsMessage::HighlightRuleCancelEdit,
-                )),
-                6.0,
-                styled_button(
-                    t("cancel"),
-                    Message::Settings(SettingsMessage::HighlightRuleCancelEdit),
-                    OryxisColors::t().bg_hover,
-                ),
-            ),
-        ])
-        .align_y(iced::Alignment::Center);
-
-        container(col.push(Space::new().height(12)).push(footer))
-            .padding(Padding {
-                top: 12.0,
-                right: 12.0,
-                bottom: 12.0,
-                left: 12.0,
-            })
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_hover)),
-                border: Border {
-                    radius: Radius::from(6.0),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .into()
-    }
-
-    /// Colour presets plus a hex field. The full HSV picker (the custom
-    /// theme editor's) is 180 px tall, which is most of this editor;
-    /// six terminal-legible swatches and a field that accepts anything
-    /// cover the same ground in one row.
-    fn hl_color_row<'a>(&'a self, scope: RuleScope, current: &'a str) -> Element<'a, Message> {
-        let mut row: Vec<Element<'a, Message>> = Vec::new();
-        for preset in crate::highlight_rules::RULE_COLOR_PRESETS {
-            let color = oryxis_terminal::parse_hex_color(preset)
-                .unwrap_or(crate::highlight_rules::FALLBACK_COLOR);
-            let selected = current.eq_ignore_ascii_case(preset);
-            let msg =
-                Message::Settings(SettingsMessage::HighlightRuleColorChanged(preset.to_string()));
-            row.push(self.hl_nav_slot(
-                scope,
-                preset,
-                crate::keynav::RowAction::activate(msg.clone()),
-                6.0,
-                button(Space::new().width(18).height(18))
-                    .on_press(msg)
-                    .padding(2)
-                    .style(move |_, status| button::Style {
-                        background: Some(Background::Color(color)),
-                        border: Border {
-                            radius: Radius::from(4.0),
-                            width: if selected || status != BtnStatus::Active { 2.0 } else { 0.0 },
-                            color: OryxisColors::t().text_primary,
-                        },
-                        ..Default::default()
-                    })
-                    .into(),
-            ));
-            row.push(Space::new().width(6).into());
-        }
-        row.push(Space::new().width(6).into());
-        row.push(self.hl_nav_slot(
-            scope,
-            t("hl_rule_color"),
-            crate::keynav::RowAction::input(iced::widget::Id::new("set-hl-rule-color")),
-            8.0,
-            text_input("#RRGGBB", current)
-                .id(iced::widget::Id::new("set-hl-rule-color"))
-                .on_input(|v| Message::Settings(SettingsMessage::HighlightRuleColorChanged(v)))
-                .padding(7)
-                .size(12)
-                .width(Length::Fixed(110.0))
-                .style(crate::widgets::rounded_input_style)
-                .into(),
-        ));
-        dir_row(row).align_y(iced::Alignment::Center).into()
-    }
 }
 
 /// The one-line summary under a rule's name: what it matches and what it

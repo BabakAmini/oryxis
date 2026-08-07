@@ -199,10 +199,6 @@ impl Oryxis {
                         // The sidebar Files channel died with the session;
                         // a reconnect remounts lazily (preferences kept).
                         p.files.reset_for_disconnect();
-
-                        // A fresh shell on reconnect needs the OSC 7
-                        // inject again.
-                        p.osc7_injected = false;
                         // The login script has no transport left to
                         // answer (issue #122), and the password prompt
                         // frozen on the dead grid is not waiting for
@@ -399,32 +395,6 @@ impl Oryxis {
                             bytes = payload.len(),
                             "sent startup command after session ready"
                         );
-                    }
-                }
-                // Force-OSC7 (opt-in): inject a PROMPT_COMMAND that
-                // emits OSC 7 on every prompt, so the terminal Files
-                // sidebar follows the exact cwd instead of relying on
-                // the window-title heuristic. bash/zsh syntax; a
-                // shell without PROMPT_COMMAND (fish/sh) just ignores
-                // the assignment. Prepends to any existing value so
-                // the user's own PROMPT_COMMAND still runs. The setup
-                // block erases its own echo (see OSC7_PROMPT_INJECT),
-                // so nothing is left on screen.
-                if self.prefs.sftp_force_osc7
-                    && let Some(ssh) = session.ssh()
-                {
-                    if let Err(e) =
-                        ssh.write(crate::state::OSC7_PROMPT_INJECT.as_bytes())
-                    {
-                        tracing::warn!(
-                            target = "oryxis::dispatch_ssh",
-                            error = %e,
-                            "failed to inject OSC 7 PROMPT_COMMAND"
-                        );
-                    } else if let Some(pane) =
-                        self.tabs[tab_idx].pane_by_id_mut(pane_id)
-                    {
-                        pane.osc7_injected = true;
                     }
                 }
                 tracing::info!("SSH connected: {}", label);

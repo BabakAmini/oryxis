@@ -257,7 +257,9 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **Files in every SSH tab.** A sidebar Files tab browses over the tab's
   existing connection and follows your shell's working directory as you
   `cd` (shell-integration cwd reporting with a window-title fallback;
-  manual navigation unpins, one click follows again). Rows click-select
+  manual navigation unpins, one click follows again). The title fallback
+  is a heuristic, so exact following on any prompt takes a one-time
+  snippet in your rc: see the [cwd guide](CWD.md). Rows click-select
   and double-click to enter, matching the SFTP panes; the recent-folder
   history is remembered per host across sessions (encrypted like the
   rest of the trail), and the mouse thumb buttons walk it back and

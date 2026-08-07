@@ -104,6 +104,11 @@ pub(crate) enum Modal {
     /// sibling confirms, the SAFE button is the default row (see
     /// `build_monitor_kill_dialog`).
     MonitorKill,
+    /// The highlight-rule editor (C6), opened from either rule list
+    /// (Settings' global one or a host's own). A form modal like the
+    /// theme editor: Esc cancels the edit, which discards only the
+    /// working copy since a rule reaches its list on Save.
+    HighlightRuleEditor,
     /// "A highlight rule wants to run a snippet on this session" (C6).
     /// A security prompt like `AgentConfirm`: what asked for it is
     /// REMOTE output, so it must block input (Enter must never fall
@@ -151,6 +156,7 @@ impl Modal {
         Modal::AgentConfirm,
         Modal::CertificateViewer,
         Modal::MonitorKill,
+        Modal::HighlightRuleEditor,
         Modal::TriggerConfirm,
     ];
 
@@ -194,6 +200,11 @@ impl Modal {
         Modal::SftpEditPrompt,
         Modal::SshImport,
         Modal::SessionGroupPanel,
+        // Same class of form modal: Esc abandons the working copy, and
+        // the rule list behind it is untouched until a Save. Ahead of
+        // the theme editors because `layer_modals` renders it ahead of
+        // them: Esc has to answer whatever is actually on screen.
+        Modal::HighlightRuleEditor,
         Modal::ThemeEditor,
         Modal::UiThemeEditor,
         // Import sits ON TOP of the gallery it is opened from (`layer_modals`),
@@ -250,6 +261,7 @@ impl Modal {
             | Modal::AgentConfirm
             | Modal::CertificateViewer
             | Modal::MonitorKill
+            | Modal::HighlightRuleEditor
             | Modal::TriggerConfirm => true,
         }
     }
@@ -300,10 +312,11 @@ mod tests {
                 | Modal::AgentConfirm
                 | Modal::CertificateViewer
                 | Modal::MonitorKill
+                | Modal::HighlightRuleEditor
                 | Modal::TriggerConfirm => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 36, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 37, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

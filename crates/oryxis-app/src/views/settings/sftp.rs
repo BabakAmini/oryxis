@@ -75,26 +75,6 @@ impl Oryxis {
             .align_x(dir_align_x());
 
         if self.sftp_enabled {
-            // Follow-cwd source: the terminal Files sidebar follows the
-            // shell's directory via OSC 7 when present, falling back to
-            // parsing the window title otherwise (heuristic). This forces
-            // OSC 7 by injecting a PROMPT_COMMAND emitter on connect, so
-            // the follow is exact regardless of the shell's PS1.
-            let osc7_section = panel_section(column![
-                text(t("setting_sftp_force_osc7"))
-                    .size(13)
-                    .color(OryxisColors::t().text_primary),
-                Space::new().height(4),
-                text(t("setting_sftp_force_osc7_desc"))
-                    .size(11)
-                    .color(OryxisColors::t().text_muted),
-                Space::new().height(8),
-                self.nav_toggle_row(
-                    t("setting_sftp_force_osc7_toggle"),
-                    self.prefs.sftp_force_osc7,
-                    Message::Settings(SettingsMessage::ToggleSftpForceOsc7),
-                ),
-            ]);
             // Parallelism + the four timeout knobs are one transfer-
             // tuning theme, so they share a single card (each block
             // keeps its 13 px sub-title, 16 px between blocks).
@@ -219,8 +199,6 @@ impl Oryxis {
                 ),
             ]);
             content_col = content_col
-                .push(osc7_section)
-                .push(Space::new().height(12))
                 .push(download_section)
                 .push(Space::new().height(12))
                 .push(editor_section)

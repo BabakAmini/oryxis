@@ -559,10 +559,6 @@ pub(crate) struct Pane {
     /// Sidebar Files tab: the SFTP browser multiplexed on this pane's
     /// SSH session. Lazily mounted; reset on disconnect.
     pub files: PaneFiles,
-    /// True once the force-OSC7 PROMPT_COMMAND was injected into this
-    /// pane's shell, so toggling the setting on (and reconnects) don't
-    /// stack duplicate emitters. Reset on disconnect.
-    pub osc7_injected: bool,
     /// Scrollback find-bar (C1): true while the overlay is shown. The match
     /// set + active index live on the widget's `TerminalState.search`; this
     /// flag and `search_query` are the app-owned UI mirror so the find-bar's
@@ -671,7 +667,6 @@ impl Pane {
             mouse_hint_shown: false,
             link_hint_shown: false,
             files: PaneFiles::default(),
-            osc7_injected: false,
             search_open: false,
             search_query: String::new(),
             broadcast_opt_out: false,
@@ -696,44 +691,6 @@ impl Pane {
         self.session_log_last_size = None;
     }
 }
-
-/// The force-OSC7 setup: defines a helper that emits a BEL-terminated
-/// OSC 7 (`file://host/cwd`), then registers it as a pre-prompt hook in
-/// BOTH shell families so the terminal Files sidebar can follow the exact
-/// cwd. `${HOSTNAME:-…}` covers shells that don't export HOSTNAME.
-///
-/// Works on bash AND zsh with no shell detection, by registering through
-/// each shell's own mechanism and letting the other one no-op. bash reads
-/// `PROMPT_COMMAND` (we prepend the helper, keeping any existing value),
-/// and its `precmd_functions+=(…)` just creates an array bash never reads.
-/// zsh has no `PROMPT_COMMAND` (that assignment sets an unused var) and
-/// runs `precmd_functions`, the array we append the helper to. So the same
-/// line lights up cwd following on either shell, and neither mechanism
-/// errors in the other.
-///
-/// It also cleans up its own echo instead of leaving the setup text on
-/// screen. An interactive shell runs through readline (raw mode), so the
-/// tty echoes what we send and no `stty` trick can suppress it; and we
-/// can't send raw control bytes as input (readline would interpret them).
-/// So we send two ordinary-text commands in one write. The first, `printf
-/// '\x1b7'`, saves the cursor (DECSC) at the clean prompt baseline, before
-/// the big line below echoes. The second defines + registers the helper,
-/// then `printf '\x1b8\x1b[1A\x1b[J'` restores the cursor (DECRC), steps
-/// over the tiny first line, and erases to the end of the screen. That
-/// wipes the whole echoed block regardless of how many rows it wrapped to,
-/// without touching the MOTD above it. Only literal backslash escapes are
-/// sent; printf turns them into the real control bytes at run time, so the
-/// remote line editor only ever sees plain text. The DECSC/DECRC bytes use
-/// `\x1b` hex (bounded to two hex digits) rather than octal `\033`, because
-/// the octal form would merge the trailing `7` of DECSC into the escape
-/// (`\0337` parses as one octal byte, not ESC + `7`); `\x1b` is safe here
-/// since the feature is bash/zsh-only and both printf builtins accept
-/// `\xHH`.
-pub(crate) const OSC7_PROMPT_INJECT: &str = "printf '\\x1b7'\n\
-     __oryxis_o7(){ printf '\\033]7;file://%s%s\\007' \
-     \"${HOSTNAME:-$(hostname 2>/dev/null)}\" \"$PWD\"; }; \
-     PROMPT_COMMAND=\"__oryxis_o7${PROMPT_COMMAND:+;$PROMPT_COMMAND}\"; \
-     precmd_functions+=(__oryxis_o7); printf '\\x1b8\\x1b[1A\\x1b[J'\n";
 
 /// Live state of a ZMODEM transfer that has seized a pane's byte stream.
 /// While present, `PtyOutput` for the pane is routed into `wire_tx`

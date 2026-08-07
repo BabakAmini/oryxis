@@ -125,6 +125,8 @@ O inventário completo está no
 [tour de funcionalidades](docs/FEATURES.md) (em inglês).
 Usa tmux? **[Logs e histórico de comandos no tmux](docs/TMUX.md)** (em
 inglês) explica o que funciona de fábrica e o que você mesmo instala.
+Quer o navegador de arquivos seguindo o shell com exatidão?
+**[Seguindo o diretório do shell](docs/CWD.md)** (em inglês) tem o snippet.
 
 ## Primeiros passos
 

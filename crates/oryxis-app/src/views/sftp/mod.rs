@@ -319,7 +319,20 @@ impl Oryxis {
         } else {
             None
         };
-        let Some(modal) = modal else { return base };
+        // No SFTP modal: still stack, with a `Space::new()` standing in for
+        // the modal layer. Returning a bare `base` here would put it one
+        // level shallower than the branch below, and iced keys widget state
+        // by tree position: every scrollable behind the modal would reset to
+        // the top the moment one opened (same rule as `layer_modals` and
+        // `modal_overlay_opt`).
+        let Some(modal) = modal else {
+            return iced::widget::Stack::new()
+                .push(base)
+                .push(Space::new())
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into();
+        };
         // Full-window scrim, NO top reserve: a modal must block everything
         // behind it, including the tab bar. If the top chrome stayed
         // clickable the user could switch to a terminal tab with the modal

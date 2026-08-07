@@ -388,16 +388,17 @@ mod tests {
         assert_eq!(flat(b"\x1b(Bok\x1b)0\n"), "ok\n");
     }
 
-    /// The OSC 7 cwd-tracking bootstrap the app injects at connect
-    /// erases its own echo from the live screen (DECSC before, then
-    /// DECRC + CUU + erase-down + a prompt redraw). The dump must
-    /// resolve that erasure instead of leaking the injected command
-    /// into the viewer / transcript (field report 2026-07-17).
+    /// A self-erasing setup block (a shell-integration snippet, a
+    /// dotfile bootstrap) saves the cursor before it echoes and then
+    /// wipes itself: DECSC, the echoed commands, DECRC + CUU +
+    /// erase-down + a prompt redraw. The dump must resolve that
+    /// erasure instead of leaking the erased commands into the viewer /
+    /// transcript (field report 2026-07-17).
     #[test]
-    fn self_erasing_injection_vanishes_like_live() {
+    fn self_erasing_block_vanishes_like_live() {
         let data = b"banner\r\n\
             root@h:~# printf 'x'\r\n\
-            \x1b7root@h:~# __oryxis_o7(){ ...; }\r\n\
+            \x1b7root@h:~# setup(){ ...; }\r\n\
             \x1b8\x1b[1A\x1b[Jroot@h:~# \n";
         assert_eq!(flat(data), "banner\nroot@h:~# \n");
     }

@@ -6,8 +6,9 @@ mode: Zen
 # What the terminal DOES with a rule is not visible to a text selector
 # (the grid is a canvas), so the colouring itself is covered by unit
 # tests in oryxis-terminal and by screenshot during QA. What this file
-# pins is the surface: the block exists, the editor refuses a rule that
-# cannot match, and a saved rule becomes a row carrying its pattern.
+# pins is the surface: the block exists, the editor opens as a modal and
+# refuses a rule that cannot match, and a saved rule becomes a row
+# carrying its pattern.
 #
 # Tall viewport on purpose: the block sits below the Appearance card in
 # a long section.
@@ -26,6 +27,10 @@ expect "Highlight rules"
 expect "No rules yet."
 click "Add rule"
 settle
+# The editor is a modal, titled for what it is about to do, and it says
+# what a "pattern" is instead of leaving an example to be read as one.
+expect "New highlight rule"
+expect "The text to look for in what the terminal prints."
 # An empty pattern is refused: it would match at every position, so
 # saving it would paint the whole screen in the rule's colour.
 click "Save"
@@ -42,13 +47,16 @@ settle
 expect "Disk full"
 expect "No space left"
 absent "No rules yet."
+absent "New highlight rule"
 # Reopening the rule shows the stored values back (the editor works on
 # a copy, so this is what proves the copy was committed).
 click "Edit"
 settle
-expect "Save"
-click "Cancel"
+expect "Edit highlight rule"
+# Esc closes the modal like Cancel does, and abandons only the copy.
+type escape
 settle
+absent "Edit highlight rule"
 expect "Disk full"
 # Deleting asks first, and Cancel means the rule stays.
 click "Delete"

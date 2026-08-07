@@ -265,7 +265,6 @@ impl Oryxis {
             | SettingsMessage::ToggleCopyOnSelect
             | SettingsMessage::ToggleRightClickCopy
             | SettingsMessage::ToggleMiddleClickPaste
-            | SettingsMessage::ToggleSftpForceOsc7
             | SettingsMessage::ToggleSftpAskDownloadDir
             | SettingsMessage::ToggleSftpUploadTempName
             | SettingsMessage::SettingSftpDefaultEditorChanged(..)

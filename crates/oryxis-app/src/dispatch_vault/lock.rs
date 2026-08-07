@@ -42,6 +42,10 @@ impl Oryxis {
                     self.panels.host_panel = false;
                     self.host_panel_error = None;
                     self.editor_form = crate::state::ConnectionForm::default();
+                    // The highlight-rule editor edits a copy of a row in
+                    // one of those lists; with its list gone, close it so
+                    // nothing reopens over the unlocked screen.
+                    self.close_highlight_rule_editor();
                     // The key-generation panel carries export
                     // passphrases and a public-key view; sweep it (a
                     // still-running generation task is dropped on

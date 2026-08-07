@@ -662,6 +662,23 @@ impl Oryxis {
             );
         }
 
+        // Highlight-rule editor (C6), opened from the rule list in
+        // Settings -> Terminal or from a host's own list in the editor
+        // panel. One modal for both: the form carries the scope it
+        // commits to. Backdrop click cancels, like every other form
+        // modal.
+        if self.highlight_rule_editor_open() {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.view_highlight_rule_modal(),
+                    Some(Message::Settings(SettingsMessage::HighlightRuleCancelEdit)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // Custom terminal theme editor (from the "+" card / edit affordance
         // in Settings -> Terminal). Exempt from `modal_overlay` (nested color
         // popover in its own Stack); mouse-safe via `opaque`, keyboard-safe

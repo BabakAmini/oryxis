@@ -118,6 +118,7 @@ macOS（Apple Silicon `.dmg`）和 Windows（系統層級與使用者層級安�
 
 完整功能清單見英文[功能總覽](docs/FEATURES.md)。
 在用 tmux？**[tmux 下的日誌與命令歷史](docs/TMUX.md)**（英文）說明了哪些功能開箱即用、哪些需要自行安裝。
+想讓檔案瀏覽器精確跟隨 shell 的目錄？**[跟隨 shell 的目錄](docs/CWD.md)**（英文）提供了程式碼片段。
 
 ## 快速上手
 

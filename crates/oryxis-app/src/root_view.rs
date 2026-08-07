@@ -26,53 +26,65 @@ impl Oryxis {
         };
 
         // App-level modals: surface even over the lock screen. All route
-        // through `widgets::modal_overlay`, which owns the absorbing scrim,
-        // the card click-trap, and the 40 px chrome reserve so the title bar
-        // stays draggable. `None` = no outside-click dismiss (auth modals);
-        // `Some(msg)` = backdrop click dismisses.
-        let composed: Element<'_, Message> = if self.pending_update.is_some() {
-            crate::widgets::modal_overlay(base, self.view_update_modal(), None, 40.0)
-        } else if self.local_shell_picker_open {
-            crate::widgets::modal_overlay(
-                base,
-                self.view_local_shell_picker(),
-                Some(Message::Settings(SettingsMessage::HideLocalShellPicker)),
-                40.0,
-            )
-        } else if self.local_terminal_add_open && !self.panels.icon_picker {
-            // The add / edit modal yields while the shared icon picker is
-            // up (the picker layers inside `view_main`, below this overlay);
-            // it reappears with the chosen icon / color on picker save.
-            crate::widgets::modal_overlay(
-                base,
-                self.view_local_terminal_add_modal(),
-                Some(Message::Settings(SettingsMessage::CloseLocalTerminalAddModal)),
-                40.0,
-            )
-        } else if self.plugin_install_modal.is_some() {
-            crate::widgets::modal_overlay(
-                base,
-                self.view_plugin_install_modal(),
-                Some(Message::Plugin(PluginMessage::HidePluginInstallModal)),
-                40.0,
-            )
-        } else if self.pending_kbi_prompt.is_some() && self.connecting.is_none() {
-            // Keyboard-interactive (2FA / OTP) for a split-pane connect (no
-            // connect-progress screen). No outside-click dismiss: the user
-            // must submit or cancel so the in-flight auth gets an answer.
-            crate::widgets::modal_overlay(base, self.view_kbi_modal(), None, 40.0)
-        } else if self.pending_host_key.is_some() && self.connecting.is_none() {
-            // Host-key prompt for a backgrounded action (a manually toggled
-            // port forward). No outside-click dismiss for the same reason.
-            crate::widgets::modal_overlay(base, self.view_host_key_modal(), None, 40.0)
-        } else if self.cert_viewer.is_some() && matches!(self.vault_ui.state, VaultState::Unlocked) {
-            // Read-only certificate viewer (B2). Vault-area modal: gated on
-            // Unlocked, and swept by the soft-lock so it can't linger over
-            // the lock screen. Backdrop click closes it.
-            crate::widgets::modal_overlay(base, self.view_cert_viewer_modal(), Some(Message::Keys(KeysMessage::CloseCertViewer)), 40.0)
-        } else {
-            base
-        };
+        // through `widgets::modal_overlay_opt`, which owns the absorbing
+        // scrim, the card click-trap, and the 40 px chrome reserve so the
+        // title bar stays draggable. `None` = no outside-click dismiss
+        // (auth modals); `Some(msg)` = backdrop click dismisses.
+        //
+        // The whole chain resolves to ONE card (or none) and hands it to a
+        // single `modal_overlay_opt` call, so `base` sits at the same tree
+        // depth whether or not a modal is up. Returning a bare `base` from
+        // the empty arm used to reset every scrollable behind the modal to
+        // the top the moment one opened; `layer_modals` documents the same
+        // rule for the in-view modals.
+        let modal: Option<(Element<'_, Message>, Option<Message>, f32)> =
+            if self.pending_update.is_some() {
+                Some((self.view_update_modal(), None, 40.0))
+            } else if self.local_shell_picker_open {
+                Some((
+                    self.view_local_shell_picker(),
+                    Some(Message::Settings(SettingsMessage::HideLocalShellPicker)),
+                    40.0,
+                ))
+            } else if self.local_terminal_add_open && !self.panels.icon_picker {
+                // The add / edit modal yields while the shared icon picker is
+                // up (the picker layers inside `view_main`, below this overlay);
+                // it reappears with the chosen icon / color on picker save.
+                Some((
+                    self.view_local_terminal_add_modal(),
+                    Some(Message::Settings(SettingsMessage::CloseLocalTerminalAddModal)),
+                    40.0,
+                ))
+            } else if self.plugin_install_modal.is_some() {
+                Some((
+                    self.view_plugin_install_modal(),
+                    Some(Message::Plugin(PluginMessage::HidePluginInstallModal)),
+                    40.0,
+                ))
+            } else if self.pending_kbi_prompt.is_some() && self.connecting.is_none() {
+                // Keyboard-interactive (2FA / OTP) for a split-pane connect (no
+                // connect-progress screen). No outside-click dismiss: the user
+                // must submit or cancel so the in-flight auth gets an answer.
+                Some((self.view_kbi_modal(), None, 40.0))
+            } else if self.pending_host_key.is_some() && self.connecting.is_none() {
+                // Host-key prompt for a backgrounded action (a manually toggled
+                // port forward). No outside-click dismiss for the same reason.
+                Some((self.view_host_key_modal(), None, 40.0))
+            } else if self.cert_viewer.is_some()
+                && matches!(self.vault_ui.state, VaultState::Unlocked)
+            {
+                // Read-only certificate viewer (B2). Vault-area modal: gated on
+                // Unlocked, and swept by the soft-lock so it can't linger over
+                // the lock screen. Backdrop click closes it.
+                Some((
+                    self.view_cert_viewer_modal(),
+                    Some(Message::Keys(KeysMessage::CloseCertViewer)),
+                    40.0,
+                ))
+            } else {
+                None
+            };
+        let composed: Element<'_, Message> = crate::widgets::modal_overlay_opt(base, modal);
 
         // SFTP dialogs (picker / rename / new / properties / overwrite /
         // delete) layer here so they blanket the whole window like the

@@ -24,6 +24,7 @@ mod advanced;
 mod agent;
 mod ai;
 mod connection;
+mod highlight_rule_modal;
 mod highlight_rules;
 mod host_picker;
 mod interface;

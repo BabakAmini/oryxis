@@ -213,7 +213,6 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Mcp, "mcp_token_regenerate", "mcp token regenerate rotate reset auth"),
     e(S::Mcp, "mcp_install_claude", "mcp install claude code config register"),
     // ── SFTP ───────────────────────────────────────────────────────
-    e(S::Sftp, "setting_sftp_force_osc7_toggle", "sftp osc 7 follow cwd directory prompt inject"),
     e(S::Sftp, "setting_default_editor", "sftp default editor external open program"),
     e(S::Sftp, "setting_sftp_ask_download_dir", "sftp download destination folder ask where save prompt"),
     e(S::Sftp, "setting_sftp_upload_temp_name", "sftp upload temporary filename part scratch rename atomic partial resume"),

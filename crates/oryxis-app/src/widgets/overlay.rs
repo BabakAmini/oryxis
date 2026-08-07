@@ -683,7 +683,36 @@ pub(crate) fn modal_overlay<'a>(
     on_scrim_click: Option<Message>,
     top_reserve: f32,
 ) -> Element<'a, Message> {
+    modal_overlay_opt(base, Some((card, on_scrim_click, top_reserve)))
+}
+
+/// [`modal_overlay`] for a call site that may have no modal open: the
+/// stack keeps the SAME shape either way (base + scrim slot + card
+/// slot), with `Space::new()` placeholders standing in for the two
+/// layers when `modal` is `None`.
+///
+/// That constant shape is the point. iced keys widget state by tree
+/// POSITION, so a chain that returns a bare `base` while nothing is
+/// open and `Stack{base, scrim, card}` once something is drops `base`
+/// one level deeper the instant a modal opens: every scrollable inside
+/// it is rebuilt from scratch and jumps back to the top. Opening "Add
+/// terminal" from the bottom of Settings did exactly that. `layer_modals`
+/// carries the same discipline for the in-view modals.
+pub(crate) fn modal_overlay_opt<'a>(
+    base: Element<'a, Message>,
+    modal: Option<(Element<'a, Message>, Option<Message>, f32)>,
+) -> Element<'a, Message> {
     use iced::widget::{column, MouseArea};
+
+    let Some((card, on_scrim_click, top_reserve)) = modal else {
+        return Stack::new()
+            .push(base)
+            .push(Space::new())
+            .push(Space::new())
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into();
+    };
 
     let scrim_fill = container(Space::new())
         .width(Length::Fill)

@@ -59,6 +59,10 @@ impl Oryxis {
             Modal::SftpPicker => self.sftp.picker_open,
             Modal::CertificateViewer => self.cert_viewer.is_some(),
             Modal::MonitorKill => self.monitor.kill.is_some(),
+            // Gated on the surface that owns the list being up, the same
+            // predicate the render site uses, so the flag can never say
+            // "open" over a screen that isn't showing it.
+            Modal::HighlightRuleEditor => self.highlight_rule_editor_open(),
         }
     }
 
@@ -178,6 +182,11 @@ impl Oryxis {
             Modal::SftpEditReopen => self.sftp_edit_reopen = None,
             Modal::SftpPicker => self.sftp.picker_open = false,
             Modal::CertificateViewer => self.cert_viewer = None,
+            // Esc abandons the working copy, exactly like the Cancel
+            // button; the list's own state (the scope it addresses, a
+            // pending delete confirmation) is left alone because those
+            // rows render in the list behind the modal, not in it.
+            Modal::HighlightRuleEditor => self.close_highlight_rule_editor(),
             // Esc while a kill run is in flight only drops the DIALOG;
             // the exec channel is already on its way and its result is
             // reported as a toast instead (`KillFinished`). Nothing is
