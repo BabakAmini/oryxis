@@ -10,7 +10,12 @@ thiserror = { workspace = true }
 # The protocol state machine: no_std / heapless, poll/submit API. We
 # own only the terminal-side glue (auto-detection + the async driver
 # that maps its Actions onto our transport / file I/O).
-zmodem2 = "0.7"
+# 0.7.2 is the first release carrying our upstreamed fixes (flow control,
+# manual file acceptance / resume, ZSINIT handling, corrupt-subpacket
+# recovery via ZRPOS, the 4 GiB offset guard). The `[patch]` that pinned
+# our fork while those were in review is gone: the published crate is now
+# byte-identical to upstream main.
+zmodem2 = "0.7.2"
 
 [dev-dependencies]
 # test-util enables tokio::time::pause so the silent-peer retry test
