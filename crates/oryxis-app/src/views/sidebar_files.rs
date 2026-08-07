@@ -27,6 +27,9 @@ impl Oryxis {
     ) -> Element<'a, Message> {
         let pane = tab.active();
         let files = &pane.files;
+        // The transfer belongs to the PANE, so its cancel is routed by
+        // pane id: another SFTP surface may be the focused owner.
+        let pane_id = pane.id;
 
         // Disconnected mid-view (the tab button hides on the next
         // frame; this covers the one where it hasn't yet).
@@ -361,13 +364,51 @@ impl Oryxis {
                 .into()
         };
 
+        // A running transfer, pinned under the list so it is visible
+        // without scrolling. The strip is the SAME one the dual-pane
+        // surface draws, in its narrow form: two surfaces rendering one
+        // transfer differently is how they start disagreeing about it.
+        // Cancel is owner-routed, so it cancels THIS pane's transfer even
+        // when another SFTP surface is the focused one.
+        let stack: Element<'_, Message> = match files.transfer.state.as_ref() {
+            Some(transfer) => {
+                let cancel = Message::SftpFor(
+                    pane_id,
+                    Box::new(SftpMessage::SftpCancelTransfer),
+                );
+                // Recorded LAST, which is where it is drawn: the sidebar
+                // ring walks in build order, so a slot registered out of
+                // place lands the cursor somewhere the eye is not.
+                let strip = self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(cancel.clone()),
+                    stab,
+                    0.0,
+                    crate::views::sftp::transfer_progress_strip(
+                        transfer,
+                        files
+                            .transfer
+                            .bytes_done
+                            .load(std::sync::atomic::Ordering::Relaxed),
+                        files.transfer.bytes_total,
+                        cancel,
+                        true,
+                    ),
+                );
+                column![header, body, strip]
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .into()
+            }
+            None => column![header, body]
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .into(),
+        };
         // Clicks on dead space blur the inline edits (owner ask: "blur
         // should exit the path input"). MouseArea only fires when no
         // child captured the press, so the inputs, rows and buttons all
         // keep their clicks and only true empty space lands here.
-        let content: Element<'_, Message> = MouseArea::new(
-            column![header, body].width(Length::Fill).height(Length::Fill),
-        )
+        let content: Element<'_, Message> = MouseArea::new(stack)
         .on_press(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesEditBlur))
         .into();
         // Visited-directory dropdown (issue #85): stacked over the tab

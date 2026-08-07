@@ -86,6 +86,8 @@ impl Oryxis {
                     .transfer.bytes_done
                     .load(std::sync::atomic::Ordering::Relaxed),
                 self.sftp.transfer.bytes_total,
+                Message::Sftp(SftpMessage::SftpCancelTransfer),
+                false,
             ))
             .on_press(Message::Sftp(SftpMessage::SftpToggleTransferPanel));
             let mut col = column![panes].width(Length::Fill).height(Length::Fill);

@@ -1180,6 +1180,73 @@ impl Oryxis {
             .or_else(|| self.active_sftp_id())
     }
 
+    /// The slot a transfer's bookkeeping lives in, resolved from the id
+    /// its messages already carry.
+    ///
+    /// Two owners run over the one queue runner: the dual-pane SFTP
+    /// surface (a standalone tab or a terminal tab in Files mode), whose
+    /// state `route_sftp_async` has already swapped into the live buffer
+    /// by the time any handler runs, and a terminal pane's sidebar Files
+    /// browser, which owns its slot outright.
+    ///
+    /// Resolving here rather than carrying a `TransferOwner` through four
+    /// message variants and every send site is safe because tab ids and
+    /// pane ids come from disjoint UUID pools: an id can only ever mean
+    /// one of them.
+    pub(crate) fn transfer_slot_mut(
+        &mut self,
+        owner: uuid::Uuid,
+    ) -> Option<&mut crate::state::TransferSlot> {
+        if self.is_sidebar_owner(owner) {
+            return self.pane_by_id_any_tab(owner).map(|p| &mut p.files.transfer);
+        }
+        Some(&mut self.sftp.transfer)
+    }
+
+    /// Is this id a pane's sidebar browser rather than an SFTP surface?
+    pub(crate) fn is_sidebar_owner(&self, owner: uuid::Uuid) -> bool {
+        self.tabs
+            .iter()
+            .any(|t| t.pane_grid.panes.values().any(|p| p.id == owner))
+    }
+
+    /// Where a failed transfer's message goes, so the user still sees it
+    /// after a toast would have gone. Each surface renders its own error
+    /// line, and writing into the wrong one is a silent drop, which is
+    /// half of what the 3 GB field report actually cost.
+    pub(crate) fn transfer_set_error(
+        &mut self,
+        owner: uuid::Uuid,
+        side: crate::state::SftpPaneSide,
+        message: String,
+    ) {
+        if self.is_sidebar_owner(owner) {
+            if let Some(pane) = self.pane_by_id_any_tab(owner) {
+                pane.files.error = Some(message);
+            }
+            return;
+        }
+        self.sftp.pane_mut(side).error = Some(message);
+    }
+
+    /// Re-list what a finished transfer changed on the sidebar side.
+    /// `None` for a surface owner, whose refresh is direction-specific
+    /// and stays with the rest of the dual-pane logic in the runner.
+    pub(crate) fn sidebar_transfer_refresh(&mut self, owner: uuid::Uuid) -> Option<Task<Message>> {
+        if !self.is_sidebar_owner(owner) {
+            return None;
+        }
+        let pane = self.pane_by_id_any_tab(owner)?;
+        let client = pane.files.client.clone()?;
+        let path = pane.files.path.clone();
+        pane.files.loading = true;
+        pane.files.error = None;
+        let seq = pane.files.next_req();
+        Some(crate::dispatch_sidebar_files::list_dir_task(
+            client, path, owner, seq,
+        ))
+    }
+
     /// A running transfer as the tab strip's progress border, the same
     /// affordance OSC 9;4 and ZMODEM already draw there.
     ///
@@ -1281,6 +1348,16 @@ impl Oryxis {
             {
                 std::mem::swap(&mut self.sftp, &mut *tab.files_state);
             }
+            return task;
+        }
+        // A sidebar Files browser owns its slot outright, so there is
+        // nothing to swap: only the routing stamp, so `current_sftp_owner`
+        // answers with this pane instead of whatever surface happens to be
+        // focused, and the accessors resolve to the pane's own slot.
+        if self.is_sidebar_owner(id) {
+            let prev = self.routing_sftp.replace(id);
+            let task = self.dispatch_message(message);
+            self.routing_sftp = prev;
             return task;
         }
         // Owner closed meanwhile: drop the continuation.

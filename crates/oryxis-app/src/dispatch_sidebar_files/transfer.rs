@@ -20,14 +20,24 @@ impl Oryxis {
                 let Some(client) = pane.files.client.clone() else {
                     return Task::none();
                 };
+                let pane_id = pane.id;
                 let basename = path
                     .rsplit('/')
                     .find(|s| !s.is_empty())
                     .unwrap_or(&path)
                     .to_string();
-                // One-shot transfer with a toast on completion. Heavier
-                // moves (progress, queues, retries) live in the full SFTP
-                // session one context-menu entry away.
+                // This used to be a one-shot `download_to` with a toast:
+                // no progress, no cancel, and an error that vanished after
+                // three seconds. A 3 GB file took all three defects at
+                // once. It now enqueues on the SAME runner the dual-pane
+                // surface uses, owned by this pane.
+                let size = pane
+                    .files
+                    .entries
+                    .iter()
+                    .find(|e| !e.is_dir && path.ends_with(&e.name))
+                    .map(|e| e.size);
+                let concurrency = self.sftp_concurrency();
                 Task::perform(
                     async move {
                         let dest = rfd::AsyncFileDialog::new()
@@ -36,14 +46,37 @@ impl Oryxis {
                             .await?
                             .path()
                             .to_path_buf();
-                        Some(match client.download_to(&path, &dest, None).await {
-                            Ok(()) => crate::i18n::t("files_download_done")
-                                .replacen("{name}", &basename, 1),
-                            Err(e) => format!("{basename}: {e}"),
-                        })
+                        let mut queue = std::collections::VecDeque::new();
+                        queue.push_back(crate::state::TransferItem {
+                            src: path.clone(),
+                            dst: dest.to_string_lossy().into_owned(),
+                            is_dir: false,
+                            size,
+                        });
+                        let clients =
+                            crate::sftp_helpers::build_client_pool(client, concurrency)
+                                .await
+                                .ok()?;
+                        Some(crate::state::TransferState::new(
+                            crate::state::TransferKind::Download,
+                            basename.clone(),
+                            queue,
+                            clients,
+                            None,
+                            None,
+                            concurrency,
+                        ))
                     },
-                    |msg| match msg {
-                        Some(m) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(m)),
+                    move |state| match state {
+                        // The envelope is what makes the pane the owner:
+                        // it stamps `routing_sftp`, so the runner's
+                        // accessors resolve to this pane's slot instead of
+                        // whatever SFTP surface happens to be focused, and
+                        // the whole chain stays pinned to it.
+                        Some(state) => Message::SftpFor(
+                            pane_id,
+                            Box::new(SftpMessage::SftpTransferQueueReady(pane_id, state)),
+                        ),
                         None => Message::NoOp,
                     },
                 )
@@ -88,51 +121,53 @@ impl Oryxis {
                 let Some(client) = pane.files.client.clone() else {
                     return Task::none();
                 };
+                // Same reversal as the download side: the serial
+                // `upload_from` loop had no per-file progress, no
+                // concurrency and no cancel. The runner has all three.
+                let concurrency = self.sftp_concurrency();
+                let label = paths
+                    .first()
+                    .and_then(|p| p.file_name())
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
                 Task::perform(
                     async move {
-                        let mut failed: Vec<String> = Vec::new();
-                        let mut ok = 0usize;
+                        let mut queue = std::collections::VecDeque::new();
                         for local in paths {
                             let name = local
                                 .file_name()
                                 .map(|n| n.to_string_lossy().into_owned())
                                 .unwrap_or_else(|| "file".to_string());
-                            let remote = files_join(&dir, &name);
-                            match client.upload_from(&local, &remote).await {
-                                Ok(()) => ok += 1,
-                                Err(e) => failed.push(format!("{name}: {e}")),
-                            }
+                            let size = tokio::fs::metadata(&local).await.ok().map(|m| m.len());
+                            queue.push_back(crate::state::TransferItem {
+                                src: local.to_string_lossy().into_owned(),
+                                dst: files_join(&dir, &name),
+                                is_dir: false,
+                                size,
+                            });
                         }
-                        if failed.is_empty() {
-                            crate::i18n::t("files_upload_done")
-                                .replacen("{n}", &ok.to_string(), 1)
-                        } else {
-                            failed.join(" · ")
-                        }
+                        let clients =
+                            crate::sftp_helpers::build_client_pool(client, concurrency)
+                                .await
+                                .ok()?;
+                        Some(crate::state::TransferState::new(
+                            crate::state::TransferKind::Upload,
+                            label.clone(),
+                            queue,
+                            clients,
+                            None,
+                            None,
+                            concurrency,
+                        ))
                     },
-                    move |toast| Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadFinished(pane_id, toast)),
+                    move |state| match state {
+                        Some(state) => Message::SftpFor(
+                            pane_id,
+                            Box::new(SftpMessage::SftpTransferQueueReady(pane_id, state)),
+                        ),
+                        None => Message::NoOp,
+                    },
                 )
-            }
-            SidebarFilesMessage::SidebarFilesUploadFinished(pane_id, toast) => {
-                let toast_task = self.update(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpToast(toast)));
-                // Refresh the pane's CURRENT listing through the normal
-                // stamped pipeline: the bump happens synchronously with
-                // `loading = true`, and the completion (listed or error)
-                // always resolves it, so no stuck states are possible.
-                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
-                    return toast_task;
-                };
-                let Some(client) = pane.files.client.clone() else {
-                    return toast_task;
-                };
-                let path = pane.files.path.clone();
-                pane.files.loading = true;
-                pane.files.error = None;
-                let seq = pane.files.next_req();
-                Task::batch([
-                    toast_task,
-                    list_dir_task(client, path, pane_id, seq),
-                ])
             }
             SidebarFilesMessage::SidebarFilesEdit(path) => {
                 self.overlay = None;

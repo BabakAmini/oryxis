@@ -304,9 +304,20 @@ impl Oryxis {
         // smoothly. Idle otherwise. Scans every SFTP surface (live buffer,
         // parked standalone tabs, parked hybrid tabs' `files_state`) so a
         // backgrounded transfer keeps the bar live when refocused.
+        // The sidebar browsers are scanned too, and PER PANE: a split tab
+        // can have two of them transferring, and their slots are on the
+        // panes, not on the tab. Missing them here would leave the strip's
+        // border and the sidebar's own bar both frozen at whatever value
+        // the last repaint happened to catch.
         if self.sftp.transfer.state.is_some()
             || self.sftp_tabs.iter().any(|t| t.state.transfer.state.is_some())
-            || self.tabs.iter().any(|t| t.files_state.transfer.state.is_some())
+            || self.tabs.iter().any(|t| {
+                t.files_state.transfer.state.is_some()
+                    || t.pane_grid
+                        .panes
+                        .values()
+                        .any(|p| p.files.transfer.state.is_some())
+            })
         {
             subs.push(
                 iced::time::every(std::time::Duration::from_millis(120))

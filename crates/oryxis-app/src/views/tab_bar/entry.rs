@@ -500,7 +500,14 @@ impl Oryxis {
             // A Files-mode transfer borrows the same border, for the same
             // reason: a 3 GB download the user walked away from has to be
             // visible from the strip, not only from the tab running it.
-            let sftp_progress = Self::transfer_border(self.hybrid_tab_slot(tab));
+            // A sidebar browser's transfer counts too, and it is scanned
+            // per pane, because that is where its slot lives.
+            let sftp_progress = Self::transfer_border(self.hybrid_tab_slot(tab)).or_else(|| {
+                tab.pane_grid
+                    .panes
+                    .values()
+                    .find_map(|p| Self::transfer_border(&p.files.transfer))
+            });
             session_tab(
                 idx,
                 &display_label,

@@ -88,9 +88,4 @@ pub enum SidebarFilesMessage {
     /// Edit-in-place for a sidebar file (temp download + OS editor +
     /// auto-upload), through the sidebar's own client.
     SidebarFilesEdit(String),
-    /// Uploads finished: toast the outcome, then refresh the pane's
-    /// current listing through the normal stamped pipeline (the handler
-    /// bumps the request stamp synchronously, so the refresh always
-    /// resolves `loading` no matter how it completes).
-    SidebarFilesUploadFinished(Uuid, String),
 }

@@ -210,6 +210,18 @@ pub(crate) struct PaneFiles {
     /// Timestamp + path of the last single click, for double-click
     /// detection (matching the SFTP pane's rule).
     pub last_click: Option<(std::time::Instant, String)>,
+    /// This browser's own transfer, run by the same queue machinery the
+    /// dual-pane SFTP surface uses.
+    ///
+    /// Per PANE rather than per tab, because that is where the browser
+    /// lives: a split tab can have two panes browsing two hosts, and one
+    /// shared slot would make them fight. It also outlives the sidebar
+    /// being closed and the tab losing focus, which is what lets a long
+    /// transfer keep running and keep reporting from the tab strip.
+    ///
+    /// Deliberately NOT cleared by `reset_for_disconnect`: a transfer
+    /// that died with its session still has to show why.
+    pub transfer: crate::state::TransferSlot,
 }
 
 impl PaneFiles {

@@ -56,10 +56,19 @@ pub(crate) fn transfer_file_panel<'a>(
 /// kind label, current item, count, slim progress bar, and a cancel
 /// button. Stays compact so the file panes lose as little vertical
 /// space as possible.
+/// The live transfer strip. `cancel` is a parameter rather than a
+/// constant because two surfaces draw this: the dual-pane SFTP view and
+/// the terminal sidebar's Files tab, whose cancel is owner-routed to its
+/// own pane. `narrow` stacks what the wide form puts on one line, the
+/// same rule the host panel follows against the Settings cards: at
+/// sidebar width the label, the byte count and a Cancel button side by
+/// side just truncate each other.
 pub(crate) fn transfer_progress_strip<'a>(
     transfer: &crate::state::TransferState,
     bytes_done: u64,
     bytes_total: u64,
+    cancel: Message,
+    narrow: bool,
 ) -> Element<'a, Message> {
     let label = match transfer.kind {
         crate::state::TransferKind::Upload => t("transfer_uploading"),
@@ -116,7 +125,7 @@ pub(crate) fn transfer_progress_strip<'a>(
     let cancel_btn = button(
         text(t("cancel")).size(11).color(OryxisColors::t().text_secondary),
     )
-    .on_press(Message::Sftp(SftpMessage::SftpCancelTransfer))
+    .on_press(cancel)
     .padding(Padding { top: 4.0, right: 10.0, bottom: 4.0, left: 10.0 })
     .style(|_, status| {
         let bg = match status {
@@ -134,10 +143,23 @@ pub(crate) fn transfer_progress_strip<'a>(
         }
     });
 
-    container(
-        row![info, Space::new().width(12), cancel_btn]
-            .align_y(iced::Alignment::Center),
-    )
+    let body: Element<'_, Message> = if narrow {
+        // Cancel goes UNDER the bar and spans the width: at ~300 px there
+        // is no room beside the byte count, and a button that gets
+        // truncated is a button the user cannot aim at.
+        column![
+            info,
+            Space::new().height(6),
+            container(cancel_btn).width(Length::Fill).align_x(crate::widgets::dir_align_x()),
+        ]
+        .width(Length::Fill)
+        .into()
+    } else {
+        crate::widgets::dir_row(vec![info.into(), Space::new().width(12).into(), cancel_btn.into()])
+            .align_y(iced::Alignment::Center)
+            .into()
+    };
+    container(body)
     .padding(Padding { top: 8.0, right: 14.0, bottom: 8.0, left: 14.0 })
     .width(Length::Fill)
     .style(|_| container::Style {

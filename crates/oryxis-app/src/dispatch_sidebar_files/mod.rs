@@ -209,7 +209,6 @@ impl Oryxis {
                 SidebarFilesMessage::SidebarFilesDownload(..)
                 | SidebarFilesMessage::SidebarFilesUploadInto(..)
                 | SidebarFilesMessage::SidebarFilesUploadPicked(..)
-                | SidebarFilesMessage::SidebarFilesUploadFinished(..)
                 | SidebarFilesMessage::SidebarFilesEdit(..)
                 | SidebarFilesMessage::SidebarFilesOpToast(..)
             ) => self.handle_sidebar_files_transfer(m),
@@ -230,7 +229,7 @@ impl Oryxis {
 
     /// Find a pane by its stable id across every tab (async results
     /// arrive after the user may have switched tabs / panes).
-    fn pane_by_id_any_tab(&mut self, pane_id: Uuid) -> Option<&mut crate::state::Pane> {
+    pub(crate) fn pane_by_id_any_tab(&mut self, pane_id: Uuid) -> Option<&mut crate::state::Pane> {
         self.tabs
             .iter_mut()
             .flat_map(|t| t.pane_grid.panes.values_mut())
