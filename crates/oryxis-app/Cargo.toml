@@ -182,7 +182,10 @@ notify-rust = "4"
 # triggers UAC for the system installer, while the per-user installer
 # (asInvoker) launches without a prompt, same code path serves both.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_Diagnostics_Debug", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Pipes", "Win32_Storage_Packaging_Appx"] }
+# 0.61: newest line, and the one most of the tree already resolves to.
+# See the note in oryxis-ssh; `windows-sys` is a different crate from
+# `windows` (0.62 above) and numbers on its own.
+windows-sys = { version = "0.61", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_Diagnostics_Debug", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Pipes", "Win32_Storage_Packaging_Appx"] }
 # Higher-level COM ergonomics for the taskbar JumpList (ICustomDestinationList
 # / IShellLink / IPropertyStore), which windows-sys' raw vtables make painful.
 # Same 0.62 the oryxis-biometric crate uses, so Cargo shares one build.

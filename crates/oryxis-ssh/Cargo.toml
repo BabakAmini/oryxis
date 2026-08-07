@@ -25,7 +25,11 @@ rand = { workspace = true }
 # Enumerate the named-pipe namespace to discover Pageant/KeePassXC's
 # per-launch agent pipe (windows_agent_pipe). Windows-only.
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.59", features = [
+# 0.61 is the newest windows-sys line and the one the rest of the tree
+# already resolves to; 0.59 here was a THIRD copy in the build for no
+# reason. (`windows-sys` numbers independently from `windows`, which is
+# at 0.62: they are different crates, not two views of one.)
+windows-sys = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_Storage_FileSystem",
 ] }
