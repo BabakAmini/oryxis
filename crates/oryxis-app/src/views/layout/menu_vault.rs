@@ -309,16 +309,33 @@ impl Oryxis {
         } else {
             (iced_fonts::lucide::pin(), crate::i18n::t("pin_tab"))
         };
-        let mut items = column![
-            self.menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::Sftp(SftpMessage::NewSftpTab), OryxisColors::t().text_secondary),
-            // Terminal for the mounted host (owner QA 2026-07-05:
-            // the SFTP tab had no path back to a shell). Focuses
-            // a live terminal tab on that host, else connects.
-            self.menu_item(iced_fonts::lucide::terminal(), crate::i18n::t("open_terminal"), Message::Tabs(TabsMessage::OpenTerminalForSftpTab(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::Tabs(TabsMessage::StartRenameSftpTab(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(pin_icon, pin_label, Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Sftp(SftpMessage::CloseSftpTab(idx)), OryxisColors::t().text_secondary),
-        ];
+        // "Terminal for the MOUNTED host" only means something once one
+        // is mounted. A tab still on the host picker has no host to open
+        // a shell on, and the entry used to sit there doing nothing when
+        // clicked, which reads as broken rather than as not applicable.
+        let has_host = self
+            .sftp_tab_state(idx)
+            .is_some_and(|st| st.right.host_label.is_some() || st.left.host_label.is_some());
+        let mut items = column![self.menu_item(
+            iced_fonts::lucide::plus(),
+            crate::i18n::t("new_tab"),
+            Message::Sftp(SftpMessage::NewSftpTab),
+            OryxisColors::t().text_secondary,
+        )];
+        if has_host {
+            // Second, where it has always been. Owner QA 2026-07-05: the
+            // SFTP tab had no path back to a shell. Focuses a live
+            // terminal on the mounted host, else connects one.
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::terminal(),
+                crate::i18n::t("open_terminal"),
+                Message::Tabs(TabsMessage::OpenTerminalForSftpTab(idx)),
+                OryxisColors::t().text_secondary,
+            ));
+        }
+        items = items.push(self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::Tabs(TabsMessage::StartRenameSftpTab(idx)), OryxisColors::t().text_secondary));
+        items = items.push(self.menu_item(pin_icon, pin_label, Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)), OryxisColors::t().text_secondary));
+        items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Sftp(SftpMessage::CloseSftpTab(idx)), OryxisColors::t().text_secondary));
         if self.sftp_tabs.len() > 1 {
             items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Sftp(SftpMessage::CloseOtherSftpTabs(idx)), OryxisColors::t().text_secondary));
         }
