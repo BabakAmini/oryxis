@@ -8,7 +8,6 @@
 use iced::{Point, Task};
 
 use crate::app::{TabsMessage, Message, Oryxis};
-use crate::state::View;
 
 impl Oryxis {
     pub(super) fn handle_mouse_moved(&mut self, pos: iced::Point) -> Task<Message> {
@@ -262,10 +261,12 @@ impl Oryxis {
         }
         if focused {
             // Refocusing the window means the active tab is being
-            // looked at again, IF the terminal view is on screen
-            // (returning to the Dashboard / Settings views doesn't
-            // show it): its smart-tab attention is consumed.
-            if self.active_view == View::Terminal
+            // looked at again, IF the terminal is on screen (returning
+            // to the Dashboard / Settings views doesn't show it): its
+            // smart-tab attention is consumed. The same helper
+            // `view_content` renders by, since a tab opened from the
+            // Dashboard never assigns `active_view`.
+            if self.terminal_surface_visible()
                 && let Some(at) = self.active_tab
                 && let Some(tab) = self.tabs.get_mut(at)
             {

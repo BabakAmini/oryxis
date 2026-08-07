@@ -160,7 +160,18 @@ impl Oryxis {
         if self.vault_ui.state != crate::state::VaultState::Unlocked {
             return None;
         }
-        if self.active_view != crate::state::View::Terminal {
+        // Whether the terminal is ON SCREEN is asked of the same helper
+        // `view_content` decides the content area with, never of
+        // `active_view`. The two stopped agreeing when tabs became the
+        // outer surface: opening a host from the Dashboard pushes a tab
+        // and leaves `active_view` on `Dashboard`, and the tab wins in
+        // `view_content`, so the terminal the user is looking at reads
+        // as "not the current view". That gate barred the popup on the
+        // ordinary path (click a host, run `sudo`) while the Local
+        // Shell picker, which does assign `active_view`, kept working,
+        // which is why the committed `.ice` never saw it. It also
+        // covers the connect screen, which `active_view` cannot.
+        if !self.terminal_surface_visible() {
             return None;
         }
         let tab = self.tabs.get(self.active_tab?)?;

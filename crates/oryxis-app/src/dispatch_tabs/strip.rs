@@ -131,8 +131,12 @@ impl Oryxis {
                 // Hover popover under `+`. Only meaningful with a terminal
                 // tab open (something to split); otherwise `+` just opens a
                 // new tab on click. Anchored under the cursor (over `+`).
-                if self.active_view == View::Terminal
-                    && self.active_tab.is_some()
+                // An open tab is the whole test: the `active_view` half
+                // this used to also require is never assigned by the
+                // ordinary path (opening a host from the Dashboard pushes
+                // a tab and leaves the view where it was), so the popover
+                // was dead exactly where splitting is most wanted.
+                if self.active_tab.is_some()
                     && !matches!(
                         self.overlay.as_ref().map(|o| &o.content),
                         Some(OverlayContent::SplitMenu)

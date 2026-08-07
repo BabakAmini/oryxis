@@ -472,11 +472,15 @@ impl Oryxis {
                 let smart_enabled = self.prefs.smart_tabs;
                 let smart_long = self.prefs.smart_long_secs;
                 let active_tab = self.active_tab;
-                // "Watched" needs the terminal view on screen: an active
-                // tab is invisible while the user sits in the Dashboard /
+                // "Watched" needs the terminal on screen: an active tab is
+                // invisible while the user sits in the Dashboard /
                 // Settings, so it must still collect attention there.
-                let in_terminal_view =
-                    self.active_view == crate::state::View::Terminal;
+                // Asked of the helper `view_content` renders by, NOT of
+                // `active_view`: opening a host from the Dashboard pushes
+                // a tab without assigning the view, so a view check reads
+                // the tab the user is watching as unwatched and notifies
+                // about it.
+                let in_terminal_view = self.terminal_surface_visible();
                 // (pane label, full body, redacted body) triples raised by
                 // smart tabs this batch, delivered after the borrow ends
                 // (Privacy Mode is resolved per pane at delivery).
