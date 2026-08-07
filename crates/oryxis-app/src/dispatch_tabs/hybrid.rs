@@ -317,13 +317,12 @@ impl Oryxis {
         // mounted host. Focus a live terminal pane on that host,
         // else connect a new tab (the saved-host pipeline).
         self.overlay = None;
-        let Some(stab) = self.sftp_tabs.get(idx) else {
+        // Through the one authority: reading `self.sftp` because
+        // `active_sftp` points here is wrong whenever a terminal tab in
+        // Files mode has hoisted the buffer, and it answers with THAT
+        // tab's host instead of this one's.
+        let Some(st) = self.sftp_tab_state(idx) else {
             return Task::none();
-        };
-        let st: &crate::state::SftpState = if self.active_sftp == Some(idx) {
-            &self.sftp
-        } else {
-            &stab.state
         };
         let Some(host) = st
             .right

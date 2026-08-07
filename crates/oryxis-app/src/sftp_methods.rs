@@ -935,11 +935,7 @@ impl Oryxis {
         if let Some(spec) = &tab.pending_reopen {
             return Some(spec.clone());
         }
-        let st = if self.active_sftp == Some(idx) {
-            &self.sftp
-        } else {
-            &tab.state
-        };
+        let st = self.sftp_tab_state(idx)?;
         let pane_spec = |p: &crate::state::PaneState| -> crate::state::SftpPaneSpec {
             if p.is_remote {
                 p.host_label
@@ -962,15 +958,10 @@ impl Oryxis {
     /// an in-flight transfer or a dirty edit-session. Reads the live buffer
     /// for the active tab, the parked slot otherwise.
     pub(crate) fn sftp_tab_has_unsaved(&self, idx: usize) -> bool {
-        let st = if self.active_sftp == Some(idx) {
-            &self.sftp
-        } else {
-            match self.sftp_tabs.get(idx) {
-                Some(t) => &t.state,
-                None => return false,
-            }
-        };
-        sftp_state_has_unsaved(st)
+        match self.sftp_tab_state(idx) {
+            Some(st) => sftp_state_has_unsaved(st),
+            None => false,
+        }
     }
 
     /// Tear down a hybrid terminal tab's SFTP session: park the live buffer
@@ -1286,6 +1277,22 @@ impl Oryxis {
     /// HOISTED into the live buffer, and the tab's own copy is a stale
     /// parked one. Reading the wrong side leaves a running transfer
     /// looking frozen at whatever it was when the tab lost focus.
+    /// The LIVE state of a standalone SFTP tab.
+    ///
+    /// One authority for the swap-on-focus invariant, because getting it
+    /// wrong reads another tab's host: `self.sftp` holds the state of
+    /// whichever surface is hoisted, and `active_sftp` alone does not
+    /// say that is this tab. A terminal tab in Files mode parks the
+    /// standalone one and takes the buffer, so with a hybrid owner the
+    /// tab's own slot is the current one even when `active_sftp` still
+    /// points here.
+    pub(crate) fn sftp_tab_state(&self, idx: usize) -> Option<&crate::state::SftpState> {
+        if self.active_sftp == Some(idx) && self.hybrid_sftp_owner.is_none() {
+            return Some(&self.sftp);
+        }
+        self.sftp_tabs.get(idx).map(|t| &t.state)
+    }
+
     pub(crate) fn sftp_tab_slot(&self, idx: usize) -> &crate::state::TransferSlot {
         if self.active_sftp == Some(idx) && self.hybrid_sftp_owner.is_none() {
             &self.sftp.transfer
