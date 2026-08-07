@@ -655,6 +655,16 @@ impl Oryxis {
         // Host / local: the connect appends a live tab synchronously, so
         // remove the placeholder and slot the live tab into its place.
         let dormant_id = self.tabs[idx]._id;
+        // Where the placeholder sits in the strip, captured BEFORE the
+        // remove. The reopen below is a nested `update`, and its
+        // `reconcile_tab_order` drops this ref (its tab is gone by then),
+        // so afterwards there is nothing left to rename and the reopened
+        // tab would land at the end of its pin partition instead of the
+        // slot the user arranged.
+        let slot = self
+            .tab_order
+            .iter()
+            .position(|r| matches!(r, crate::state::TabRef::Terminal(x) if *x == dormant_id));
         self.tabs.remove(idx);
         self.adjust_last_terminal_tab_after_remove(idx);
 
@@ -670,7 +680,7 @@ impl Oryxis {
             // Keep the reopened tab at the dormant's spot in the unified strip
             // order (else reconcile would append the new id at the end).
             let live_id = self.tabs[at]._id;
-            self.replace_tab_order_id(dormant_id, live_id);
+            self.restore_tab_order_slot(dormant_id, live_id, slot);
             self.active_tab = Some(at);
             self.remember_terminal_tab_focus(at);
             self.active_view = View::Terminal;

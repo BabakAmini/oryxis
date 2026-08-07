@@ -115,6 +115,26 @@ impl Oryxis {
         }
     }
 
+    /// Put the reopened tab `new` back at `slot`, the index the dormant
+    /// placeholder `old` held before it was dropped.
+    ///
+    /// [`Self::replace_tab_order_id`] cannot do this job when the caller
+    /// removed the placeholder from `self.tabs` BEFORE dispatching the
+    /// reopen: that dispatch is a nested `update`, whose
+    /// `reconcile_tab_order` drops refs with no backing tab, so by the
+    /// time the caller looks there is no `old` ref left to rename and the
+    /// rename silently no-ops. The reopened tab then lands wherever
+    /// `place_new_tab_ref` put it, at the end, losing the position the
+    /// user arranged. Capture the index first, restore it here.
+    pub(crate) fn restore_tab_order_slot(
+        &mut self,
+        old: uuid::Uuid,
+        new: uuid::Uuid,
+        slot: Option<usize>,
+    ) {
+        restore_order_slot(&mut self.tab_order, old, new, slot);
+    }
+
     /// Put the terminal tab `new` into the strip slot the SFTP tab `old`
     /// occupies, for the "Open terminal" morph (H5). Cross-kind, which is
     /// why it is not [`Self::replace_tab_order_id`].
@@ -259,6 +279,26 @@ fn placement_index(
     }
 }
 
+/// Pure half of [`Oryxis::restore_tab_order_slot`].
+fn restore_order_slot(
+    order: &mut Vec<crate::state::TabRef>,
+    old: uuid::Uuid,
+    new: uuid::Uuid,
+    slot: Option<usize>,
+) {
+    use crate::state::TabRef;
+    // Both, because which of them is present depends on whether the
+    // nested reconcile has run yet: the placeholder's ref, and the one
+    // appended for the live tab.
+    order.retain(|r| !matches!(r, TabRef::Terminal(x) if *x == old || *x == new));
+    match slot {
+        Some(at) => order.insert(at.min(order.len()), TabRef::Terminal(new)),
+        // Never in the order to begin with: the end is where a new tab
+        // would have gone anyway.
+        None => order.push(TabRef::Terminal(new)),
+    }
+}
+
 /// Pure half of [`Oryxis::morph_tab_order_slot`], so the slot arithmetic
 /// is testable without an `Oryxis`.
 fn morph_order_slot(order: &mut Vec<crate::state::TabRef>, old: uuid::Uuid, new: uuid::Uuid) {
@@ -279,7 +319,7 @@ fn morph_order_slot(order: &mut Vec<crate::state::TabRef>, old: uuid::Uuid, new:
 
 #[cfg(test)]
 mod tests {
-    use super::{morph_order_slot, placement_index};
+    use super::{morph_order_slot, placement_index, restore_order_slot};
     use crate::state::{TabPlacement, TabRef};
     use uuid::Uuid;
 
@@ -428,6 +468,68 @@ mod tests {
             Some(&TabRef::Terminal(dest)),
             "inheriting moves the destination to the absorbed tab's slot, \
              which is right only when the destination was just born"
+        );
+    }
+
+    // -- Reopening a dormant pinned tab keeps its slot ------------------
+
+    #[test]
+    fn a_reopened_dormant_tab_returns_to_its_own_slot() {
+        // The state `reopen_dormant_tab` actually faces after the nested
+        // update: the placeholder's ref is ALREADY gone (its tab was
+        // removed before the reopen, so `reconcile_tab_order` dropped it)
+        // and the live tab's ref was appended at the end. Renaming, which
+        // is what the code did before, finds nothing and leaves the tab
+        // at the end of its pin partition.
+        let (a, dormant, b) = (Uuid::from_u128(1), Uuid::from_u128(3), Uuid::from_u128(2));
+        let live = Uuid::from_u128(9);
+        let mut order = vec![
+            TabRef::Terminal(a),
+            TabRef::Terminal(b),
+            TabRef::Terminal(live),
+        ];
+        // The placeholder had been at index 1, captured before the remove.
+        restore_order_slot(&mut order, dormant, live, Some(1));
+        assert_eq!(
+            order,
+            vec![
+                TabRef::Terminal(a),
+                TabRef::Terminal(live),
+                TabRef::Terminal(b),
+            ],
+            "the reopened tab goes back where the user put it"
+        );
+    }
+
+    #[test]
+    fn restoring_a_slot_leaves_exactly_one_ref() {
+        // The other order of events: the placeholder's ref is still there
+        // (nothing reconciled yet). Both must not survive.
+        let (dormant, live) = (Uuid::from_u128(3), Uuid::from_u128(9));
+        let mut order = vec![
+            TabRef::Terminal(dormant),
+            TabRef::Sftp(Uuid::from_u128(5)),
+            TabRef::Terminal(live),
+        ];
+        restore_order_slot(&mut order, dormant, live, Some(0));
+        assert_eq!(
+            order,
+            vec![
+                TabRef::Terminal(live),
+                TabRef::Sftp(Uuid::from_u128(5)),
+            ],
+            "one entry for the reopened tab, at the placeholder's index"
+        );
+    }
+
+    #[test]
+    fn a_placeholder_with_no_slot_appends() {
+        let (dormant, live) = (Uuid::from_u128(3), Uuid::from_u128(9));
+        let mut order = vec![TabRef::Terminal(Uuid::from_u128(1))];
+        restore_order_slot(&mut order, dormant, live, None);
+        assert_eq!(
+            order,
+            vec![TabRef::Terminal(Uuid::from_u128(1)), TabRef::Terminal(live)]
         );
     }
 
