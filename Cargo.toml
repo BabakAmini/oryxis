@@ -161,3 +161,9 @@ split-debuginfo = "packed"
 inherits = "release"
 strip = false
 debug = "line-tables-only"
+
+# serialport reaches us through tokio-serial / mio-serial, so the only way
+# to move it is a patch. Our fork is upstream main plus windows-sys 0.61
+# (upstream is on 0.52, the oldest line left in the Windows build).
+[patch.crates-io]
+serialport = { git = "https://github.com/wilsonglasser/serialport-rs" }
