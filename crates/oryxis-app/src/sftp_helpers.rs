@@ -52,6 +52,37 @@ pub(crate) async fn build_client_pool(
     Ok(pool)
 }
 
+/// Every upload the app performs, so the scratch-name setting cannot be
+/// honoured by some paths and forgotten by others.
+///
+/// There is no second way to send a file from this crate: `upload_from`
+/// and friends are the engine's API, and reaching for them directly here
+/// is how a global setting quietly stops being global. Six call sites
+/// already disagreed before this existed (the queue runner, single-file
+/// upload, conflict resolution's replace and duplicate arms, archive
+/// extraction and OS drops), which is five more than it takes for a user
+/// to notice that a checkbox does nothing on the path they use.
+pub(crate) async fn upload_one(
+    client: &oryxis_ssh::SftpClient,
+    local: &std::path::Path,
+    remote: &str,
+    temp_name: bool,
+    progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+) -> Result<(), String> {
+    client
+        .upload_from_options(
+            local,
+            remote,
+            oryxis_ssh::UploadOptions {
+                progress,
+                temp_name,
+                ..Default::default()
+            },
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// True when a directory-listing entry name from the SFTP server is a
 /// single plain path component. Anything else (separators, `..`,
 /// absolute paths, drive prefixes) would let a hostile server steer
@@ -504,7 +535,7 @@ pub(crate) async fn do_upload_item(
     let conflict = entries.iter().find(|e| e.name == basename);
     if let Some(existing) = conflict {
         if let Some(action) = overwrite_default {
-            apply_overwrite_for_item(client.clone(), item.clone(), action).await?;
+            apply_overwrite_for_item(client.clone(), item.clone(), action, temp_name).await?;
             return Ok(TransferStepOutcome::Done);
         }
         let src_size = tokio::fs::metadata(&item.src)
@@ -523,18 +554,8 @@ pub(crate) async fn do_upload_item(
         };
         return Ok(TransferStepOutcome::Conflict { prompt, item });
     }
-    client
-        .upload_from_options(
-            std::path::Path::new(&item.src),
-            &item.dst,
-            oryxis_ssh::UploadOptions {
-                progress,
-                temp_name,
-                ..Default::default()
-            },
-        )
-        .await
-        .map_err(|e| e.to_string())?;
+    upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, progress)
+        .await?;
     Ok(TransferStepOutcome::Done)
 }
 
@@ -545,13 +566,13 @@ pub(crate) async fn apply_overwrite_for_item(
     client: oryxis_ssh::SftpClient,
     item: crate::state::TransferItem,
     action: crate::state::OverwriteAction,
+    temp_name: bool,
 ) -> Result<(), String> {
     match action {
         crate::state::OverwriteAction::Cancel => Ok(()),
-        crate::state::OverwriteAction::Replace => client
-            .upload_from(std::path::Path::new(&item.src), &item.dst)
-            .await
-            .map_err(|e| e.to_string()),
+        crate::state::OverwriteAction::Replace => {
+            upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, None).await
+        }
         // The engine re-checks everything the modal used to decide this
         // was offerable, and REFUSES rather than restarting if the check
         // fails: the destination is not ours to truncate on a guess, and
@@ -562,6 +583,9 @@ pub(crate) async fn apply_overwrite_for_item(
                 &item.dst,
                 oryxis_ssh::UploadOptions {
                     resume: true,
+                    // Deliberately no scratch name: the user pointed at
+                    // the file already there, so continuing it means
+                    // writing into THAT file, not beside it.
                     ..Default::default()
                 },
             )
@@ -591,10 +615,7 @@ pub(crate) async fn apply_overwrite_for_item(
             if local_size == remote_size {
                 return Ok(());
             }
-            client
-                .upload_from(std::path::Path::new(&item.src), &item.dst)
-                .await
-                .map_err(|e| e.to_string())
+            upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, None).await
         }
         crate::state::OverwriteAction::Duplicate => {
             let parent = parent_path(&item.dst);
@@ -606,10 +627,7 @@ pub(crate) async fn apply_overwrite_for_item(
                 .to_string();
             let unique = unique_name_in_remote_dir(&client, &parent, &basename).await?;
             let target = remote_join(&parent, &unique);
-            client
-                .upload_from(std::path::Path::new(&item.src), &target)
-                .await
-                .map_err(|e| e.to_string())
+            upload_one(&client, std::path::Path::new(&item.src), &target, temp_name, None).await
         }
     }
 }

@@ -11,7 +11,7 @@ use iced::Task;
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
     parent_path, remote_cp, remote_join, unique_name_in_local_dir,
-    unique_name_in_remote_dir, UploadOutcome,
+    unique_name_in_remote_dir, upload_one, UploadOutcome,
 };
 use super::SftpSides;
 
@@ -37,6 +37,7 @@ impl Oryxis {
                     .upload_dest_override
                     .take()
                     .unwrap_or_else(|| self.sftp.pane(remote_side).remote_path.clone());
+                let temp_name = self.prefs.sftp_upload_temp_name;
                 Ok(Task::perform(
                     async move {
                         let basename = local_path
@@ -71,10 +72,7 @@ impl Oryxis {
                             ));
                         }
                         let target = remote_join(&remote_dir, &basename);
-                        client
-                            .upload_from(&local_path, &target)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                        upload_one(&client, &local_path, &target, temp_name, None).await?;
                         Ok(UploadOutcome::Done(remote_dir))
                     },
                     move |result| match result {

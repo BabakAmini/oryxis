@@ -235,6 +235,9 @@ impl Oryxis {
         files: Vec<PathBuf>,
         dirs: Vec<PathBuf>,
     ) -> Task<Message> {
+        // Dropping files onto a terminal is still an upload, so it obeys
+        // the same scratch-name choice as every other one.
+        let temp_name = self.prefs.sftp_upload_temp_name;
         let abort = Arc::new(AtomicBool::new(false));
         if let Some(pane) = self.pane_by_id_mut(pane_id) {
             pane.drop_upload = Some(DropUploadPane {
@@ -370,9 +373,11 @@ impl Oryxis {
                         }
                         let counter = Arc::new(AtomicU64::new(0));
                         let src = PathBuf::from(&item.src);
-                        let mut up = Box::pin(client.upload_from_progress(
+                        let mut up = Box::pin(crate::sftp_helpers::upload_one(
+                            &client,
                             &src,
                             &item.dst,
+                            temp_name,
                             Some(Arc::clone(&counter)),
                         ));
                         let mut tick =

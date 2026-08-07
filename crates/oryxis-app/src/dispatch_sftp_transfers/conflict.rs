@@ -38,6 +38,7 @@ impl Oryxis {
                     return Ok(Task::none());
                 };
                 let apply_to_all = prompt.apply_to_all;
+                let temp_name = self.prefs.sftp_upload_temp_name;
                 let downloading =
                     prompt.direction == crate::state::OverwriteDirection::Download;
                 let Some(client) = self.sftp.pane(remote_side).client.clone() else {
@@ -124,7 +125,7 @@ impl Oryxis {
                             done,
                         )
                     } else {
-                        Task::perform(apply_overwrite_for_item(client, item, action), done)
+                        Task::perform(apply_overwrite_for_item(client, item, action, temp_name), done)
                     }];
                     // Resume the other slots that exited on pause.
                     for _ in 1..slot_count {
@@ -177,8 +178,13 @@ impl Oryxis {
                             prompt.basename.clone()
                         };
                         let target = remote_join(&prompt.dst_dir, &name);
-                        client
-                            .upload_from(std::path::Path::new(&prompt.src), &target)
+                        crate::sftp_helpers::upload_one(
+                            &client,
+                            std::path::Path::new(&prompt.src),
+                            &target,
+                            temp_name,
+                            None,
+                        )
                             .await
                             .map_err(|e| e.to_string())?;
                         Ok::<String, String>(reload)

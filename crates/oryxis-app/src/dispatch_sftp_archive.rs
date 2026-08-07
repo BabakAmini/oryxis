@@ -674,6 +674,9 @@ impl Oryxis {
         };
         let label = format!("{} {}", crate::i18n::t("archive_log_copied"), base);
         let owner = self.current_sftp_owner();
+        // Copying members OUT of an archive onto a host is an upload like
+        // any other, so it obeys the same scratch-name choice.
+        let temp_name = self.prefs.sftp_upload_temp_name;
         // Copy-out busies the SOURCE pane (the one browsing the
         // archive) while the DESTINATION pane receives the files, so
         // the completion carries a token per pane: the busy clear is
@@ -683,7 +686,7 @@ impl Oryxis {
         self.sftp.pane_mut(side).archive_busy =
             Some(crate::i18n::t("archive_copying").to_string());
         Task::perform(
-            async move { zip_copy_out_job(source, files, dirs, dest).await },
+            async move { zip_copy_out_job(source, files, dirs, dest, temp_name).await },
             move |r| {
                 Message::sftp_owned(
                     owner,
@@ -865,6 +868,7 @@ async fn zip_copy_out_job(
     files: Vec<(usize, String)>,
     dirs: Vec<String>,
     dest: CopyDest,
+    temp_name: bool,
 ) -> Result<(), String> {
     let (root, staged) = match &dest {
         CopyDest::Local(dir) => (dir.clone(), false),
@@ -919,10 +923,14 @@ async fn zip_copy_out_job(
                     .map_err(|e| e.to_string())?;
             }
             for (_, rel) in &files {
-                client
-                    .upload_from(&under(&root, rel), &join_remote(&dest_dir, rel))
-                    .await
-                    .map_err(|e| e.to_string())?;
+                crate::sftp_helpers::upload_one(
+                    &client,
+                    &under(&root, rel),
+                    &join_remote(&dest_dir, rel),
+                    temp_name,
+                    None,
+                )
+                .await?;
             }
             Ok::<(), String>(())
         }
