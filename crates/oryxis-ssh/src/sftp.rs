@@ -430,12 +430,16 @@ impl SftpClient {
         let resume_from = if size >= STREAM_THRESHOLD {
             match tokio::fs::metadata(&part).await {
                 Ok(m) if m.len() > 0 => {
-                    let have = resumable_prefix(m.len()).min(size);
-                    if have > 0 && self.tail_matches(remote, &part, have).await? {
-                        have
-                    } else {
-                        0
-                    }
+                    let have = resume_offset(size, m.len());
+                    let matches = have > 0 && self.tail_matches(remote, &part, have).await?;
+                    tracing::info!(
+                        remote,
+                        scratch_bytes = m.len(),
+                        resume_from = if matches { have } else { 0 },
+                        tail_matched = matches,
+                        "sftp download: resume decision"
+                    );
+                    if matches { have } else { 0 }
                 }
                 _ => 0,
             }
@@ -648,16 +652,25 @@ impl SftpClient {
                     )));
                 }
                 Ok(st) => {
-                    // Same rewind as the download side, for the same
-                    // reason: the destination's SIZE is the highest offset
-                    // an interrupted window reached, and a crash left no
+                    // Same rule as the download side, for the same reason:
+                    // the destination's SIZE is the highest offset an
+                    // interrupted window reached, and a crash left no
                     // chance to trim the holes below it.
-                    let have = resumable_prefix(st.size);
+                    let have = resume_offset(size, st.size);
+                    tracing::info!(
+                        remote,
+                        target,
+                        destination_bytes = st.size,
+                        source_bytes = size,
+                        resume_from = have,
+                        "sftp upload: resume decision"
+                    );
                     if have == 0 {
-                        // Less already there than the rewind: nothing worth
-                        // continuing, so this is an ordinary upload.
+                        // Nothing worth continuing, so this is an ordinary
+                        // upload.
                         0
                     } else if self.tail_matches(&target, local, have).await? {
+                        tracing::info!(remote, resume_from = have, "sftp upload: resuming");
                         have
                     } else {
                         return Err(SshError::Channel(format!(
@@ -1485,9 +1498,29 @@ const RESUME_VERIFY_BYTES: u64 = 64 * 1024;
 /// not. Do not "optimise" it away by trusting the length.
 const RESUME_REWIND: u64 = STREAM_WINDOW as u64 * STREAM_CHUNK as u64;
 
-/// Largest offset a partial of `len` bytes can be resumed from.
-pub(crate) fn resumable_prefix(len: u64) -> u64 {
-    len.saturating_sub(RESUME_REWIND)
+/// How much of a `have`-byte partial can be continued, for a source of
+/// `size` bytes. Zero means "there is nothing worth continuing", which
+/// callers treat as an ordinary from-scratch transfer.
+///
+/// The rewind exists ONLY because the sliding window can leave holes,
+/// and the window only ever runs at or above [`STREAM_THRESHOLD`].
+/// Below it the sequential pump writes strictly in order, so a partial
+/// of a small file has no holes to protect against and its whole length
+/// is real. Rewinding there anyway made resume a no-op for every file
+/// smaller than the rewind itself: a 1.2 MB upload could never have a
+/// 4 MB partial, so "continue" silently became "start over".
+///
+/// This is the ONE authority on the question. The UI asks it before
+/// offering to continue, so it cannot offer something the engine will
+/// then decline to do.
+pub fn resume_offset(size: u64, have: u64) -> u64 {
+    if have == 0 || have >= size {
+        return 0;
+    }
+    if size < STREAM_THRESHOLD {
+        return have;
+    }
+    have.saturating_sub(RESUME_REWIND)
 }
 
 /// Longest single path component almost every filesystem accepts, in
@@ -2459,5 +2492,44 @@ mod scratch_name_tests {
         assert!(fitted.len() <= NAME_MAX);
         assert!(fitted.ends_with(PART_SUFFIX));
         assert!(fitted.trim_end_matches(PART_SUFFIX).chars().all(|c| c == 'é'));
+    }
+}
+
+#[cfg(test)]
+mod resume_offset_tests {
+    use super::{resume_offset, RESUME_REWIND, STREAM_THRESHOLD};
+
+    /// A partial of a SMALL file has no holes to protect against: only
+    /// the sliding window can leave them, and it never runs below the
+    /// threshold. Rewinding there made every resume of a file smaller
+    /// than the rewind a silent start-over, which is what a 1.2 MB
+    /// upload hit.
+    #[test]
+    fn small_files_resume_from_the_whole_partial() {
+        let size = 1_200_000;
+        assert!(size < STREAM_THRESHOLD);
+        assert_eq!(resume_offset(size, 400_000), 400_000);
+        assert_eq!(resume_offset(size, 1), 1);
+    }
+
+    /// At or above the threshold the window could have been writing, so
+    /// the rewind applies.
+    #[test]
+    fn large_files_rewind_past_the_window() {
+        let size = 40 * 1024 * 1024;
+        let have = 30 * 1024 * 1024;
+        assert_eq!(resume_offset(size, have), have - RESUME_REWIND);
+        // A partial smaller than the rewind leaves nothing provable.
+        assert_eq!(resume_offset(size, RESUME_REWIND - 1), 0);
+    }
+
+    /// Nothing to continue is zero, in both directions: an empty
+    /// destination, and one that is already at least as long as the
+    /// source (which cannot be a partial copy of it).
+    #[test]
+    fn nothing_to_continue_is_zero() {
+        assert_eq!(resume_offset(1_000, 0), 0);
+        assert_eq!(resume_offset(1_000, 1_000), 0);
+        assert_eq!(resume_offset(1_000, 2_000), 0);
     }
 }

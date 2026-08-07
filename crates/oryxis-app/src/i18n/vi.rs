@@ -1602,6 +1602,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "tiếp tục không phải là câu trả lời cho xung đột tải xuống; tải xuống tiếp tục tệp tạm của riêng nó",
         "replace_if_different" => "Thay thế nếu khác",
         "replace" => "Thay thế",
+        "transfer_waiting" => "Đang chờ bạn trả lời",
         "transfer_uploading" => "Đang tải lên",
         "transfer_downloading" => "Đang tải về",
         "transfer_duplicating" => "Đang nhân bản",

@@ -1519,6 +1519,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "繼續不適用於下載衝突；下載會繼續自己的暫存檔",
         "replace_if_different" => "如果不同則取代",
         "replace" => "取代",
+        "transfer_waiting" => "等待你的選擇",
         "transfer_uploading" => "上傳中",
         "transfer_downloading" => "下載中",
         "transfer_duplicating" => "建立複本中",

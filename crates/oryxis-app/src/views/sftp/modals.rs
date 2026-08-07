@@ -790,9 +790,12 @@ pub(crate) fn overwrite_modal<'a>(
     // not empty. Uploads only, because a download's own partial lives in
     // a scratch file and resumes without asking, so a finished file at
     // this destination is not a partial of anything.
+    // `resume_offset` is what the engine will actually do, so asking it
+      // here is the only way the button cannot lie. It answers 0 when
+      // there is nothing provable to continue, which for a partial of a
+      // windowed transfer means "smaller than the rewind".
     let can_resume = prompt.direction == crate::state::OverwriteDirection::Upload
-        && prompt.dst_size > 0
-        && prompt.dst_size < prompt.src_size;
+        && oryxis_ssh::resume_offset(prompt.src_size, prompt.dst_size) > 0;
 
     if prompt.multi {
         // Sticky decision lets the user clear out a long upload's

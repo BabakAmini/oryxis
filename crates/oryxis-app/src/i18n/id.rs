@@ -1602,6 +1602,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "melanjutkan bukan jawaban untuk konflik unduhan; unduhan melanjutkan berkas sementaranya sendiri",
         "replace_if_different" => "Ganti jika berbeda",
         "replace" => "Ganti",
+        "transfer_waiting" => "Menunggu jawaban Anda",
         "transfer_uploading" => "Mengunggah",
         "transfer_downloading" => "Mengunduh",
         "transfer_duplicating" => "Menggandakan",

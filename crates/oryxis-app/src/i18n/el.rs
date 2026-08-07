@@ -1608,6 +1608,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "η συνέχεια δεν είναι απάντηση σε σύγκρουση λήψης· οι λήψεις συνεχίζουν το δικό τους προσωρινό αρχείο",
         "replace_if_different" => "Αντικατάσταση αν διαφέρει",
         "replace" => "Αντικατάσταση",
+        "transfer_waiting" => "Αναμονή για την απάντησή σας",
         "transfer_uploading" => "Αποστολή",
         "transfer_downloading" => "Λήψη",
         "transfer_duplicating" => "Δημιουργία αντιγράφου",

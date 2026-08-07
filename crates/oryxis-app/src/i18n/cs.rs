@@ -1608,6 +1608,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "pokračování není odpovědí na konflikt stahování; stahování pokračují ve vlastním dočasném souboru",
         "replace_if_different" => "Nahradit, pokud se liší",
         "replace" => "Nahradit",
+        "transfer_waiting" => "Čeká na vaši odpověď",
         "transfer_uploading" => "Nahrávání",
         "transfer_downloading" => "Stahování",
         "transfer_duplicating" => "Duplikování",

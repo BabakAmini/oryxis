@@ -1608,6 +1608,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "डाउनलोड विरोध का उत्तर जारी रखना नहीं है; डाउनलोड अपनी ही अस्थायी फ़ाइल जारी रखते हैं",
         "replace_if_different" => "अलग होने पर बदलें",
         "replace" => "बदलें",
+        "transfer_waiting" => "आपके उत्तर की प्रतीक्षा है",
         "transfer_uploading" => "अपलोड हो रहा है",
         "transfer_downloading" => "डाउनलोड हो रहा है",
         "transfer_duplicating" => "डुप्लिकेट हो रहा है",

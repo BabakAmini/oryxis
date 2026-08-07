@@ -1608,6 +1608,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "kontynuacja nie jest odpowiedzią na konflikt pobierania; pobierania kontynuują własny plik tymczasowy",
         "replace_if_different" => "Zastąp, jeśli różny",
         "replace" => "Zastąp",
+        "transfer_waiting" => "Czeka na Twoją odpowiedź",
         "transfer_uploading" => "Wysyłanie",
         "transfer_downloading" => "Pobieranie",
         "transfer_duplicating" => "Duplikowanie",

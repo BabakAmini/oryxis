@@ -740,7 +740,7 @@ async fn harness_download_resumes_a_valid_scratch_file() {
     let expected: Vec<u8> = (0..size).map(|i| (i % 251) as u8).collect();
     // What the server serves: identical except in the region a resume will
     // never ask for, which is everything below the tail it verifies.
-    let poison_end = crate::sftp::resumable_prefix(cut as u64) as usize - 64 * 1024;
+    let poison_end = crate::sftp::resume_offset(size as u64, cut as u64) as usize - 64 * 1024;
     assert!(poison_end > 0, "rewind left no room to poison");
     let mut served = expected.clone();
     served[..poison_end].fill(0x5A);
@@ -848,7 +848,7 @@ async fn harness_upload_resume_and_its_refusals() {
     let mut partial = payload[..cut].to_vec();
     partial[poison_at] ^= 0xFF;
     assert!(
-        crate::sftp::resumable_prefix(cut as u64) as usize > poison_at + 64 * 1024,
+        crate::sftp::resume_offset(size as u64, cut as u64) as usize > poison_at + 64 * 1024,
         "poison must sit below the verified tail"
     );
     fs.lock()

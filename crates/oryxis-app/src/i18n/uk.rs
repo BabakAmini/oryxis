@@ -1602,6 +1602,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "продовження не є відповіддю на конфлікт завантаження; завантаження продовжують власний тимчасовий файл",
         "replace_if_different" => "Замінити, якщо відрізняється",
         "replace" => "Замінити",
+        "transfer_waiting" => "Очікує вашої відповіді",
         "transfer_uploading" => "Вивантаження",
         "transfer_downloading" => "Завантаження",
         "transfer_duplicating" => "Дублювання",

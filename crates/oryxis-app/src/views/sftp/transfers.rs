@@ -70,11 +70,18 @@ pub(crate) fn transfer_progress_strip<'a>(
     cancel: Message,
     narrow: bool,
 ) -> Element<'a, Message> {
-    let label = match transfer.kind {
-        crate::state::TransferKind::Upload => t("transfer_uploading"),
-        crate::state::TransferKind::Download => t("transfer_downloading"),
-        crate::state::TransferKind::DuplicateLocal => t("transfer_duplicating"),
-        crate::state::TransferKind::Relay => t("transfer_relaying"),
+    let label = if transfer.paused {
+        // Parked on a conflict modal: nothing is moving, and a bar that
+        // says "Uploading 0 B" while it waits is reporting something
+        // that is not happening.
+        t("transfer_waiting")
+    } else {
+        match transfer.kind {
+            crate::state::TransferKind::Upload => t("transfer_uploading"),
+            crate::state::TransferKind::Download => t("transfer_downloading"),
+            crate::state::TransferKind::DuplicateLocal => t("transfer_duplicating"),
+            crate::state::TransferKind::Relay => t("transfer_relaying"),
+        }
     };
     let current = transfer
         .current

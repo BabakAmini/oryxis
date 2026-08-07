@@ -1609,6 +1609,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "resume_not_for_downloads" => "resume is not an answer for a download conflict; downloads continue their own scratch file",
         "replace_if_different" => "Replace if different",
         "replace" => "Replace",
+        "transfer_waiting" => "Waiting for your answer",
         "transfer_uploading" => "Uploading",
         "transfer_downloading" => "Downloading",
         "transfer_duplicating" => "Duplicating",

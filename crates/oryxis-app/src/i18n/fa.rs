@@ -1591,6 +1591,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "ادامه پاسخی برای تعارض دانلود نیست؛ دانلودها فایل موقت خود را ادامه می‌دهند",
         "replace_if_different" => "جایگزین اگر متفاوت است",
         "replace" => "جایگزین",
+        "transfer_waiting" => "در انتظار پاسخ شما",
         "transfer_uploading" => "در حال آپلود",
         "transfer_downloading" => "در حال دانلود",
         "transfer_duplicating" => "در حال تکرار",

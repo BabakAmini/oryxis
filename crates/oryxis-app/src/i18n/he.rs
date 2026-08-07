@@ -1608,6 +1608,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "המשך אינו תשובה להתנגשות בהורדה; הורדות ממשיכות את קובץ הטיוטה שלהן",
         "replace_if_different" => "החלפה אם שונה",
         "replace" => "החלפה",
+        "transfer_waiting" => "ממתין לתשובה שלך",
         "transfer_uploading" => "מעלה",
         "transfer_downloading" => "מוריד",
         "transfer_duplicating" => "משכפל",

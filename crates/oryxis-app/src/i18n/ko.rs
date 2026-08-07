@@ -1602,6 +1602,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "이어받기는 다운로드 충돌의 답이 아닙니다. 다운로드는 자체 임시 파일을 이어받습니다",
         "replace_if_different" => "다른 경우 교체",
         "replace" => "교체",
+        "transfer_waiting" => "응답을 기다리는 중",
         "transfer_uploading" => "업로드 중",
         "transfer_downloading" => "다운로드 중",
         "transfer_duplicating" => "복제 중",

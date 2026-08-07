@@ -1516,6 +1516,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "continuar no es una respuesta para un conflicto de descarga; las descargas continúan su propio archivo temporal",
         "replace_if_different" => "Reemplazar si es diferente",
         "replace" => "Reemplazar",
+        "transfer_waiting" => "Esperando tu respuesta",
         "transfer_uploading" => "Subiendo",
         "transfer_downloading" => "Descargando",
         "transfer_duplicating" => "Duplicando",

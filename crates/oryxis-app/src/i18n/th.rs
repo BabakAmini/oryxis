@@ -1609,6 +1609,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "ทำต่อไม่ใช่คำตอบสำหรับความขัดแย้งของการดาวน์โหลด ดาวน์โหลดจะทำต่อจากไฟล์ชั่วคราวของตัวเอง",
         "replace_if_different" => "แทนที่ถ้าแตกต่าง",
         "replace" => "แทนที่",
+        "transfer_waiting" => "กำลังรอคำตอบของคุณ",
         "transfer_uploading" => "กำลังอัปโหลด",
         "transfer_downloading" => "กำลังดาวน์โหลด",
         "transfer_duplicating" => "กำลังทำสำเนา",

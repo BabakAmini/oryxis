@@ -1607,6 +1607,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "المتابعة ليست إجابة على تعارض التنزيل؛ التنزيلات تتابع ملفها المؤقت الخاص",
         "replace_if_different" => "استبدال إذا كان مختلفًا",
         "replace" => "استبدال",
+        "transfer_waiting" => "في انتظار إجابتك",
         "transfer_uploading" => "جارٍ الرفع",
         "transfer_downloading" => "جارٍ التنزيل",
         "transfer_duplicating" => "جارٍ التكرار",

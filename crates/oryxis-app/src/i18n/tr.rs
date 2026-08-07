@@ -1602,6 +1602,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "resume_not_for_downloads" => "devam etmek bir indirme çakışmasının yanıtı değildir; indirmeler kendi geçici dosyalarını sürdürür",
         "replace_if_different" => "Farklıysa değiştir",
         "replace" => "Değiştir",
+        "transfer_waiting" => "Yanıtınız bekleniyor",
         "transfer_uploading" => "Yükleniyor",
         "transfer_downloading" => "İndiriliyor",
         "transfer_duplicating" => "Çoğaltılıyor",
