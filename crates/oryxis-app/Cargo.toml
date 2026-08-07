@@ -44,8 +44,9 @@ ssh-encoding = "0.3"
 # The `Signer` trait ssh-key's key data implements (raw-data signing
 # for the agent). Pinned to ssh-key 0.7's signature version.
 signature = "3"
-# Native OS notifications (OSC 9): Windows toast, macOS, Linux libnotify/D-Bus.
-notify-rust = "4"
+# Native OS notifications (OSC 9): macOS and Linux libnotify/D-Bus. The
+# Windows half is taken directly from notify-rust's own backend below, so
+# it is declared per-target rather than here.
 # OS locale detection for the "Auto (OS)" language default (BCP-47
 # tags on all three platforms; the preference *list* on macOS).
 sys-locale = "0.3"
@@ -164,6 +165,16 @@ winresource = "0.1"
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
+# Native OS notifications everywhere except Windows. On Windows this crate
+# is just a thin wrapper over `tauri-winrt-notification`, and it pins the
+# 0.7 line, which drags a SECOND major of the `windows` crate into the
+# build (0.61 next to the 0.62 that wgpu-hal, gpu-allocator and our own
+# Win32 code use). Two majors of `windows` is what broke the Windows build
+# in 25ae5b27, so the Windows half calls that backend directly below and
+# notify-rust stays off this target entirely.
+[target.'cfg(not(target_os = "windows"))'.dependencies]
+notify-rust = "4"
+
 # ShellExecuteW for the auto-updater. CreateProcess (what
 # `Command::new().spawn()` uses) ignores the installer manifest and fails
 # with ERROR_ELEVATION_REQUIRED (740) on the system NSIS .exe, which
@@ -184,6 +195,11 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell_Common",
     "Win32_UI_Shell_PropertiesSystem",
 ] }
+# The toast backend notify-rust itself uses on Windows, taken one major
+# newer (0.8 builds on `windows` 0.62, 0.7 on 0.61). Same library, same
+# `POWERSHELL_APP_ID` fallback notify-rust picks for us today, one fewer
+# major of `windows` in the build. See the note on the not(windows) block.
+tauri-winrt-notification = "0.8"
 # Cross-platform tray icon, but only built on Windows. macOS and
 # Linux need different lifecycle conventions (LSUIElement on macOS,
 # SNI/AppIndicator on Linux), deferred to a later release.

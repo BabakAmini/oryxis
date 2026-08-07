@@ -491,11 +491,36 @@ impl HintMode {
 /// Show a native OS notification (OSC 9). Returns whether it was dispatched;
 /// the caller falls back to an in-app toast on `false` (no notification daemon
 /// on Linux, or no registered AppUserModelID on a non-installed Windows build).
+#[cfg(not(target_os = "windows"))]
 pub(crate) fn show_os_notification(summary: &str, body: &str) -> bool {
     notify_rust::Notification::new()
         .summary(summary)
         .body(body)
         .appname("Oryxis")
+        .show()
+        .is_ok()
+}
+
+/// Windows half, calling the same backend notify-rust would.
+///
+/// notify-rust's Windows path is a thin wrapper over this crate, and it
+/// ignores `appname` entirely: it sends `Notification::app_id`, which we
+/// never set, so it falls back to `Toast::POWERSHELL_APP_ID`. Passing that
+/// id here reproduces today's behaviour exactly, including the
+/// documented failure mode (no toast on a build with no registered
+/// AppUserModelID). What changes is only the version: 0.8 builds on
+/// `windows` 0.62, the major everything else in the tree already uses,
+/// while notify-rust pins the 0.7 line to 0.61.
+///
+/// Deliberately NOT calling `SetCurrentProcessExplicitAppUserModelID` to
+/// "improve" this: `jumplist.rs` explains why the process AUMID is left
+/// alone, and toast routing keys off it.
+#[cfg(target_os = "windows")]
+pub(crate) fn show_os_notification(summary: &str, body: &str) -> bool {
+    use tauri_winrt_notification::Toast;
+    Toast::new(Toast::POWERSHELL_APP_ID)
+        .title(summary)
+        .text1(body)
         .show()
         .is_ok()
 }
