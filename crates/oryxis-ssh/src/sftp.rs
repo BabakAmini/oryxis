@@ -1256,7 +1256,7 @@ impl SftpClient {
             // Align the session's per-request deadline with the client's
             // op timeout so a single 255 KiB request on a slow link isn't
             // killed by the library's 10s default.
-            raw.set_timeout(op_secs).await;
+            raw.set_timeout(op_secs);
             raw.init()
                 .await
                 .map_err(|e| SshError::Channel(format!("sftp raw init: {e}")))?;
