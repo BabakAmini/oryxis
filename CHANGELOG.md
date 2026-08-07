@@ -168,10 +168,9 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   shell had reached a prompt when the bytes arrived: on a host with a
   long MOTD or a slow `/etc/profile.d` they landed first, the terminal
   echoed them raw, and the self-erasing trailer wiped a region
-  calibrated against a cursor position that never existed. One field
-  report had it leave the setup block on screen and hang the session
-  hard enough to need a reconnect and a Ctrl+C. No other terminal
-  installs shell integration this way (kitty ships a bootstrap and
+  calibrated against a cursor position that never existed, leaving the
+  setup block sitting on screen for the rest of the session. No other
+  terminal installs shell integration this way (kitty ships a bootstrap and
   `exec`s the login shell, VS Code injects only into shells it launches
   itself and documents that plain SSH is out of scope, WezTerm and
   iTerm2 hand you a snippet), so the snippet is now the supported path

@@ -166,9 +166,9 @@ has no way to know what the shell is doing at that instant: on a host
 with a long MOTD or a slow `/etc/profile.d`, the bytes land before the
 shell reaches its first prompt, the terminal echoes them raw, and the
 self-erasing trailer wipes the wrong region because the cursor
-position it was calibrated against never existed. On one field report
-it left the setup block on screen and hung the session hard enough to
-need a reconnect and a Ctrl+C.
+position it was calibrated against never existed. What you get is the
+setup block sitting on your screen for the rest of the session, which
+is the opposite of the point.
 
 No other terminal does this, which in hindsight was the tell. Every
 client that installs shell integration on a remote host replaces the
