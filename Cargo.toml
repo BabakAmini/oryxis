@@ -54,7 +54,13 @@ iced = { git = "https://github.com/wilsonglasser/iced", branch = "oryxis", featu
 russh = { version = "0.62.5", features = ["des"] }
 
 # Terminal parsing
-alacritty_terminal = "0.26"
+# Our fork, only to carry the windows-sys 0.61 bump ahead of a release:
+# upstream is on 0.59, which was the last thing in the Windows build
+# holding a second version of that crate. Submitted as
+# https://github.com/alacritty/alacritty/pull/9019; drop the pin and go
+# back to the published crate once it lands (or once 0.26.1 ships with
+# it). The branch is otherwise upstream master, unmodified.
+alacritty_terminal = { git = "https://github.com/wilsonglasser/alacritty", branch = "windows-sys-0.61" }
 vte = "0.15"
 
 # PTY
