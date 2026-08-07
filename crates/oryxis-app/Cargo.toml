@@ -121,7 +121,9 @@ tokio-stream = { workspace = true }
 uuid = { workspace = true }
 regex = { workspace = true }
 chrono = { workspace = true }
-rfd = "0.15"
+# 0.17 resolves windows-sys 0.61 (0.15 pinned 0.59), so the file dialogs
+# stop being one of the holders of an older windows-sys line.
+rfd = "0.17"
 image = "0.25"
 iced_fonts = { git = "https://github.com/wilsonglasser/iced_fonts", branch = "text-selection-iced-0.15", features = ["lucide", "codicon"] }
 # Parses the embedded Lucide font's glyph-name table at runtime so the icon
