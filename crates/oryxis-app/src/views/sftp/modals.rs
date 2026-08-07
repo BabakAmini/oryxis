@@ -777,6 +777,14 @@ pub(crate) fn overwrite_modal<'a>(
     ]
     .width(Length::Fill);
 
+    // Every answer travels back to the owner that asked. Re-deriving
+    // it on arrival does not work: a sidebar transfer routinely runs
+    // with no SFTP surface focused, and an unaddressed answer would
+    // be declined outright, leaving the queue paused forever.
+    let reply = |action: crate::state::OverwriteAction| match prompt.owner {
+        Some(id) => Message::SftpFor(id, Box::new(SftpMessage::SftpResolveOverwrite(action))),
+        None => Message::Sftp(SftpMessage::SftpResolveOverwrite(action)),
+    };
     // Continuing is only meaningful when what is already there could BE a
     // partial copy of what is being sent: shorter than the source, and
     // not empty. Uploads only, because a download's own partial lives in
@@ -790,7 +798,7 @@ pub(crate) fn overwrite_modal<'a>(
         // Sticky decision lets the user clear out a long upload's
         // collisions in one click instead of answering N times.
         content = content.push(Space::new().height(14));
-        content = content.push(overwrite_apply_to_all_checkbox(prompt.apply_to_all));
+        content = content.push(overwrite_apply_to_all_checkbox(prompt.apply_to_all, prompt.owner));
     }
     if can_resume {
         content = content.push(Space::new().height(10));
@@ -805,7 +813,7 @@ pub(crate) fn overwrite_modal<'a>(
     let mut actions = row![
         ghost_button(
             t("cancel"),
-            Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Cancel)),
+            reply(crate::state::OverwriteAction::Cancel),
         ),
         Space::new().width(Length::Fill),
     ]
@@ -813,23 +821,23 @@ pub(crate) fn overwrite_modal<'a>(
     if can_resume {
         actions = actions.push(outlined_button(
             t("resume_transfer"),
-            Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Resume)),
+            reply(crate::state::OverwriteAction::Resume),
         ));
         actions = actions.push(Space::new().width(8));
     }
     actions = actions.push(outlined_button(
         t("replace_if_different"),
-        Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::ReplaceIfDifferent)),
+        reply(crate::state::OverwriteAction::ReplaceIfDifferent),
     ));
     actions = actions.push(Space::new().width(8));
     actions = actions.push(outlined_button(
         t("duplicate"),
-        Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Duplicate)),
+        reply(crate::state::OverwriteAction::Duplicate),
     ));
     actions = actions.push(Space::new().width(8));
     actions = actions.push(primary_button(
         t("replace"),
-        Message::Sftp(SftpMessage::SftpResolveOverwrite(crate::state::OverwriteAction::Replace)),
+        reply(crate::state::OverwriteAction::Replace),
         OryxisColors::t().error,
     ));
     content = content.push(actions);
@@ -1062,7 +1070,7 @@ pub(crate) fn ghost_button<'a>(label: &'a str, msg: Message) -> Element<'a, Mess
 /// Small click-to-toggle row with a square indicator + label. iced 0.14
 /// has a built-in checkbox widget, but matching it to the rest of the
 /// modal's chrome takes more code than just rolling a button-like row.
-pub(crate) fn overwrite_apply_to_all_checkbox<'a>(checked: bool) -> Element<'a, Message> {
+pub(crate) fn overwrite_apply_to_all_checkbox<'a>(checked: bool, owner: Option<uuid::Uuid>) -> Element<'a, Message> {
     let mark = if checked {
         iced_fonts::lucide::circle_check()
             .size(14)
@@ -1082,7 +1090,10 @@ pub(crate) fn overwrite_apply_to_all_checkbox<'a>(checked: bool) -> Element<'a, 
         ]
         .align_y(iced::Alignment::Center),
     )
-    .on_press(Message::Sftp(SftpMessage::SftpToggleApplyToAll))
+    .on_press(match owner {
+        Some(id) => Message::SftpFor(id, Box::new(SftpMessage::SftpToggleApplyToAll)),
+        None => Message::Sftp(SftpMessage::SftpToggleApplyToAll),
+    })
     .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 4.0 })
     .style(|_, status| {
         let bg = match status {

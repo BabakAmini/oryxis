@@ -25,7 +25,8 @@ impl Oryxis {
     ) -> Result<Task<Message>, SftpMessage> {
         let SftpSides { remote: remote_side, local: local_side, owner } = sides;
         match message {
-            SftpMessage::SftpAskOverwrite(prompt) => {
+            SftpMessage::SftpAskOverwrite(mut prompt) => {
+                prompt.owner = Some(owner);
                 self.sftp.overwrite_prompt = Some(prompt);
             }
             SftpMessage::SftpToggleApplyToAll => {
@@ -115,17 +116,23 @@ impl Oryxis {
                     // download on the local filesystem. Same continuation
                     // either way (it captures only Copy state, so it is
                     // itself Copy and both arms can use it).
+                    let bytes_done = self
+                        .transfer_slot_mut(owner)
+                        .map(|s| s.bytes_done.clone());
                     let done = move |r: Result<(), String>| match r {
                         Ok(()) => Message::Sftp(SftpMessage::SftpTransferItemDone(owner, slot)),
                         Err(e) => Message::Sftp(SftpMessage::SftpTransferError(owner, e, slot)),
                     };
                     let mut tasks = vec![if downloading {
                         Task::perform(
-                            apply_overwrite_for_download_item(client, item, action),
+                            apply_overwrite_for_download_item(client, item, action, bytes_done),
                             done,
                         )
                     } else {
-                        Task::perform(apply_overwrite_for_item(client, item, action, temp_name), done)
+                        Task::perform(
+                            apply_overwrite_for_item(client, item, action, temp_name, bytes_done),
+                            done,
+                        )
                     }];
                     // Resume the other slots that exited on pause.
                     for _ in 1..slot_count {
@@ -197,7 +204,8 @@ impl Oryxis {
                     },
                 ));
             }
-            SftpMessage::SftpTransferConflict(_, prompt, item, slot) => {
+            SftpMessage::SftpTransferConflict(_, mut prompt, item, slot) => {
+                prompt.owner = Some(owner);
                 // Park the popped item alongside the prompt so the
                 // resolve handler knows which destination the user is
                 // about to act on. The queue stays stalled here until

@@ -73,6 +73,13 @@ impl Oryxis {
                     .sftp
                     .selected_rows
                     .iter()
+                    // Rows inside a browsed archive are read-only, the same
+                    // gate the single-row ask applies. Filtered rather than
+                    // refused wholesale so a selection spanning both panes
+                    // still deletes the half that is real, and a selection
+                    // entirely inside an archive asks nothing at all
+                    // (`targets` ends up empty).
+                    .filter(|(side, _)| self.sftp.pane(*side).zip.is_none())
                     .map(|(side, path)| crate::state::SftpDeleteTarget {
                         side: *side,
                         path: path.clone(),

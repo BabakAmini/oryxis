@@ -535,7 +535,8 @@ pub(crate) async fn do_upload_item(
     let conflict = entries.iter().find(|e| e.name == basename);
     if let Some(existing) = conflict {
         if let Some(action) = overwrite_default {
-            apply_overwrite_for_item(client.clone(), item.clone(), action, temp_name).await?;
+            apply_overwrite_for_item(client.clone(), item.clone(), action, temp_name, progress.clone())
+                .await?;
             return Ok(TransferStepOutcome::Done);
         }
         let src_size = tokio::fs::metadata(&item.src)
@@ -551,6 +552,7 @@ pub(crate) async fn do_upload_item(
             direction: crate::state::OverwriteDirection::Upload,
             multi,
             apply_to_all: false,
+                    owner: None,
         };
         return Ok(TransferStepOutcome::Conflict { prompt, item });
     }
@@ -567,11 +569,12 @@ pub(crate) async fn apply_overwrite_for_item(
     item: crate::state::TransferItem,
     action: crate::state::OverwriteAction,
     temp_name: bool,
+    progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 ) -> Result<(), String> {
     match action {
         crate::state::OverwriteAction::Cancel => Ok(()),
         crate::state::OverwriteAction::Replace => {
-            upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, None).await
+            upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, progress).await
         }
         // The engine re-checks everything the modal used to decide this
         // was offerable, and REFUSES rather than restarting if the check
@@ -582,6 +585,7 @@ pub(crate) async fn apply_overwrite_for_item(
                 std::path::Path::new(&item.src),
                 &item.dst,
                 oryxis_ssh::UploadOptions {
+                    progress,
                     resume: true,
                     // Deliberately no scratch name: the user pointed at
                     // the file already there, so continuing it means
@@ -615,7 +619,7 @@ pub(crate) async fn apply_overwrite_for_item(
             if local_size == remote_size {
                 return Ok(());
             }
-            upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, None).await
+            upload_one(&client, std::path::Path::new(&item.src), &item.dst, temp_name, progress).await
         }
         crate::state::OverwriteAction::Duplicate => {
             let parent = parent_path(&item.dst);
@@ -627,7 +631,7 @@ pub(crate) async fn apply_overwrite_for_item(
                 .to_string();
             let unique = unique_name_in_remote_dir(&client, &parent, &basename).await?;
             let target = remote_join(&parent, &unique);
-            upload_one(&client, std::path::Path::new(&item.src), &target, temp_name, None).await
+            upload_one(&client, std::path::Path::new(&item.src), &target, temp_name, progress).await
         }
     }
 }
@@ -657,7 +661,8 @@ pub(crate) async fn do_download_item(
     let dst = std::path::PathBuf::from(&item.dst);
     if let Ok(existing) = tokio::fs::metadata(&dst).await {
         if let Some(action) = overwrite_default {
-            apply_overwrite_for_download_item(client.clone(), item.clone(), action).await?;
+            apply_overwrite_for_download_item(client.clone(), item.clone(), action, progress.clone())
+                .await?;
             return Ok(TransferStepOutcome::Done);
         }
         let parent = dst
@@ -682,6 +687,7 @@ pub(crate) async fn do_download_item(
             direction: crate::state::OverwriteDirection::Download,
             multi,
             apply_to_all: false,
+                    owner: None,
         };
         return Ok(TransferStepOutcome::Conflict { prompt, item });
     }
@@ -699,6 +705,7 @@ pub(crate) async fn apply_overwrite_for_download_item(
     client: oryxis_ssh::SftpClient,
     item: crate::state::TransferItem,
     action: crate::state::OverwriteAction,
+    progress: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 ) -> Result<(), String> {
     let dst = std::path::PathBuf::from(&item.dst);
     match action {
@@ -713,7 +720,7 @@ pub(crate) async fn apply_overwrite_for_download_item(
         )
         .to_string()),
         crate::state::OverwriteAction::Replace => client
-            .download_to(&item.src, &dst, item.size)
+            .download_to_progress(&item.src, &dst, item.size, progress.clone())
             .await
             .map_err(|e| e.to_string()),
         crate::state::OverwriteAction::ReplaceIfDifferent => {
@@ -726,7 +733,7 @@ pub(crate) async fn apply_overwrite_for_download_item(
                 return Ok(());
             }
             client
-                .download_to(&item.src, &dst, item.size)
+                .download_to_progress(&item.src, &dst, item.size, progress.clone())
                 .await
                 .map_err(|e| e.to_string())
         }
@@ -741,7 +748,7 @@ pub(crate) async fn apply_overwrite_for_download_item(
                 .unwrap_or_else(|| item.dst.clone());
             let target = parent.join(unique_name_in_local_dir(&parent, &basename));
             client
-                .download_to(&item.src, &target, item.size)
+                .download_to_progress(&item.src, &target, item.size, progress.clone())
                 .await
                 .map_err(|e| e.to_string())
         }

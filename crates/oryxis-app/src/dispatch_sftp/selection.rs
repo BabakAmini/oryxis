@@ -793,6 +793,27 @@ impl Oryxis {
                             }
                             return Ok(Task::none());
                         }
+                        // Delete asks about the SELECTION, which is what the
+                        // keyboard cursor is here (`sftp_move_focus` reads
+                        // and writes `selected_rows`), so it covers a
+                        // multi-selection for free. Through the confirm
+                        // dialog, never straight to the delete: the same
+                        // rule the sidebar's Delete follows.
+                        //
+                        // Inert on the `..` row. `parent_cursor` CLEARS the
+                        // selection when it is set, so the message would
+                        // find nothing to do, but relying on that would
+                        // mean a future change to that invariant silently
+                        // turns Delete-on-`..` into deleting whatever was
+                        // selected before.
+                        Named::Delete => {
+                            if self.sftp.parent_cursor {
+                                return Ok(Task::none());
+                            }
+                            return Ok(Task::done(Message::Sftp(
+                                SftpMessage::SftpAskDeleteSelection,
+                            )));
+                        }
                         // The dedicated Menu key (and Shift+F10, its
                         // keyboard equivalent on boards without one) opens
                         // the row context menu on the focused row, the

@@ -68,6 +68,7 @@ impl Oryxis {
                                     direction: crate::state::OverwriteDirection::Upload,
                                     multi: false,
                                     apply_to_all: false,
+                    owner: None,
                                 },
                             ));
                         }
@@ -127,6 +128,7 @@ impl Oryxis {
                                 direction: crate::state::OverwriteDirection::Download,
                                 multi: false,
                                 apply_to_all: false,
+                    owner: None,
                             }));
                         }
                         client

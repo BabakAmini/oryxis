@@ -732,6 +732,17 @@ pub(crate) struct OverwritePrompt {
     /// the modal is open. Read on resolve; persisted as
     /// `TransferState.overwrite_default` if true.
     pub apply_to_all: bool,
+    /// Who asked. Stamped when the prompt is stored, and carried back on
+    /// every button the modal draws.
+    ///
+    /// The answer has to reach the SAME owner the question came from,
+    /// and it cannot be re-derived when the click arrives: a sidebar
+    /// transfer routinely runs with NO SFTP surface focused, so an
+    /// unaddressed answer resolves to no owner at all, the transfers
+    /// handler declines it, and the queue stays paused forever with its
+    /// bar frozen. `None` only for prompts built before this field
+    /// existed in a given flow; those fall back to the live buffer.
+    pub owner: Option<uuid::Uuid>,
 }
 
 impl OverwritePrompt {
