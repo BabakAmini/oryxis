@@ -68,8 +68,14 @@ fn main() -> ExitCode {
 /// Generate a fresh production keypair and print both halves so the
 /// caller can bake the public half + store the private half in CI.
 fn keygen() {
-    let mut rng = rand::rngs::OsRng;
-    let sk = SigningKey::generate(&mut rng);
+    // ed25519-dalek 3 takes an RNG implementing rand_core 0.10's
+    // `CryptoRng`, which `rand 0.8`'s `OsRng` is not. `generate` is just
+    // `fill_bytes` into a 32-byte secret followed by `from_bytes`, so the
+    // seed is taken straight from the OS instead, same entropy without
+    // dragging a second `rand` line in for one call.
+    let mut secret = [0u8; 32];
+    getrandom::fill(&mut secret).expect("OS RNG unavailable");
+    let sk = SigningKey::from_bytes(&secret);
     let pk = sk.verifying_key();
     println!("# Fresh ed25519 plugin-signing keypair.");
     println!("#");

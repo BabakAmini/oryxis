@@ -167,7 +167,7 @@ fn der_to_labeled_pem(label: &str, der: &[u8]) -> String {
 fn decrypt_legacy_pem(pem: &str, passphrase: &[u8]) -> Result<PrivateKey, VaultError> {
     use base64::Engine;
     use cbc::cipher::block_padding::Pkcs7;
-    use cbc::cipher::{BlockDecryptMut, KeyIvInit};
+    use cbc::cipher::{BlockModeDecrypt, KeyIvInit};
 
     let label = if pem.contains("BEGIN RSA PRIVATE KEY") {
         "RSA PRIVATE KEY"
@@ -229,7 +229,7 @@ fn decrypt_legacy_pem(pem: &str, passphrase: &[u8]) -> Result<PrivateKey, VaultE
         ($cipher:ty) => {{
             let pt = cbc::Decryptor::<$cipher>::new_from_slices(&key, &iv)
                 .map_err(|_| VaultError::Crypto("legacy PEM key/iv size".into()))?
-                .decrypt_padded_mut::<Pkcs7>(&mut buf)
+                .decrypt_padded::<Pkcs7>(&mut buf)
                 .map_err(|_| VaultError::WrongKeyPassphrase)?;
             pt.to_vec()
         }};
@@ -558,7 +558,7 @@ mod tests {
     fn parse_legacy_encrypted_pkcs1_pem_round_trips() {
         use base64::Engine;
         use cbc::cipher::block_padding::Pkcs7;
-        use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+        use cbc::cipher::{BlockModeEncrypt, KeyIvInit};
         use rsa::pkcs1::{EncodeRsaPrivateKey, LineEnding};
 
         // Fresh 1024-bit RSA key, no embedded secret. 1024 keeps the test
@@ -584,7 +584,7 @@ mod tests {
         buf.resize(n + 16, 0);
         let ct = cbc::Encryptor::<aes::Aes128>::new_from_slices(&key, &iv)
             .unwrap()
-            .encrypt_padded_mut::<Pkcs7>(&mut buf, n)
+            .encrypt_padded::<Pkcs7>(&mut buf, n)
             .unwrap()
             .to_vec();
 
@@ -623,7 +623,7 @@ mod tests {
     fn parse_legacy_encrypted_3des_pem_round_trips() {
         use base64::Engine;
         use cbc::cipher::block_padding::Pkcs7;
-        use cbc::cipher::{BlockEncryptMut, KeyIvInit};
+        use cbc::cipher::{BlockModeEncrypt, KeyIvInit};
         use rsa::pkcs1::{EncodeRsaPrivateKey, LineEnding};
 
         let rsa_key = rsa::RsaPrivateKey::new(&mut rand::rng(), 1024).unwrap();
@@ -643,7 +643,7 @@ mod tests {
         buf.resize(n + 8, 0);
         let ct = cbc::Encryptor::<des::TdesEde3>::new_from_slices(&key, &iv)
             .unwrap()
-            .encrypt_padded_mut::<Pkcs7>(&mut buf, n)
+            .encrypt_padded::<Pkcs7>(&mut buf, n)
             .unwrap()
             .to_vec();
 

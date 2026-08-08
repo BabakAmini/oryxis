@@ -21,7 +21,7 @@ fn command_hash(key: &[u8; KEY_LEN], connection_id: &str, command: &str) -> Stri
     // fully-qualified call disambiguates from the `chacha20poly1305`
     // KeyInit blanket impl that `use super::*` drags into scope.
     let mut mac =
-        <Hmac<Sha256> as Mac>::new_from_slice(key).expect("HMAC accepts any key size");
+        <Hmac<Sha256> as hmac::digest::KeyInit>::new_from_slice(key).expect("HMAC accepts any key size");
     mac.update(DEDUP_CONTEXT);
     mac.update(&[0x1f]);
     mac.update(connection_id.as_bytes());

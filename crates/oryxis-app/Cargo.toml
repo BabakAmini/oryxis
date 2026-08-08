@@ -79,16 +79,17 @@ zeroize = { workspace = true }
 ed25519-dalek = { workspace = true }
 # SHA-256 over downloaded plugin binaries, checked against the
 # manifest before the Ed25519 signature gate.
-sha2 = "0.10"
+sha2 = "0.11"
 # mRemoteNG importer: confCons.xml is XML (quick-xml, no transitive
 # deps), and its passwords are AES-256-GCM with a PBKDF2-HMAC-SHA1
 # key (BouncyCastle defaults on the mRemoteNG side; the 16-byte nonce
 # is why the generic AesGcm type is used instead of the Aes256Gcm
 # alias). Decode-only: nothing here ever encrypts.
+getrandom = "0.4"
 quick-xml = "0.41"
-aes-gcm = "0.10"
-pbkdf2 = "0.12"
-sha1 = "0.10"
+aes-gcm = "0.11"
+pbkdf2 = "0.13"
+sha1 = "0.11"
 # RNG used to generate the MCP server token (32 random bytes).
 rand = { workspace = true }
 # Base64 decode for the manifest's signature field.

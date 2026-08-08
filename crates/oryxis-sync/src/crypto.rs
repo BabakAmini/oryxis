@@ -1,7 +1,6 @@
-use chacha20poly1305::aead::{Aead, OsRng};
+use chacha20poly1305::aead::Aead;
 use chacha20poly1305::{KeyInit, XChaCha20Poly1305, XNonce};
 use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
-use rand::RngCore;
 use uuid::Uuid;
 use x25519_dalek::{EphemeralSecret, PublicKey as X25519PublicKey};
 
@@ -28,8 +27,12 @@ pub struct DeviceIdentity {
 impl DeviceIdentity {
     /// Generate a new device identity.
     pub fn generate(device_name: &str) -> Self {
-        let mut rng = OsRng;
-        let signing_key = SigningKey::generate(&mut rng);
+        // ed25519-dalek 3 wants a rand_core 0.10 `CryptoRng`; `generate`
+        // is fill_bytes + from_bytes, so the seed comes from the OS
+        // directly, the same source x25519's own `random()` uses.
+        let mut seed = [0u8; 32];
+        getrandom::fill(&mut seed).expect("OS RNG unavailable");
+        let signing_key = SigningKey::from_bytes(&seed);
         Self {
             device_id: Uuid::new_v4(),
             device_name: device_name.into(),
@@ -322,15 +325,16 @@ pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
 
 /// Generate a 6-digit numeric pairing code.
 pub fn generate_pairing_code() -> String {
-    let mut rng = OsRng;
-    let code: u32 = rng.next_u32() % 1_000_000;
+    let mut b = [0u8; 4];
+    getrandom::fill(&mut b).expect("OS RNG unavailable");
+    let code: u32 = u32::from_le_bytes(b) % 1_000_000;
     format!("{:06}", code)
 }
 
 /// Generate a fresh 32-byte random nonce for the pairing challenge.
 pub fn random_challenge() -> [u8; 32] {
     let mut challenge = [0u8; 32];
-    OsRng.fill_bytes(&mut challenge);
+    getrandom::fill(&mut challenge).expect("OS RNG unavailable");
     challenge
 }
 
@@ -340,7 +344,7 @@ pub fn random_challenge() -> [u8; 32] {
 /// finish the exchange. Used by the pairing flow, where the two
 /// pubkeys are not exchanged in lockstep.
 pub fn x25519_keypair() -> (EphemeralSecret, [u8; 32]) {
-    let secret = EphemeralSecret::random_from_rng(OsRng);
+    let secret = EphemeralSecret::random();
     let public_bytes = X25519PublicKey::from(&secret).to_bytes();
     (secret, public_bytes)
 }
@@ -427,12 +431,12 @@ impl PayloadCipher {
     /// Seal `plaintext`. Wire layout: 24-byte random nonce || ciphertext.
     pub fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>, SyncError> {
         let mut nonce_bytes = [0u8; 24];
-        OsRng.fill_bytes(&mut nonce_bytes);
-        let nonce = XNonce::from_slice(&nonce_bytes);
+        getrandom::fill(&mut nonce_bytes).expect("OS RNG unavailable");
+        let nonce = XNonce::from(nonce_bytes);
 
         let ciphertext = self
             .0
-            .encrypt(nonce, plaintext)
+            .encrypt(&nonce, plaintext)
             .map_err(|e| SyncError::Crypto(format!("Encrypt: {}", e)))?;
 
         let mut result = Vec::with_capacity(24 + ciphertext.len());
@@ -446,10 +450,10 @@ impl PayloadCipher {
         if data.len() < 24 + 16 {
             return Err(SyncError::Crypto("Data too short".into()));
         }
-        let nonce = XNonce::from_slice(&data[..24]);
+        let nonce = XNonce::try_from(&data[..24]).expect("nonce length is a constant");
 
         self.0
-            .decrypt(nonce, &data[24..])
+            .decrypt(&nonce, &data[24..])
             .map_err(|_| SyncError::Crypto("Decryption failed (wrong key?)".into()))
     }
 }
@@ -520,10 +524,10 @@ mod tests {
     #[test]
     fn x25519_key_exchange_produces_shared_secret() {
         // Simulate two sides
-        let secret_a = x25519_dalek::EphemeralSecret::random_from_rng(OsRng);
+        let secret_a = x25519_dalek::EphemeralSecret::random();
         let public_a = x25519_dalek::PublicKey::from(&secret_a);
 
-        let secret_b = x25519_dalek::EphemeralSecret::random_from_rng(OsRng);
+        let secret_b = x25519_dalek::EphemeralSecret::random();
         let public_b = x25519_dalek::PublicKey::from(&secret_b);
 
         let shared_a = secret_a.diffie_hellman(&public_b);

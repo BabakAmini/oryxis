@@ -135,7 +135,7 @@ impl VaultStore {
                 .map_err(|_| VaultError::Crypto("malformed session log key".into()))?,
             None => {
                 let mut k = [0u8; KEY_LEN];
-                OsRng.fill_bytes(&mut k);
+                super::os_random(&mut k)?;
                 let w = encrypt_with_key(&k, master)?;
                 self.db.execute(
                     "INSERT OR REPLACE INTO vault_meta (key, value) VALUES ('session_log_key', ?1)",
@@ -155,9 +155,9 @@ impl VaultStore {
         let cipher = ChaCha20Poly1305::new_from_slice(&key)
             .map_err(|e| VaultError::Crypto(e.to_string()))?;
         let mut nonce_bytes = [0u8; NONCE_LEN];
-        OsRng.fill_bytes(&mut nonce_bytes);
+        super::os_random(&mut nonce_bytes)?;
         let ct = cipher
-            .encrypt(Nonce::from_slice(&nonce_bytes), data)
+            .encrypt(&Nonce::from(nonce_bytes), data)
             .map_err(|e| VaultError::Crypto(e.to_string()))?;
         let mut blob = Vec::with_capacity(NONCE_LEN + ct.len());
         blob.extend_from_slice(&nonce_bytes);
@@ -174,7 +174,7 @@ impl VaultStore {
         }
         let cipher = ChaCha20Poly1305::new_from_slice(key).ok()?;
         cipher
-            .decrypt(Nonce::from_slice(&blob[..NONCE_LEN]), &blob[NONCE_LEN..])
+            .decrypt(&Nonce::try_from(&blob[..NONCE_LEN]).expect("nonce length is a constant"), &blob[NONCE_LEN..])
             .ok()
     }
 

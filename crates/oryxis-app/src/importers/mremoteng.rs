@@ -176,7 +176,8 @@ fn decrypt_blob(blob: &str, password: &str, iterations: u32) -> Option<Vec<u8>> 
     let mut key = [0u8; 32];
     pbkdf2::pbkdf2_hmac::<sha1::Sha1>(password.as_bytes(), salt, iterations, &mut key);
     let cipher = MrngCipher::new((&key).into());
-    cipher.decrypt(nonce.into(), ciphertext).ok()
+    let nonce = aes_gcm::Nonce::try_from(nonce).ok()?;
+    cipher.decrypt(&nonce, ciphertext).ok()
 }
 
 /// The slice of confCons.xml we care about, pulled with quick-xml:
@@ -315,12 +316,15 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use aes_gcm::aead::AeadCore;
 
     /// Encrypt like mRemoteNG does, to build test vectors.
     fn encrypt_blob(plain: &[u8], password: &str, iterations: u32) -> String {
         let salt = [7u8; 16];
-        let nonce = MrngCipher::generate_nonce(&mut aes_gcm::aead::OsRng);
+        // aead 0.6 dropped its OsRng re-export; the nonce is just
+        // random bytes of the cipher's nonce size.
+        let mut nonce_bytes = [0u8; 16];
+        getrandom::fill(&mut nonce_bytes).expect("OS RNG unavailable");
+        let nonce = aes_gcm::Nonce::<aes_gcm::aead::consts::U16>::from(nonce_bytes);
         let mut key = [0u8; 32];
         pbkdf2::pbkdf2_hmac::<sha1::Sha1>(
             password.as_bytes(),

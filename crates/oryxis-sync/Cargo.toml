@@ -19,12 +19,12 @@ rcgen = { workspace = true }
 mdns-sd = { workspace = true }
 x25519-dalek = { workspace = true }
 ed25519-dalek = { workspace = true }
-rand = { workspace = true }
+getrandom = "0.4"
 bincode = { workspace = true }
 hex = { workspace = true }
 chacha20poly1305 = { workspace = true }
-sha2 = "0.10"
-hkdf = "0.12"
+sha2 = "0.11"
+hkdf = "0.13"
 subtle = "2"
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 

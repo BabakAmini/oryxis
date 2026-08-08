@@ -2,13 +2,9 @@ use std::path::{Path, PathBuf};
 
 use argon2::Argon2;
 use chacha20poly1305::{
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     ChaCha20Poly1305, Nonce,
 };
-// Drive `aead::OsRng` through the `RngCore` trait re-exported alongside
-// it, so the at-rest crypto here doesn't pin the `rand` crate version
-// that `keygen` needs for ssh-key 0.7.
-use chacha20poly1305::aead::rand_core::RngCore;
 use rusqlite::{params, Connection as SqliteConn};
 use zeroize::{Zeroize, Zeroizing};
 use uuid::Uuid;
@@ -154,6 +150,21 @@ pub struct Tombstone {
 const SALT_LEN: usize = 32;
 const KEY_LEN: usize = 32;
 const NONCE_LEN: usize = 12;
+
+/// Fill `buf` with entropy from the OS.
+///
+/// This used to be `aead::OsRng.fill_bytes`, which aead 0.6 removed: the
+/// type was a four-line wrapper whose `try_fill_bytes` called `getrandom`
+/// and nothing else, so the alias went away and the real source is called
+/// directly now. Same syscall, same entropy. Still deliberately NOT via
+/// `rand`: going through aead existed so the at-rest crypto would not pin
+/// a `rand` version, and that reason is unchanged.
+///
+/// A failure propagates instead of panicking, which the old `fill_bytes`
+/// could not do.
+fn os_random(buf: &mut [u8]) -> Result<(), VaultError> {
+    getrandom::fill(buf).map_err(|e| VaultError::Crypto(format!("OS RNG: {e}")))
+}
 
 /// Derive a 256-bit key from a password using Argon2id with the crate's
 /// DEFAULT parameters. Frozen forever: this backs [`derive_sync_secret`]
@@ -306,17 +317,17 @@ pub fn derive_sync_secret(passphrase: &str) -> Result<[u8; KEY_LEN], VaultError>
 /// Encrypt data with ChaCha20Poly1305. Returns: salt(32) + nonce(12) + ciphertext.
 pub(crate) fn encrypt(plaintext: &[u8], password: &[u8]) -> Result<Vec<u8>, VaultError> {
     let mut salt = [0u8; SALT_LEN];
-    OsRng.fill_bytes(&mut salt);
+    os_random(&mut salt)?;
     let key = derive_key(password, &salt)?;
 
     let mut nonce_bytes = [0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
+    os_random(&mut nonce_bytes)?;
+    let nonce = Nonce::from(nonce_bytes);
 
     let cipher = ChaCha20Poly1305::new_from_slice(&key)
         .map_err(|e| VaultError::Crypto(format!("Cipher init: {}", e)))?;
     let ciphertext = cipher
-        .encrypt(nonce, plaintext)
+        .encrypt(&nonce, plaintext)
         .map_err(|e| VaultError::Crypto(format!("Encrypt: {}", e)))?;
 
     let mut result = Vec::with_capacity(SALT_LEN + NONCE_LEN + ciphertext.len());
@@ -336,12 +347,12 @@ pub(crate) fn decrypt(data: &[u8], password: &[u8]) -> Result<Vec<u8>, VaultErro
     let ciphertext = &data[SALT_LEN + NONCE_LEN..];
 
     let key = derive_key(password, salt)?;
-    let nonce = Nonce::from_slice(nonce_bytes);
+    let nonce = Nonce::try_from(nonce_bytes).expect("nonce length is a constant");
 
     let cipher = ChaCha20Poly1305::new_from_slice(&key)
         .map_err(|e| VaultError::Crypto(format!("Cipher init: {}", e)))?;
     cipher
-        .decrypt(nonce, ciphertext)
+        .decrypt(&nonce, ciphertext)
         .map_err(|_| VaultError::InvalidPassword)
 }
 
@@ -361,11 +372,11 @@ const FIELD_FORMAT_V2: u8 = 2;
 /// are microseconds instead of an Argon2id pass each.
 pub(crate) fn encrypt_with_key(plaintext: &[u8], key: &[u8]) -> Result<Vec<u8>, VaultError> {
     let mut nonce_bytes = [0u8; NONCE_LEN];
-    OsRng.fill_bytes(&mut nonce_bytes);
+    os_random(&mut nonce_bytes)?;
     let cipher = ChaCha20Poly1305::new_from_slice(key)
         .map_err(|e| VaultError::Crypto(format!("Cipher init: {}", e)))?;
     let ciphertext = cipher
-        .encrypt(Nonce::from_slice(&nonce_bytes), plaintext)
+        .encrypt(&Nonce::from(nonce_bytes), plaintext)
         .map_err(|e| VaultError::Crypto(format!("Encrypt: {}", e)))?;
     let mut result = Vec::with_capacity(1 + NONCE_LEN + ciphertext.len());
     result.push(FIELD_FORMAT_V2);
@@ -384,7 +395,7 @@ pub(crate) fn decrypt_with_key(data: &[u8], key: &[u8]) -> Result<Vec<u8>, Vault
     let cipher = ChaCha20Poly1305::new_from_slice(key)
         .map_err(|e| VaultError::Crypto(format!("Cipher init: {}", e)))?;
     cipher
-        .decrypt(Nonce::from_slice(nonce_bytes), ciphertext)
+        .decrypt(&Nonce::try_from(nonce_bytes).expect("nonce length is a constant"), ciphertext)
         .map_err(|_| VaultError::InvalidPassword)
 }
 
@@ -662,7 +673,7 @@ impl VaultStore {
             Some(s) if s.len() == SALT_LEN => s,
             _ => {
                 let mut s = [0u8; SALT_LEN];
-                OsRng.fill_bytes(&mut s);
+                os_random(&mut s)?;
                 self.db.execute(
                     "INSERT OR REPLACE INTO vault_meta (key, value) VALUES ('kdf_salt', ?1)",
                     params![s.to_vec()],
@@ -907,7 +918,7 @@ impl VaultStore {
         params: KdfParams,
     ) -> Result<([u8; SALT_LEN], Vec<u8>), VaultError> {
         let mut salt = [0u8; SALT_LEN];
-        OsRng.fill_bytes(&mut salt);
+        os_random(&mut salt)?;
         let key = derive_key_with_params(password.as_bytes(), &salt, params)?.to_vec();
         Ok((salt, key))
     }

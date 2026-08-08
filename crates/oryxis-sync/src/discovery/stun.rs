@@ -50,8 +50,7 @@ async fn query_stun(socket: &UdpSocket, server: &str) -> Result<SocketAddr, Sync
     request[6] = 0xA4;
     request[7] = 0x42;
     // Transaction ID (random 12 bytes)
-    use rand::RngCore;
-    rand::thread_rng().fill_bytes(&mut request[8..20]);
+    getrandom::fill(&mut request[8..20]).expect("OS RNG unavailable");
 
     socket
         .send_to(&request, server_addr)

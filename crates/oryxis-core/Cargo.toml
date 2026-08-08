@@ -14,9 +14,9 @@ chrono = { workspace = true }
 thiserror = { workspace = true }
 # RFC 6238 TOTP generation (`totp` module): HMAC-SHA1/256/512 and the
 # Base32 secret decoding. data-encoding is already in the tree via ring.
-hmac = "0.12"
-sha1 = "0.10"
-sha2 = "0.10"
+hmac = "0.13"
+sha1 = "0.11"
+sha2 = "0.11"
 data-encoding = "2"
 # Optional regex patterns in login scripts (`login_script` module); the
 # suffix form needs no engine, the escape hatch does.

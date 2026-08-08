@@ -176,7 +176,8 @@ impl Totp {
 
 fn hmac_digest<M: Mac + hmac::digest::KeyInit>(key: &[u8], data: &[u8]) -> Vec<u8> {
     // HMAC accepts any key length, so new_from_slice can't fail.
-    let mut mac = <M as Mac>::new_from_slice(key).expect("HMAC accepts any key size");
+    let mut mac = <M as hmac::digest::KeyInit>::new_from_slice(key)
+        .expect("HMAC accepts any key size");
     mac.update(data);
     mac.finalize().into_bytes().to_vec()
 }

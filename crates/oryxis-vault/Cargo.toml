@@ -8,6 +8,12 @@ oryxis-core = { workspace = true }
 rusqlite = { workspace = true }
 argon2 = { workspace = true }
 chacha20poly1305 = { workspace = true }
+# OS entropy for salts and nonces. aead 0.6 dropped its `OsRng`
+# re-export, which was a four-line wrapper whose `try_fill_bytes` called
+# `getrandom` and nothing else; this is the same syscall without the
+# alias. Deliberately not `rand`: routing through aead existed to avoid
+# pinning a `rand` version here, and that reason still holds.
+getrandom = "0.4"
 serde = { workspace = true }
 serde_json = { workspace = true }
 tracing = { workspace = true }
@@ -44,13 +50,13 @@ pkcs8 = { version = "0.11", features = ["encryption", "pem"] }
 # decryption (EVP_BytesToKey/MD5 + AES-CBC or DES-EDE3-CBC). All
 # transitively present already via russh / ssh-key; declared here to give
 # the keygen module stable direct paths.
-aes = "0.8"
-cbc = "0.1"
-des = "0.8"
-md-5 = "0.10"
-hmac = "0.12"
-sha1 = "0.10"
-sha2 = "0.10"
+aes = "0.9"
+cbc = "0.2"
+des = "0.9"
+md-5 = "0.11"
+hmac = "0.13"
+sha1 = "0.11"
+sha2 = "0.11"
 subtle = "2"
 
 [dev-dependencies]

@@ -383,7 +383,9 @@ async fn ensure_and_read(asset: &'static FontAsset) -> Result<Vec<u8>, String> {
         buf.extend_from_slice(&chunk);
     }
 
-    let digest = format!("{:x}", Sha256::digest(&buf));
+    // sha2 0.11 returns a `hybrid_array::Array`, which no longer
+    // implements LowerHex; format the bytes directly.
+    let digest: String = Sha256::digest(&buf).iter().map(|b| format!("{b:02x}")).collect();
     if !digest.eq_ignore_ascii_case(asset.sha256) {
         return Err(format!(
             "sha256 mismatch for {}: expected {}, got {digest}",

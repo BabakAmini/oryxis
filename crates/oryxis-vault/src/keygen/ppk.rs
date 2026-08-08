@@ -356,6 +356,7 @@ fn verify_mac(
     let computed: Vec<u8> = match headers.version {
         2 => {
             use hmac::{Hmac, Mac};
+            use hmac::digest::KeyInit as _;
             type HmacSha1 = Hmac<sha1::Sha1>;
             let mut mac = HmacSha1::new_from_slice(mac_key)
                 .map_err(|e| crypto(format!("HMAC init failed: {}", e)))?;
@@ -367,6 +368,7 @@ fn verify_mac(
             // an empty string (per PuTTY spec); HMAC's K-padding then
             // makes it deterministic without revealing anything secret.
             use hmac::{Hmac, Mac};
+            use hmac::digest::KeyInit as _;
             type HmacSha256 = Hmac<sha2::Sha256>;
             let mut mac = HmacSha256::new_from_slice(mac_key)
                 .map_err(|e| crypto(format!("HMAC init failed: {}", e)))?;
@@ -391,7 +393,7 @@ fn verify_mac(
 
 fn aes256_cbc_decrypt(key: &[u8], iv: &[u8; 16], buf: &mut [u8]) -> Result<(), VaultError> {
     use aes::cipher::{
-        block_padding::NoPadding, BlockDecryptMut, KeyIvInit,
+        block_padding::NoPadding, BlockModeDecrypt, KeyIvInit,
     };
     type Aes256CbcDec = cbc::Decryptor<aes::Aes256>;
     let dec = Aes256CbcDec::new_from_slices(key, iv)
@@ -399,7 +401,7 @@ fn aes256_cbc_decrypt(key: &[u8], iv: &[u8; 16], buf: &mut [u8]) -> Result<(), V
     // PPK does NOT use PKCS#7 padding (length is already a multiple of
     // the block size). `decrypt_padded_mut::<NoPadding>` walks the
     // whole buffer in order so CBC chaining is preserved.
-    dec.decrypt_padded_mut::<NoPadding>(buf)
+    dec.decrypt_padded::<NoPadding>(buf)
         .map_err(|e| crypto(format!("AES-CBC decrypt failed: {}", e)))?;
     Ok(())
 }
@@ -667,6 +669,7 @@ mod tests {
         let mac_bytes: Vec<u8> = match version {
             2 => {
                 use hmac::{Hmac, Mac};
+                use hmac::digest::KeyInit as _;
                 type HmacSha1 = Hmac<sha1::Sha1>;
                 let mut m = HmacSha1::new_from_slice(&mac_key).unwrap();
                 m.update(&content);
@@ -674,6 +677,7 @@ mod tests {
             }
             3 => {
                 use hmac::{Hmac, Mac};
+                use hmac::digest::KeyInit as _;
                 type HmacSha256 = Hmac<sha2::Sha256>;
                 let mut m = HmacSha256::new_from_slice(&mac_key).unwrap();
                 m.update(&content);
@@ -719,11 +723,11 @@ mod tests {
     }
 
     fn aes256_cbc_encrypt(key: &[u8], iv: &[u8; 16], buf: &mut [u8]) {
-        use aes::cipher::{block_padding::NoPadding, BlockEncryptMut, KeyIvInit};
+        use aes::cipher::{block_padding::NoPadding, BlockModeEncrypt, KeyIvInit};
         type Aes256CbcEnc = cbc::Encryptor<aes::Aes256>;
         let enc = Aes256CbcEnc::new_from_slices(key, iv).unwrap();
         let buf_len = buf.len();
-        enc.encrypt_padded_mut::<NoPadding>(buf, buf_len).unwrap();
+        enc.encrypt_padded::<NoPadding>(buf, buf_len).unwrap();
     }
 
     fn fingerprint(key: &PrivateKey) -> String {
