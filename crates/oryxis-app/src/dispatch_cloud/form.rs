@@ -63,6 +63,8 @@ impl Oryxis {
                 self.overlay = None;
                 // Close any other right-panel (mutually exclusive slot).
                 self.panels.host_panel = false;
+                // Drop what the host editor's eyes revealed.
+                self.editor_form.sweep_secrets();
                 self.cloud_dynamic_form.visible = false;
                 self.cloud_discover.visible = false;
                 self.group_edit.visible = false;

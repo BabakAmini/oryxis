@@ -137,8 +137,7 @@ impl Oryxis {
                 self.editor_form.target_password.set(v.into_inner());
             }
             EditorMessage::EditorToggleTargetPasswordVisibility => {
-                self.editor_form.target_password_visible =
-                    !self.editor_form.target_password_visible;
+                self.toggle_editor_secret(super::EditorSecret::TargetPassword);
             }
             EditorMessage::EditorScriptDraftTemplateChanged(choice) => {
                 let template = if choice == crate::i18n::t("login_script_tpl_jumpserver") {

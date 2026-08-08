@@ -21,14 +21,14 @@ impl Oryxis {
                 self.editor_form.password.set(v.into_inner());
             }
             EditorMessage::EditorTogglePasswordVisibility => {
-                self.editor_form.password_visible = !self.editor_form.password_visible;
+                self.toggle_editor_secret(super::EditorSecret::Password);
             }
             EditorMessage::EditorTotpChanged(v) => {
                 self.editor_form.username_focused = false;
                 self.editor_form.totp_secret.set(v.into_inner());
             }
             EditorMessage::EditorToggleTotpVisibility => {
-                self.editor_form.totp_visible = !self.editor_form.totp_visible;
+                self.toggle_editor_secret(super::EditorSecret::Totp);
             }
             EditorMessage::EditorUseTotpToggled => {
                 self.editor_form.use_totp = !self.editor_form.use_totp;

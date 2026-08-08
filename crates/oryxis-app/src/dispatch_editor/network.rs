@@ -55,6 +55,9 @@ impl Oryxis {
             EditorMessage::EditorProxyPasswordChanged(v) => {
                 self.editor_form.proxy_password.set(v.into_inner());
             }
+            EditorMessage::EditorToggleProxyPasswordVisibility => {
+                self.toggle_editor_secret(super::EditorSecret::ProxyPassword);
+            }
             EditorMessage::EditorProxyCommandChanged(v) => { self.editor_form.proxy_command = v; }
             EditorMessage::OpenChainEditor => {
                 self.panels.chain_editor = true;

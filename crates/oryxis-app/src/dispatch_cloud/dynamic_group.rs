@@ -119,6 +119,8 @@ impl Oryxis {
                 // other panel that's currently open so the user
                 // doesn't end up with two side-by-side editors.
                 self.panels.host_panel = false;
+                // Drop what the host editor's eyes revealed.
+                self.editor_form.sweep_secrets();
                 self.cloud_form.visible = false;
                 self.cloud_discover.visible = false;
                 self.group_edit.visible = false;

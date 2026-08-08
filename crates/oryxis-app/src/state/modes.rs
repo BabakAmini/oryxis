@@ -85,8 +85,6 @@ impl TerminalSidebarTab {
 /// so adding the eye to a new password input is a one-variant change.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum SecretField {
-    /// Inline proxy password in the host editor.
-    ProxyPassword,
     /// Password on the Share (portable export) dialog.
     SharePassword,
     /// AI assistant API key (Settings > AI).

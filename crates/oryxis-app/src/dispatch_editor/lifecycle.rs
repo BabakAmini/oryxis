@@ -240,6 +240,9 @@ impl Oryxis {
                             self.panels.host_panel = false;
                             self.panel_nav_clear();
                             self.host_panel_error = None;
+                            // The save consumed the secrets; drop any
+                            // plaintext the eye may have revealed.
+                            self.editor_form.sweep_secrets();
                             // Re-paint any open tabs of this host so a
                             // newly chosen palette takes effect without
                             // a reconnect.
@@ -311,12 +314,18 @@ impl Oryxis {
                 self.panels.host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
+                // The typed secrets rode into the quick-connect entry;
+                // drop any revealed plaintext from the form buffers.
+                self.editor_form.sweep_secrets();
                 return self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))));
             }
             EditorMessage::EditorCancel => {
                 self.panels.host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
+                // Nothing was written, so there is nothing to preserve
+                // but the user's own typing.
+                self.editor_form.sweep_secrets();
             }
             EditorMessage::RequestDeleteConnection(idx) => {
                 if let Some(conn) = self.connections.get(idx) {
@@ -337,6 +346,7 @@ impl Oryxis {
                         let _ = vault.delete_chat_conversations_for_connection(&id);
                         self.panels.host_panel = false;
                         self.panel_nav_clear();
+                        self.editor_form.sweep_secrets();
                         self.load_data_from_vault();
                     }
                 }

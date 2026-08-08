@@ -12,7 +12,72 @@ use oryxis_core::models::group::Group;
 use crate::app::{EditorMessage, SshMessage, Message, Oryxis};
 use crate::state::{ConnectionForm, EnvVarForm, PortForwardForm, ProxyKind};
 
+/// Which of the host editor's four secret fields an eye toggle acts
+/// on. The four flows are the same flow, differing only in the buffer
+/// and the encrypted column behind it, so they share one handler
+/// instead of four copies that can drift apart.
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum EditorSecret {
+    Password,
+    ProxyPassword,
+    Totp,
+    TargetPassword,
+}
+
 impl Oryxis {
+    /// Flip one secret field's eye.
+    ///
+    /// Revealing DECRYPTS the stored value into the form buffer for
+    /// exactly as long as it is shown, hiding drops it again, and the
+    /// panel-close sweep ([`ConnectionForm::sweep_secrets`]) is the
+    /// backstop for the paths that never see a second click. The value
+    /// arrives through [`SecretInput::prefill`], which leaves the
+    /// buffer untouched, so a revealed-but-unedited field still
+    /// resolves to `None` (preserve the stored secret) on save.
+    ///
+    /// A buffer the user typed into is never overwritten by the
+    /// reveal, nor emptied by the hide: it is their text, not the
+    /// vault's, and it is already on screen.
+    pub(super) fn toggle_editor_secret(&mut self, which: EditorSecret) {
+        // Disjoint field borrows: the buffer below is borrowed out of
+        // the form, so anything else the form knows is read first.
+        let Self { editor_form: form, vault, .. } = self;
+        let editing_id = form.editing_id;
+        let (buffer, visible) = match which {
+            EditorSecret::Password => (&mut form.password, &mut form.password_visible),
+            EditorSecret::ProxyPassword => {
+                (&mut form.proxy_password, &mut form.proxy_password_visible)
+            }
+            EditorSecret::Totp => (&mut form.totp_secret, &mut form.totp_visible),
+            EditorSecret::TargetPassword => {
+                (&mut form.target_password, &mut form.target_password_visible)
+            }
+        };
+        if *visible {
+            if !buffer.touched() {
+                buffer.clear();
+            }
+            *visible = false;
+            return;
+        }
+        // A new host has no row to read from, and a sealed vault
+        // answers `Err`; both leave the field empty, which is what it
+        // already showed.
+        if !buffer.touched()
+            && let Some(id) = editing_id
+            && let Some(store) = vault.as_ref()
+            && let Ok(Some(secret)) = match which {
+                EditorSecret::Password => store.get_connection_password(&id),
+                EditorSecret::ProxyPassword => store.get_proxy_password(&id),
+                EditorSecret::Totp => store.get_connection_totp_secret(&id),
+                EditorSecret::TargetPassword => store.get_connection_target_password(&id),
+            }
+        {
+            buffer.prefill(secret);
+        }
+        *visible = true;
+    }
+
     /// A blank connection form pre-filled with the user's new-connection
     /// defaults (agent forwarding, port, keepalive, TERM), so they don't
     /// re-set the same fields on every new host.
@@ -676,6 +741,7 @@ impl Oryxis {
                 _ => None,
             }).unwrap_or_default(),
             has_existing_proxy_password: has_proxy_pw,
+            proxy_password_visible: false,
             // Never pre-fill the TOTP secret either; the
             // masked placeholder signals one is stored.
             totp_secret: Default::default(),
@@ -776,6 +842,7 @@ impl Oryxis {
                 | EditorMessage::EditorProxyPortChanged(..)
                 | EditorMessage::EditorProxyUsernameChanged(..)
                 | EditorMessage::EditorProxyPasswordChanged(..)
+                | EditorMessage::EditorToggleProxyPasswordVisibility
                 | EditorMessage::EditorProxyCommandChanged(..)
                 | EditorMessage::OpenChainEditor
                 | EditorMessage::CloseChainEditor
