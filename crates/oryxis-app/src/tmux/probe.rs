@@ -141,9 +141,22 @@ pub(crate) fn new_session_command(name: &str) -> Result<String, oryxis_archive::
 /// The line typed into the pane to attach. Unlike the two above this
 /// one reaches the user's own shell rather than an exec channel, so the
 /// quoting matters just as much: the name came off the host.
+///
+/// `switch-client` first, `attach` as the fallback, because the pane is
+/// as likely to be INSIDE tmux as outside it: the second attach in a
+/// pane is the whole point of a session manager, and a bare `tmux
+/// attach` there answers "sessions should be nested with care, unset
+/// $TMUX to force" and does nothing. Asking the shell to try both is
+/// better than tracking which state the pane is in, because the app is
+/// not the only thing that changes it: the user can attach by hand, or
+/// detach with the prefix key, and any remembered flag would be a
+/// guess by then. `switch-client` fails harmlessly outside tmux (no
+/// current client), so the `||` picks the right one every time.
 pub(crate) fn attach_command(name: &str) -> Result<String, oryxis_archive::ArchiveError> {
     let name = oryxis_archive::quote::sh_quote(name)?;
-    Ok(format!("tmux attach -t {name}"))
+    Ok(format!(
+        "tmux switch-client -t {name} 2>/dev/null || tmux attach -t {name}"
+    ))
 }
 
 #[cfg(test)]
@@ -264,11 +277,31 @@ mod tests {
             attach_command(evil).unwrap(),
         ] {
             assert!(built.ends_with("'foo; rm -rf ~'"), "unquoted: {built}");
+            // The name must appear ONLY inside single quotes. The attach
+            // line names it twice (switch-client, then attach), so
+            // checking the tail alone would miss an unquoted first use.
+            assert!(
+                !built.replace("'foo; rm -rf ~'", "").contains("rm -rf"),
+                "an unquoted copy survived: {built}"
+            );
         }
         // A quote of its own cannot break out either.
         assert_eq!(
             kill_session_command("it's").unwrap(),
             r#"tmux kill-session -t 'it'\''s'"#
+        );
+    }
+
+    #[test]
+    fn attach_covers_a_pane_already_inside_tmux() {
+        // `tmux attach` from inside a session refuses ("sessions should
+        // be nested with care") and does nothing, which is the second
+        // attach in any pane, i.e. the whole point of the tab. The line
+        // asks the shell to try the switch first and fall back.
+        let built = attach_command("work").unwrap();
+        assert_eq!(
+            built,
+            "tmux switch-client -t 'work' 2>/dev/null || tmux attach -t 'work'"
         );
     }
 
