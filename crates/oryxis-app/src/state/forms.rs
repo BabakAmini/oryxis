@@ -1,5 +1,7 @@
 //! Connection / session-group editor forms (split out of `state.rs`).
 
+use zeroize::Zeroize;
+
 use super::*;
 
 /// Add / edit form for a local terminal, shown in a modal from the
@@ -78,16 +80,45 @@ pub(crate) struct SessionGroupForm {
 /// that marks the buffer edited is [`set`](Self::set) (the `*Changed`
 /// message arms), and the only ways back are [`clear`](Self::clear) /
 /// [`prefill`](Self::prefill) (form open / reset / hydration).
-#[derive(Debug, Clone, Default)]
+///
+/// Every replacement of the buffer zeroizes what it displaces, and so
+/// does the drop, because the eye toggle now decrypts STORED secrets
+/// into it: a plain `self.value = other` would hand the old
+/// allocation back to the allocator with the plaintext still in it.
+/// This covers the buffer only. The `text_input` the buffer is bound
+/// to keeps its own copy of the value for rendering, and that copy is
+/// beyond our reach, so this narrows the exposure rather than closing
+/// it.
+#[derive(Clone, Default)]
 pub(crate) struct SecretInput {
     value: String,
     touched: bool,
+}
+
+/// Redacted by hand: the derived `Debug` would print the plaintext
+/// into any log line or panic message that formats a form. The
+/// touched flag is the only part worth debugging, and it is not
+/// secret.
+impl std::fmt::Debug for SecretInput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SecretInput")
+            .field("value", &"<redacted>")
+            .field("touched", &self.touched)
+            .finish()
+    }
+}
+
+impl Drop for SecretInput {
+    fn drop(&mut self) {
+        self.value.zeroize();
+    }
 }
 
 impl SecretInput {
     /// User edit: assign the buffer and mark it touched, so a later
     /// [`resolve`](Self::resolve) writes (or clears) the vault value.
     pub fn set(&mut self, value: String) {
+        self.value.zeroize();
         self.value = value;
         self.touched = true;
     }
@@ -97,6 +128,7 @@ impl SecretInput {
     /// the hydration primitive; [`clear`](Self::clear) is its
     /// empty-string shorthand.
     pub fn prefill(&mut self, value: String) {
+        self.value.zeroize();
         self.value = value;
         self.touched = false;
     }
@@ -286,6 +318,11 @@ pub(crate) struct ConnectionForm {
     /// encrypted proxy password into form state on edit and lets save
     /// distinguish "preserve" from "explicitly cleared".
     pub has_existing_proxy_password: bool,
+    /// Whether the proxy password is shown in plain text. Lives on the
+    /// form, like the other three eyes, so opening another host starts
+    /// masked: the shared `revealed_secrets` set survives a form swap,
+    /// which left this one eye armed over an empty buffer.
+    pub proxy_password_visible: bool,
     /// TOTP secret input (bare Base32 or an otpauth:// URI) feeding the
     /// keyboard-interactive 2FA autofill. Same tri-state discipline as
     /// the passwords above.
@@ -442,6 +479,40 @@ impl ConnectionForm {
             AlgoCategory::Kex => &mut self.kex,
             AlgoCategory::Mac => &mut self.macs,
             AlgoCategory::HostKey => &mut self.host_key_algorithms,
+        }
+    }
+
+    /// The four secret buffers plus their eyes, as one walk. Written
+    /// once here so a fifth secret field joins the reveal, the sweep
+    /// and the close paths by adding a row instead of by being
+    /// remembered at each of them.
+    fn secret_fields(&mut self) -> [(&mut SecretInput, &mut bool); 4] {
+        [
+            (&mut self.password, &mut self.password_visible),
+            (&mut self.proxy_password, &mut self.proxy_password_visible),
+            (&mut self.totp_secret, &mut self.totp_visible),
+            (&mut self.target_password, &mut self.target_password_visible),
+        ]
+    }
+
+    /// Drop what the eye toggles revealed, once the host editor's
+    /// panel is gone. An UNTOUCHED buffer holds the stored plaintext
+    /// the eye decrypted, which the vault hands back on demand the
+    /// next time it is opened, so nothing is lost by emptying it. A
+    /// TOUCHED buffer is the user's own typing, and a panel that was
+    /// merely switched away from must not eat work in progress, so it
+    /// survives. [`SecretInput::clear`] never sets the touched flag,
+    /// which is what keeps the tri-state save semantics intact.
+    ///
+    /// The eyes close either way: a closed panel with an eye still
+    /// armed reopens showing an empty field in plaintext, which reads
+    /// as "no secret stored" and takes two clicks to undo.
+    pub(crate) fn sweep_secrets(&mut self) {
+        for (buffer, visible) in self.secret_fields() {
+            if !buffer.touched() {
+                buffer.clear();
+            }
+            *visible = false;
         }
     }
 }
@@ -1113,6 +1184,7 @@ impl Default for ConnectionForm {
             proxy_password: SecretInput::default(),
             proxy_command: String::new(),
             has_existing_proxy_password: false,
+            proxy_password_visible: false,
             totp_secret: SecretInput::default(),
             has_existing_totp: false,
             totp_visible: false,
@@ -1191,5 +1263,64 @@ mod secret_input_tests {
         assert_eq!(field.resolve(), None);
         assert_eq!(field.as_str(), "");
         assert!(!field.touched());
+    }
+
+    #[test]
+    fn debug_never_prints_the_value() {
+        // A form formatted into a log line or a panic message must not
+        // carry the secret with it.
+        let mut field = SecretInput::default();
+        field.set("s3cret".into());
+        let rendered = format!("{field:?}");
+        assert!(!rendered.contains("s3cret"), "{rendered}");
+        assert!(rendered.contains("touched: true"), "{rendered}");
+    }
+}
+
+#[cfg(test)]
+mod sweep_secrets_tests {
+    use super::ConnectionForm;
+
+    /// The whole contract of the panel-close sweep: what the eye
+    /// revealed goes, what the user typed stays, and every eye closes.
+    #[test]
+    fn sweeps_revealed_stored_secrets_and_keeps_typed_ones() {
+        let mut form = ConnectionForm::default();
+        // Two fields revealed from the vault (prefill = untouched)...
+        form.password.prefill("stored-pw".into());
+        form.password_visible = true;
+        form.proxy_password.prefill("stored-proxy".into());
+        form.proxy_password_visible = true;
+        // ...and two the user typed into.
+        form.totp_secret.set("JBSWY3DPEHPK3PXP".into());
+        form.totp_visible = true;
+        form.target_password.set("typed-target".into());
+
+        form.sweep_secrets();
+
+        // Revealed stored plaintext is gone, and still resolves to
+        // "preserve" so the save semantics never changed.
+        assert_eq!(form.password.as_str(), "");
+        assert_eq!(form.password.resolve(), None);
+        assert_eq!(form.proxy_password.as_str(), "");
+        assert_eq!(form.proxy_password.resolve(), None);
+        // Work in progress survives a panel switch untouched.
+        assert_eq!(form.totp_secret.resolve(), Some("JBSWY3DPEHPK3PXP"));
+        assert_eq!(form.target_password.resolve(), Some("typed-target"));
+        // Every eye closes, including the ones over a kept buffer.
+        assert!(!form.password_visible);
+        assert!(!form.proxy_password_visible);
+        assert!(!form.totp_visible);
+        assert!(!form.target_password_visible);
+    }
+
+    /// An edited-empty buffer is an explicit "clear the stored secret",
+    /// which the sweep must not silently downgrade to "preserve".
+    #[test]
+    fn keeps_an_explicit_clear_pending() {
+        let mut form = ConnectionForm::default();
+        form.password.set(String::new());
+        form.sweep_secrets();
+        assert_eq!(form.password.resolve(), Some(""));
     }
 }

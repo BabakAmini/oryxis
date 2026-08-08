@@ -122,6 +122,11 @@ pub enum EditorMessage {
     EditorProxyPortChanged(String),
     EditorProxyUsernameChanged(String),
     EditorProxyPasswordChanged(super::Redacted),
+    /// Eye toggle for the inline proxy password. Was routed through the
+    /// shared `SettingsMessage::ToggleSecretVisibility` / `revealed_secrets`
+    /// set, which outlives the form it was describing; it is a form flag
+    /// like the other three eyes now.
+    EditorToggleProxyPasswordVisibility,
     EditorProxyCommandChanged(String),
     EditorTogglePasswordVisibility,
     /// TOTP secret (2FA) field: value edit + eye toggle. Tri-state save
