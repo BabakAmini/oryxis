@@ -85,7 +85,7 @@ sha2 = "0.10"
 # key (BouncyCastle defaults on the mRemoteNG side; the 16-byte nonce
 # is why the generic AesGcm type is used instead of the Aes256Gcm
 # alias). Decode-only: nothing here ever encrypts.
-quick-xml = "0.36"
+quick-xml = "0.41"
 aes-gcm = "0.10"
 pbkdf2 = "0.12"
 sha1 = "0.10"
@@ -151,7 +151,7 @@ open = "5"
 # the hardcoded 20-name array. Already pulled in transitively by
 # cosmic-text (the iced renderer), declared explicitly here to avoid
 # depending on internal re-exports.
-fontdb = "0.23"
+fontdb = "0.24"
 # OS name + version for the Settings > Advanced environment report and
 # the debug-log session header (distro from /etc/os-release on Linux,
 # RtlGetVersion on Windows, SystemVersion.plist on macOS). Serde
@@ -233,7 +233,7 @@ proptest = "1"
 # the transitive version. Used by the bundled-font test to assert the
 # three Noto Sans weights group under one family (the assumption the
 # whole Inter -> Noto swap rests on).
-fontdb = "0.23"
+fontdb = "0.24"
 # Parse the bundled MenuCJK subset's cmap to prove it covers every
 # CJK language-picker name (한국어 / 中文 / 日本語), so those entries are
 # always renderable from the bundle, even before the on-demand CJK font.

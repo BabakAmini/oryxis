@@ -26,7 +26,7 @@ flate2 = "1"
 # from this version.
 rand = "0.10"
 dirs = "6"
-base64 = "0.22"
+base64 = "0.23"
 # ssh-key 0.7 is the version russh 0.62 consumes; pinning the vault to it
 # collapses the duplicate 0.6 copy (and its rsa 0.9 / p256 0.13 tails)
 # down to a single crypto stack across the workspace. russh pins the exact

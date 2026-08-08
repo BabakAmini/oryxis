@@ -223,7 +223,10 @@ impl Document {
                         for attr in e.attributes().flatten() {
                             let key =
                                 std::str::from_utf8(attr.key.as_ref()).ok()?.to_string();
-                            let value = attr.unescape_value().ok()?.into_owned();
+                            let value = attr
+                                .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                                .ok()?
+                                .into_owned();
                             if key == "KdfIterations" {
                                 kdf_iterations = value.parse().unwrap_or(1000);
                             }
@@ -241,7 +244,12 @@ impl Document {
                     let mut node_type = String::new();
                     for attr in e.attributes().flatten() {
                         let key = std::str::from_utf8(attr.key.as_ref()).ok()?;
-                        let value = attr.unescape_value().ok()?.into_owned();
+                        // Same replacement as above: the deprecated
+                        // `unescape_value` was exactly this call.
+                        let value = attr
+                            .normalized_value(quick_xml::XmlVersion::Implicit1_0)
+                            .ok()?
+                            .into_owned();
                         match key {
                             "Name" => node.name = value,
                             "Type" => node_type = value,
@@ -274,7 +282,17 @@ impl Document {
                 }
                 Ok(Event::Text(t)) => {
                     if saw_root && in_root_text {
-                        let text = t.unescape().ok()?.trim().to_string();
+                        // quick-xml 0.41 split what `BytesText::unescape`
+                        // used to do into its two halves: `decode` handles
+                        // the encoding, `escape::unescape` resolves the
+                        // predefined entities. Both are needed here, since
+                        // the payload is base64 that an `&amp;` would
+                        // corrupt.
+                        let decoded = t.decode().ok()?;
+                        let text = quick_xml::escape::unescape(&decoded)
+                            .ok()?
+                            .trim()
+                            .to_string();
                         if !text.is_empty() {
                             inner_blob = Some(text);
                         }
