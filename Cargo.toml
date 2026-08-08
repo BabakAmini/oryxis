@@ -67,7 +67,13 @@ cosmic-text = "0.18"
 
 # Crypto
 age = "0.11"
-argon2 = "0.5"
+# Pinned exact like ssh-key's rc: this is the KDF the vault master key and
+# the sync group secret are derived with, so the version is part of the
+# format. 0.6's defaults are identical to 0.5's (Argon2id v0x13, 19 MiB,
+# t=2, p=1, 32-byte output) and the derived key is byte-for-byte the same,
+# which `sync_secret_unchanged_by_tuning` proves against its golden vector.
+# The rc is already in the build via ssh-key; this stops us carrying both.
+argon2 = "=0.6.0-rc.8"
 # `rand_core` re-exports the matching `RngCore` trait for `aead::OsRng`,
 # so crates can drive the AEAD RNG without pinning the `rand` crate version.
 chacha20poly1305 = { version = "0.10", features = ["rand_core"] }
