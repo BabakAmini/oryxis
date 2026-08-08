@@ -206,6 +206,10 @@ pub(crate) fn parse_netstat_an(text: &str) -> Vec<PortStat> {
 /// Rows come back raw, source column included: the pseudo / bind-mount /
 /// duplicate rules live in `probe::filter_mounts`, which both dialects
 /// share (issue #135).
+///
+/// The extra columns are all to the RIGHT of Available, so `used` is
+/// derived here exactly as `probe::parse_df` derives it (issue #139):
+/// `total - available`, reserved blocks counted as used.
 pub(crate) fn parse_df_bsd(text: &str) -> Vec<RawMount> {
     let mut out = Vec::new();
     for line in text.lines().skip(1) {
@@ -219,6 +223,10 @@ pub(crate) fn parse_df_bsd(text: &str) -> Vec<RawMount> {
         if total_kb == 0 {
             continue;
         }
+        let used_kb = f[3]
+            .parse::<u64>()
+            .map(|avail_kb| total_kb.saturating_sub(avail_kb))
+            .unwrap_or(used_kb);
         let mount = f[f.len() - 1].to_string();
         if !mount.starts_with('/') {
             continue;
@@ -343,5 +351,28 @@ mod tests {
         assert_eq!(disks[0].source, "/dev/disk1s1");
         assert_eq!(disks[0].stat.used, 200_000_000 * 1024);
         assert_eq!(disks[1].stat.mount, "/dev");
+    }
+
+    /// Issue #139 in the macOS dialect: the reserve sits between Used
+    /// and Available here too, and the extra inode columns are all to
+    /// the right of Available, so the derivation is the POSIX one.
+    #[test]
+    fn bsd_df_counts_reserved_blocks_as_used() {
+        let text = "Filesystem   1024-blocks     Used Available Capacity iused ifree %iused  Mounted on\n\
+                    /dev/disk1s1    35966156 31997297   2170552    94%  500000  700000   42%   /\n";
+        let disks = parse_df_bsd(text);
+        assert_eq!(disks[0].stat.used, (35_966_156 - 2_170_552) * 1024);
+        assert_eq!(disks[0].stat.pct().round(), 94.0);
+    }
+
+    /// A row whose Available column is not a number keeps the Used one:
+    /// an unknown dialect must degrade to the old answer, never drop
+    /// the disk.
+    #[test]
+    fn bsd_df_falls_back_to_the_used_column_without_available() {
+        let text = "Filesystem 1024-blocks Used Available Capacity iused ifree %iused Mounted on\n\
+                    /dev/disk1s1  10000000 4000000         -      40%      1     1     1%  /\n";
+        let disks = parse_df_bsd(text);
+        assert_eq!(disks[0].stat.used, 4_000_000 * 1024);
     }
 }

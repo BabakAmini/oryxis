@@ -295,6 +295,20 @@ pub(crate) struct RawMount {
 /// POSIX output is one line per filesystem with a fixed column order, so
 /// the mount point is everything after the 5th field (mount points can
 /// contain spaces; the preceding numeric columns cannot).
+///
+/// `used` is derived as `total - available`, NOT taken from the Used
+/// column (issue #139). The two are different numbers: `df` computes
+/// Used from the free blocks a filesystem has left and Available from
+/// the ones the CALLER may still take, and on a default ext4 the 5%
+/// root reserve sits between them. Reporting the Used column made a
+/// 94%-full root read "30.5 GB / 34.4 GB, 89%" next to btop's 32.2 /
+/// 34.3, 94%. `total - available` is what every host monitor shows
+/// (btop, htop, GNOME Disks) because reserved blocks are unavailable in
+/// exactly the way full ones are, and it keeps the gauge, its label and
+/// the percentage answering one question instead of three: `df`'s own
+/// Use% column is `used / (used + available)`, so pairing it with the
+/// Used column would fill a bar to 94% under a label reading 30.5 of
+/// 34.4.
 fn parse_df(df: &str) -> Vec<RawMount> {
     let mut out = Vec::new();
     for line in df.lines().skip(1) {
@@ -307,6 +321,14 @@ fn parse_df(df: &str) -> Vec<RawMount> {
         if total_kb == 0 {
             continue;
         }
+        // A row whose Available column is missing or unparseable falls
+        // back to the Used column rather than vanishing: an unreadable
+        // fourth field means an unknown dialect, and dropping the disk
+        // would be a worse answer than the pre-#139 one.
+        let used_kb = fields[3]
+            .parse::<u64>()
+            .map(|avail_kb| total_kb.saturating_sub(avail_kb))
+            .unwrap_or(used_kb);
         // The mount point opens column 6 and is absolute. macOS's
         // non-POSIX `df -k` pads three inode columns in between, so a
         // relative field here means the row is in the OTHER dialect and
@@ -781,6 +803,38 @@ mod tests {
         assert_eq!(mounts, vec!["/", "/mnt/my disk"]);
         assert_eq!(sample.disks[0].used, 4_000_000 * 1024);
         assert_eq!(sample.disks[0].pct(), 40.0);
+    }
+
+    /// Issue #139, reported against btop on a nearly full ext4 root:
+    /// the gauge read "30.5 GB / 34.4 GB, 89%" where btop said 32.2 of
+    /// 34.3 at 94%. The gap is the 5% root reserve, which `df` leaves
+    /// out of BOTH Used and Available, so the Used column understates
+    /// what the user cannot have.
+    #[test]
+    fn the_root_reserve_counts_as_used_space() {
+        // 34.30 GiB total, 30.51 GiB in the Used column, 2.07 GiB
+        // available: the 1.72 GiB between them is the reserve.
+        let df = "Filesystem 1024-blocks     Used Available Capacity Mounted on\n\
+                  /dev/sda1     35966156 31997297   2170552      94% /\n";
+        let (sample, _) = parse_linux(&payload(["", "", "", "", df, "", ""]), None, t0());
+        let disk = &sample.disks[0];
+        assert_eq!(disk.used, (35_966_156 - 2_170_552) * 1024);
+        // btop's figures, and `df`'s own Capacity column, agree at 94%.
+        assert_eq!(disk.pct().round(), 94.0);
+        // The Used column alone is what produced the reported 89%.
+        assert_ne!(disk.used, 31_997_297 * 1024);
+    }
+
+    /// The Available column is what the derivation needs, so a dialect
+    /// that doesn't print a number there falls back to the Used column
+    /// instead of losing the disk entirely.
+    #[test]
+    fn a_missing_available_column_keeps_the_row() {
+        let df = "Filesystem 1024-blocks    Used Available Capacity Mounted on\n\
+                  /dev/sda1     10000000 4000000         -      40% /\n";
+        let (sample, _) = parse_linux(&payload(["", "", "", "", df, "", ""]), None, t0());
+        assert_eq!(sample.disks.len(), 1);
+        assert_eq!(sample.disks[0].used, 4_000_000 * 1024);
     }
 
     /// Issue #135, reported from a Magisk'd Android phone over Termux:

@@ -83,6 +83,11 @@ pub(crate) struct NetStat {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct DiskStat {
     pub mount: String,
+    /// Space the user CANNOT use: `total - available`, reserved blocks
+    /// included. This is NOT `df`'s Used column (issue #139): on a
+    /// default ext4 the two differ by the 5% root reserve, and the
+    /// parsers derive this one so the gauge, its label and the
+    /// percentage all answer the same question. See `probe::parse_df`.
     pub used: u64,
     pub total: u64,
 }
