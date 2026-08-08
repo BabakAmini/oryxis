@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Build + test only: nothing here writes back to the repo, so the token
+# gets the read scope the checkout needs and nothing else.
+permissions:
+  contents: read
+
 env:
   CARGO_TERM_COLOR: always
   ORYXIS_SIGNALING_URL: ${{ secrets.ORYXIS_SIGNALING_URL }}
