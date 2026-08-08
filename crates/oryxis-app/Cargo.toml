@@ -90,8 +90,6 @@ quick-xml = "0.41"
 aes-gcm = "0.11"
 pbkdf2 = "0.13"
 sha1 = "0.11"
-# RNG used to generate the MCP server token (32 random bytes).
-rand = { workspace = true }
 # Base64 decode for the manifest's signature field.
 base64 = { workspace = true }
 # Plugin cache lives under the same `~/.oryxis` root the vault uses;

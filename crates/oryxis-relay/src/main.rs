@@ -223,10 +223,10 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/register", post(register_device))
-        .route("/lookup/:id", get(lookup_device))
-        .route("/register/:id", delete(unregister_device))
+        .route("/lookup/{id}", get(lookup_device))
+        .route("/register/{id}", delete(unregister_device))
         .route(
-            "/relay/:id/inbox",
+            "/relay/{id}/inbox",
             post(push_inbox).get(poll_inbox),
         )
         .route("/healthz", get(healthz))
@@ -637,9 +637,9 @@ mod tests {
         };
         let app = Router::new()
             .route("/register", post(register_device))
-            .route("/lookup/:id", get(lookup_device))
-            .route("/register/:id", delete(unregister_device))
-            .route("/relay/:id/inbox", post(push_inbox).get(poll_inbox))
+            .route("/lookup/{id}", get(lookup_device))
+            .route("/register/{id}", delete(unregister_device))
+            .route("/relay/{id}/inbox", post(push_inbox).get(poll_inbox))
             .route("/healthz", get(healthz))
             .with_state(state);
 

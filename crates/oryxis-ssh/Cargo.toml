@@ -17,10 +17,10 @@ base64 = { workspace = true }
 # Per-host terminal encoding: transcode PTY bytes <-> UTF-8 for non-UTF-8
 # charsets (Big5, Shift-JIS, CP437, ...). UTF-8 hosts skip it entirely.
 encoding_rs = "0.8"
-# X11 forwarding: `dirs` locates `~/.Xauthority`, `rand` mints the fake
-# MIT-MAGIC-COOKIE-1 announced to the remote in place of the real one.
+# X11 forwarding: `dirs` locates `~/.Xauthority`, `getrandom` mints the
+# fake MIT-MAGIC-COOKIE-1 announced to the remote in place of the real one.
 dirs = "6"
-rand = { workspace = true }
+getrandom = "0.4"
 
 # Enumerate the named-pipe namespace to discover Pageant/KeePassXC's
 # per-launch agent pipe (windows_agent_pipe). Windows-only.
@@ -37,8 +37,7 @@ windows-sys = { version = "0.61", features = [
 [dev-dependencies]
 # Build in-process certificates for the cert-auth unit tests via
 # ssh_key's Builder (rand 0.10 = the rand_core russh/ssh_key pull).
-# Renamed because the crate's normal `rand` dep is 0.8 (X11 cookies),
-# mirroring the same split in oryxis-app.
+# Renamed because the crate has no plain `rand` dep any more.
 rand010 = { package = "rand", version = "0.10", features = ["thread_rng"] }
 # Spin up an ephemeral OpenSSH container per test for hermetic SFTP /
 # SSH integration coverage, no real credentials, no shared state, no

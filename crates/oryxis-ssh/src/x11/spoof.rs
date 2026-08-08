@@ -185,9 +185,8 @@ impl SetupRewriter {
 
 /// Mint a fresh 16-byte fake cookie.
 pub fn random_cookie() -> Vec<u8> {
-    use rand::RngCore;
     let mut buf = vec![0u8; COOKIE_LEN];
-    rand::rngs::OsRng.fill_bytes(&mut buf);
+    getrandom::fill(&mut buf).expect("OS RNG unavailable");
     buf
 }
 

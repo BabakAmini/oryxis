@@ -81,9 +81,9 @@ impl Oryxis {
                 self.mcp.install_status = Some(result);
             }
             McpMessage::RegenerateMcpToken => {
-                use rand::RngCore;
                 let mut bytes = [0u8; 32];
-                rand::thread_rng().fill_bytes(&mut bytes);
+                getrandom::fill(&mut bytes)
+                    .expect("OS RNG unavailable");
                 let mut token = String::with_capacity(64);
                 for b in bytes {
                     use std::fmt::Write as _;

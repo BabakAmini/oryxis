@@ -31,9 +31,8 @@ pub(crate) const SETTING: &str = "shell_integration_nonce";
 /// attacker cannot see is hopeless, short enough to read back over a phone
 /// call when someone is debugging their dotfile.
 pub(crate) fn generate_nonce() -> String {
-    use rand::RngCore;
     let mut bytes = [0u8; 16];
-    rand::thread_rng().fill_bytes(&mut bytes);
+    getrandom::fill(&mut bytes).expect("OS RNG unavailable");
     let mut out = String::with_capacity(32);
     for b in bytes {
         use std::fmt::Write as _;
