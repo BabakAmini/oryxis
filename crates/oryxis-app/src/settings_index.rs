@@ -253,6 +253,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Plugins, "sync", "feature sync vault devices enable p2p"),
     e(S::Plugins, "remote_desktop", "feature remote desktop rdp vnc enable"),
     e(S::Plugins, "feature_monitoring", "feature host monitoring enable vitals"),
+    e(S::Plugins, "feature_tmux", "feature tmux session manager multiplexer attach kill"),
     e(S::Plugins, "agent_server", "feature ssh agent server enable"),
     e(S::Plugins, "plugin_action_check_updates", "plugin check updates all providers"),
     e(S::Plugins, "plugins_auto_update_global", "plugin auto update all global"),

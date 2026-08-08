@@ -448,6 +448,7 @@ impl Oryxis {
                 custom_ui_themes: Vec::new(),
                 theme_ui: crate::state::ThemeEditorUi::default(),
                 monitor: Default::default(),
+                tmux: Default::default(),
                 monitor_dash: Default::default(),
                 monitor_stamp: 0,
                 monitor_error: None,

@@ -61,8 +61,9 @@ impl Oryxis {
     }
 
     /// Resolve a desired sidebar tab against what the focused pane
-    /// actually offers: Chat needs AI enabled, Files and Monitor need a
-    /// live SSH session (Monitor also the master toggle). An unavailable
+    /// actually offers: Chat needs AI enabled, Files, Monitor and tmux
+    /// need a live SSH session (the last two also their own master
+    /// toggle in Features & Plugins). An unavailable
     /// tab falls back to Snippets, which is always present, so the panel
     /// is never empty. Shared by the per-frame display resolution and
     /// the open-to-default logic (issue #85), so a configured default of
@@ -79,10 +80,12 @@ impl Oryxis {
             .is_some();
         let files_available = self.sftp_enabled && has_ssh;
         let monitor_available = self.prefs.host_monitoring && has_ssh;
+        let tmux_available = self.prefs.tmux_manager && has_ssh;
         match want {
             TerminalSidebarTab::Chat if !self.ai.enabled => TerminalSidebarTab::Snippets,
             TerminalSidebarTab::Files if !files_available => TerminalSidebarTab::Snippets,
             TerminalSidebarTab::Monitor if !monitor_available => TerminalSidebarTab::Snippets,
+            TerminalSidebarTab::Tmux if !tmux_available => TerminalSidebarTab::Snippets,
             other => other,
         }
     }
@@ -530,6 +533,18 @@ impl Oryxis {
         {
             order.push(TerminalSidebarTab::Monitor);
         }
+        // tmux, on the same terms: its own feature toggle plus a live
+        // SSH session (whether the host actually runs tmux is answered
+        // inside the tab, not by hiding it).
+        if self.prefs.tmux_manager
+            && self
+                .active_tab
+                .and_then(|idx| self.tabs.get(idx))
+                .map(|t| t.active().session.as_ref().and_then(|s| s.ssh()).is_some())
+                .unwrap_or(false)
+        {
+            order.push(TerminalSidebarTab::Tmux);
+        }
         order.push(TerminalSidebarTab::HostConfig);
 
         let was_open = self
@@ -580,6 +595,13 @@ impl Oryxis {
                 // yet), which the body records first.
                 self.keynav.sidebar_selected = Some((target, 1));
                 self.sidebar_nav_scroll(1)
+            }
+            TerminalSidebarTab::Tmux => {
+                // Land on the first body row (Refresh) and list in the
+                // same breath, so the rows are there by the time the
+                // ring lands on them.
+                self.keynav.sidebar_selected = Some((target, 1));
+                Task::batch([self.sidebar_nav_scroll(1), self.tmux_sync()])
             }
             TerminalSidebarTab::Snippets | TerminalSidebarTab::HostConfig => {
                 // Land on the first row of the tab BODY. Index 0 is the

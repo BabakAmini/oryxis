@@ -274,11 +274,13 @@ impl Oryxis {
                 // session against the dead pane's counters.
                 let mut ended_log = None;
                 let mut closed_host = None;
+                let mut closed_pane = None;
                 if let Some(pane) = tab.pane_grid.panes.get_mut(&target) {
                     if let Some(session) = pane.session.take() {
                         session.close();
                     }
                     ended_log = pane.session_log_id.take();
+                    closed_pane = Some(pane.id);
                     closed_host = match pane.origin {
                         crate::state::PaneOrigin::Host(id) => Some(id),
                         _ => None,
@@ -310,6 +312,12 @@ impl Oryxis {
                     && let Some(vault) = &self.vault
                 {
                     let _ = vault.end_session_log(&log_id);
+                }
+                // The tmux listing is per PANE, so it goes with the pane
+                // unconditionally: no "is the host still open elsewhere"
+                // question, because another pane owns its own listing.
+                if let Some(pane_id) = closed_pane {
+                    self.tmux_reset_pane(&pane_id);
                 }
                 // Same rule as CloseTab: drop the monitor series only
                 // when the closed pane was the host's last live one

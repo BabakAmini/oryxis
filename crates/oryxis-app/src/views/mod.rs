@@ -34,6 +34,7 @@ pub(crate) mod sidebar;
 pub(crate) mod sidebar_files;
 pub(crate) mod monitor_dash;
 pub(crate) mod sidebar_monitor;
+pub(crate) mod sidebar_tmux;
 pub(crate) mod sidebar_history;
 pub(crate) mod sidebar_host_config;
 pub(crate) mod sidebar_chat;

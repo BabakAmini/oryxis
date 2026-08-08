@@ -279,6 +279,9 @@ pub enum SettingsMessage {
     SettingToggleHostMonitoring,
     /// Monitoring section: "Enable for all hosts" (issue #83).
     SettingToggleMonitorAllHosts,
+    /// Features & Plugins: master toggle for the tmux session manager
+    /// (issue #116). Gates the sidebar tab and everything it owns.
+    SettingToggleTmuxManager,
     /// Flip the host dashboard between the responsive card grid and a
     /// single-column list.
     ToggleHostListView,

@@ -117,6 +117,14 @@ impl Oryxis {
                 self.monitor_reset_host(&host);
             }
         }
+        // Every pane in the tab takes its tmux listing with it. Keyed by
+        // pane, so unlike the monitor series there is no "last live pane
+        // of this host" question to ask.
+        let closing_panes: Vec<uuid::Uuid> =
+            self.tabs[idx].pane_grid.panes.values().map(|p| p.id).collect();
+        for pane_id in closing_panes {
+            self.tmux_reset_pane(&pane_id);
+        }
         // Closing a pinned tab drops it from the persisted set.
         let was_pinned = self.tabs[idx].pinned;
         self.tabs.remove(idx);

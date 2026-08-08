@@ -100,6 +100,22 @@ impl Oryxis {
                     self.monitor_disks_open = true;
                 }
             }
+            SettingsMessage::SettingToggleTmuxManager => {
+                self.prefs.tmux_manager = !self.prefs.tmux_manager;
+                self.persist_setting(
+                    "tmux_manager_enabled",
+                    if self.prefs.tmux_manager { "true" } else { "false" },
+                );
+                if !self.prefs.tmux_manager {
+                    // Off hides every surface the feature owns, so a
+                    // kept listing could only leak. Nothing here needs a
+                    // stamp: `tmux_session_for_pane` re-reads the toggle,
+                    // so a listing in flight lands on a pane whose entry
+                    // is gone and is dropped by `Listed`.
+                    self.tmux_reset_all();
+                    self.hover.tmux_row = None;
+                }
+            }
             SettingsMessage::SettingToggleMonitorAllHosts => {
                 self.prefs.monitor_all_hosts = !self.prefs.monitor_all_hosts;
                 self.persist_setting(

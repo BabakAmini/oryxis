@@ -791,6 +791,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("monitor_all_hosts") {
                 self.prefs.monitor_all_hosts = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("tmux_manager_enabled") {
+                self.prefs.tmux_manager = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_split_ratio")
                 && let Ok(r) = v.parse::<f32>()
             {

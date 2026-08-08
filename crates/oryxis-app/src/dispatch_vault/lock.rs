@@ -127,6 +127,10 @@ impl Oryxis {
                     // stamp bump inside makes a probe still in flight land
                     // dead instead of repopulating the swept state.
                     self.monitor_reset_all();
+                    // Same reasoning for the tmux listings: what runs on
+                    // a host is telemetry too, and a locked screen owes
+                    // the fleet nothing.
+                    self.tmux_reset_all();
                     self.sftp.overwrite_prompt = None;
                     self.sftp.properties = None;
                     // A pending keyboard-interactive prompt belongs to an
@@ -259,6 +263,7 @@ impl Oryxis {
                                                         tab.files_state.edit_watches.clear();
                         }
                         self.monitor_reset_all();
+                        self.tmux_reset_all();
                         self.sftp.overwrite_prompt = None;
                         self.sftp.properties = None;
                         // Cancel a pending keyboard-interactive / host-key

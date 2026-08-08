@@ -48,7 +48,7 @@ use crate::theme::OryxisColors;
 
 // `Message` lives in its own module; re-export so call sites that
 // import `crate::app::Message` keep working.
-pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, MonitorMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
+pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, MonitorMessage, TmuxMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;
@@ -797,6 +797,10 @@ pub struct Oryxis {
     /// Agentless host-monitor state (issue #83): per-host sample ring
     /// for the sidebar Monitor tab. RAM only, never persisted or synced.
     pub(crate) monitor: crate::monitor::MonitorState,
+    /// tmux session manager state (issue #116): the last listing per
+    /// PANE, keyed that way because the pane owns the SSH session the
+    /// listing was read over. RAM only, never persisted or synced.
+    pub(crate) tmux: crate::tmux::TmuxState,
     /// Multi-host dashboard links (issue #95). Samples go into
     /// `monitor.series` like the sidebar's, so the two surfaces can
     /// never disagree about a host.

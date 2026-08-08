@@ -99,6 +99,21 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().height(12),
+                // tmux manager (issue #116): same rule as monitoring.
+                // Managing tmux from a panel is niche, so the sidebar
+                // tab only exists once this is on.
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("feature_tmux"),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleTmuxManager)),
+                    8.0,
+                    toggle_row_desc(
+                        crate::i18n::t("feature_tmux"),
+                        crate::i18n::t("feature_tmux_desc"),
+                        self.prefs.tmux_manager,
+                        Message::Settings(SettingsMessage::SettingToggleTmuxManager),
+                    ),
+                ),
+                Space::new().height(12),
                 // Features holds only the enable toggle; the confirm +
                 // socket rows live in the Settings sidebar's SSH Agent
                 // section, which appears while the agent is enabled.

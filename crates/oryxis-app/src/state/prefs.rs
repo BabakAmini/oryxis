@@ -354,6 +354,14 @@ pub(crate) struct AppPrefs {
     /// locked-on. When off, the per-host opt-in decides. The effective
     /// per-host value is `setting_monitor_all_hosts || conn.monitor_enabled`.
     pub(crate) monitor_all_hosts: bool,
+    /// Master toggle for the tmux session manager (issue #116), in
+    /// Features & Plugins. Off by default: managing tmux from a panel
+    /// is niche, so the sidebar tab and everything else it owns stay
+    /// hidden until the user enables the feature here. Unlike
+    /// monitoring there is no per-host flag: the tab costs nothing
+    /// until it is opened, and whether a host runs tmux is a question
+    /// the host itself answers.
+    pub(crate) tmux_manager: bool,
     /// Vault navigation orientation: `"horizontal"` (default) renders the
     /// sub-sections as a pill strip beneath the top bar; `"vertical"`
     /// renders them as an icon rail on the left of the vault content. The
@@ -575,6 +583,7 @@ impl Default for AppPrefs {
             host_monitoring: false,
             host_monitoring_seeded: false,
             monitor_all_hosts: false,
+            tmux_manager: false,
             nav_orientation: "horizontal".into(),
             language_choice: "auto".into(),
             nav_rail_expanded: false,

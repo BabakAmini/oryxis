@@ -1,0 +1,45 @@
+//! Sidebar tmux session manager messages, issue #116.
+//!
+//! Every variant shared the `Tmux` prefix the wrapper already supplies,
+//! so the prefix is stripped (`clippy::enum_variant_names`), like the
+//! `sync` / `player` / `tray` / `onboarding` domains.
+
+use uuid::Uuid;
+
+#[derive(Debug, Clone)]
+pub enum TmuxMessage {
+    /// List the sessions on the pane's host. Fired when the tab becomes
+    /// visible and from the Refresh action; there is no recurring tick,
+    /// because a session list changes on user action, not on its own.
+    Refresh(Uuid),
+    /// A listing came back for that pane: the raw payload, or an error
+    /// to surface in the tab.
+    Listed(Uuid, Result<String, String>),
+    /// Attach to a session: the command the user would type, sent into
+    /// the pane the tab sits beside. Carries the pane AND the tab index
+    /// captured when the row was built, so a tab switch between click
+    /// and delivery can't land the line in someone else's shell.
+    Attach(usize, Uuid, String),
+    /// "New session" name field.
+    NewNameChanged(Uuid, String),
+    /// Create a detached session with the typed name (empty = let tmux
+    /// name it). Detached so it never fights the pane's own PTY.
+    Create(Uuid),
+    /// Ask to kill a session. Parks the confirmation; nothing reaches
+    /// the host until it is confirmed.
+    AskKill(Uuid, String),
+    /// Run the parked kill.
+    ConfirmKill(Uuid),
+    /// Dismiss the confirmation without touching the host.
+    CancelKill(Uuid),
+    /// A create / kill finished: `Ok(())` re-lists, `Err` surfaces
+    /// inline and leaves the previous listing on screen.
+    ActionDone(Uuid, Result<(), String>),
+    /// Pointer entered a session row: reveals its floating kill action.
+    RowHovered(usize),
+    /// Pointer left one. Clears THROUGH `HoverState::leave_tmux_row`,
+    /// never `= None`: crossing rows publishes both events in the same
+    /// frame in build order, so an unconditional clear would wipe the
+    /// hover the arriving row just gained.
+    RowExit(usize),
+}

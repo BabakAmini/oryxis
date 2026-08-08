@@ -204,6 +204,7 @@ impl Oryxis {
             Message::Player(m) => self.handle_player(m),
             Message::SidebarFiles(m) => self.handle_sidebar_files(m),
             Message::Monitor(m) => self.handle_monitor(m),
+            Message::Tmux(m) => self.handle_tmux(m),
             Message::History(m) => self.handle_history(m),
             Message::Settings(m) => self.handle_settings(m),
             Message::Keys(m) => self.handle_keys(m),

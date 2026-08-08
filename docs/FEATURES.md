@@ -235,6 +235,30 @@ coming next, see the [Roadmap](../README.md#roadmap).
   rather than wrapping, and truncated or forged payloads degrade to
   "unknown" instead of nonsense.
 
+## tmux session manager
+
+- **The host's tmux sessions in the sidebar.** A tmux tab lists what is
+  running on the focused pane's host, with the window count and which
+  sessions already have a client attached. The listing runs `tmux` itself
+  on an exec channel multiplexed onto the live session, so nothing is
+  installed on the server, no rc file is written and nothing is injected
+  into your shell.
+- **Create, attach, kill.** New sessions are created detached, so they
+  never fight the pane you are in; attaching types the command you would
+  have typed into that pane, on your click; killing asks first and names
+  the session, because it stops everything running inside it.
+- **Reads what the host says.** A host without tmux says so rather than
+  offering buttons that could only fail, a tmux with no server running is
+  the empty state that invites a first session, and a failed command
+  surfaces the host's own wording instead of a generic error.
+- **Session names are untrusted text.** Every name comes off the remote
+  host, so it is quoted at each boundary, whether it is heading for an
+  exec channel or for your shell, and a name carrying a line break is
+  refused rather than quoted.
+- **Off by default,** behind a Features & Plugins toggle like host
+  monitoring, and it never polls: the list is read when the tab opens,
+  after your own actions, and when you ask.
+
 ## SFTP & files
 
 - **Dual-pane layout.** Local and remote side by side, with sortable

@@ -38,9 +38,10 @@ impl Oryxis {
                     {
                         self.terminal_sidebar_tab = TerminalSidebarTab::Snippets;
                     }
-                    // Opening onto the Files tab: mount / catch up to the
-                    // shell's cwd (no-op on every other tab).
-                    return self.sidebar_files_sync();
+                    // Opening onto the Files or tmux tab: mount / catch up
+                    // to the shell's cwd, or list the host's sessions.
+                    // Both are no-ops on every other tab.
+                    return iced::Task::batch([self.sidebar_files_sync(), self.tmux_sync()]);
                 }
                 if toggled_to == Some(false) {
                     // Closing the panel is the user's "stop it" gesture (the
@@ -78,6 +79,12 @@ impl Oryxis {
                     // Mount the pane's SFTP channel (first open) or catch
                     // up to the shell's cwd.
                     return self.sidebar_files_sync();
+                }
+                if tab == crate::state::TerminalSidebarTab::Tmux {
+                    // List the host's sessions on first open. Idempotent:
+                    // returning to the tab reuses what is already there,
+                    // and a refresh is the user's own action.
+                    return self.tmux_sync();
                 }
             }
             AiMessage::SidebarSnippetSearchChanged(v) => {

@@ -213,6 +213,12 @@ impl Oryxis {
                 self.prefs.host_monitoring,
                 Message::Settings(SettingsMessage::SettingToggleHostMonitoring),
             ),
+            (
+                t("feature_tmux"),
+                t("feature_tmux_desc"),
+                self.prefs.tmux_manager,
+                Message::Settings(SettingsMessage::SettingToggleTmuxManager),
+            ),
         ];
         // The agent only exists where a listener can be bound.
         if crate::agent_server::listener_socket_display().is_some() {

@@ -31,6 +31,11 @@ pub enum TerminalSidebarTab {
     /// memory / load / disk / network read from `/proc` over the live
     /// session (issue #83). SSH-only and opt-in per host, like Files.
     Monitor,
+    /// tmux session manager for the focused pane's host: list, create,
+    /// attach and kill, all by running tmux itself over the live
+    /// session (issue #116). SSH-only, and behind its own feature
+    /// toggle like Monitor.
+    Tmux,
     /// Per-host appearance/behavior settings for the focused pane's
     /// connection, edited live with the terminal visible alongside.
     HostConfig,
@@ -39,12 +44,13 @@ pub enum TerminalSidebarTab {
 impl TerminalSidebarTab {
     /// Every tab, in strip order. Backs the "Default sidebar tab"
     /// picker (issue #85).
-    pub const ALL: [TerminalSidebarTab; 6] = [
+    pub const ALL: [TerminalSidebarTab; 7] = [
         TerminalSidebarTab::Chat,
         TerminalSidebarTab::Snippets,
         TerminalSidebarTab::History,
         TerminalSidebarTab::Files,
         TerminalSidebarTab::Monitor,
+        TerminalSidebarTab::Tmux,
         TerminalSidebarTab::HostConfig,
     ];
 
@@ -56,6 +62,7 @@ impl TerminalSidebarTab {
             TerminalSidebarTab::History => "history",
             TerminalSidebarTab::Files => "files",
             TerminalSidebarTab::Monitor => "monitor",
+            TerminalSidebarTab::Tmux => "tmux",
             TerminalSidebarTab::HostConfig => "hostconfig",
         }
     }
@@ -75,6 +82,7 @@ impl TerminalSidebarTab {
             TerminalSidebarTab::History => "tab_tip_history",
             TerminalSidebarTab::Files => "tab_tip_files",
             TerminalSidebarTab::Monitor => "tab_tip_monitor",
+            TerminalSidebarTab::Tmux => "tab_tip_tmux",
             TerminalSidebarTab::HostConfig => "tab_tip_host_config",
         }
     }

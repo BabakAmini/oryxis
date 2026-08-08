@@ -902,9 +902,17 @@ impl Oryxis {
         // to enable it.
         let monitor_available = self.prefs.host_monitoring
             && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
+        // Same shape for tmux (issue #116): the feature toggle plus a
+        // live SSH session. Whether the host has tmux at all is the
+        // tab body's answer, not a reason to hide the tab: hiding would
+        // need a probe before the strip renders, and a tab that
+        // vanishes while being looked at is worse than an empty state.
+        let tmux_available = self.prefs.tmux_manager
+            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
         let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
             || (self.terminal_sidebar_tab == STab::Files && !files_available)
             || (self.terminal_sidebar_tab == STab::Monitor && !monitor_available)
+            || (self.terminal_sidebar_tab == STab::Tmux && !tmux_available)
         {
             STab::Snippets
         } else {
@@ -949,6 +957,14 @@ impl Oryxis {
                 active == STab::Monitor,
                 Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Monitor)),
                 t("tab_tip_monitor"),
+            ));
+        }
+        if tmux_available {
+            strip.push(sidebar_tab_btn(
+                iced_fonts::lucide::layout_grid(),
+                active == STab::Tmux,
+                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Tmux)),
+                t("tab_tip_tmux"),
             ));
         }
         strip.push(sidebar_tab_btn(
@@ -1028,6 +1044,7 @@ impl Oryxis {
             STab::History => self.history_tab_content(),
             STab::Files => self.files_tab_content(tab),
             STab::Monitor => self.monitor_tab_content(),
+            STab::Tmux => self.tmux_tab_content(tab),
             STab::HostConfig => self.host_config_tab_content(tab),
         };
         let panel_column = column![header, header_separator, content]

@@ -29,6 +29,8 @@ mod keys;
 pub use keys::KeysMessage;
 mod monitor;
 pub use monitor::MonitorMessage;
+mod tmux;
+pub use tmux::TmuxMessage;
 mod sidebar_files;
 pub use sidebar_files::SidebarFilesMessage;
 mod terminal;
@@ -149,6 +151,12 @@ pub enum Message {
     // so a reconnect mid-probe can't land on the wrong series.
     // Monitor (handle_monitor)
     Monitor(MonitorMessage),
+    // Sidebar tmux tab (issue #116): list / create / attach / kill the
+    // tmux sessions on the pane's host. Every variant carries the
+    // pane's stable `Uuid` so a pane switch mid-flight can't land a
+    // listing (or an attach) on the wrong shell.
+    // Tmux (handle_tmux)
+    Tmux(TmuxMessage),
     /// Open an arbitrary URL in the user's default browser.
     /// Used by clickable links in the About panel.
     OpenUrl(String),

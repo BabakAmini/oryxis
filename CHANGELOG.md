@@ -7,6 +7,24 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **tmux sessions from the sidebar (#116).** A new terminal-sidebar tab
+  lists the tmux sessions running on the focused pane's host, with their
+  window count and whether a client is already attached, and creates,
+  attaches to and kills them. The listing, the create and the kill run
+  `tmux` itself on an exec channel multiplexed onto the session you
+  already have, so nothing is installed on the server, no rc file is
+  written and nothing is injected into your shell; attaching is the one
+  action that reaches your shell, because it is the command you would
+  have typed, sent into the pane the tab sits beside when you click. New
+  sessions are created detached so they never fight the pane you are in,
+  and a kill asks first, naming the session. A host without tmux says so
+  instead of offering buttons that could only fail, and a host whose tmux
+  server is not running gets the empty state that invites a first
+  session. Session names are text the remote host printed, so they are
+  quoted wherever they are used and a name carrying a line break is
+  refused rather than quoted. Off by default, behind a Features & Plugins
+  toggle like host monitoring, and it never polls: the list is read when
+  the tab opens, after your own actions, and when you ask.
 - **Pick which disks a host reports.** SSH > Integration takes a
   Monitoring disks choice next to the monitor toggle: Auto keeps the
   automatic behaviour (one row per storage device), Custom reports only

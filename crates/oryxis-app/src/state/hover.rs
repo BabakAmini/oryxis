@@ -59,6 +59,8 @@ pub(crate) struct HoverState {
 
     /// Files sidebar row.
     pub(crate) files_row: Option<usize>,
+    /// tmux sidebar session row (issue #116).
+    pub(crate) tmux_row: Option<usize>,
 }
 
 impl HoverState {
@@ -178,6 +180,10 @@ impl HoverState {
     /// Files sidebar row.
     pub(crate) fn leave_files_row(&mut self, idx: usize) {
         Self::leave(&mut self.files_row, idx);
+    }
+
+    pub(crate) fn leave_tmux_row(&mut self, idx: usize) {
+        Self::leave(&mut self.tmux_row, idx);
     }
 }
 

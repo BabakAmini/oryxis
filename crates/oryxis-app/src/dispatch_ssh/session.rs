@@ -151,6 +151,11 @@ impl Oryxis {
                     if let Some(id) = monitored_host {
                         self.monitor_reset_host(&id);
                     }
+                    // Same reasoning for the tmux listing, one level
+                    // finer: it belongs to the PANE whose transport just
+                    // died, and offering attaches over a dead session
+                    // would be a list of buttons that cannot work.
+                    self.tmux_reset_pane(&pane_id);
                     // Clear the disconnected pane's session + end its log.
                     let log_id = self.tabs[tab_idx].pane_by_id_mut(pane_id).and_then(|p| {
                         // Close (not just drop) the dead session: SFTP
