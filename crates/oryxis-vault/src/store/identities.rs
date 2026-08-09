@@ -115,6 +115,20 @@ impl VaultStore {
         }
     }
 
+    /// Whether an identity row exists. A presence probe for the
+    /// group-inheritance resolver: a group default naming a deleted
+    /// identity must fall through (`delete_identity` cascades NULL on
+    /// connections but group defaults are JSON, so they CAN dangle,
+    /// locally via delete-while-referenced and remotely via sync).
+    pub fn identity_exists(&self, id: &Uuid) -> Result<bool, VaultError> {
+        let n: i64 = self.db.query_row(
+            "SELECT COUNT(*) FROM identities WHERE id = ?1",
+            params![id.to_string()],
+            |row| row.get(0),
+        )?;
+        Ok(n > 0)
+    }
+
     pub fn delete_identity(&self, id: &Uuid) -> Result<(), VaultError> {
         // NULL out identity_id on connections referencing this identity
         self.db.execute(

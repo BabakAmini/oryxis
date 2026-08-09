@@ -144,7 +144,31 @@ impl VaultStore {
             if effective.identity_id.is_none()
                 && let Some(id) = defaults.identity_id
             {
-                effective.identity_id = Some((id, origin));
+                // Two gates, both about not eclipsing what the host can
+                // already do. (1) Credentials are ONE parameter family:
+                // the engine's credential resolution takes the identity
+                // branch wholesale, so inheriting an identity onto a
+                // host that stores its own password or names its own
+                // key would silently disable those the day the group
+                // gains a default. (2) Same forgiveness as the proxy
+                // identity below (and the editor hint, which already
+                // skips it): a deleted identity names nothing, and a
+                // dangling reference would ALSO take the credential
+                // branch and resolve to no credentials at all.
+                let host_answers_credentials =
+                    conn.key_id.is_some() || self.connection_has_password(&conn.id).unwrap_or(false);
+                if host_answers_credentials {
+                    // Nothing to inherit: the host's own credentials
+                    // stand, exactly as if the group had no default.
+                } else if self.identity_exists(&id)? {
+                    effective.identity_id = Some((id, origin));
+                } else {
+                    tracing::warn!(
+                        identity = %id,
+                        group = %group.id,
+                        "group default identity not found, leaving the host on its own credentials"
+                    );
+                }
             }
             if effective.terminal_theme.is_none()
                 && let Some(t) = defaults.terminal_theme.clone().filter(|t| !t.is_empty())
@@ -188,6 +212,59 @@ impl VaultStore {
 
         effective.env_vars = merge_env(&chain, &conn.env_vars);
         Ok(effective)
+    }
+
+    /// Collapse [`resolve_effective`](Self::resolve_effective) onto the
+    /// working copy an engine dials: the effective proxy lands on
+    /// `conn.proxy` (the only proxy field engines read), an inherited
+    /// username / identity fills the empty fields, and the merged env
+    /// set replaces the host's own.
+    ///
+    /// `identities` also answers the username an identity carries: the
+    /// SSH engine reads `connection.username` and falls back to "root",
+    /// it never looks inside an identity, so a host that names no user
+    /// and resolves to an identity takes the identity's username here.
+    ///
+    /// Resolution failing must not stop a connect that would otherwise
+    /// work: the fallback is the host's own proxy, exactly the pre-D4
+    /// behaviour. ONE implementation for every consumer (the app's
+    /// dial sites and the MCP server), so the two can't drift.
+    pub fn apply_effective(
+        &self,
+        conn: &mut Connection,
+        groups: &[Group],
+        identities: &[oryxis_core::models::Identity],
+    ) {
+        let effective = match self.resolve_effective(conn, groups) {
+            Ok(effective) => effective,
+            Err(e) => {
+                tracing::warn!(
+                    error = %e,
+                    "group inheritance failed, using the host's own settings"
+                );
+                conn.proxy = self.resolve_proxy(conn).ok().flatten();
+                return;
+            }
+        };
+        conn.proxy = effective.proxy.map(|(p, _)| p);
+        if conn.username.as_deref().unwrap_or_default().is_empty() {
+            conn.username = effective.username.map(|(u, _)| u);
+        }
+        if conn.identity_id.is_none() {
+            conn.identity_id = effective.identity_id.map(|(id, _)| id);
+        }
+        if conn.username.as_deref().unwrap_or_default().is_empty()
+            && let Some(iid) = conn.identity_id
+        {
+            conn.username = identities
+                .iter()
+                .find(|i| i.id == iid)
+                .and_then(|i| i.username.clone())
+                .filter(|u| !u.is_empty());
+        }
+        // Already merged by name with the host winning, so this is the
+        // whole set rather than an override.
+        conn.env_vars = effective.env_vars;
     }
 }
 

@@ -504,6 +504,23 @@ impl VaultStore {
         Ok(ids)
     }
 
+    /// Whether a connection has a stored password, WITHOUT decrypting
+    /// it. Presence feeds the group-inheritance resolver: credentials
+    /// are one parameter family, so a host that stores its own password
+    /// has answered it and a group identity default must not eclipse
+    /// it. Presence-only on purpose (no unlock, no plaintext).
+    pub fn connection_has_password(&self, id: &Uuid) -> Result<bool, VaultError> {
+        let data: Option<Vec<u8>> = self
+            .db
+            .query_row(
+                "SELECT password FROM connections WHERE id = ?1",
+                params![id.to_string()],
+                |row| row.get(0),
+            )
+            .map_err(|_| VaultError::NotFound(format!("Connection {}", id)))?;
+        Ok(data.is_some_and(|d| !d.is_empty()))
+    }
+
     /// Get the decrypted password for a connection.
     pub fn get_connection_password(&self, id: &Uuid) -> Result<Option<String>, VaultError> {
         self.require_unlocked()?;

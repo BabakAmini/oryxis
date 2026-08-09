@@ -317,3 +317,109 @@ fn the_group_proxy_applies_when_the_host_has_none() {
     assert_eq!(proxy.password.as_deref(), Some("s3cret"));
     assert_eq!(origin, Origin::Group(group.id));
 }
+
+/// A group identity default reaches a host that answers nothing itself:
+/// no username, no key, no stored password.
+#[test]
+fn the_group_identity_applies_to_a_bare_host() {
+    let vault = unlocked_vault();
+    let ident = oryxis_core::models::Identity::new("shared-login");
+    vault.save_identity(&ident, Some("id-pw")).unwrap();
+
+    let mut group = Group::new("prod");
+    group.defaults = Some(GroupDefaults {
+        identity_id: Some(ident.id),
+        ..Default::default()
+    });
+    let mut conn = Connection::new("web", "example.com");
+    conn.group_id = Some(group.id);
+
+    let effective = vault.resolve_effective(&conn, &[group.clone()]).unwrap();
+    assert_eq!(effective.identity_id, Some((ident.id, Origin::Group(group.id))));
+}
+
+/// A group default naming a deleted identity must fall through: the
+/// engine's credential resolution takes the identity branch wholesale,
+/// so a dangling reference would resolve to NO credentials at all and
+/// eclipse the host's own. Mirrors the dangling proxy-identity rule and
+/// the editor hint, which already skips it.
+#[test]
+fn a_dangling_group_identity_default_is_not_inherited() {
+    let vault = unlocked_vault();
+    let mut group = Group::new("prod");
+    group.defaults = Some(GroupDefaults {
+        identity_id: Some(Uuid::new_v4()),
+        ..Default::default()
+    });
+    let mut conn = Connection::new("web", "example.com");
+    conn.group_id = Some(group.id);
+
+    let effective = vault.resolve_effective(&conn, &[group]).unwrap();
+    assert!(effective.identity_id.is_none());
+}
+
+/// Credentials are ONE parameter family: a host that stores its own
+/// password has answered it, so a group gaining an identity default
+/// must not silently change how that host authenticates.
+#[test]
+fn a_host_with_its_own_password_blocks_the_group_identity() {
+    let vault = unlocked_vault();
+    let ident = oryxis_core::models::Identity::new("shared-login");
+    vault.save_identity(&ident, Some("id-pw")).unwrap();
+
+    let mut group = Group::new("prod");
+    group.defaults = Some(GroupDefaults {
+        identity_id: Some(ident.id),
+        ..Default::default()
+    });
+    vault.save_group(&group).unwrap();
+    let mut conn = Connection::new("web", "example.com");
+    conn.group_id = Some(group.id);
+    vault.save_connection(&conn, Some("host-pw")).unwrap();
+
+    let effective = vault.resolve_effective(&conn, &[group]).unwrap();
+    assert!(effective.identity_id.is_none());
+}
+
+/// Same family rule for a host that names its own key.
+#[test]
+fn a_host_with_its_own_key_blocks_the_group_identity() {
+    let vault = unlocked_vault();
+    let ident = oryxis_core::models::Identity::new("shared-login");
+    vault.save_identity(&ident, Some("id-pw")).unwrap();
+
+    let mut group = Group::new("prod");
+    group.defaults = Some(GroupDefaults {
+        identity_id: Some(ident.id),
+        ..Default::default()
+    });
+    let mut conn = Connection::new("web", "example.com");
+    conn.group_id = Some(group.id);
+    conn.key_id = Some(Uuid::new_v4());
+
+    let effective = vault.resolve_effective(&conn, &[group]).unwrap();
+    assert!(effective.identity_id.is_none());
+}
+
+/// The host's own identity always wins over the family gate: naming an
+/// identity IS answering the credential parameter.
+#[test]
+fn the_hosts_own_identity_is_untouched_by_the_gate() {
+    let vault = unlocked_vault();
+    let own = oryxis_core::models::Identity::new("own-login");
+    vault.save_identity(&own, Some("own-pw")).unwrap();
+
+    let mut group = Group::new("prod");
+    group.defaults = Some(GroupDefaults {
+        identity_id: Some(Uuid::new_v4()),
+        ..Default::default()
+    });
+    vault.save_group(&group).unwrap();
+    let mut conn = Connection::new("web", "example.com");
+    conn.group_id = Some(group.id);
+    conn.identity_id = Some(own.id);
+    vault.save_connection(&conn, Some("host-pw")).unwrap();
+
+    let effective = vault.resolve_effective(&conn, &[group]).unwrap();
+    assert_eq!(effective.identity_id, Some((own.id, Origin::Host)));
+}

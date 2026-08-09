@@ -67,6 +67,23 @@ impl Oryxis {
         ctx
     }
 
+    /// Whether the editor form answers the credential parameter itself:
+    /// a password that WILL be stored (typed this session, or already
+    /// stored and not being cleared) or a key picked. Mirrors the gate
+    /// `resolve_effective` applies at connect time (own password / own
+    /// `key_id` block a group identity default), read off form state so
+    /// the hint updates in the same frame as the field.
+    fn editor_form_answers_credentials(&self) -> bool {
+        let form = &self.editor_form;
+        let password_will_exist = match form.password.resolve() {
+            // Edited: stores when non-empty, clears when empty.
+            Some(typed) => !typed.is_empty(),
+            // Untouched: whatever the vault already holds stands.
+            None => form.has_existing_password,
+        };
+        password_will_exist || form.selected_key.is_some()
+    }
+
     /// Take from `defaults` only what no nearer ancestor already
     /// answered, so the nearest scope wins per field.
     fn absorb(&self, ctx: &mut InheritedContext, defaults: &GroupDefaults, label: &str) {
@@ -78,8 +95,14 @@ impl Oryxis {
         if ctx.identity.is_none()
             && let Some(id) = defaults.identity_id
             // A reference to something deleted names nothing, so it is
-            // not shown as inherited: the host will fall through too.
+            // not shown as inherited: the host will fall through too
+            // (`resolve_effective` skips it the same way).
             && let Some(ident) = self.identities.iter().find(|i| i.id == id)
+            // Credentials are ONE parameter family (the resolver's
+            // rule): a form carrying its own password or key answers
+            // it, so the hint must not promise an identity the connect
+            // will not inherit.
+            && !self.editor_form_answers_credentials()
         {
             ctx.identity = Some((ident.label.clone(), label.to_string()));
         }
