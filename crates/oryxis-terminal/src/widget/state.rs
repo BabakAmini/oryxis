@@ -814,15 +814,23 @@ impl TerminalState {
             let mut line_str = String::new();
             for c in start_col..=end_col {
                 let cell = &row[Column(c as usize)];
-                // Skip wide-char spacer cells (the trailing half of a CJK
-                // glyph), otherwise each one copies out as an extra space.
-                if cell.c != '\0' && !cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
+                // Skip wide-char spacer cells: the trailing half of a CJK
+                // glyph (WIDE_CHAR_SPACER), and the ghost cell left at the
+                // end of a row when a wide char doesn't fit and wraps whole
+                // (LEADING_WIDE_CHAR_SPACER). Either would copy out as a
+                // stray space; the leading one matters now that wrapped rows
+                // keep their tail untrimmed below.
+                if cell.c != '\0'
+                    && !cell.flags.intersects(
+                        CellFlags::WIDE_CHAR_SPACER | CellFlags::LEADING_WIDE_CHAR_SPACER,
+                    )
+                {
                     line_str.push(cell.c);
                 }
             }
             // A row whose predecessor ended in a soft wrap (WRAPLINE on its
             // last cell) is the continuation of one logical line, so it joins
-            // WITHOUT a newline — the tmux / xterm behaviour that lets a
+            // WITHOUT a newline: the tmux / xterm behaviour that lets a
             // wrapped long URL copy out intact. Real line breaks still get
             // `\n` between the physical rows.
             if let Some(prev) = prev_line {
@@ -834,7 +842,19 @@ impl TerminalState {
                 }
             }
             prev_line = Some(line_idx);
-            text.push_str(line_str.trim_end());
+            // A soft-wrapped row is full to the margin, so its trailing cells
+            // are interior content of the logical line (spaces straddling the
+            // wrap point are real). Never trim it, mirroring alacritty's
+            // `Row::line_length`, which reports the full width under
+            // WRAPLINE; only rows that end a logical line get trimmed.
+            let row_wrapped = row[Column(last_col as usize)]
+                .flags
+                .contains(CellFlags::WRAPLINE);
+            if row_wrapped {
+                text.push_str(&line_str);
+            } else {
+                text.push_str(line_str.trim_end());
+            }
         }
 
         text
