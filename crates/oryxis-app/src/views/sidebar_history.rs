@@ -111,7 +111,7 @@ impl Oryxis {
         // Shared id with the Snippets list (only one renders): the
         // sidebar keynav router snaps the ringed row into view by it.
         let body = iced::widget::scrollable(list)
-            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .id(crate::keynav::sidebar_scroll_id(crate::state::TerminalSidebarTab::History))
             .width(Length::Fill)
             .height(Length::Fill);
         column![header, body]

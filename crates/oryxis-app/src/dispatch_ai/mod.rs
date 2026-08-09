@@ -428,12 +428,14 @@ impl Oryxis {
                 | AiMessage::SaveAiApiKey
             ) => self.handle_ai_config(m),
             m @ (
-                AiMessage::ToggleChatSidebar
+                AiMessage::ToggleSidebarRegion(..)
                 | AiMessage::SelectTerminalSidebarTab(..)
                 | AiMessage::SidebarSnippetSearchChanged(..)
+                | AiMessage::HostsTreeToggleGroup(..)
+                | AiMessage::HostsTreeSearchChanged(..)
                 | AiMessage::ToggleSidebarSort
                 | AiMessage::ToggleSidebarSearch
-                | AiMessage::ChatSidebarResizeStart
+                | AiMessage::ChatSidebarResizeStart(..)
                 | AiMessage::ChatSidebarResizeStop
             ) => self.handle_ai_sidebar(m),
             m @ (

@@ -218,7 +218,7 @@ impl Oryxis {
             | SettingsMessage::SettingToggleStatusDimensions
             | SettingsMessage::SettingToggleStatusCwd
             | SettingsMessage::SettingToggleStatusAlignLeft
-            | SettingsMessage::SettingToggleTerminalSidebarLeft
+            | SettingsMessage::SidebarTabSideChanged(..)
             | SettingsMessage::SettingToggleSidebarAutoOpen
             | SettingsMessage::SettingToggleHostMonitoring
             | SettingsMessage::SettingToggleMonitorAllHosts

@@ -356,7 +356,7 @@ impl Oryxis {
             // directory-level menu (rows consume their own right-press
             // first).
             let scroll = iced::widget::scrollable(list)
-                .id(iced::widget::Id::new("sidebar-list-scroll"))
+                .id(crate::keynav::sidebar_scroll_id(crate::state::TerminalSidebarTab::Files))
                 .width(Length::Fill)
                 .height(Length::Fill);
             MouseArea::new(scroll)

@@ -38,6 +38,7 @@ pub(crate) mod sidebar_monitor;
 pub(crate) mod sidebar_tmux;
 pub(crate) mod sidebar_history;
 pub(crate) mod sidebar_host_config;
+pub(crate) mod sidebar_hosts_tree;
 pub(crate) mod sidebar_chat;
 pub(crate) mod sidebar_snippets;
 pub(crate) mod snippets;

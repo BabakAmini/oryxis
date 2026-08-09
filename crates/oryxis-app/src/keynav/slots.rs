@@ -398,11 +398,15 @@ impl crate::app::Oryxis {
         )
     }
 
-    /// Clear the terminal-sidebar list recording. `view_terminal_sidebar`
-    /// calls this before rendering its content tab, so Chat / HostConfig
-    /// frames (which record nothing) can't leave a stale row list behind.
+    /// Clear both terminal-sidebar list recordings. `view_terminal`
+    /// calls this once per frame BEFORE either region renders (issue
+    /// #102), so a frame where a region records nothing (Chat, a
+    /// closed region) can't leave a stale row list behind, and a
+    /// region rendering second can't wipe the first's rows.
     pub(crate) fn sidebar_nav_reset(&self) {
-        self.keynav.sidebar_items.borrow_mut().clear();
+        for items in &self.keynav.sidebar_items {
+            items.borrow_mut().clear();
+        }
     }
 
     /// Record one terminal-sidebar row and ring it when selected.
@@ -443,8 +447,11 @@ impl crate::app::Oryxis {
         el: iced::Element<'a, Message>,
     ) -> iced::Element<'a, Message> {
         let is_input = row.action.focus.is_some();
+        // The row lands in its REGION's list: the tab that records it
+        // names the region via its dock side (issue #102).
+        let side = self.prefs.sidebar_tab_side(tab);
         let idx = {
-            let mut items = self.keynav.sidebar_items.borrow_mut();
+            let mut items = self.keynav.sidebar_items[side.idx()].borrow_mut();
             items.push(row);
             items.len() - 1
         };

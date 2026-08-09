@@ -565,10 +565,19 @@ impl Oryxis {
                 local_terminal_form: crate::state::LocalTerminalForm::default(),
                 local_terminal_add_open: false,
                 local_shell_picker_open: false,
-                terminal_sidebar_tab: crate::state::TerminalSidebarTab::default(),
+                terminal_sidebar_tab: [
+                    // Left region remembers the hosts tree (its only
+                    // default resident), right keeps the historical
+                    // Chat default; both re-resolve against the
+                    // region's actual offers on every read.
+                    crate::state::TerminalSidebarTab::HostsTree,
+                    crate::state::TerminalSidebarTab::default(),
+                ],
                 sidebar_snippet_search: String::new(),
                 sidebar_sort_open: false,
                 sidebar_search_open: false,
+                hosts_tree_expanded: std::collections::HashSet::new(),
+                hosts_tree_search: String::new(),
                 mcp: crate::state::McpState::default(),
                 sync: crate::state::SyncState::default(),
                 flatten_hosts: true,

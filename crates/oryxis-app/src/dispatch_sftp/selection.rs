@@ -331,8 +331,7 @@ impl Oryxis {
                 // mirroring the SFTP pane's click-outside-commits rule.
                 // Clicks that land ON the sidebar keep the edit (the
                 // text_input handles its own caret placement).
-                if self.effective_sidebar_tab()
-                    == Some(crate::state::TerminalSidebarTab::Files)
+                if self.sidebar_tab_shown(crate::state::TerminalSidebarTab::Files)
                     && !self.cursor_over_sidebar()
                     && let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)

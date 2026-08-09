@@ -28,9 +28,12 @@ pub(crate) struct TerminalTab {
     pub focused: pane_grid::Pane,
     /// AI chat history for this terminal session.
     pub chat_history: Vec<ChatMessage>,
-    /// Whether the terminal sidebar is visible (Chat / Snippets / History
-    /// tabs share this flag; the active tab is `Oryxis::terminal_sidebar_tab`).
-    pub chat_visible: bool,
+    /// Whether each terminal-sidebar region (left / right, issue #102)
+    /// is open on this tab, indexed by `SidebarSide::idx()`. Which tab
+    /// each region shows is `Oryxis::terminal_sidebar_tab` (also
+    /// per-side); an open region with no available tabs simply doesn't
+    /// render, so the remembered open survives a temporary gate loss.
+    pub sidebar_open: [bool; 2],
     /// First-token allow-list for AI tool execution. Populated when the
     /// user clicks "ALWAYS RUN" on a confirmation prompt, future tool
     /// calls whose first whitespace-delimited token matches an entry
@@ -383,6 +386,11 @@ impl PinnedTabSpec {
 }
 
 impl TerminalTab {
+    /// Whether the given sidebar region is open on this tab.
+    pub fn sidebar_visible(&self, side: crate::state::SidebarSide) -> bool {
+        self.sidebar_open[side.idx()]
+    }
+
     /// Build a new tab with a single pane. Split it later via
     /// `pane_grid.split(...)`.
     pub fn new_single(label: String, terminal: Arc<Mutex<TerminalState>>) -> Self {
@@ -394,7 +402,7 @@ impl TerminalTab {
             pane_grid,
             focused,
             chat_history: Vec::new(),
-            chat_visible: false,
+            sidebar_open: [false; 2],
             chat_always_run_commands: Vec::new(),
             chat_auto_run_history: Vec::new(),
             chat_auto_run_streak: 0,

@@ -55,10 +55,23 @@ impl Oryxis {
             }
             return stack.into();
         }
-        let chat_visible = self.active_tab
+        // Which sidebar regions are on screen (issue #102): each side
+        // is open on the tab AND has at least one available tab. Both
+        // recordings reset here, before either region renders, so a
+        // frame with one region open never leaves the other's stale
+        // rows behind.
+        use crate::state::SidebarSide;
+        let (sidebar_left, sidebar_right) = self
+            .active_tab
             .and_then(|idx| self.tabs.get(idx))
-            .map(|tab| tab.chat_visible)
-            .unwrap_or(false);
+            .map(|tab| {
+                (
+                    self.sidebar_region_shown(tab, SidebarSide::Left),
+                    self.sidebar_region_shown(tab, SidebarSide::Right),
+                )
+            })
+            .unwrap_or((false, false));
+        self.sidebar_nav_reset();
 
         let terminal_area: Element<'_, Message> = if let Some(tab_idx) = self.active_tab {
             if let Some(tab) = self.tabs.get(tab_idx) {
@@ -165,20 +178,20 @@ impl Oryxis {
                 // does. Wrapping the whole terminal container from outside
                 // (view_content) instead left the canvas eating clicks meant
                 // for the panel, so keep it inside.
-                if chat_visible || self.panels.session_group_panel {
-                    // Sidebar dock side (issue #85): an explicit physical
-                    // edge like the #87 tab-bar dock, so a plain Row (not
-                    // dir_row) places it, RTL must not flip a side the user
-                    // chose. The session-group editor keeps its trailing
-                    // position; only the Chat/Files sidebar moves.
-                    let left = self.prefs.terminal_sidebar_left;
+                if sidebar_left || sidebar_right || self.panels.session_group_panel {
+                    // Region sides are explicit physical edges (issues
+                    // #85 / #102), like the #87 tab-bar dock, so a plain
+                    // Row (not dir_row) places them, RTL must not flip a
+                    // side the user chose. The session-group editor
+                    // keeps its trailing position, outside even the
+                    // right region.
                     let mut children: Vec<Element<'_, Message>> = Vec::new();
-                    if chat_visible && left {
-                        children.push(self.view_terminal_sidebar(tab));
+                    if sidebar_left {
+                        children.push(self.view_terminal_sidebar(tab, SidebarSide::Left));
                     }
                     children.push(term_with_toggle);
-                    if chat_visible && !left {
-                        children.push(self.view_terminal_sidebar(tab));
+                    if sidebar_right {
+                        children.push(self.view_terminal_sidebar(tab, SidebarSide::Right));
                     }
                     if self.panels.session_group_panel {
                         children.push(self.view_session_group_panel());
@@ -883,100 +896,46 @@ impl Oryxis {
             .into()
     }
 
-    pub(crate) fn view_terminal_sidebar<'a>(&'a self, tab: &'a TerminalTab) -> Element<'a, Message> {
+    pub(crate) fn view_terminal_sidebar<'a>(
+        &'a self,
+        tab: &'a TerminalTab,
+        side: crate::state::SidebarSide,
+    ) -> Element<'a, Message> {
         use crate::state::TerminalSidebarTab as STab;
-        // Fresh sidebar-row recording every frame, BEFORE any tab body
-        // is built: each tab records its keyboard rows while rendering,
-        // so a stale list from the previous frame must never leak in.
-        self.sidebar_nav_reset();
-        // Chat is only reachable when AI is enabled, Files only when the
-        // focused pane has an SSH transport (SFTP is an SSH subsystem)
-        // AND the SFTP feature toggle is on (optional features hide ALL
-        // their UI when off); otherwise the active tab effectively falls
-        // back to Snippets. Mirrors `effective_sidebar_tab`.
-        let files_available = self.sftp_enabled
-            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
-        // Monitoring needs the feature enabled (Features & Plugins) AND
-        // an SSH session (it reads /proc over an exec channel); the
-        // per-host opt-in is handled inside the tab body, which offers
-        // to enable it.
-        let monitor_available = self.prefs.host_monitoring
-            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
-        // Same shape for tmux (issue #116): the feature toggle plus a
-        // live SSH session. Whether the host has tmux at all is the
-        // tab body's answer, not a reason to hide the tab: hiding would
-        // need a probe before the strip renders, and a tab that
-        // vanishes while being looked at is worse than an empty state.
-        let tmux_available = self.prefs.tmux_manager
-            && tab.active().session.as_ref().and_then(|s| s.ssh()).is_some();
-        let active = if (self.terminal_sidebar_tab == STab::Chat && !self.ai.enabled)
-            || (self.terminal_sidebar_tab == STab::Files && !files_available)
-            || (self.terminal_sidebar_tab == STab::Monitor && !monitor_available)
-            || (self.terminal_sidebar_tab == STab::Tmux && !tmux_available)
-        {
-            STab::Snippets
-        } else {
-            self.terminal_sidebar_tab
+        // The per-frame recording reset happens once in `view_terminal`,
+        // BEFORE either region renders: each tab body records its
+        // keyboard rows while rendering, so a stale list from the
+        // previous frame (or the other region's reset) must never wipe
+        // rows recorded this frame.
+        //
+        // The strip shows the tabs docked to THIS region that pass
+        // their gates (Chat needs AI enabled; Files / Monitor / Tmux
+        // need a live SSH session plus their feature toggles; an
+        // unavailable tab is hidden rather than disabled, mirroring
+        // the pre-#102 strip). `sidebar_region_shown` gates the call
+        // on a non-empty region, and `sidebar_region_tab` re-resolves
+        // the remembered active tab against the same offers.
+        let region_tabs = self.sidebar_region_tabs(side);
+        let Some(active) = self.sidebar_region_tab(side) else {
+            return Space::new().into();
         };
 
         // ── Tab strip ──
         // Icon tabs on the leading edge; contextual Reset (Chat only) and
         // the Close X on the trailing edge, same affordance as the chrome.
         let mut strip: Vec<Element<'_, Message>> = Vec::new();
-        if self.ai.enabled {
+        for region_tab in region_tabs {
             strip.push(sidebar_tab_btn(
-                iced_fonts::lucide::sparkles(),
-                active == STab::Chat,
-                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Chat)),
-                t("tab_tip_chat"),
+                sidebar_tab_icon(region_tab),
+                active == region_tab,
+                Message::Ai(AiMessage::SelectTerminalSidebarTab(region_tab)),
+                t(region_tab.label_key()),
             ));
         }
-        strip.push(sidebar_tab_btn(
-            iced_fonts::lucide::code(),
-            active == STab::Snippets,
-            Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Snippets)),
-            t("snippets"),
-        ));
-        strip.push(sidebar_tab_btn(
-            iced_fonts::lucide::history(),
-            active == STab::History,
-            Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::History)),
-            t("tab_tip_history"),
-        ));
-        if files_available {
-            strip.push(sidebar_tab_btn(
-                iced_fonts::lucide::folder(),
-                active == STab::Files,
-                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Files)),
-                t("tab_tip_files"),
-            ));
-        }
-        if monitor_available {
-            strip.push(sidebar_tab_btn(
-                iced_fonts::lucide::activity(),
-                active == STab::Monitor,
-                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Monitor)),
-                t("tab_tip_monitor"),
-            ));
-        }
-        if tmux_available {
-            strip.push(sidebar_tab_btn(
-                iced_fonts::lucide::layout_grid(),
-                active == STab::Tmux,
-                Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::Tmux)),
-                t("tab_tip_tmux"),
-            ));
-        }
-        strip.push(sidebar_tab_btn(
-            iced_fonts::lucide::cog(),
-            active == STab::HostConfig,
-            Message::Ai(AiMessage::SelectTerminalSidebarTab(STab::HostConfig)),
-            t("tab_tip_host_config"),
-        ));
         strip.push(Space::new().width(Length::Fill).into());
         // The trailing header actions (Reset on Chat, Close always) join
         // the Tab walk, recorded FIRST (the strip renders above every tab
-        // body) under the active tab's tag. The four tab icons stay off
+        // body) under the active tab's tag. The tab icons stay off
         // the walk: the FocusSidebarList hotkey already cycles them.
         if active == STab::Chat {
             strip.push(self.sidebar_nav_slot(
@@ -994,11 +953,14 @@ impl Oryxis {
             strip.push(Space::new().width(4).into());
         }
         strip.push(self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleChatSidebar)),
+            crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleSidebarRegion(side))),
             active,
             6.0,
             icon_tooltip(
-                chat_header_btn(iced_fonts::lucide::x(), Message::Ai(AiMessage::ToggleChatSidebar)),
+                chat_header_btn(
+                    iced_fonts::lucide::x(),
+                    Message::Ai(AiMessage::ToggleSidebarRegion(side)),
+                ),
                 t("close"),
             ),
         ));
@@ -1030,7 +992,7 @@ impl Oryxis {
                     ..Default::default()
                 }),
         )
-        .on_press(Message::Ai(AiMessage::ChatSidebarResizeStart))
+        .on_press(Message::Ai(AiMessage::ChatSidebarResizeStart(side)))
         .interaction(iced::mouse::Interaction::ResizingHorizontally)
         .into();
 
@@ -1046,6 +1008,7 @@ impl Oryxis {
             STab::Monitor => self.monitor_tab_content(),
             STab::Tmux => self.tmux_tab_content(tab),
             STab::HostConfig => self.host_config_tab_content(tab),
+            STab::HostsTree => self.hosts_tree_tab_content(),
         };
         let panel_column = column![header, header_separator, content]
             .width(Length::Fill)
@@ -1062,17 +1025,16 @@ impl Oryxis {
             ..Default::default()
         });
 
-        // The 4 px drag handle sits on the INNER edge (the one facing the
-        // terminal): the panel's left when the sidebar is docked right,
-        // its right when docked left (issue #85).
-        let handle_and_panel: iced::widget::Row<'_, Message> =
-            if self.prefs.terminal_sidebar_left {
-                row![panel, resize_handle]
-            } else {
-                row![resize_handle, panel]
-            };
+        // The 4 px drag handle sits on the INNER edge (the one facing
+        // the terminal): the left region's right, the right region's
+        // left (issues #85 / #102). A physical placement, like the
+        // region itself: plain row!, never dir_row.
+        let handle_and_panel: iced::widget::Row<'_, Message> = match side {
+            crate::state::SidebarSide::Left => row![panel, resize_handle],
+            crate::state::SidebarSide::Right => row![resize_handle, panel],
+        };
         container(handle_and_panel.width(Length::Fill).height(Length::Fill))
-            .width(Length::Fixed(self.chat_ui.sidebar_width))
+            .width(Length::Fixed(self.chat_ui.sidebar_width[side.idx()]))
             .height(Length::Fill)
             .into()
     }
@@ -1355,6 +1317,22 @@ fn sidebar_tab_btn<'a>(
         }
     });
     icon_tooltip(btn.into(), tip)
+}
+
+/// Lucide glyph for a sidebar tab's strip button. One table, so a
+/// tab's icon can't drift between the two region strips.
+fn sidebar_tab_icon<'a>(tab: crate::state::TerminalSidebarTab) -> iced::widget::Text<'a> {
+    use crate::state::TerminalSidebarTab as STab;
+    match tab {
+        STab::Chat => iced_fonts::lucide::sparkles(),
+        STab::Snippets => iced_fonts::lucide::code(),
+        STab::History => iced_fonts::lucide::history(),
+        STab::Files => iced_fonts::lucide::folder(),
+        STab::Monitor => iced_fonts::lucide::activity(),
+        STab::Tmux => iced_fonts::lucide::layout_grid(),
+        STab::HostConfig => iced_fonts::lucide::cog(),
+        STab::HostsTree => iced_fonts::lucide::folder_tree(),
+    }
 }
 
 /// Wrap an icon control in a small bottom-anchored tooltip, the shared

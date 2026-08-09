@@ -126,8 +126,10 @@ impl Oryxis {
 
         let mut cluster_items: Vec<Element<'_, Message>> = Vec::new();
         if self.active_tab.is_some() {
-            cluster_items.push(sidebar_btn(SIDEBAR_BUTTON_WIDTH, BAR_HEIGHT));
-            cluster_items.push(Space::new().width(2).into());
+            for toggle_side in self.sidebar_toggle_sides() {
+                cluster_items.push(sidebar_btn(toggle_side, SIDEBAR_BUTTON_WIDTH, BAR_HEIGHT));
+                cluster_items.push(Space::new().width(2).into());
+            }
         }
         cluster_items.push(self.window_chrome_row(CHROME_BUTTON_WIDTH, BAR_HEIGHT).into());
         let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
@@ -433,9 +435,16 @@ impl Oryxis {
         // (active tab natural, inactives shrink to fit). The exact
         // value isn't critical, `scrollable` is the safety net for
         // any miscalculation. Subtract everything else on the row.
-        // RIGHT_CLUSTER_WIDTH = +(28) + 2 + ⋯(28) + 2 + chrome(3*46)
-        const RIGHT_CLUSTER_WIDTH: f32 = SIDEBAR_BUTTON_WIDTH
-            + 2.0
+        // right_cluster_width = toggles(n*(46+2)) + +(28) + 2 + ⋯(28)
+        // + 2 + chrome(3*46); the sidebar toggles count one per
+        // non-empty region (issue #102), matching what the cluster
+        // actually renders.
+        let toggle_count = if self.active_tab.is_some() {
+            self.sidebar_toggle_sides().len() as f32
+        } else {
+            0.0
+        };
+        let right_cluster_width: f32 = toggle_count * (SIDEBAR_BUTTON_WIDTH + 2.0)
             + PLUS_BUTTON_WIDTH
             + 2.0
             + DOTS_BUTTON_WIDTH
@@ -461,7 +470,7 @@ impl Oryxis {
         let reserved = if bottom {
             PLUS_BUTTON_WIDTH + 2.0 + DOTS_BUTTON_WIDTH
         } else {
-            burger_width + logo_width + RIGHT_CLUSTER_WIDTH
+            burger_width + logo_width + right_cluster_width
         };
         let approx_strip_width = (self.window_size.width
             - reserved
@@ -727,12 +736,16 @@ impl Oryxis {
                 cluster_items.push(dots);
                 cluster_items.push(Space::new().width(2).into());
             }
-            // The side-panel toggle (Chat / Snippets / History) only makes
-            // sense inside a connection tab, so skip it on the navigation
-            // views where there's no terminal session to attach a panel to.
+            // The side-panel toggles (one per non-empty region, issue
+            // #102) only make sense inside a connection tab, so skip
+            // them on the navigation views where there's no terminal
+            // session to attach a panel to.
             if self.active_tab.is_some() {
-                cluster_items.push(sidebar_btn(SIDEBAR_BUTTON_WIDTH, BAR_HEIGHT));
-                cluster_items.push(Space::new().width(2).into());
+                for toggle_side in self.sidebar_toggle_sides() {
+                    cluster_items
+                        .push(sidebar_btn(toggle_side, SIDEBAR_BUTTON_WIDTH, BAR_HEIGHT));
+                    cluster_items.push(Space::new().width(2).into());
+                }
             }
             cluster_items.push(self.window_chrome_row(CHROME_BUTTON_WIDTH, BAR_HEIGHT).into());
             let right_cluster: Element<'_, Message> = crate::widgets::dir_row(cluster_items)
@@ -930,9 +943,14 @@ impl Oryxis {
         }
         // Mirror the layout math in view_tab_bar so the offsets line up,
         // including the burger button + area tabs that Workspace mode
-        // prepends to the strip.
-        const RIGHT_CLUSTER_WIDTH: f32 = SIDEBAR_BUTTON_WIDTH
-            + 2.0
+        // prepends to the strip (and the per-region sidebar toggles,
+        // issue #102).
+        let toggle_count = if self.active_tab.is_some() {
+            self.sidebar_toggle_sides().len() as f32
+        } else {
+            0.0
+        };
+        let right_cluster_width: f32 = toggle_count * (SIDEBAR_BUTTON_WIDTH + 2.0)
             + PLUS_BUTTON_WIDTH
             + 2.0
             + DOTS_BUTTON_WIDTH
@@ -950,7 +968,7 @@ impl Oryxis {
         let reserved = if tab_bar_pos() == TabBarPos::Bottom {
             PLUS_BUTTON_WIDTH + 2.0 + DOTS_BUTTON_WIDTH
         } else {
-            burger_width + logo_width + RIGHT_CLUSTER_WIDTH
+            burger_width + logo_width + right_cluster_width
         };
         let approx_strip_width = (self.window_size.width
             - reserved

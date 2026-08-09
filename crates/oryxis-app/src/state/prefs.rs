@@ -184,14 +184,20 @@ pub(crate) struct AppPrefs {
     /// Align the status-bar content on the PHYSICAL left edge instead
     /// of the trailing edge (issue #83 follow-up), so it lines up with
     /// a left-docked panel layout. The panel dock is a physical edge
-    /// like `setting_terminal_sidebar_left` below, so RTL does not flip
-    /// this either. Default off (trailing, the original behaviour).
+    /// like `sidebar_tab_sides` below, so RTL does not flip this
+    /// either. Default off (trailing, the original behaviour).
     pub(crate) status_bar_align_left: bool,
-    /// Dock the terminal sidebar (Chat / Snippets / Files / Monitor /
-    /// Host config) on the LEFT of the terminal instead of the right
-    /// (issue #85). A physical edge like the #87 tab-bar dock, so RTL
-    /// does not flip it.
-    pub(crate) terminal_sidebar_left: bool,
+    /// Per-tab dock side for the terminal sidebar (issue #102): each
+    /// tab lives in the LEFT or RIGHT region, so both regions can be
+    /// on screen at once. Only EXPLICIT user choices are stored (and
+    /// persisted, as `"tab:side"` CSV under `sidebar_tab_sides`); an
+    /// absent tab resolves to `TerminalSidebarTab::default_side()`
+    /// (hosts tree left, everything else right). Sides are physical
+    /// edges like the #87 tab-bar dock, so RTL does not flip them.
+    /// The pre-#102 whole-sidebar `terminal_sidebar_side` setting is
+    /// migrated at boot into explicit entries for the legacy tabs.
+    pub(crate) sidebar_tab_sides:
+        std::collections::HashMap<crate::state::TerminalSidebarTab, crate::state::SidebarSide>,
     /// Open the terminal sidebar automatically when a session opens
     /// (per-host `Connection.sidebar_auto_open` overrides this).
     pub(crate) sidebar_auto_open: bool,
@@ -558,7 +564,7 @@ impl Default for AppPrefs {
             status_show_dimensions: false,
             status_show_cwd: false,
             status_bar_align_left: false,
-            terminal_sidebar_left: false,
+            sidebar_tab_sides: std::collections::HashMap::new(),
             sidebar_auto_open: false,
             sidebar_default_tab: None,
             monitor_status_bar: false,
@@ -642,5 +648,61 @@ impl Default for AppPrefs {
             // Overwritten by `boot` right after this, which same pre-unlock read as `auto_check_updates`.
             update_channel: crate::update::UpdateChannel::default(),
         }
+    }
+}
+
+impl AppPrefs {
+    /// The region a sidebar tab is docked to: the user's explicit
+    /// choice when one exists, the tab's own default otherwise.
+    pub(crate) fn sidebar_tab_side(
+        &self,
+        tab: crate::state::TerminalSidebarTab,
+    ) -> crate::state::SidebarSide {
+        self.sidebar_tab_sides.get(&tab).copied().unwrap_or_else(|| tab.default_side())
+    }
+
+    /// Every tab docked to `side`, in strip order.
+    pub(crate) fn sidebar_tabs_on(
+        &self,
+        side: crate::state::SidebarSide,
+    ) -> Vec<crate::state::TerminalSidebarTab> {
+        crate::state::TerminalSidebarTab::ALL
+            .into_iter()
+            .filter(|t| self.sidebar_tab_side(*t) == side)
+            .collect()
+    }
+
+    /// Serialize the EXPLICIT side choices as `"tab:side"` CSV in
+    /// `ALL` order (deterministic, so the persisted value is stable
+    /// across sessions and sync-friendly). Defaults are omitted on
+    /// purpose: a future change of a tab's default side then applies
+    /// to users who never touched that tab.
+    pub(crate) fn encode_sidebar_tab_sides(&self) -> String {
+        crate::state::TerminalSidebarTab::ALL
+            .into_iter()
+            .filter_map(|t| {
+                self.sidebar_tab_sides.get(&t).map(|s| format!("{}:{}", t.code(), s.code()))
+            })
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+
+    /// Parse the persisted `sidebar_tab_sides` CSV. Unknown tabs and
+    /// malformed pairs are skipped (a downgrade-then-upgrade must not
+    /// wipe the surviving choices), and an explicit choice equal to
+    /// the tab's default is still kept explicit.
+    pub(crate) fn parse_sidebar_tab_sides(
+        raw: &str,
+    ) -> std::collections::HashMap<crate::state::TerminalSidebarTab, crate::state::SidebarSide>
+    {
+        raw.split(',')
+            .filter_map(|pair| {
+                let (tab, side) = pair.trim().split_once(':')?;
+                Some((
+                    crate::state::TerminalSidebarTab::from_code(tab.trim())?,
+                    crate::state::SidebarSide::from_code(side.trim())?,
+                ))
+            })
+            .collect()
     }
 }

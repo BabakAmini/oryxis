@@ -570,8 +570,18 @@ impl Oryxis {
             FocusSidebarList => self.focus_sidebar_list(),
             // Open/close the focused tab's sidebar (owner ask: a
             // keyboard path to close it; the handler already drops
-            // the ring + dropdown gate on close).
-            ToggleSidebar => Task::done(Message::Ai(AiMessage::ToggleChatSidebar)),
+            // the ring + dropdown gate on close). The historical
+            // binding drives the RIGHT region; when every tab is
+            // docked left it falls back to the left one so the key
+            // never goes dead (issue #102).
+            ToggleSidebar => {
+                let side = if self.sidebar_region_has_tabs(crate::state::SidebarSide::Right) {
+                    crate::state::SidebarSide::Right
+                } else {
+                    crate::state::SidebarSide::Left
+                };
+                Task::done(Message::Ai(AiMessage::ToggleSidebarRegion(side)))
+            }
             // Hybrid tab: Terminal <-> Files for the focused tab (the
             // handler no-ops for tabs without a live SSH session).
             ToggleTabFiles => match self.active_tab {

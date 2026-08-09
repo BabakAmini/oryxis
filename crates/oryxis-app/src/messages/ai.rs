@@ -8,6 +8,11 @@ use uuid::Uuid;
 pub enum AiMessage {
     SelectTerminalSidebarTab(crate::state::TerminalSidebarTab),
     SidebarSnippetSearchChanged(String),
+    /// Expand / collapse a group row in the sidebar Hosts tree
+    /// (issue #102).
+    HostsTreeToggleGroup(Uuid),
+    /// Search needle of the sidebar Hosts tree.
+    HostsTreeSearchChanged(String),
     /// Toggle the Snippets-tab sort popover.
     ToggleSidebarSort,
     /// Toggle the Snippets-tab search field (autofocuses on open, clears
@@ -28,11 +33,13 @@ pub enum AiMessage {
     AiApiUrlChanged(String),
     AiSystemPromptAction(text_editor::Action),
     SaveAiApiKey,
-    ToggleChatSidebar,
+    /// Open / close a terminal-sidebar region on the active tab
+    /// (issue #102: left and right regions toggle independently).
+    ToggleSidebarRegion(crate::state::SidebarSide),
     ChatInputAction(text_editor::Action),
     ChatScrolled(f32),
     ChatResetConversation,
-    ChatSidebarResizeStart,
+    ChatSidebarResizeStart(crate::state::SidebarSide),
     ChatSidebarResizeStop,
     /// User picked a Plan / Ask / Auto mode from the chat sidebar. Applies to
     /// the active tab's conversation and is persisted as the default for new

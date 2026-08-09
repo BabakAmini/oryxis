@@ -320,7 +320,7 @@ mod tests {
             pane_grid: grid,
             focused,
             chat_history: Vec::new(),
-            chat_visible: false,
+            sidebar_open: [false; 2],
             chat_always_run_commands: Vec::new(),
             chat_auto_run_history: Vec::new(),
             chat_auto_run_streak: 0,

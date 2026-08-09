@@ -12,48 +12,70 @@ use crate::app::{SftpMessage, AiMessage, Message, Oryxis};
 impl Oryxis {
     pub(super) fn handle_ai_sidebar(&mut self, message: AiMessage) -> Task<Message> {
         match message {
-            AiMessage::ToggleChatSidebar => {
+            AiMessage::ToggleSidebarRegion(side) => {
                 let toggled_to = if let Some(idx) = self.active_tab
                     && let Some(tab) = self.tabs.get_mut(idx)
                 {
-                    tab.chat_visible = !tab.chat_visible;
-                    Some(tab.chat_visible)
+                    tab.sidebar_open[side.idx()] = !tab.sidebar_open[side.idx()];
+                    Some(tab.sidebar_open[side.idx()])
                 } else {
                     None
                 };
                 if toggled_to == Some(true) {
                     // Opening: land on the configured default tab
-                    // (issue #85), resolved against what the pane offers
-                    // so a gated default (Files/Monitor with no SSH, Chat
-                    // with AI off) never opens an empty panel. "Last
-                    // opened" (`None`) keeps the remembered tab, only
-                    // applying the legacy Chat->Snippets fallback so the
-                    // remembered tab survives a temporary loss of its gate.
-                    use crate::state::TerminalSidebarTab;
-                    if let Some(default) = self.prefs.sidebar_default_tab {
-                        self.terminal_sidebar_tab =
-                            self.resolve_available_sidebar_tab(default);
-                    } else if !self.ai.enabled
-                        && self.terminal_sidebar_tab == TerminalSidebarTab::Chat
+                    // (issue #85) when it lives in THIS region, resolved
+                    // against what the region offers so a gated default
+                    // (Files/Monitor with no SSH, Chat with AI off)
+                    // never opens an empty panel. "Last opened" (or a
+                    // default docked to the other region) keeps the
+                    // remembered tab, which `sidebar_region_tab` already
+                    // re-resolves against the region's gates per frame.
+                    if let Some(default) = self.prefs.sidebar_default_tab
+                        && self.prefs.sidebar_tab_side(default) == side
+                        && self.sidebar_tab_available(default)
                     {
-                        self.terminal_sidebar_tab = TerminalSidebarTab::Snippets;
+                        self.set_sidebar_region_tab(default);
                     }
                     // Opening onto the Files or tmux tab: mount / catch up
                     // to the shell's cwd, or list the host's sessions.
-                    // Both are no-ops on every other tab.
-                    return iced::Task::batch([self.sidebar_files_sync(), self.tmux_sync()]);
+                    // Both are no-ops on every other tab (including every
+                    // tab of the other region).
+                    if matches!(
+                        self.sidebar_region_tab(side),
+                        Some(crate::state::TerminalSidebarTab::Files)
+                            | Some(crate::state::TerminalSidebarTab::Tmux)
+                    ) {
+                        return iced::Task::batch([
+                            self.sidebar_files_sync(),
+                            self.tmux_sync(),
+                        ]);
+                    }
                 }
                 if toggled_to == Some(false) {
-                    // Closing the panel is the user's "stop it" gesture (the
-                    // reported bug: a runaway tool loop kept running after the
-                    // sidebar was closed). Cancel any live chat work so it
-                    // doesn't keep executing commands in the background.
-                    self.abort_active_chat_task();
-                    // A closed sidebar can't keep a keynav ring: it would
+                    // Closing the chat's region is the user's "stop it"
+                    // gesture (the reported bug: a runaway tool loop kept
+                    // running after the sidebar was closed). Cancel any
+                    // live chat work so it doesn't keep executing commands
+                    // in the background. Only when Chat lived here: closing
+                    // the other region must not kill a visible chat.
+                    if self.prefs.sidebar_tab_side(crate::state::TerminalSidebarTab::Chat)
+                        == side
+                    {
+                        self.abort_active_chat_task();
+                    }
+                    // A closed region can't keep a keynav ring: it would
                     // silently swallow Enter/arrows meant for the terminal.
-                    // Same for the dropdown gate: a HostConfig pick_list
-                    // open at close time unmounts without on_close.
-                    self.keynav.sidebar_selected = None;
+                    // Only this region's ring: the other region keeps its
+                    // engagement. Same for the dropdown gate: a HostConfig
+                    // pick_list open at close time unmounts without
+                    // on_close.
+                    if self
+                        .keynav
+                        .sidebar_selected
+                        .is_some_and(|(t, _)| self.prefs.sidebar_tab_side(t) == side)
+                    {
+                        self.keynav.sidebar_selected = None;
+                    }
                     self.keynav.pick_open = false;
                 }
             }
@@ -65,7 +87,7 @@ impl Oryxis {
                 // stale full-width input waiting behind the tab switch
                 // would read as broken on return.
                 self.close_files_path_edit();
-                self.terminal_sidebar_tab = tab;
+                self.set_sidebar_region_tab(tab);
                 if tab == crate::state::TerminalSidebarTab::History {
                     self.refresh_command_history();
                     // Owner call: entering History lands the keyboard in
@@ -90,6 +112,14 @@ impl Oryxis {
             AiMessage::SidebarSnippetSearchChanged(v) => {
                 self.sidebar_snippet_search = v;
             }
+            AiMessage::HostsTreeToggleGroup(gid) => {
+                if !self.hosts_tree_expanded.remove(&gid) {
+                    self.hosts_tree_expanded.insert(gid);
+                }
+            }
+            AiMessage::HostsTreeSearchChanged(v) => {
+                self.hosts_tree_search = v;
+            }
             AiMessage::ToggleSidebarSort => {
                 self.sidebar_sort_open = !self.sidebar_sort_open;
                 if self.sidebar_sort_open {
@@ -107,10 +137,12 @@ impl Oryxis {
                 // Collapsing clears the needle so the list shows everything.
                 self.sidebar_snippet_search.clear();
             }
-            AiMessage::ChatSidebarResizeStart => {
-                // Capture cursor x and current width, the MouseMoved
-                // handler computes the delta against these.
-                self.chat_ui.sidebar_drag = Some((self.mouse_position.x, self.chat_ui.sidebar_width));
+            AiMessage::ChatSidebarResizeStart(side) => {
+                // Capture the region plus cursor x and current width,
+                // the MouseMoved handler computes the delta against
+                // these.
+                self.chat_ui.sidebar_drag =
+                    Some((side, self.mouse_position.x, self.chat_ui.sidebar_width[side.idx()]));
             }
             AiMessage::ChatSidebarResizeStop => {
                 self.chat_ui.sidebar_drag = None;

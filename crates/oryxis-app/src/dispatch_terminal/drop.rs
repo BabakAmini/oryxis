@@ -163,7 +163,7 @@ impl Oryxis {
         // the FOCUSED pane's browser, so for any other pane of a split
         // that directory is not the one on screen.
         let sidebar_dir = (pane_id == tab.active().id
-            && self.effective_sidebar_tab() == Some(crate::state::TerminalSidebarTab::Files)
+            && self.sidebar_tab_shown(crate::state::TerminalSidebarTab::Files)
             && pane.files.client.is_some()
             && !pane.files.path.is_empty())
         .then(|| pane.files.path.clone());

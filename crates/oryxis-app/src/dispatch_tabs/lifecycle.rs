@@ -37,9 +37,7 @@ impl Oryxis {
                 pane.attention = None;
             }
             // The History tab is per-host; follow the tab switch.
-            if self.terminal_sidebar_tab
-                == crate::state::TerminalSidebarTab::History
-            {
+            if self.sidebar_tab_shown(crate::state::TerminalSidebarTab::History) {
                 self.refresh_command_history();
             }
             // The Files browser is per-pane; the landed tab's pane

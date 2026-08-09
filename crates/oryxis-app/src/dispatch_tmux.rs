@@ -239,7 +239,7 @@ impl Oryxis {
     /// arms the on-open listing: the manager never probes a screen
     /// nobody is looking at.
     pub(crate) fn tmux_tab_visible(&self) -> bool {
-        self.effective_sidebar_tab() == Some(crate::state::TerminalSidebarTab::Tmux)
+        self.sidebar_tab_shown(crate::state::TerminalSidebarTab::Tmux)
     }
 
     /// Idempotent "the tmux tab is on screen for this pane" sync, called

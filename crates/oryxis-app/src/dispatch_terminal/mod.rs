@@ -171,7 +171,7 @@ impl Oryxis {
                 // dismissal, since it renders without a backdrop.
                 self.dismiss_password_suggest();
                 // The History tab is per-host; follow the focused pane.
-                if self.terminal_sidebar_tab == crate::state::TerminalSidebarTab::History {
+                if self.sidebar_tab_shown(crate::state::TerminalSidebarTab::History) {
                     self.refresh_command_history();
                 }
                 // The Files browser is per-pane; the newly focused pane may

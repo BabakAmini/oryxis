@@ -154,7 +154,7 @@ impl Oryxis {
                 ))
             }));
         }
-        if self.effective_sidebar_tab() != Some(crate::state::TerminalSidebarTab::Files) {
+        if !self.sidebar_tab_shown(crate::state::TerminalSidebarTab::Files) {
             return None;
         }
         // No active pane means no Files tab is really mounted, so this

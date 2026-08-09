@@ -615,19 +615,22 @@ impl Oryxis {
             && self.mouse_position.x < self.window_size.width - chat_right - strip_right
     }
 
-    /// Chat-sidebar width split by dock side (issue #85): `(left, right)`
-    /// reserve. Zero when the sidebar isn't open on the active tab.
+    /// Sidebar-region widths as a `(left, right)` reserve (issue
+    /// #102: both regions can be up at once). Zero per side when that
+    /// region isn't on screen for the active tab.
     fn sidebar_reserve(&self) -> (f32, f32) {
-        let w = self
-            .active_tab
-            .and_then(|i| self.tabs.get(i))
-            .map(|t| if t.chat_visible { self.chat_ui.sidebar_width } else { 0.0 })
-            .unwrap_or(0.0);
-        if self.prefs.terminal_sidebar_left {
-            (w, 0.0)
-        } else {
-            (0.0, w)
-        }
+        use crate::state::SidebarSide;
+        let Some(tab) = self.active_tab.and_then(|i| self.tabs.get(i)) else {
+            return (0.0, 0.0);
+        };
+        let width = |side: SidebarSide| {
+            if self.sidebar_region_shown(tab, side) {
+                self.chat_ui.sidebar_width[side.idx()]
+            } else {
+                0.0
+            }
+        };
+        (width(SidebarSide::Left), width(SidebarSide::Right))
     }
 
     /// Mirror helper for the left pane, checks the cursor sits in the

@@ -266,9 +266,10 @@ pub enum SettingsMessage {
     SettingToggleStatusCwd,
     /// Align the status-bar content on the leading edge (issue #83).
     SettingToggleStatusAlignLeft,
-    /// Settings > Terminal: flip the terminal sidebar to the left edge
-    /// (issue #85).
-    SettingToggleTerminalSidebarLeft,
+    /// Settings > Terminal: dock a sidebar tab to the left or right
+    /// region (issue #102). Carries the picked side's code; the handler
+    /// stores an explicit choice (defaults stay implicit).
+    SidebarTabSideChanged(crate::state::TerminalSidebarTab, String),
     SettingToggleSidebarAutoOpen,
     /// Settings > Terminal: which tab the sidebar opens onto (issue #85).
     /// Carries the translated picker label; the handler maps it back to

@@ -61,7 +61,7 @@ impl Oryxis {
         };
 
         iced::widget::scrollable(body)
-            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .id(crate::keynav::sidebar_scroll_id(crate::state::TerminalSidebarTab::Monitor))
             .height(Length::Fill)
             .into()
     }

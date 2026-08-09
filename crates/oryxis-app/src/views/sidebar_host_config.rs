@@ -305,7 +305,7 @@ impl Oryxis {
         // Shared scrollable id (only one sidebar tab renders): the
         // keynav router snaps the ringed row into view by it.
         scrollable(body)
-            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .id(crate::keynav::sidebar_scroll_id(crate::state::TerminalSidebarTab::HostConfig))
             .height(Length::Fill)
             .into()
     }
@@ -367,7 +367,7 @@ impl Oryxis {
 
         // Shared scrollable id, same as the host variant above.
         scrollable(body)
-            .id(iced::widget::Id::new("sidebar-list-scroll"))
+            .id(crate::keynav::sidebar_scroll_id(crate::state::TerminalSidebarTab::HostConfig))
             .height(Length::Fill)
             .into()
     }

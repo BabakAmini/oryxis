@@ -407,7 +407,7 @@ impl Oryxis {
     /// what mounts the tick: monitoring never polls a screen nobody is
     /// looking at.
     pub(crate) fn monitor_tab_visible(&self) -> bool {
-        self.effective_sidebar_tab() == Some(crate::state::TerminalSidebarTab::Monitor)
+        self.sidebar_tab_shown(crate::state::TerminalSidebarTab::Monitor)
     }
 
     /// Drop a host's window (disconnect, monitoring turned off, lock) and

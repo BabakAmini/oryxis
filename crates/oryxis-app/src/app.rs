@@ -1158,8 +1158,12 @@ pub struct Oryxis {
     /// default shell directly.
     pub(crate) local_shell_picker_open: bool,
 
-    /// Active tab in the terminal side panel (Chat / Snippets / History).
-    pub(crate) terminal_sidebar_tab: crate::state::TerminalSidebarTab,
+    /// Remembered active tab of each terminal-sidebar region, indexed
+    /// by `SidebarSide::idx()` (issue #102). Read through
+    /// `sidebar_region_tab()`, which re-resolves against the region's
+    /// available tabs (a remembered tab may have moved sides or lost
+    /// its gate since).
+    pub(crate) terminal_sidebar_tab: [crate::state::TerminalSidebarTab; 2],
     /// Search needle for the Snippets tab of the terminal sidebar. Kept
     /// separate from `snippet_search` (the workspace view) so filtering
     /// one doesn't disturb the other.
@@ -1170,6 +1174,13 @@ pub struct Oryxis {
     /// Search field expanded in the Snippets tab. Collapsed = a search
     /// icon; expanded = a focused input that replaces the New / sort row.
     pub(crate) sidebar_search_open: bool,
+    /// Expanded group ids in the sidebar Hosts tree (issue #102).
+    /// In-memory only: a fresh session starts collapsed, like the
+    /// dashboard starts at root.
+    pub(crate) hosts_tree_expanded: std::collections::HashSet<uuid::Uuid>,
+    /// Search needle of the sidebar Hosts tree. While non-empty the
+    /// tree shows every match with its ancestor chain force-expanded.
+    pub(crate) hosts_tree_search: String,
 
     // MCP Server
     pub(crate) mcp: crate::state::McpState,

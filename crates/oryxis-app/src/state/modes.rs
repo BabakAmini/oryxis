@@ -13,7 +13,7 @@ pub(crate) enum VaultState {
 
 /// Active tab inside the terminal-side panel. `Chat` is only reachable
 /// when AI is enabled; the dispatch falls back to `Snippets` otherwise.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub enum TerminalSidebarTab {
     #[default]
     Chat,
@@ -39,12 +39,66 @@ pub enum TerminalSidebarTab {
     /// Per-host appearance/behavior settings for the focused pane's
     /// connection, edited live with the terminal visible alongside.
     HostConfig,
+    /// mRemoteNG-style tree view of the vault's groups + hosts
+    /// (issue #102): expand/collapse nested folders, click a host to
+    /// open a session. Session-independent like Snippets, so a region
+    /// holding only this tab is always available.
+    HostsTree,
+}
+
+/// Which of the two terminal-sidebar regions a tab is docked to. Sides
+/// are PHYSICAL edges (like the #87 tab-bar dock): the user picked
+/// them, so RTL must not flip the placement.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SidebarSide {
+    Left,
+    Right,
+}
+
+impl SidebarSide {
+    pub const BOTH: [SidebarSide; 2] = [SidebarSide::Left, SidebarSide::Right];
+
+    /// Index into per-side state arrays (`[T; 2]`).
+    pub fn idx(self) -> usize {
+        match self {
+            SidebarSide::Left => 0,
+            SidebarSide::Right => 1,
+        }
+    }
+
+    pub fn other(self) -> SidebarSide {
+        match self {
+            SidebarSide::Left => SidebarSide::Right,
+            SidebarSide::Right => SidebarSide::Left,
+        }
+    }
+
+    /// Stable code used by the per-tab location setting rows.
+    pub fn code(self) -> &'static str {
+        match self {
+            SidebarSide::Left => "left",
+            SidebarSide::Right => "right",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<SidebarSide> {
+        SidebarSide::BOTH.into_iter().find(|s| s.code() == code)
+    }
+
+    /// i18n key for the Left/Right picker labels.
+    pub fn label_key(self) -> &'static str {
+        match self {
+            SidebarSide::Left => "sidebar_side_left",
+            SidebarSide::Right => "sidebar_side_right",
+        }
+    }
 }
 
 impl TerminalSidebarTab {
     /// Every tab, in strip order. Backs the "Default sidebar tab"
     /// picker (issue #85).
-    pub const ALL: [TerminalSidebarTab; 7] = [
+    pub const ALL: [TerminalSidebarTab; 8] = [
+        TerminalSidebarTab::HostsTree,
         TerminalSidebarTab::Chat,
         TerminalSidebarTab::Snippets,
         TerminalSidebarTab::History,
@@ -64,6 +118,7 @@ impl TerminalSidebarTab {
             TerminalSidebarTab::Monitor => "monitor",
             TerminalSidebarTab::Tmux => "tmux",
             TerminalSidebarTab::HostConfig => "hostconfig",
+            TerminalSidebarTab::HostsTree => "hosts",
         }
     }
 
@@ -84,6 +139,17 @@ impl TerminalSidebarTab {
             TerminalSidebarTab::Monitor => "tab_tip_monitor",
             TerminalSidebarTab::Tmux => "tab_tip_tmux",
             TerminalSidebarTab::HostConfig => "tab_tip_host_config",
+            TerminalSidebarTab::HostsTree => "tab_tip_hosts",
+        }
+    }
+
+    /// The region a tab docks to when the user never chose one:
+    /// the hosts tree lives on the left (the mRemoteNG shape the
+    /// issue asked for), everything else keeps the historical right.
+    pub fn default_side(self) -> SidebarSide {
+        match self {
+            TerminalSidebarTab::HostsTree => SidebarSide::Left,
+            _ => SidebarSide::Right,
         }
     }
 }
@@ -434,7 +500,20 @@ impl SettingsSection {
 
 #[cfg(test)]
 mod tests {
-    use super::TerminalSidebarTab;
+    use super::{SidebarSide, TerminalSidebarTab};
+
+    #[test]
+    fn sidebar_side_code_roundtrips() {
+        // Both sides survive code -> from_code so the persisted
+        // `sidebar_left_tabs` setting and the location pickers resolve
+        // back exactly; junk resolves to None (fall back to the tab's
+        // default side), never a wrong side.
+        for s in SidebarSide::BOTH {
+            assert_eq!(SidebarSide::from_code(s.code()), Some(s));
+        }
+        assert_eq!(SidebarSide::from_code(""), None);
+        assert_eq!(SidebarSide::from_code("bogus"), None);
+    }
 
     #[test]
     fn sidebar_tab_code_roundtrips_and_rejects_sentinels() {

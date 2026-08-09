@@ -138,12 +138,13 @@ impl Oryxis {
                     if self.prefs.monitor_all_hosts { "true" } else { "false" },
                 );
             }
-            SettingsMessage::SettingToggleTerminalSidebarLeft => {
-                self.prefs.terminal_sidebar_left = !self.prefs.terminal_sidebar_left;
-                self.persist_setting(
-                    "terminal_sidebar_side",
-                    if self.prefs.terminal_sidebar_left { "left" } else { "right" },
-                );
+            SettingsMessage::SidebarTabSideChanged(tab, side) => {
+                if let Some(side) = crate::state::SidebarSide::from_code(&side) {
+                    self.prefs.sidebar_tab_sides.insert(tab, side);
+                    let encoded = self.prefs.encode_sidebar_tab_sides();
+                    self.persist_setting("sidebar_tab_sides", &encoded);
+                    self.sidebar_tab_moved(tab, side);
+                }
             }
             SettingsMessage::SettingToggleSidebarAutoOpen => {
                 self.prefs.sidebar_auto_open = !self.prefs.sidebar_auto_open;

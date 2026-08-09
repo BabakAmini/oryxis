@@ -13,8 +13,7 @@ impl Oryxis {
     /// sentinel leads the list and is the default. A pinned tab whose
     /// gate is later turned off is kept in the list so the picker still
     /// reflects the current choice. Per-session availability (no live
-    /// SSH) is handled at open time by `resolve_available_sidebar_tab`,
-    /// not here.
+    /// SSH) is handled at open time by `sidebar_region_tab`, not here.
     fn sidebar_default_tab_row(&self) -> Element<'_, Message> {
         use crate::state::TerminalSidebarTab as STab;
         let mut tabs: Vec<STab> = STab::ALL
@@ -53,6 +52,62 @@ impl Oryxis {
                 .color(OryxisColors::t().text_muted),
         ]
         .into()
+    }
+
+    /// Per-tab dock-side pickers (issue #102): every sidebar tab
+    /// chooses the LEFT or RIGHT region, replacing the pre-#102
+    /// whole-sidebar left/right toggle. Same global gating as the
+    /// default-tab picker above (an app-wide-off feature hides all
+    /// of its UI); per-session gates (no live SSH) don't apply to a
+    /// persisted location.
+    fn sidebar_tab_side_rows(&self) -> Element<'_, Message> {
+        use crate::state::{SidebarSide, TerminalSidebarTab as STab};
+        let tabs: Vec<STab> = STab::ALL
+            .into_iter()
+            .filter(|t| match t {
+                STab::Chat => self.ai.enabled,
+                STab::Files => self.sftp_enabled,
+                STab::Monitor => self.prefs.host_monitoring,
+                STab::Tmux => self.prefs.tmux_manager,
+                _ => true,
+            })
+            .collect();
+        let side_label =
+            |s: SidebarSide| crate::i18n::t(s.label_key()).to_string();
+        let options: Vec<String> = SidebarSide::BOTH.iter().map(|s| side_label(*s)).collect();
+        let mut col = column![
+            text(crate::i18n::t("sidebar_tab_locations"))
+                .size(12)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(crate::i18n::t("sidebar_tab_locations_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(6),
+        ];
+        for tab in tabs {
+            let selected = side_label(self.prefs.sidebar_tab_side(tab));
+            col = col.push(self.nav_pick_row(
+                crate::i18n::t(tab.label_key()),
+                options.clone(),
+                selected,
+                |s: &String| s.clone(),
+                140.0,
+                move |v| {
+                    // The picker hands back the translated label; map
+                    // it to the side's stable code before it travels.
+                    let side = SidebarSide::BOTH
+                        .into_iter()
+                        .find(|s| crate::i18n::t(s.label_key()) == v)
+                        .unwrap_or_else(|| tab.default_side());
+                    Message::Settings(SettingsMessage::SidebarTabSideChanged(
+                        tab,
+                        side.code().to_string(),
+                    ))
+                },
+            ));
+        }
+        col.into()
     }
 
     fn smart_tabs_threshold_row(&self) -> Element<'_, Message> {
@@ -776,19 +831,9 @@ impl Oryxis {
             self.command_history_dir_row(),
         ];
 
-        // Sidebar: where the Chat / Snippets / Files panel sits and how it
-        // opens.
+        // Sidebar: which region each tab docks to (issue #102) and how
+        // the panel opens.
         let sidebar_col = column![
-            self.nav_toggle_row(
-                crate::i18n::t("terminal_sidebar_left"),
-                self.prefs.terminal_sidebar_left,
-                Message::Settings(SettingsMessage::SettingToggleTerminalSidebarLeft),
-            ),
-            Space::new().height(4),
-            text(crate::i18n::t("terminal_sidebar_left_desc"))
-                .size(11)
-                .color(OryxisColors::t().text_muted),
-            Space::new().height(10),
             self.nav_toggle_row(
                 crate::i18n::t("sidebar_auto_open"),
                 self.prefs.sidebar_auto_open,
@@ -800,6 +845,8 @@ impl Oryxis {
                 .color(OryxisColors::t().text_muted),
             Space::new().height(10),
             self.sidebar_default_tab_row(),
+            Space::new().height(10),
+            self.sidebar_tab_side_rows(),
         ];
 
         // The +/- stepper maps naturally onto the picker action:

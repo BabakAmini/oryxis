@@ -7,7 +7,7 @@ use super::*;
 /// (sitting among the tabs); the docked variant (strip overflow) keeps
 /// the squared full-height look so it reads as part of the chrome
 /// strip next to it. `PLUS_BUTTON_WIDTH` still feeds the layout-math
-/// `RIGHT_CLUSTER_WIDTH` budget in both placements.
+/// right-cluster budget in both placements.
 ///
 /// Uses `lucide::plus` instead of a literal `+` text character, on
 /// Windows, Segoe UI's `+` renders much chunkier than the codicon
@@ -78,19 +78,30 @@ pub(crate) fn tab_jump_btn<'a>() -> Element<'a, Message> {
     .into()
 }
 
-/// Terminal side-panel toggle (Chat / Snippets / History). Sits right of
-/// the `+ new tab` button. Replaces the old host-search button, which
-/// only duplicated `+`'s "open the new-tab picker" action.
-pub(crate) fn sidebar_btn<'a>(cell_w: f32, cell_h: f32) -> Element<'a, Message> {
+/// Terminal side-panel toggle, one per sidebar region (issue #102).
+/// Sits right of the `+ new tab` button. The glyph names the PHYSICAL
+/// region it drives (panel_left / panel_right), which is also why it
+/// never flips under RTL: the region doesn't either.
+pub(crate) fn sidebar_btn<'a>(
+    side: crate::state::SidebarSide,
+    cell_w: f32,
+    cell_h: f32,
+) -> Element<'a, Message> {
     let hover_color = OryxisColors::t().text_secondary;
-    button(
-        container(
-            iced_fonts::lucide::panel_right().size(15).color(hover_color),
-        )
-        .center(Length::Fixed(cell_w))
-        .height(Length::Fixed(cell_h)),
+    let (glyph, tip) = match side {
+        crate::state::SidebarSide::Left => {
+            (iced_fonts::lucide::panel_left(), crate::i18n::t("sidebar_toggle_left"))
+        }
+        crate::state::SidebarSide::Right => {
+            (iced_fonts::lucide::panel_right(), crate::i18n::t("sidebar_toggle_right"))
+        }
+    };
+    let btn = button(
+        container(glyph.size(15).color(hover_color))
+            .center(Length::Fixed(cell_w))
+            .height(Length::Fixed(cell_h)),
     )
-    .on_press(Message::Ai(AiMessage::ToggleChatSidebar))
+    .on_press(Message::Ai(AiMessage::ToggleSidebarRegion(side)))
     .padding(0)
     .style(move |_, status| {
         let bg = match status {
@@ -103,8 +114,10 @@ pub(crate) fn sidebar_btn<'a>(cell_w: f32, cell_h: f32) -> Element<'a, Message> 
             border: Border::default(),
             ..Default::default()
         }
-    })
-    .into()
+    });
+    // Two near-identical glyphs can sit side by side now, so each
+    // names its region (icon-only controls get a tooltip).
+    crate::views::terminal::icon_tooltip(btn.into(), tip)
 }
 
 /// Burger menu trigger at the leading edge of the tab bar. When the

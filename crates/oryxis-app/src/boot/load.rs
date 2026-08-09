@@ -568,8 +568,25 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("status_bar_align_left") {
                 self.prefs.status_bar_align_left = v == "true";
             }
-            if let Ok(Some(v)) = vault.get_setting("terminal_sidebar_side") {
-                self.prefs.terminal_sidebar_left = v == "left";
+            if let Ok(Some(v)) = vault.get_setting("sidebar_tab_sides") {
+                self.prefs.sidebar_tab_sides = crate::state::AppPrefs::parse_sidebar_tab_sides(&v);
+            } else if let Ok(Some(v)) = vault.get_setting("terminal_sidebar_side") {
+                // Pre-#102 whole-sidebar dock (issue #85): "left" moved
+                // every tab at once. Grandfather it as explicit Left
+                // choices for the tabs that existed then, so the user's
+                // layout survives; the new HostsTree tab keeps its own
+                // Left default either way. Read-only migration: the new
+                // key is only written when the user next touches a
+                // location picker.
+                if v == "left" {
+                    for tab in crate::state::TerminalSidebarTab::ALL {
+                        if tab != crate::state::TerminalSidebarTab::HostsTree {
+                            self.prefs
+                                .sidebar_tab_sides
+                                .insert(tab, crate::state::SidebarSide::Left);
+                        }
+                    }
+                }
             }
             if let Ok(Some(v)) = vault.get_setting("sidebar_auto_open") {
                 self.prefs.sidebar_auto_open = v == "true";

@@ -115,6 +115,7 @@ mod sftp_helpers;
 mod sftp_methods;
 mod shell_integration;
 mod shortcuts;
+mod sidebar_regions;
 mod smart_tabs;
 mod importers;
 mod ssh_config;

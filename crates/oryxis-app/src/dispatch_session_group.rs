@@ -413,7 +413,7 @@ impl Oryxis {
             pane_grid: grid,
             focused,
             chat_history: Vec::new(),
-            chat_visible: false,
+            sidebar_open: [false; 2],
             chat_always_run_commands: Vec::new(),
             chat_auto_run_history: Vec::new(),
             chat_auto_run_streak: 0,
@@ -436,7 +436,9 @@ impl Oryxis {
         // Auto-open the terminal sidebar for the restored tab: the first
         // host pane's override wins, falling back to the global setting
         // (a group tab can mix hosts; the first is the tab's identity).
-        tab.chat_visible = tab
+        // Same region choice as the single-host connect path (issue
+        // #102): the default tab's region, else right-unless-empty.
+        let auto_open = tab
             .pane_grid
             .panes
             .values()
@@ -447,6 +449,21 @@ impl Oryxis {
             .and_then(|id| self.connections.iter().find(|c| c.id == id))
             .map(|c| c.sidebar_auto_open.unwrap_or(self.prefs.sidebar_auto_open))
             .unwrap_or(self.prefs.sidebar_auto_open);
+        if auto_open {
+            use crate::state::SidebarSide;
+            let side = self
+                .prefs
+                .sidebar_default_tab
+                .map(|t| self.prefs.sidebar_tab_side(t))
+                .unwrap_or_else(|| {
+                    if self.prefs.sidebar_tabs_on(SidebarSide::Right).is_empty() {
+                        SidebarSide::Left
+                    } else {
+                        SidebarSide::Right
+                    }
+                });
+            tab.sidebar_open[side.idx()] = true;
+        }
         let tab_idx = self.tabs.len();
         self.tabs.push(tab);
         self.active_tab = Some(tab_idx);

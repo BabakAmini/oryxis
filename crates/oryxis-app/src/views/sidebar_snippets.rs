@@ -420,7 +420,7 @@ impl Oryxis {
             header,
             sudo_row,
             scrollable(list)
-                .id(iced::widget::Id::new("sidebar-list-scroll"))
+                .id(crate::keynav::sidebar_scroll_id(crate::state::TerminalSidebarTab::Snippets))
                 .height(Length::Fill)
         ]
         .width(Length::Fill)

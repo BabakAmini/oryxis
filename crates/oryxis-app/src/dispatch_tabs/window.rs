@@ -80,17 +80,21 @@ impl Oryxis {
                 d.active = true;
             }
         }
-        // While the chat-sidebar resize handle is held down, the
-        // sidebar width tracks the cursor. The handle sits on the panel's
-        // inner edge, so the drag direction that grows it flips with the
-        // dock side (issue #85): docked right, dragging left grows it;
-        // docked left, dragging right grows it. Clamp to a sane band so
-        // the user can't accidentally make it unusable.
-        if let Some((start_x, start_width)) = self.chat_ui.sidebar_drag {
+        // While a sidebar-region resize handle is held down, that
+        // region's width tracks the cursor. The handle sits on the
+        // region's inner edge, so the drag direction that grows it
+        // flips with the region's side (issue #102): the right region
+        // grows dragging left, the left region grows dragging right.
+        // Clamp to a sane band so the user can't accidentally make it
+        // unusable.
+        if let Some((side, start_x, start_width)) = self.chat_ui.sidebar_drag {
             let delta = pos.x - start_x;
-            let signed = if self.prefs.terminal_sidebar_left { delta } else { -delta };
+            let signed = match side {
+                crate::state::SidebarSide::Left => delta,
+                crate::state::SidebarSide::Right => -delta,
+            };
             let new_width = (start_width + signed).clamp(260.0, 700.0);
-            self.chat_ui.sidebar_width = new_width;
+            self.chat_ui.sidebar_width[side.idx()] = new_width;
         }
         // SFTP center divider: the ratio tracks the cursor across the
         // content area (window minus the nav rail; the chat sidebar is

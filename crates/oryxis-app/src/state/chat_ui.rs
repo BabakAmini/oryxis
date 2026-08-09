@@ -23,11 +23,15 @@ pub(crate) struct ChatUi {
     /// should auto-scroll. If the user has scrolled up to read older
     /// content, we leave them where they are.
     pub(crate) scroll_at_bottom: bool,
-    /// User-resizable width of the chat sidebar in pixels.
-    pub(crate) sidebar_width: f32,
-    /// Some((cursor_x_at_drag_start, sidebar_width_at_drag_start)) while
-    /// the user is dragging the resize handle on the sidebar's left edge.
-    pub(crate) sidebar_drag: Option<(f32, f32)>,
+    /// User-resizable width of each sidebar region in pixels, indexed
+    /// by `SidebarSide::idx()` (issue #102: left and right regions
+    /// resize independently).
+    pub(crate) sidebar_width: [f32; 2],
+    /// Some((side, cursor_x_at_drag_start, width_at_drag_start)) while
+    /// the user is dragging a region's resize handle (always on the
+    /// region's inner edge). One drag at a time: a second handle can't
+    /// be grabbed while the mouse is already down on the first.
+    pub(crate) sidebar_drag: Option<(crate::state::SidebarSide, f32, f32)>,
 }
 
 impl Default for ChatUi {
@@ -39,7 +43,7 @@ impl Default for ChatUi {
             // A fresh chat is at the bottom by definition: there is
             // nothing above the first turn to have scrolled away from.
             scroll_at_bottom: true,
-            sidebar_width: 350.0,
+            sidebar_width: [350.0, 350.0],
             sidebar_drag: None,
         }
     }

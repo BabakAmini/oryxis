@@ -76,7 +76,9 @@ impl Oryxis {
                 Space::new().width(Length::Fill).into(),
             ];
             if self.active_tab.is_some() {
-                header.push(sidebar_btn(SIDEBAR_TOGGLE_WIDTH, HEADER_CHROME_H));
+                for toggle_side in self.sidebar_toggle_sides() {
+                    header.push(sidebar_btn(toggle_side, SIDEBAR_TOGGLE_WIDTH, HEADER_CHROME_H));
+                }
             }
             header.push(self.window_chrome_row(HEADER_CHROME_W, HEADER_CHROME_H).into());
             head.push(

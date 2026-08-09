@@ -217,14 +217,26 @@ pub(crate) struct KeyNavState {
     pub(crate) pick_open: bool,
     /// Terminal-sidebar list layer (iteration 3): ring over the
     /// Snippets / History rows, tagged by the sidebar tab that owns
-    /// it so a tab switch drops the selection for free. Engaged by
-    /// the FocusSidebarList hotkey or by Up/Down while the cursor is
-    /// over the sidebar; Esc disengages and gives the keyboard back
+    /// it so a tab switch drops the selection for free. The tab also
+    /// names the REGION (its dock side), so one selection can never
+    /// straddle the two regions (issue #102). Engaged by the
+    /// FocusSidebarList hotkey or by Up/Down while the cursor is
+    /// over a region; Esc disengages and gives the keyboard back
     /// to the terminal.
     pub(crate) sidebar_selected: Option<(crate::state::TerminalSidebarTab, usize)>,
     /// Actionable sidebar list rows recorded during view(), display
-    /// order (History: frequent shortlist first, then recents).
-    pub(crate) sidebar_items: RefCell<Vec<SidebarRow>>,
+    /// order (History: frequent shortlist first, then recents), one
+    /// list per region indexed by `SidebarSide::idx()` (issue #102:
+    /// both regions can render in the same frame, and a shared list
+    /// would interleave their indices).
+    pub(crate) sidebar_items: [RefCell<Vec<SidebarRow>>; 2],
+}
+
+/// Scrollable id for a sidebar tab's list body. Per TAB, because the
+/// two regions can each mount a list in the same frame (issue #102)
+/// and duplicate scrollable ids break `snap_to`.
+pub(crate) fn sidebar_scroll_id(tab: crate::state::TerminalSidebarTab) -> iced::widget::Id {
+    iced::widget::Id::from(format!("sidebar-list-scroll-{}", tab.code()))
 }
 
 impl KeyNavState {

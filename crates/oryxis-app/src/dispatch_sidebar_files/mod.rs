@@ -244,7 +244,7 @@ impl Oryxis {
     pub(crate) fn sidebar_files_sync(&mut self) -> Task<Message> {
         // Only the visible browser drives SFTP traffic; a background
         // pane's cwd changes are picked up when its tab shows again.
-        if self.effective_sidebar_tab() != Some(TerminalSidebarTab::Files) {
+        if !self.sidebar_tab_shown(TerminalSidebarTab::Files) {
             return Task::none();
         }
         let Some(pane) = self.active_pane_mut() else {
