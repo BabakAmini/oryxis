@@ -220,13 +220,14 @@ impl Oryxis {
                     }
                     SendPayload::Nothing => {}
                     SendPayload::Secret(secret) => {
-                        // Decrypted here and nowhere else: the value is
-                        // never stored in app state, and it is zeroized
-                        // by `write_secret_to_pane` after the write.
+                        // Decrypted here and nowhere else: never stored
+                        // in app state, the resolved String scrubbed on
+                        // drop (`Zeroizing`) and the line buffer scrubbed
+                        // explicitly after the write.
                         let value = self.resolve_script_secret(conn_id, secret);
                         match value {
                             Some(v) => {
-                                let mut bytes = line_bytes(&v);
+                                let mut bytes = line_bytes(v.as_str());
                                 self.write_secret_to_pane(pane_id, &bytes);
                                 zeroize_bytes(&mut bytes);
                             }
@@ -297,14 +298,17 @@ impl Oryxis {
         }
     }
 
-    /// Resolve a `SecretRef` against the vault, at send time.
+    /// Resolve a `SecretRef` against the vault, at send time. The
+    /// plaintext is wrapped in `Zeroizing` so the intermediate copy is
+    /// scrubbed when the caller drops it (the TOTP raw seed is also
+    /// zeroized before the code is derived).
     fn resolve_script_secret(
         &self,
         conn_id: uuid::Uuid,
         secret: SecretRef,
-    ) -> Option<String> {
+    ) -> Option<zeroize::Zeroizing<String>> {
         let vault = self.vault.as_ref()?;
-        match secret {
+        let value = match secret {
             SecretRef::ConnectionPassword => {
                 vault.get_connection_password(&conn_id).ok().flatten()
             }
@@ -317,10 +321,13 @@ impl Oryxis {
                 .get_connection_totp_secret(&conn_id)
                 .ok()
                 .flatten()
+                .map(zeroize::Zeroizing::new)
                 .and_then(|raw| oryxis_core::totp::Totp::parse(&raw).ok())
                 .map(|t| t.code_now()),
-        }
-        .filter(|s| !s.is_empty())
+        };
+        value
+            .filter(|s| !s.is_empty())
+            .map(zeroize::Zeroizing::new)
     }
 
     /// Stop a run and send the startup command it was holding, if the

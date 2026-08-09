@@ -336,9 +336,16 @@ impl Oryxis {
     ///
     /// Shared by the popup and by the sudo-password snippet action, so
     /// there is one implementation of "hand a credential to a prompt".
-    pub(crate) fn send_password_to_pane(&mut self, pane_id: uuid::Uuid, secret: String) {
-        let mut data = secret.into_bytes();
+    pub(crate) fn send_password_to_pane(&mut self, pane_id: uuid::Uuid, mut secret: String) {
+        use zeroize::Zeroize as _;
+        // Pre-size so the trailing newline can't force a realloc that
+        // would strand a freed copy of the plaintext (a fresh
+        // `into_bytes().push()` usually does, since a decrypted String's
+        // capacity equals its length). Then scrub the source String too.
+        let mut data = Vec::with_capacity(secret.len() + 1);
+        data.extend_from_slice(secret.as_bytes());
         data.push(b'\n');
+        secret.zeroize();
         self.write_secret_to_pane(pane_id, &data);
         crate::dispatch_login_script::zeroize_bytes(&mut data);
     }

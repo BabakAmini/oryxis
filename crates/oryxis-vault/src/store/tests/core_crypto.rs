@@ -92,6 +92,18 @@ fn every_encrypted_field_survives_master_password_change() {
         .save_sync_peer(&peer_id, "laptop", b"pubkey", Some(b"shared-secret"), &Utc::now())
         .unwrap();
 
+    // Encrypted SETTINGS are a second class, converted alongside the
+    // BLOB columns in `convert_all_fields`. They were the exact drift
+    // that shipped once (a new column the rotation walk forgot), so
+    // pin every one: adding an encrypted setting without a rotation arm
+    // must fail here.
+    vault.set_ai_api_key("sk-secret-key").unwrap();
+    vault.set_sync_sftp_passphrase("sftp-group-pass").unwrap();
+    vault.set_sync_webdav_password("webdav-app-pass").unwrap();
+    vault
+        .set_files_recent_folders(r#"["/srv/logs","/home/me"]"#)
+        .unwrap();
+
     vault.set_user_password("the-new-master-password").unwrap();
 
     // Every secret must decrypt under the new master key.
@@ -121,6 +133,20 @@ fn every_encrypted_field_survives_master_password_change() {
     assert_eq!(
         vault.get_sync_peer_shared_secret(&peer_id).unwrap().as_deref(),
         Some(b"shared-secret".as_slice())
+    );
+    // The encrypted settings decrypt under the new master key too.
+    assert_eq!(vault.get_ai_api_key().unwrap().as_deref(), Some("sk-secret-key"));
+    assert_eq!(
+        vault.get_sync_sftp_passphrase().unwrap().as_deref(),
+        Some("sftp-group-pass")
+    );
+    assert_eq!(
+        vault.get_sync_webdav_password().unwrap().as_deref(),
+        Some("webdav-app-pass")
+    );
+    assert_eq!(
+        vault.get_files_recent_folders().unwrap().as_deref(),
+        Some(r#"["/srv/logs","/home/me"]"#)
     );
 }
 

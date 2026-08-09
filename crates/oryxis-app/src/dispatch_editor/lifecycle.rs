@@ -380,22 +380,39 @@ impl Oryxis {
                     if let Some(vault) = &self.vault {
                         // Secrets live in their own encrypted columns, so
                         // they are copied explicitly rather than riding
-                        // the clone.
-                        let pw = vault.get_connection_password(&conn.id).ok().flatten();
-                        let proxy_pw = vault.get_proxy_password(&conn.id).ok().flatten();
-                        let totp = vault.get_connection_totp_secret(&conn.id).ok().flatten();
-                        let target_pw =
-                            vault.get_connection_target_password(&conn.id).ok().flatten();
-                        let _ = vault.save_connection(&dup, pw.as_deref());
-                        if proxy_pw.is_some() {
-                            let _ = vault.set_proxy_password(&dup.id, proxy_pw.as_deref());
+                        // the clone. Each decrypted plaintext is wrapped
+                        // in `Zeroizing` so the copy is scrubbed when this
+                        // block ends rather than freed intact.
+                        let pw = vault
+                            .get_connection_password(&conn.id)
+                            .ok()
+                            .flatten()
+                            .map(zeroize::Zeroizing::new);
+                        let proxy_pw = vault
+                            .get_proxy_password(&conn.id)
+                            .ok()
+                            .flatten()
+                            .map(zeroize::Zeroizing::new);
+                        let totp = vault
+                            .get_connection_totp_secret(&conn.id)
+                            .ok()
+                            .flatten()
+                            .map(zeroize::Zeroizing::new);
+                        let target_pw = vault
+                            .get_connection_target_password(&conn.id)
+                            .ok()
+                            .flatten()
+                            .map(zeroize::Zeroizing::new);
+                        let _ = vault.save_connection(&dup, pw.as_ref().map(|s| s.as_str()));
+                        if let Some(proxy_pw) = proxy_pw.as_ref() {
+                            let _ = vault.set_proxy_password(&dup.id, Some(proxy_pw.as_str()));
                         }
-                        if totp.is_some() {
-                            let _ = vault.set_connection_totp_secret(&dup.id, totp.as_deref());
+                        if let Some(totp) = totp.as_ref() {
+                            let _ = vault.set_connection_totp_secret(&dup.id, Some(totp.as_str()));
                         }
-                        if target_pw.is_some() {
+                        if let Some(target_pw) = target_pw.as_ref() {
                             let _ = vault
-                                .set_connection_target_password(&dup.id, target_pw.as_deref());
+                                .set_connection_target_password(&dup.id, Some(target_pw.as_str()));
                         }
                         self.load_data_from_vault();
                     }
