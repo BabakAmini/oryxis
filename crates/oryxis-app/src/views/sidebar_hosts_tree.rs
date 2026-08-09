@@ -288,23 +288,44 @@ impl Oryxis {
         } else {
             iced_fonts::lucide::chevron_right()
         };
-        let tint = group
-            .color
-            .as_deref()
-            .and_then(crate::os_icon::parse_hex_color)
-            .unwrap_or(c.text_muted);
-        // Icon precedence mirrors the dynamic-group cards: an explicit
-        // user icon wins, then the query-derived brand (ecs /
-        // kubernetes), then the plain folder glyphs.
+        // Icon precedence mirrors the dashboard folder / dynamic-group
+        // cards (owner ask: the group's REAL badge, not a generic
+        // glyph): an explicit user icon wins, then the query-derived
+        // brand (ecs / kubernetes). Background: explicit group colour,
+        // else the brand colour, else a plain folder glyph with no
+        // badge at all - an all-accent badge on every folder would
+        // turn the tree into a colour wall.
         let brand: Option<&str> = group.cloud_query.as_ref().map(|q| match q.kind {
             oryxis_core::models::cloud::CloudQueryKind::EcsTasks { .. } => "ecs",
             oryxis_core::models::cloud::CloudQueryKind::K8sPods { .. } => "kubernetes",
         });
         let icon_id = group.icon.as_deref().filter(|s| !s.is_empty()).or(brand);
+        let group_color = group.color.as_deref().and_then(crate::os_icon::parse_hex_color);
         let folder: Element<'a, Message> = match icon_id {
-            Some(icon_id) => crate::os_icon::custom_icon_glyph(icon_id).view(14.0, tint),
-            None if expanded => iced_fonts::lucide::folder_open().size(14).color(tint).into(),
-            None => iced_fonts::lucide::folder().size(14).color(tint).into(),
+            Some(icon_id) => {
+                let glyph = crate::os_icon::custom_icon_glyph(icon_id);
+                let bg = group_color.unwrap_or_else(|| {
+                    crate::os_icon::provider_icon(icon_id, c.accent).1
+                });
+                crate::widgets::host_icon(
+                    crate::widgets::resolve_host_icon_style(
+                        None,
+                        &self.prefs.default_host_icon,
+                    ),
+                    bg,
+                    &group.label,
+                    Some(glyph.view(10.0, Color::WHITE)),
+                    18.0,
+                )
+            }
+            None => {
+                let tint = group_color.unwrap_or(c.text_muted);
+                if expanded {
+                    iced_fonts::lucide::folder_open().size(14).color(tint).into()
+                } else {
+                    iced_fonts::lucide::folder().size(14).color(tint).into()
+                }
+            }
         };
         // Dynamic groups count what the resolve brought back (nothing
         // before the first expand); manual folders count their
@@ -343,10 +364,14 @@ impl Oryxis {
         )
     }
 
-    /// One host row: live-session dot (a tab is connected to this
-    /// host), protocol glyph, label, and the address when the global
-    /// "show host address" preference is on. Click (or Enter on the
-    /// ring) opens a session, the same message as the dashboard card.
+    /// One host row: the host's OWN icon badge (per-host icon / color
+    /// / shape overrides, OS glyph, global shape default - the exact
+    /// resolution the dashboard card uses, at tree size), a live dot
+    /// when a tab is connected to this host, the label, and the
+    /// address when the global "show host address" preference is on
+    /// (masked by Privacy Mode, like the card subtitle). Click (or
+    /// Enter on the ring) opens a session, the same message as the
+    /// dashboard card.
     fn tree_host_row<'a>(
         &'a self,
         idx: usize,
@@ -360,12 +385,37 @@ impl Oryxis {
                 .values()
                 .any(|p| p.saved_conn_id() == Some(conn.id) && p.session.is_some())
         });
+        // Same icon resolution as the dashboard host card, minus the
+        // connected-green fallback: the live DOT is the tree's only
+        // "connected" signal (owner call: colour on the badge AND a
+        // bullet reads twice).
+        let (os_glyph, icon_color) = crate::os_icon::resolve_for(
+            conn.detected_os.as_deref(),
+            conn.custom_icon.as_deref(),
+            conn.custom_color.as_deref(),
+            conn.username.as_deref(),
+            c.accent,
+        );
+        let host_style = crate::widgets::resolve_host_icon_style(
+            conn.icon_style.as_deref(),
+            &self.prefs.default_host_icon,
+        );
+        let badge_color = conn
+            .custom_color
+            .as_deref()
+            .or(conn.color.as_deref())
+            .and_then(crate::widgets::parse_hex_color)
+            .unwrap_or(icon_color);
+        let icon_box = crate::widgets::host_icon(
+            host_style,
+            badge_color,
+            &conn.label,
+            Some(os_glyph.view(10.0, Color::WHITE)),
+            18.0,
+        );
         let mut items: Vec<Element<'a, Message>> = vec![
             Space::new().width(depth as f32 * INDENT + 16.0).into(),
-            iced_fonts::lucide::server()
-                .size(13)
-                .color(if live { c.success } else { c.text_muted })
-                .into(),
+            icon_box,
             Space::new().width(6).into(),
             text(conn.label.as_str())
                 .size(12)
@@ -374,8 +424,6 @@ impl Oryxis {
                 .into(),
         ];
         if live {
-            // The tint alone can read as a themed icon; the dot makes
-            // "connected" unambiguous at a glance.
             items.push(Space::new().width(5).into());
             items.push(
                 container(Space::new().width(6).height(6))
@@ -389,8 +437,18 @@ impl Oryxis {
         }
         items.push(Space::new().width(Length::Fill).into());
         if self.prefs.show_host_address {
+            // Privacy Mode masks the address behind blocks, same as
+            // the card subtitle (no hover reveal here: tree rows are
+            // click-to-connect, a reveal gesture would sit one pixel
+            // from a connect).
+            let address = crate::util::host_address_label(conn);
+            let address = if self.privacy_active(conn) {
+                crate::widgets::mask_blocks(&address)
+            } else {
+                address
+            };
             items.push(
-                text(conn.hostname.as_str())
+                text(address)
                     .size(11)
                     .color(c.text_muted)
                     .wrapping(iced::widget::text::Wrapping::None)
