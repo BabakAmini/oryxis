@@ -148,6 +148,12 @@ impl Oryxis {
     /// never fights the pane's own PTY; the user attaches afterwards
     /// with the same gesture any other session takes.
     fn tmux_create(&mut self, pane_id: Uuid) -> Task<Message> {
+        // Same fork Enter hazard as `tmux_attach`: the new-name field
+        // carries `on_submit`, so an Enter meant for a modal on screen
+        // would otherwise create a session on the remote host.
+        if self.any_modal_blocks_input() {
+            return Task::none();
+        }
         let Some(session) = self.tmux_session_for_pane(pane_id) else {
             return Task::none();
         };
