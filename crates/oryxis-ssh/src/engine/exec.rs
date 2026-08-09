@@ -346,7 +346,12 @@ impl SshEngine {
             }
         });
 
+        // The forward tasks belong to the CONNECTION (bound once per
+        // dial, `open_session_on` binds none), so the transport owns
+        // them: they outlive this session while any other session or
+        // SFTP surface keeps the link, and die with the link itself.
         let pf_tasks = spawn_port_forward_tasks(pf_listeners, transport.handle());
+        transport.adopt_port_forwards(pf_tasks);
 
         Ok((
             SshSession {
@@ -355,7 +360,6 @@ impl SshEngine {
                 resize_tx,
                 reader_task,
                 writer_task,
-                port_forward_tasks: pf_tasks,
                 closed: std::sync::atomic::AtomicBool::new(false),
                 // Default, overridden by the engine right after this
                 // returns via `sftp_open_timeout` assignment.

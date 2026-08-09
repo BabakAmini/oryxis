@@ -72,7 +72,9 @@ pub struct SshSession {
     pub(crate) resize_tx: mpsc::UnboundedSender<(u16, u16)>,
     pub(crate) reader_task: tokio::task::JoinHandle<()>,
     pub(crate) writer_task: tokio::task::JoinHandle<()>,
-    pub(crate) port_forward_tasks: Vec<tokio::task::JoinHandle<()>>,
+    // Per-host forward tasks live on the transport now (forwards are
+    // per CONNECTION): owned here they died with the dialing tab while
+    // reused tabs kept the link, and no session ever rebound them.
     // Link quality lives on the transport now: one prober per
     // CONNECTION rather than one per session, so two tabs to the same
     // host no longer ping the same wire twice.
@@ -296,12 +298,10 @@ impl SshSession {
 
     /// Tear the session down. Idempotent: only the first call acts.
     ///
-    /// Aborts the reader / writer / port-forward tasks (releasing any
-    /// locally bound `-L` listeners) and disconnects the underlying SSH
-    /// connection so the remote side tears its half down too. Aborting
-    /// the reader task drops the output channel sender, so the app-side
-    /// output stream ends cleanly (recv returns `None`) instead of
-    /// hanging on a dead session.
+    /// Aborts the reader / writer tasks. Aborting the reader task drops
+    /// the output channel sender, so the app-side output stream ends
+    /// cleanly (recv returns `None`) instead of hanging on a dead
+    /// session.
     pub fn close(&self) {
         use std::sync::atomic::Ordering;
         if self.closed.swap(true, Ordering::SeqCst) {
@@ -309,14 +309,13 @@ impl SshSession {
         }
         self.reader_task.abort();
         self.writer_task.abort();
-        for task in &self.port_forward_tasks {
-            task.abort();
-        }
-        // The CONNECTION is deliberately not touched here. It belongs
-        // to `SshTransport`, which disconnects when its last owner
-        // drops it, and this session may not be the last: a second tab
-        // reusing the same link, or an SFTP surface still mounted on
-        // it, must survive this one closing. Dropping our `Arc` (which
+        // The CONNECTION is deliberately not touched here, and neither
+        // are the per-host forward listeners, which ride it. Both
+        // belong to `SshTransport`, which disconnects (and releases the
+        // listeners) when its last owner drops it, and this session may
+        // not be the last: a second tab reusing the same link, or an
+        // SFTP surface still mounted on it, must survive this one
+        // closing, forwards included. Dropping our `Arc` (which
         // happens right after, when the session itself is dropped) is
         // how this session says it is done with the link.
     }

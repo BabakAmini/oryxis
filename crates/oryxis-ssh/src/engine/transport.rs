@@ -33,6 +33,14 @@ pub struct SshTransport {
     /// prober regardless of how many sessions ride it.
     net_quality: Arc<NetQuality>,
     quality_task: tokio::task::JoinHandle<()>,
+    /// Per-host `-L`/`-R`/`-D` forward tasks. They belong HERE, not to
+    /// the session that happened to dial (forwards are bound once per
+    /// CONNECTION; `open_session_on` binds none): owned by the dialing
+    /// session they died the moment that tab closed while reused tabs
+    /// kept the link alive, and no later session ever rebound them.
+    /// Aborted (releasing the local listeners) when the connection
+    /// itself goes.
+    port_forward_tasks: std::sync::Mutex<Vec<tokio::task::JoinHandle<()>>>,
     /// Latched by `disconnect()` so the teardown runs exactly once even
     /// when an explicit disconnect and the `Drop` backstop both fire.
     disconnected: AtomicBool,
@@ -51,8 +59,19 @@ impl SshTransport {
             handle,
             net_quality,
             quality_task,
+            port_forward_tasks: std::sync::Mutex::new(Vec::new()),
             disconnected: AtomicBool::new(false),
         })
+    }
+
+    /// Hand the connection its per-host forward listener tasks, bound
+    /// once by the dialing path. Appends, so an (unlikely) second bind
+    /// on the same live connection cannot silently drop the first set.
+    pub(crate) fn adopt_port_forwards(&self, tasks: Vec<tokio::task::JoinHandle<()>>) {
+        match self.port_forward_tasks.lock() {
+            Ok(mut held) => held.extend(tasks),
+            Err(poison) => poison.into_inner().extend(tasks),
+        }
     }
 
     /// The shared handle, for opening another channel on this
@@ -91,6 +110,17 @@ impl SshTransport {
             return;
         }
         self.quality_task.abort();
+        // Release the per-host forward listeners with the connection
+        // they ride on.
+        {
+            let held = match self.port_forward_tasks.lock() {
+                Ok(g) => g,
+                Err(poison) => poison.into_inner(),
+            };
+            for task in held.iter() {
+                task.abort();
+            }
+        }
         // A polite disconnect needs a runtime to spawn on. Without one
         // (a late `Drop` during process shutdown) the socket dies with
         // the last handle clone anyway, which is the same outcome
