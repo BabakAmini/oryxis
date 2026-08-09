@@ -72,24 +72,52 @@ impl SidebarSide {
             SidebarSide::Right => SidebarSide::Left,
         }
     }
+}
 
-    /// Stable code used by the per-tab location setting rows.
-    pub fn code(self) -> &'static str {
+/// Where a sidebar tab lives (the per-tab location setting): one of
+/// the two regions, or hidden entirely. A hidden tab disappears from
+/// the strips, the chrome toggles and the FocusSidebarList cycle,
+/// the "I never use this" escape hatch the location picker offers
+/// next to Left / Right.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SidebarPlacement {
+    Left,
+    Right,
+    Hidden,
+}
+
+impl SidebarPlacement {
+    pub const ALL: [SidebarPlacement; 3] =
+        [SidebarPlacement::Left, SidebarPlacement::Right, SidebarPlacement::Hidden];
+
+    /// The region this placement docks to; `None` = hidden.
+    pub fn side(self) -> Option<SidebarSide> {
         match self {
-            SidebarSide::Left => "left",
-            SidebarSide::Right => "right",
+            SidebarPlacement::Left => Some(SidebarSide::Left),
+            SidebarPlacement::Right => Some(SidebarSide::Right),
+            SidebarPlacement::Hidden => None,
         }
     }
 
-    pub fn from_code(code: &str) -> Option<SidebarSide> {
-        SidebarSide::BOTH.into_iter().find(|s| s.code() == code)
+    /// Stable code persisted in the `sidebar_tab_sides` setting.
+    pub fn code(self) -> &'static str {
+        match self {
+            SidebarPlacement::Left => "left",
+            SidebarPlacement::Right => "right",
+            SidebarPlacement::Hidden => "hidden",
+        }
     }
 
-    /// i18n key for the Left/Right picker labels.
+    pub fn from_code(code: &str) -> Option<SidebarPlacement> {
+        SidebarPlacement::ALL.into_iter().find(|p| p.code() == code)
+    }
+
+    /// i18n key for the Left / Right / Hidden picker labels.
     pub fn label_key(self) -> &'static str {
         match self {
-            SidebarSide::Left => "sidebar_side_left",
-            SidebarSide::Right => "sidebar_side_right",
+            SidebarPlacement::Left => "sidebar_side_left",
+            SidebarPlacement::Right => "sidebar_side_right",
+            SidebarPlacement::Hidden => "sidebar_side_hidden",
         }
     }
 }
@@ -143,14 +171,12 @@ impl TerminalSidebarTab {
         }
     }
 
-    /// The region a tab docks to when the user never chose one:
-    /// the hosts tree lives on the left (the mRemoteNG shape the
-    /// issue asked for), everything else keeps the historical right.
-    pub fn default_side(self) -> SidebarSide {
-        match self {
-            TerminalSidebarTab::HostsTree => SidebarSide::Left,
-            _ => SidebarSide::Right,
-        }
+    /// Where a tab lives when the user never chose: every tab starts
+    /// in the historical RIGHT region (owner call: the hosts tree
+    /// too, so a fresh install keeps one sidebar and one toggle; the
+    /// left region only exists once someone moves a tab there).
+    pub fn default_placement(self) -> SidebarPlacement {
+        SidebarPlacement::Right
     }
 }
 
@@ -500,19 +526,19 @@ impl SettingsSection {
 
 #[cfg(test)]
 mod tests {
-    use super::{SidebarSide, TerminalSidebarTab};
+    use super::{SidebarPlacement, TerminalSidebarTab};
 
     #[test]
-    fn sidebar_side_code_roundtrips() {
-        // Both sides survive code -> from_code so the persisted
-        // `sidebar_left_tabs` setting and the location pickers resolve
+    fn sidebar_placement_code_roundtrips() {
+        // Every placement survives code -> from_code so the persisted
+        // `sidebar_tab_sides` setting and the location pickers resolve
         // back exactly; junk resolves to None (fall back to the tab's
-        // default side), never a wrong side.
-        for s in SidebarSide::BOTH {
-            assert_eq!(SidebarSide::from_code(s.code()), Some(s));
+        // default placement), never a wrong one.
+        for p in SidebarPlacement::ALL {
+            assert_eq!(SidebarPlacement::from_code(p.code()), Some(p));
         }
-        assert_eq!(SidebarSide::from_code(""), None);
-        assert_eq!(SidebarSide::from_code("bogus"), None);
+        assert_eq!(SidebarPlacement::from_code(""), None);
+        assert_eq!(SidebarPlacement::from_code("bogus"), None);
     }
 
     #[test]

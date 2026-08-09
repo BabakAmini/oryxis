@@ -68,11 +68,11 @@ impl Oryxis {
     fn engaged_sidebar_context(
         &self,
     ) -> Option<(crate::state::SidebarSide, TerminalSidebarTab)> {
-        if let Some((tab, _)) = self.keynav.sidebar_selected {
-            let side = self.prefs.sidebar_tab_side(tab);
-            if self.effective_sidebar_tab(side) == Some(tab) {
-                return Some((side, tab));
-            }
+        if let Some((tab, _)) = self.keynav.sidebar_selected
+            && let Some(side) = self.prefs.sidebar_tab_side(tab)
+            && self.effective_sidebar_tab(side) == Some(tab)
+        {
+            return Some((side, tab));
         }
         let side = self.cursor_over_sidebar_side()?;
         Some((side, self.sidebar_region_tab(side)?))
@@ -133,19 +133,25 @@ impl Oryxis {
     /// Whether the recorded row at `idx` of `tab`'s region is an
     /// input row (Tab focuses it instead of ringing it).
     fn sidebar_row_is_input(&self, tab: TerminalSidebarTab, idx: usize) -> bool {
-        self.keynav.sidebar_items[self.prefs.sidebar_tab_side(tab).idx()]
+        self.sidebar_items_for(tab)
             .borrow()
             .get(idx)
             .is_some_and(|r| r.action.focus.is_some())
     }
 
     /// The recorded row list of `tab`'s region (issue #102: one list
-    /// per region; the tab names its region via its dock side).
+    /// per region; the tab names its region via its dock side). A
+    /// hidden tab records nowhere; the Right fallback only keeps a
+    /// misuse harmless (callers reach here via shown tabs only).
     fn sidebar_items_for(
         &self,
         tab: TerminalSidebarTab,
     ) -> &std::cell::RefCell<Vec<SidebarRow>> {
-        &self.keynav.sidebar_items[self.prefs.sidebar_tab_side(tab).idx()]
+        let side = self
+            .prefs
+            .sidebar_tab_side(tab)
+            .unwrap_or(crate::state::SidebarSide::Right);
+        &self.keynav.sidebar_items[side.idx()]
     }
 
     /// Keep the selected row visible; same best-effort relative snap
@@ -177,7 +183,32 @@ impl Oryxis {
             Some((tag, idx)) if tag == tab => Some(idx.min(len - 1)),
             _ => None,
         };
-        let next = index_move(len, cur, forward)?;
+        let next = match cur {
+            Some(_) => index_move(len, cur, forward)?,
+            // A fresh forward walk starts on the list BODY (the
+            // mouse-selected anchor when one exists, else the first
+            // list row), NOT at index 0: the strip records Close
+            // first, and starting there puts Enter one keypress away
+            // from closing the panel while the user meant "go to the
+            // rows below" (live QA on the Hosts tree, whose search
+            // holds real focus with no ring). Same landing rule as
+            // arrow entry; Close and the header stay reachable by
+            // walking on (the walk wraps). Backward keeps the
+            // end-of-list start.
+            None if forward => {
+                let items = self.sidebar_items_for(tab).borrow();
+                items
+                    .iter()
+                    .position(|r| r.anchor)
+                    .or_else(|| items.iter().position(|r| r.list))
+                    // No list rows this frame (empty tab body): start
+                    // on the first row after Close (index 0), so an
+                    // empty Snippets list lands on "+ SNIPPET", not on
+                    // the panel's own close button.
+                    .unwrap_or(1.min(len - 1))
+            }
+            None => len - 1,
+        };
         self.keynav.sidebar_selected = Some((tab, next));
         let action = self.sidebar_items_for(tab).borrow().get(next)?.action.clone();
         let step = match action.focus {
@@ -553,8 +584,11 @@ impl Oryxis {
             current
         };
         // Open the target's region (a no-op when already open) and
-        // make the target its shown tab.
-        let target_side = self.prefs.sidebar_tab_side(target);
+        // make the target its shown tab. Targets come from
+        // `sidebar_region_tabs`, so they always have a side.
+        let Some(target_side) = self.prefs.sidebar_tab_side(target) else {
+            return Task::none();
+        };
         if let Some(tab) = self.tabs.get_mut(idx) {
             tab.sidebar_open[target_side.idx()] = true;
         }

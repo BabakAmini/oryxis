@@ -31,9 +31,10 @@ impl Oryxis {
 
     /// Whether a sidebar tab is offered at all for the active terminal
     /// tab: its feature toggles plus the focused pane's transport.
-    /// Snippets / History / Host config / Hosts never gate, which is
-    /// what guarantees the RIGHT region always has content and lets a
-    /// LEFT region holding only the hosts tree survive any pane.
+    /// Snippets / History / Host config / Hosts never gate, so a
+    /// region holding any of them survives any pane. (Placement is a
+    /// separate axis: a HIDDEN tab never reaches the region filters,
+    /// available or not.)
     pub(crate) fn sidebar_tab_available(&self, tab: TerminalSidebarTab) -> bool {
         match tab {
             TerminalSidebarTab::Chat => self.ai.enabled,
@@ -49,11 +50,14 @@ impl Oryxis {
         }
     }
 
-    /// The tabs a region offers right now, in strip order.
+    /// The tabs a region offers right now, in strip order (hidden
+    /// tabs are on no side, so they never appear).
     pub(crate) fn sidebar_region_tabs(&self, side: SidebarSide) -> Vec<TerminalSidebarTab> {
         TerminalSidebarTab::ALL
             .into_iter()
-            .filter(|t| self.prefs.sidebar_tab_side(*t) == side && self.sidebar_tab_available(*t))
+            .filter(|t| {
+                self.prefs.sidebar_tab_side(*t) == Some(side) && self.sidebar_tab_available(*t)
+            })
             .collect()
     }
 
@@ -62,7 +66,7 @@ impl Oryxis {
     pub(crate) fn sidebar_region_has_tabs(&self, side: SidebarSide) -> bool {
         TerminalSidebarTab::ALL
             .into_iter()
-            .any(|t| self.prefs.sidebar_tab_side(t) == side && self.sidebar_tab_available(t))
+            .any(|t| self.prefs.sidebar_tab_side(t) == Some(side) && self.sidebar_tab_available(t))
     }
 
     /// The tab a region shows: the remembered active tab when it still
@@ -70,7 +74,7 @@ impl Oryxis {
     /// first offer, else `None` (empty region, nothing renders).
     pub(crate) fn sidebar_region_tab(&self, side: SidebarSide) -> Option<TerminalSidebarTab> {
         let want = self.terminal_sidebar_tab[side.idx()];
-        if self.prefs.sidebar_tab_side(want) == side && self.sidebar_tab_available(want) {
+        if self.prefs.sidebar_tab_side(want) == Some(side) && self.sidebar_tab_available(want) {
             return Some(want);
         }
         self.sidebar_region_tabs(side).into_iter().next()
@@ -107,52 +111,64 @@ impl Oryxis {
     /// Whether a sidebar tab is actually on screen right now: its
     /// region is open on the active terminal tab and resolves to it.
     /// The "should I refresh what this tab shows" gate (History
-    /// follows the focused pane, etc.).
+    /// follows the focused pane, etc.). Hidden tabs are never shown.
     pub(crate) fn sidebar_tab_shown(&self, tab: TerminalSidebarTab) -> bool {
-        let side = self.prefs.sidebar_tab_side(tab);
+        let Some(side) = self.prefs.sidebar_tab_side(tab) else {
+            return false;
+        };
         self.active_sidebar_shown(side) && self.sidebar_region_tab(side) == Some(tab)
     }
 
     /// Make `tab` the active tab of its own region (the region is
-    /// looked up, never passed, so a caller can't desync them).
+    /// looked up, never passed, so a caller can't desync them). A
+    /// hidden tab has no region, so it is never remembered as active.
     pub(crate) fn set_sidebar_region_tab(&mut self, tab: TerminalSidebarTab) {
-        let side = self.prefs.sidebar_tab_side(tab);
-        self.terminal_sidebar_tab[side.idx()] = tab;
+        if let Some(side) = self.prefs.sidebar_tab_side(tab) {
+            self.terminal_sidebar_tab[side.idx()] = tab;
+        }
     }
 
-    /// A tab changed sides in Settings. Make it active on its new
-    /// region (the user is configuring it, losing it behind another
-    /// tab would read as a silent no-op) and let the old region's
-    /// remembered tab re-resolve on the next read; if the moved tab
-    /// was showing in an open region, carry the open state over so
-    /// the tab visibly travels instead of vanishing.
-    pub(crate) fn sidebar_tab_moved(&mut self, tab: TerminalSidebarTab, to: SidebarSide) {
-        let from = to.other();
-        let was_showing = self.terminal_sidebar_tab[from.idx()] == tab;
-        self.terminal_sidebar_tab[to.idx()] = tab;
-        if was_showing {
-            let from_open = self
-                .active_tab
-                .and_then(|i| self.tabs.get(i))
-                .is_some_and(|t| t.sidebar_visible(from));
-            if from_open {
-                // Only collapse the old region when the move emptied
-                // it; otherwise it re-resolves to its next tab and
-                // stays. Computed against the ALREADY-updated prefs.
-                let collapse_from = !self.sidebar_region_has_tabs(from);
-                if let Some(idx) = self.active_tab
-                    && let Some(ttab) = self.tabs.get_mut(idx)
-                {
-                    ttab.sidebar_open[to.idx()] = true;
-                    if collapse_from {
-                        ttab.sidebar_open[from.idx()] = false;
+    /// A tab's placement changed in Settings. Moving to a REGION
+    /// makes it active there (the user is configuring it, losing it
+    /// behind another tab would read as a silent no-op), carrying the
+    /// open state over from the other region when the tab was showing
+    /// there so it visibly travels instead of vanishing. Hiding needs
+    /// no handoff: the regions re-resolve on the next read.
+    pub(crate) fn sidebar_tab_moved(
+        &mut self,
+        tab: TerminalSidebarTab,
+        to: crate::state::SidebarPlacement,
+    ) {
+        if let Some(to_side) = to.side() {
+            let from = to_side.other();
+            let was_showing = self.terminal_sidebar_tab[from.idx()] == tab;
+            self.terminal_sidebar_tab[to_side.idx()] = tab;
+            if was_showing {
+                let from_open = self
+                    .active_tab
+                    .and_then(|i| self.tabs.get(i))
+                    .is_some_and(|t| t.sidebar_visible(from));
+                if from_open {
+                    // Only collapse the old region when the move
+                    // emptied it; otherwise it re-resolves to its next
+                    // tab and stays. Computed against the
+                    // ALREADY-updated prefs.
+                    let collapse_from = !self.sidebar_region_has_tabs(from);
+                    if let Some(idx) = self.active_tab
+                        && let Some(ttab) = self.tabs.get_mut(idx)
+                    {
+                        ttab.sidebar_open[to_side.idx()] = true;
+                        if collapse_from {
+                            ttab.sidebar_open[from.idx()] = false;
+                        }
                     }
                 }
             }
         }
         // A ring engaged on the moved tab points at rows that next
-        // frame will re-record in the other region's list; drop it
-        // rather than let a stale (tab, idx) pair act on the wrong row.
+        // frame will re-record in another region's list (or nowhere,
+        // when hiding); drop it rather than let a stale (tab, idx)
+        // pair act on the wrong row.
         if self.keynav.sidebar_selected.is_some_and(|(t, _)| t == tab) {
             self.keynav.sidebar_selected = None;
         }

@@ -572,19 +572,16 @@ impl Oryxis {
                 self.prefs.sidebar_tab_sides = crate::state::AppPrefs::parse_sidebar_tab_sides(&v);
             } else if let Ok(Some(v)) = vault.get_setting("terminal_sidebar_side") {
                 // Pre-#102 whole-sidebar dock (issue #85): "left" moved
-                // every tab at once. Grandfather it as explicit Left
-                // choices for the tabs that existed then, so the user's
-                // layout survives; the new HostsTree tab keeps its own
-                // Left default either way. Read-only migration: the new
-                // key is only written when the user next touches a
+                // every tab at once, so the migration moves every tab
+                // (HostsTree included: it joins whichever region the
+                // user's sidebar lived in). Read-only migration: the
+                // new key is only written when the user next touches a
                 // location picker.
                 if v == "left" {
                     for tab in crate::state::TerminalSidebarTab::ALL {
-                        if tab != crate::state::TerminalSidebarTab::HostsTree {
-                            self.prefs
-                                .sidebar_tab_sides
-                                .insert(tab, crate::state::SidebarSide::Left);
-                        }
+                        self.prefs
+                            .sidebar_tab_sides
+                            .insert(tab, crate::state::SidebarPlacement::Left);
                     }
                 }
             }

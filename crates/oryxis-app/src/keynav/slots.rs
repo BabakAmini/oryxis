@@ -448,8 +448,13 @@ impl crate::app::Oryxis {
     ) -> iced::Element<'a, Message> {
         let is_input = row.action.focus.is_some();
         // The row lands in its REGION's list: the tab that records it
-        // names the region via its dock side (issue #102).
-        let side = self.prefs.sidebar_tab_side(tab);
+        // names the region via its dock side (issue #102). A hidden
+        // tab never renders, so the fallback is unreachable; Right
+        // keeps a misuse harmless rather than panicking mid-view.
+        let side = self
+            .prefs
+            .sidebar_tab_side(tab)
+            .unwrap_or(crate::state::SidebarSide::Right);
         let idx = {
             let mut items = self.keynav.sidebar_items[side.idx()].borrow_mut();
             items.push(row);

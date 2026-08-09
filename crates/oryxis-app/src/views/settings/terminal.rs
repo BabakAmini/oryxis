@@ -54,14 +54,14 @@ impl Oryxis {
         .into()
     }
 
-    /// Per-tab dock-side pickers (issue #102): every sidebar tab
-    /// chooses the LEFT or RIGHT region, replacing the pre-#102
-    /// whole-sidebar left/right toggle. Same global gating as the
-    /// default-tab picker above (an app-wide-off feature hides all
-    /// of its UI); per-session gates (no live SSH) don't apply to a
-    /// persisted location.
+    /// Per-tab placement pickers (issue #102): every sidebar tab
+    /// chooses the LEFT or RIGHT region, or HIDDEN for tabs the user
+    /// never wants, replacing the pre-#102 whole-sidebar left/right
+    /// toggle. Same global gating as the default-tab picker above (an
+    /// app-wide-off feature hides all of its UI); per-session gates
+    /// (no live SSH) don't apply to a persisted location.
     fn sidebar_tab_side_rows(&self) -> Element<'_, Message> {
-        use crate::state::{SidebarSide, TerminalSidebarTab as STab};
+        use crate::state::{SidebarPlacement, TerminalSidebarTab as STab};
         let tabs: Vec<STab> = STab::ALL
             .into_iter()
             .filter(|t| match t {
@@ -72,9 +72,10 @@ impl Oryxis {
                 _ => true,
             })
             .collect();
-        let side_label =
-            |s: SidebarSide| crate::i18n::t(s.label_key()).to_string();
-        let options: Vec<String> = SidebarSide::BOTH.iter().map(|s| side_label(*s)).collect();
+        let placement_label =
+            |p: SidebarPlacement| crate::i18n::t(p.label_key()).to_string();
+        let options: Vec<String> =
+            SidebarPlacement::ALL.iter().map(|p| placement_label(*p)).collect();
         let mut col = column![
             text(crate::i18n::t("sidebar_tab_locations"))
                 .size(12)
@@ -86,7 +87,7 @@ impl Oryxis {
             Space::new().height(6),
         ];
         for tab in tabs {
-            let selected = side_label(self.prefs.sidebar_tab_side(tab));
+            let selected = placement_label(self.prefs.sidebar_tab_placement(tab));
             col = col.push(self.nav_pick_row(
                 crate::i18n::t(tab.label_key()),
                 options.clone(),
@@ -95,14 +96,15 @@ impl Oryxis {
                 140.0,
                 move |v| {
                     // The picker hands back the translated label; map
-                    // it to the side's stable code before it travels.
-                    let side = SidebarSide::BOTH
+                    // it to the placement's stable code before it
+                    // travels.
+                    let placement = SidebarPlacement::ALL
                         .into_iter()
-                        .find(|s| crate::i18n::t(s.label_key()) == v)
-                        .unwrap_or_else(|| tab.default_side());
+                        .find(|p| crate::i18n::t(p.label_key()) == v)
+                        .unwrap_or_else(|| tab.default_placement());
                     Message::Settings(SettingsMessage::SidebarTabSideChanged(
                         tab,
-                        side.code().to_string(),
+                        placement.code().to_string(),
                     ))
                 },
             ));

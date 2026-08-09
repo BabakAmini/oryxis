@@ -238,10 +238,14 @@ impl Oryxis {
                 };
                 if auto_open {
                     use crate::state::SidebarSide;
+                    // The default tab's region when it has one (a
+                    // hidden default can't be opened onto); else the
+                    // historical right, falling back to left only
+                    // when every tab is docked there.
                     let side = self
                         .prefs
                         .sidebar_default_tab
-                        .map(|t| self.prefs.sidebar_tab_side(t))
+                        .and_then(|t| self.prefs.sidebar_tab_side(t))
                         .unwrap_or_else(|| {
                             if self.prefs.sidebar_tabs_on(SidebarSide::Right).is_empty() {
                                 SidebarSide::Left

@@ -31,7 +31,7 @@ impl Oryxis {
                     // remembered tab, which `sidebar_region_tab` already
                     // re-resolves against the region's gates per frame.
                     if let Some(default) = self.prefs.sidebar_default_tab
-                        && self.prefs.sidebar_tab_side(default) == side
+                        && self.prefs.sidebar_tab_side(default) == Some(side)
                         && self.sidebar_tab_available(default)
                     {
                         self.set_sidebar_region_tab(default);
@@ -59,7 +59,7 @@ impl Oryxis {
                     // in the background. Only when Chat lived here: closing
                     // the other region must not kill a visible chat.
                     if self.prefs.sidebar_tab_side(crate::state::TerminalSidebarTab::Chat)
-                        == side
+                        == Some(side)
                     {
                         self.abort_active_chat_task();
                     }
@@ -72,7 +72,7 @@ impl Oryxis {
                     if self
                         .keynav
                         .sidebar_selected
-                        .is_some_and(|(t, _)| self.prefs.sidebar_tab_side(t) == side)
+                        .is_some_and(|(t, _)| self.prefs.sidebar_tab_side(t) == Some(side))
                     {
                         self.keynav.sidebar_selected = None;
                     }
@@ -115,6 +115,16 @@ impl Oryxis {
             AiMessage::HostsTreeToggleGroup(gid) => {
                 if !self.hosts_tree_expanded.remove(&gid) {
                     self.hosts_tree_expanded.insert(gid);
+                    // Expanding a dynamic (cloud-query) group kicks
+                    // off or refreshes its resolve, behind the same
+                    // TTL gate as the dashboard's OpenGroup and the
+                    // new-tab picker, so the ECS tasks / K8s pods are
+                    // already loading by the time the rows render.
+                    if self.dynamic_group_needs_resolve(gid) {
+                        return self.handle_cloud(
+                            crate::app::CloudMessage::DynamicGroupResolve(gid),
+                        );
+                    }
                 }
             }
             AiMessage::HostsTreeSearchChanged(v) => {

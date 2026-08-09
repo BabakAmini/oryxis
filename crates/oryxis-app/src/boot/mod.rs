@@ -566,10 +566,12 @@ impl Oryxis {
                 local_terminal_add_open: false,
                 local_shell_picker_open: false,
                 terminal_sidebar_tab: [
-                    // Left region remembers the hosts tree (its only
-                    // default resident), right keeps the historical
-                    // Chat default; both re-resolve against the
-                    // region's actual offers on every read.
+                    // Remembered active tab per region. Every tab
+                    // defaults to the RIGHT region, so the left seed
+                    // only matters once the user docks something
+                    // there (the hosts tree being the likely mover);
+                    // both re-resolve against the region's actual
+                    // offers on every read.
                     crate::state::TerminalSidebarTab::HostsTree,
                     crate::state::TerminalSidebarTab::default(),
                 ],
