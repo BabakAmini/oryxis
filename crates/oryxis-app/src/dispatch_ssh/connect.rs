@@ -324,6 +324,29 @@ impl Oryxis {
                 self.active_tab = Some(tab_idx);
                 self.remember_terminal_tab_focus(tab_idx);
 
+                // Connection reuse (F2), the tab path. "Duplicate tab"
+                // and a second open of the same host both land here, so
+                // this is where reuse actually pays: the pane exists,
+                // the progress card is up, and the live connection can
+                // carry the new session without another handshake.
+                //
+                // The card is cleared right away because none of the
+                // stages it shows (dial, kex, auth, jump hops) are
+                // about to happen; leaving it up would narrate work
+                // that is not being done.
+                let reuse_origin = match origin {
+                    crate::state::ProgressOrigin::Saved(_) => Some(conn.id),
+                    crate::state::ProgressOrigin::Quick(id) => Some(id),
+                };
+                if let Some(o) = reuse_origin {
+                    let key = crate::ssh_reuse::ReuseKey::new(o, &conn);
+                    if let Some(transport) = self.pooled_transport(&key) {
+                        self.connecting = None;
+                        self.active_view = crate::state::View::Terminal;
+                        return self.spawn_reused_session(transport, conn, tab_idx, pane_id);
+                    }
+                }
+
                 // Host key verification: check callback + ask channel
                 let known_hosts_snapshot: Arc<Mutex<Vec<oryxis_core::models::known_host::KnownHost>>> =
                     Arc::new(Mutex::new(self.known_hosts.clone()));
@@ -1181,7 +1204,92 @@ impl Oryxis {
         conn.env_vars = effective.env_vars;
     }
 
-    fn spawn_ssh_for_pane_conn(
+    /// Open a pane on a connection that is already up (F2 reuse).
+    ///
+    /// The engine is rebuilt for this host because the CHANNEL still
+    /// carries per-host settings (terminal type, env vars, agent and
+    /// X11 forwarding); everything negotiated per CONNECTION belongs to
+    /// the transport and is whatever the original dial agreed.
+    ///
+    /// A failure here is not shown to the user: it means the pooled
+    /// connection turned out to be unusable (half-dead, or the server
+    /// is at its channel cap), and the answer is the ordinary dial, not
+    /// an error. The retry re-enters `spawn_ssh_for_pane_conn` with the
+    /// pool entry already pruned, so it cannot loop.
+    fn spawn_reused_session(
+        &mut self,
+        transport: std::sync::Arc<oryxis_ssh::SshTransport>,
+        conn: oryxis_core::models::Connection,
+        tab_idx: usize,
+        pane_id: Uuid,
+    ) -> Task<Message> {
+        let (cols, rows) = self
+            .tabs
+            .get(tab_idx)
+            .and_then(|t| t.pane_grid.panes.values().find(|p| p.id == pane_id))
+            .and_then(|p| p.terminal.lock().ok().map(|t| (t.cols(), t.rows())))
+            .unwrap_or((DEFAULT_TERM_COLS as u16, DEFAULT_TERM_ROWS as u16));
+        let env_vars: Vec<(String, String)> = conn
+            .env_vars
+            .iter()
+            .filter(|e| !e.key.trim().is_empty())
+            .map(|e| (e.key.clone(), e.value.clone()))
+            .collect();
+        let engine = oryxis_ssh::SshEngine::new()
+            .with_agent_forwarding(conn.agent_forwarding)
+            .with_x11_forwarding(conn.x11_forwarding)
+            .with_env_vars(env_vars)
+            .with_encoding(conn.encoding.clone())
+            .with_terminal_type(conn.terminal_type.clone());
+        tracing::info!(host = %conn.hostname, "reusing the live connection for a new session");
+        // Same stream shape the dial uses, minus the dial: Connected,
+        // then the bytes, then Disconnected. Reusing the shape is what
+        // keeps the pane wiring (logging, cwd tracking, the terminal
+        // feed) identical whether the session was dialled or reused.
+        let stream = iced::stream::channel::<PaneConnMsg>(128, move |mut sender: iced::futures::channel::mpsc::Sender<PaneConnMsg>| async move {
+            match engine.open_session_on(transport, cols as u32, rows as u32).await {
+                Ok((session, mut rx)) => {
+                    let session = Arc::new(session);
+                    let _ = sender.send(PaneConnMsg::Connected(session)).await;
+                    while let Some(data) = rx.recv().await {
+                        if sender.send(PaneConnMsg::Data(data)).await.is_err() {
+                            break;
+                        }
+                    }
+                    let _ = sender.send(PaneConnMsg::Disconnected).await;
+                }
+                // The pooled connection turned out to be unusable. Not
+                // the user's problem: `Error` here routes to the retry
+                // below, which dials for real.
+                Err(e) => {
+                    let _ = sender.send(PaneConnMsg::Error(e.to_string())).await;
+                }
+            }
+        });
+        Task::stream(stream).map(move |m| match m {
+            PaneConnMsg::Connected(s) => Message::Ssh(SshMessage::SshConnected(
+                pane_id,
+                crate::state::TerminalTransport::Ssh(s),
+            )),
+            PaneConnMsg::Data(d) => Message::Terminal(TerminalMessage::PtyOutput(pane_id, d)),
+            PaneConnMsg::Disconnected => Message::Ssh(SshMessage::SshDisconnected(pane_id)),
+            // Reuse failed before the session existed: fall back to a
+            // real dial. The pool entry is already pruned (the lookup
+            // that handed out this transport removes it on any doubt,
+            // and a channel-open failure proves the doubt), so the
+            // retry cannot pick the same dead connection and loop.
+            PaneConnMsg::Error(reason) => {
+                tracing::info!(%reason, "connection reuse failed, dialling fresh");
+                Message::Ssh(SshMessage::ReuseFailedDialFresh(pane_id, tab_idx))
+            }
+            // A reused session never negotiates, so these cannot happen.
+            PaneConnMsg::HostKey(_) | PaneConnMsg::Kbi(_) | PaneConnMsg::Banner(_) => {
+                Message::NoOp
+            }
+        })
+    }
+
+    pub(super) fn spawn_ssh_for_pane_conn(
         &mut self,
         mut conn: oryxis_core::models::Connection,
         quick_id: Option<Uuid>,
@@ -1220,6 +1328,27 @@ impl Oryxis {
             oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }
         self.apply_group_inheritance(&mut conn);
+
+        // Connection reuse (F2): a tab to a host that is already open
+        // rides the live connection instead of paying for a handshake,
+        // a key exchange, an authentication and, on a jump chain, all
+        // of that per hop. Tried BEFORE any credential is resolved,
+        // because a reused connection needs none of them.
+        //
+        // The key is built from the resolved connection, so a host that
+        // inherits its user from a group keys on what it actually
+        // authenticates as.
+        let reuse_origin = match quick_id {
+            Some(id) => Some(id),
+            None => Some(conn.id),
+        };
+        if let Some(origin) = reuse_origin {
+            let key = crate::ssh_reuse::ReuseKey::new(origin, &conn);
+            if let Some(transport) = self.pooled_transport(&key) {
+                return self.spawn_reused_session(transport, conn, tab_idx, pane_id);
+            }
+        }
+
         let (mut password, private_key, certificate) = self.resolve_forward_credentials(&conn);
         // Agent-auth pin (B3), same rule as the tab connect.
         let pinned_agent = self.pinned_agent_public(&conn);

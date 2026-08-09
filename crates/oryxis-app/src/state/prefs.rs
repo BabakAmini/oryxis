@@ -362,6 +362,14 @@ pub(crate) struct AppPrefs {
     /// until it is opened, and whether a host runs tmux is a question
     /// the host itself answers.
     pub(crate) tmux_manager: bool,
+    /// Open a second tab to an already-connected host on the existing
+    /// SSH connection instead of dialling again (F2). On by default:
+    /// it removes a handshake, a key exchange and an authentication
+    /// (and, on a jump chain, all of that per hop) from every repeat
+    /// open. Off makes every tab dial fresh, which is what a server
+    /// with a low `MaxSessions` wants, though hitting that cap already
+    /// falls back on its own.
+    pub(crate) ssh_connection_reuse: bool,
     /// Vault navigation orientation: `"horizontal"` (default) renders the
     /// sub-sections as a pill strip beneath the top bar; `"vertical"`
     /// renders them as an icon rail on the left of the vault content. The
@@ -584,6 +592,7 @@ impl Default for AppPrefs {
             host_monitoring_seeded: false,
             monitor_all_hosts: false,
             tmux_manager: false,
+            ssh_connection_reuse: true,
             nav_orientation: "horizontal".into(),
             language_choice: "auto".into(),
             nav_rail_expanded: false,

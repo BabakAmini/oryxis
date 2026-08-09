@@ -801,6 +801,10 @@ pub struct Oryxis {
     /// PANE, keyed that way because the pane owns the SSH session the
     /// listing was read over. RAM only, never persisted or synced.
     pub(crate) tmux: crate::tmux::TmuxState,
+    /// Live SSH connections a second tab can ride (F2). `Weak` only:
+    /// the sessions own the transports, so the pool never keeps a
+    /// connection alive and a dead entry is pruned on next lookup.
+    pub(crate) ssh_transport_pool: crate::ssh_reuse::TransportPool,
     /// Multi-host dashboard links (issue #95). Samples go into
     /// `monitor.series` like the sidebar's, so the two surfaces can
     /// never disagree about a host.

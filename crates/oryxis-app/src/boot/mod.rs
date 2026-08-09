@@ -449,6 +449,7 @@ impl Oryxis {
                 theme_ui: crate::state::ThemeEditorUi::default(),
                 monitor: Default::default(),
                 tmux: Default::default(),
+                ssh_transport_pool: Default::default(),
                 monitor_dash: Default::default(),
                 monitor_stamp: 0,
                 monitor_error: None,

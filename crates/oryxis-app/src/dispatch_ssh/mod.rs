@@ -105,6 +105,7 @@ impl Oryxis {
             | SshMessage::SshPaneBanner(..)) => self.handle_ssh_progress(m),
             m @ (SshMessage::SshConnected(..)
             | SshMessage::OsDetected(..)
+            | SshMessage::ReuseFailedDialFresh(..)
             | SshMessage::SshDisconnected(..)) => self.handle_ssh_session(m),
             m @ (SshMessage::PaneConnectError(..)
             | SshMessage::SshError(..)) => self.handle_ssh_errors(m),

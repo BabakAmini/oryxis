@@ -145,6 +145,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     // ── Connection ─────────────────────────────────────────────────
     e(S::Connection, "new_connection_defaults", "new connection defaults host template"),
     e(S::Connection, "forward_ssh_agent", "forward ssh agent forwarding default"),
+    e(S::Connection, "setting_connection_reuse", "reuse share ssh connection second tab controlmaster multiplex"),
     e(S::Connection, "port", "default port ssh 22 number"),
     e(S::Connection, "host_keepalive", "keepalive override default interval seconds"),
     e(S::Connection, "host_terminal_type", "terminal type term xterm environment"),

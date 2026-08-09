@@ -279,6 +279,9 @@ pub enum SettingsMessage {
     SettingToggleHostMonitoring,
     /// Monitoring section: "Enable for all hosts" (issue #83).
     SettingToggleMonitorAllHosts,
+    /// Settings > Connection: reuse a live SSH connection for a second
+    /// tab to the same host (F2).
+    SettingToggleConnectionReuse,
     /// Features & Plugins: master toggle for the tmux session manager
     /// (issue #116). Gates the sidebar tab and everything it owns.
     SettingToggleTmuxManager,

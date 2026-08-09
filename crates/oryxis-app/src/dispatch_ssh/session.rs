@@ -11,6 +11,30 @@ use super::*;
 impl Oryxis {
     pub(super) fn handle_ssh_session(&mut self, message: SshMessage) -> Task<Message> {
         match message {
+            SshMessage::ReuseFailedDialFresh(pane_id, tab_idx) => {
+                // The pooled connection could not carry another session
+                // (a server at its `MaxSessions` cap, or a link that
+                // died between the health check and the channel open).
+                // Forget it and dial for real. Dropping the entry FIRST
+                // is what makes this terminate: without it the retry
+                // would find the same dead transport and bounce here
+                // again.
+                if let Some(key) = self.reuse_key_for_pane(pane_id) {
+                    self.ssh_transport_pool.remove(&key);
+                }
+                let Some(conn) = self.pane_origin_connection(pane_id).cloned() else {
+                    return Task::none();
+                };
+                let quick_id = self
+                    .tabs
+                    .iter()
+                    .find_map(|t| t.pane_grid.panes.values().find(|p| p.id == pane_id))
+                    .and_then(|p| match p.origin {
+                        crate::state::PaneOrigin::QuickHost(id) => Some(id),
+                        _ => None,
+                    });
+                return self.spawn_ssh_for_pane_conn(conn, quick_id, tab_idx, pane_id);
+            }
             SshMessage::SshConnected(pane_id, session) => {
                 // A dial that outlived its pane: an in-place reconnect
                 // re-keyed the pane (or its tab closed) while this
@@ -45,6 +69,18 @@ impl Oryxis {
                     };
                     // Returns Task::none(); the toast itself is state.
                     let _ = self.show_toast_secs(msg, 8);
+                }
+                // Park this connection in the reuse pool (F2) so the
+                // next tab to the same host rides it instead of dialling
+                // again. Registered HERE rather than inside the async
+                // dial because the pool lives on `self`, and this is the
+                // first point that holds both. Re-registering after a
+                // reuse is harmless: the key and the transport are the
+                // same, so the insert is a no-op in effect.
+                if let Some(ssh) = session.ssh()
+                    && let Some(key) = self.reuse_key_for_pane(pane_id)
+                {
+                    self.remember_transport(key, ssh);
                 }
                 let (detect_for, login_script_task) = match self.pane_tab_index(pane_id) {
                     Some(tab_idx) => self.wire_connected_pane(tab_idx, pane_id, &session),
@@ -133,6 +169,11 @@ impl Oryxis {
                 // Persist whatever this pane recorded before we mark the
                 // log ended; otherwise the tail of the session is lost.
                 self.flush_session_logs_final();
+                // Drop reuse entries whose connection is gone. The pool
+                // holds `Weak`s, so a dead entry is harmless, but
+                // pruning here keeps it from growing one per host per
+                // app run.
+                self.prune_transport_pool();
                 if let Some(tab_idx) = self.pane_tab_index(pane_id) {
                     let label = self.tabs[tab_idx].label.replace(" (disconnected)", "");
                     // Monitor samples belong to the dead session: the

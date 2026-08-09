@@ -6,6 +6,23 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- **A second tab to a host reuses the connection it already has.**
+  Opening another tab (or duplicating one) to a host that is connected
+  now opens a channel on the live connection instead of paying for a
+  TCP handshake, a key exchange and an authentication again, and on a
+  jump chain, all of that per hop. It also cannot ask for a host key or
+  a second factor, because the connection it rides was already verified
+  and authenticated. The connection closes when its LAST tab does, so
+  closing one of two leaves the other working. Where a link is shared,
+  the status bar's latency tooltip says so: when a shared connection
+  drops, every tab on it drops at the same instant, and that reads as
+  several tabs breaking for no reason unless the app says otherwise.
+  Reuse is silent about failure by design: a pooled connection that
+  turns out to be unusable (a server at its session cap, a link that
+  died between checks) just dials fresh. Settings > Connection has the
+  switch, on by default.
+
 ### Fixed
 - **The latency segment stops claiming a dead link is fast.** The status
   bar's RTT read the last successful round trip, which keeps its value

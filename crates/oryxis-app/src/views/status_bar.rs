@@ -101,7 +101,8 @@ impl Oryxis {
         if let Some(pane) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active()) {
             if self.prefs.status_show_latency
                 && let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
-                && let Some(segment) = latency_segment(&ssh.net_quality())
+                && let Some(segment) =
+                    latency_segment(&ssh.net_quality(), self.pane_shares_connection(pane))
             {
                 items.push(segment);
                 items.push(Space::new().width(12).into());
@@ -415,6 +416,7 @@ fn latency_reading(snapshot: &oryxis_ssh::NetQualitySnapshot) -> Option<(String,
 /// round trip to report, and inventing one would be worse than silence).
 fn latency_segment(
     snapshot: &oryxis_ssh::NetQualitySnapshot,
+    shared: bool,
 ) -> Option<Element<'static, Message>> {
     let (value, color) = latency_reading(snapshot)?;
     let segment = vital(crate::i18n::t("status_latency"), value, color);
@@ -424,11 +426,19 @@ fn latency_segment(
         d.map(|d| d.as_millis().to_string())
             .unwrap_or_else(|| "-".to_string())
     };
-    let tip = crate::i18n::t("net_latency_tip")
+    let mut tip = crate::i18n::t("net_latency_tip")
         .replace("{avg}", &ms(snapshot.avg_rtt))
         .replace("{peak}", &ms(snapshot.peak_rtt))
         .replace("{jitter}", &ms(snapshot.jitter))
         .replace("{timeouts}", &snapshot.timeouts.to_string());
+    // A shared connection is a user-visible fact, not an implementation
+    // detail: every tab riding it dies at the same instant when it
+    // drops, and without saying so that reads as several tabs breaking
+    // at once for no reason.
+    if shared {
+        tip.push('\n');
+        tip.push_str(crate::i18n::t("net_shared_connection"));
+    }
     Some(crate::views::terminal::icon_tooltip_owned(segment, tip))
 }
 

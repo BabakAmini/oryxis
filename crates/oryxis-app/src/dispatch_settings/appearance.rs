@@ -100,6 +100,21 @@ impl Oryxis {
                     self.monitor_disks_open = true;
                 }
             }
+            SettingsMessage::SettingToggleConnectionReuse => {
+                self.prefs.ssh_connection_reuse = !self.prefs.ssh_connection_reuse;
+                self.persist_setting(
+                    "ssh_connection_reuse",
+                    if self.prefs.ssh_connection_reuse { "true" } else { "false" },
+                );
+                if !self.prefs.ssh_connection_reuse {
+                    // Stop offering the pooled connections. Live
+                    // sessions already sharing one are untouched: the
+                    // setting governs what the NEXT tab does, and
+                    // tearing down working tabs to honour a preference
+                    // change would be the opposite of what it asks for.
+                    self.ssh_transport_pool.clear();
+                }
+            }
             SettingsMessage::SettingToggleTmuxManager => {
                 self.prefs.tmux_manager = !self.prefs.tmux_manager;
                 self.persist_setting(

@@ -21,6 +21,12 @@ pub enum SshMessage {
     /// written straight to that pane's terminal.
     SshPaneBanner(Uuid, String),
     SshConnected(Uuid, crate::state::TerminalTransport),  // (pane_id, transport)
+    /// Opening a session on a pooled connection failed (F2 reuse), so
+    /// the pane dials for real: `(pane_id, tab_idx)`. Never surfaced to
+    /// the user; a pooled connection that turns out to be unusable is
+    /// an optimisation missing, not an error.
+    ReuseFailedDialFresh(Uuid, usize),
+
     SshDisconnected(Uuid),  // (pane_id)
     SshError(String),
     /// Handshake hit "no common algorithm". Prompts the legacy-fallback

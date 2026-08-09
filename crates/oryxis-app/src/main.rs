@@ -115,6 +115,7 @@ mod shortcuts;
 mod smart_tabs;
 mod importers;
 mod ssh_config;
+mod ssh_reuse;
 mod state;
 mod subscription;
 mod sync_runtime;

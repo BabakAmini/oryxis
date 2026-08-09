@@ -794,6 +794,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("tmux_manager_enabled") {
                 self.prefs.tmux_manager = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("ssh_connection_reuse") {
+                self.prefs.ssh_connection_reuse = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_split_ratio")
                 && let Ok(r) = v.parse::<f32>()
             {

@@ -329,6 +329,18 @@ impl Oryxis {
                     .into(),
             ),
             Space::new().height(16),
+            // Connection reuse (F2). On by default: it removes a
+            // handshake, a key exchange and an authentication from
+            // every repeat open, and the failover makes it safe.
+            self.nav_toggle_row(
+                crate::i18n::t("setting_connection_reuse"),
+                self.prefs.ssh_connection_reuse,
+                Message::Settings(SettingsMessage::SettingToggleConnectionReuse),
+            ),
+            Space::new().height(4),
+            text(t("setting_connection_reuse_hint"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(16),
             self.nav_toggle_row(
                 crate::i18n::t("auto_reconnect"),
                 self.prefs.auto_reconnect,
