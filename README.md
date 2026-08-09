@@ -152,6 +152,10 @@ Using tmux? **[Logs and command history under tmux](docs/TMUX.md)**
 explains what works out of the box and what you install yourself.
 Want the file browser to track your shell exactly?
 **[Following the shell's directory](docs/CWD.md)** has the snippet.
+Getting a copy of your vault off this machine, into a cloud folder or
+anywhere else? **[Backups and where to keep them](docs/BACKUP.md)**
+covers sync, export, and the tools that carry a file the rest of the
+way.
 
 ## Screenshots
 
@@ -266,9 +270,9 @@ tracks it interactively.
 - **Utilities:** CSV export of hosts, and an optional network tools
   panel (DNS, ping / traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
-  import, extra sync snapshot backends (any WebDAV server, and a plain
-  Git remote so any forge works rather than one vendor's API;
-  ciphertext only, as always), and one-click relay deploy (the app
+  import, extra sync snapshot backends (any WebDAV server, and any Git
+  remote through the `git` you already have installed, so every forge
+  works instead of one vendor's API; ciphertext only, as always), and one-click relay deploy (the app
   installs `oryxis-relay` on a host from your vault over SSH, with the
   script shown before it runs).
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
