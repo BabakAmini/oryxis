@@ -402,6 +402,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "status_show_cwd" => "Show current directory",
         "status_bar_align_left" => "Align content to the left",
         "status_latency" => "RTT",
+        "net_stalled" => "no reply {s}s",
+        "net_latency_tip" => "Average {avg} ms, peak {peak} ms, jitter {jitter} ms, {timeouts} timed out",
         "status_dimensions" => "Size",
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Dock the sidebar on the left",

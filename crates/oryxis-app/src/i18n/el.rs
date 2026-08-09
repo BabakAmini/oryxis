@@ -402,6 +402,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Εμφάνιση τρέχοντος καταλόγου",
         "status_bar_align_left" => "Στοίχιση περιεχομένου στα αριστερά",
         "status_latency" => "RTT",
+        "net_stalled" => "\u{3ba}\u{3b1}\u{3bc}\u{3af}\u{3b1} \u{3b1}\u{3c0}\u{3ac}\u{3bd}\u{3c4}\u{3b7}\u{3c3}\u{3b7} {s}\u{3b4}",
+        "net_latency_tip" => "\u{39c}\u{3ad}\u{3c3}\u{3bf}\u{3c2} \u{3cc}\u{3c1}\u{3bf}\u{3c2} {avg} ms, \u{3b1}\u{3b9}\u{3c7}\u{3bc}\u{3ae} {peak} ms, jitter {jitter} ms, {timeouts} \u{3bb}\u{3ae}\u{3be}\u{3b5}\u{3b9}\u{3c2} \u{3c7}\u{3c1}\u{3cc}\u{3bd}\u{3bf}\u{3c5}",
         "status_dimensions" => "Μέγ",
         "status_cwd" => "Κατ",
         "terminal_sidebar_left" => "Αγκύρωση της πλαϊνής μπάρας αριστερά",

@@ -1359,6 +1359,31 @@ fn sidebar_tab_btn<'a>(
 
 /// Wrap an icon control in a small bottom-anchored tooltip, the shared
 /// affordance for the sidebar tab strip and close affordances.
+/// `icon_tooltip` for a tip built at render time (a formatted figure, a
+/// path) rather than a borrowed `t(...)` literal. Same look; the owned
+/// String is what lets the element outlive the caller's frame-local.
+pub(crate) fn icon_tooltip_owned<'a>(
+    inner: Element<'a, Message>,
+    tip: String,
+) -> Element<'a, Message> {
+    iced::widget::tooltip(
+        inner,
+        container(text(tip).size(11).color(OryxisColors::t().text_primary))
+            .padding(Padding { top: 4.0, right: 8.0, bottom: 4.0, left: 8.0 })
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            }),
+        iced::widget::tooltip::Position::Bottom,
+    )
+    .into()
+}
+
 pub(crate) fn icon_tooltip<'a>(inner: Element<'a, Message>, tip: &'a str) -> Element<'a, Message> {
     iced::widget::tooltip(
         inner,

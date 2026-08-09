@@ -378,6 +378,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Aktuelles Verzeichnis anzeigen",
         "status_bar_align_left" => "Inhalt links ausrichten",
         "status_latency" => "RTT",
+        "net_stalled" => "keine Antwort seit {s}s",
+        "net_latency_tip" => "Mittel {avg} ms, Spitze {peak} ms, Jitter {jitter} ms, {timeouts} ohne Antwort",
         "status_dimensions" => "Größe",
         "status_cwd" => "Verz",
         "terminal_sidebar_left" => "Seitenleiste links andocken",

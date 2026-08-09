@@ -402,6 +402,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "แสดงไดเรกทอรีปัจจุบัน",
         "status_bar_align_left" => "จัดเนื้อหาชิดซ้าย",
         "status_latency" => "RTT",
+        "net_stalled" => "\u{e44}\u{e21}\u{e48}\u{e15}\u{e2d}\u{e1a}\u{e2a}\u{e19}\u{e2d}\u{e07} {s} \u{e27}\u{e34}\u{e19}\u{e32}\u{e17}\u{e35}",
+        "net_latency_tip" => "\u{e40}\u{e09}\u{e25}\u{e35}\u{e48}\u{e22} {avg} \u{e21}\u{e34}\u{e25}\u{e25}\u{e34}\u{e27}\u{e34}\u{e19}\u{e32}\u{e17}\u{e35} \u{e2a}\u{e39}\u{e07}\u{e2a}\u{e38}\u{e14} {peak} \u{e08}\u{e34}\u{e15}\u{e40}\u{e15}\u{e2d}\u{e23}\u{e4c} {jitter} \u{e2b}\u{e21}\u{e14}\u{e40}\u{e27}\u{e25}\u{e32} {timeouts} \u{e04}\u{e23}\u{e31}\u{e49}\u{e07}",
         "status_dimensions" => "ขนาด",
         "status_cwd" => "ไดเรกทอรี",
         "terminal_sidebar_left" => "ยึดแถบด้านข้างไว้ทางซ้าย",

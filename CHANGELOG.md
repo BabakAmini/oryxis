@@ -6,6 +6,16 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- **The latency segment stops claiming a dead link is fast.** The status
+  bar's RTT read the last successful round trip, which keeps its value
+  after the server goes quiet, so a connection that had stopped
+  answering still showed a healthy number. Silence now replaces the
+  measurement ("no reply 21s") instead of colouring it, and the figure
+  itself is colour-banded: green under 80 ms, amber under 250 ms, red
+  above, so the bar is glanceable rather than something to read. Hovering
+  gives the average, the peak, the jitter and how many probes timed out.
+
 ### Added
 - **Groups hand their settings down to the hosts inside them.** A group
   now carries defaults: login user, identity, proxy identity, terminal

@@ -378,6 +378,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "現在のディレクトリを表示",
         "status_bar_align_left" => "コンテンツを左揃えにする",
         "status_latency" => "RTT",
+        "net_stalled" => "{s} \u{79d2}\u{9593}\u{5fdc}\u{7b54}\u{306a}\u{3057}",
+        "net_latency_tip" => "\u{5e73}\u{5747} {avg} ms\u{3001}\u{6700}\u{5927} {peak} ms\u{3001}\u{30b8}\u{30c3}\u{30bf}\u{30fc} {jitter} ms\u{3001}\u{30bf}\u{30a4}\u{30e0}\u{30a2}\u{30a6}\u{30c8} {timeouts} \u{56de}",
         "status_dimensions" => "サイズ",
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "サイドバーを左に配置",

@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Pokaż bieżący katalog",
         "status_bar_align_left" => "Wyrównaj zawartość do lewej",
         "status_latency" => "RTT",
+        "net_stalled" => "brak odpowiedzi od {s}s",
+        "net_latency_tip" => "\u{15a}rednia {avg} ms, szczyt {peak} ms, jitter {jitter} ms, {timeouts} bez odpowiedzi",
         "status_dimensions" => "Rozm",
         "status_cwd" => "Kat",
         "terminal_sidebar_left" => "Zadokuj pasek boczny po lewej",

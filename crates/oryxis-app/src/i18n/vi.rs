@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Hiển thị thư mục hiện tại",
         "status_bar_align_left" => "Căn nội dung sang trái",
         "status_latency" => "RTT",
+        "net_stalled" => "kh\u{f4}ng ph\u{1ea3}n h\u{1ed3}i {s}s",
+        "net_latency_tip" => "Trung b\u{ec}nh {avg} ms, \u{111}\u{1ec9}nh {peak} ms, jitter {jitter} ms, {timeouts} l\u{1ea7}n qu\u{e1} h\u{1ea1}n",
         "status_dimensions" => "Cỡ",
         "status_cwd" => "Thư mục",
         "terminal_sidebar_left" => "Neo thanh bên sang trái",

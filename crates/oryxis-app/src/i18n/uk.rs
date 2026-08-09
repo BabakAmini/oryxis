@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Показувати поточний каталог",
         "status_bar_align_left" => "Вирівняти вміст ліворуч",
         "status_latency" => "RTT",
+        "net_stalled" => "\u{43d}\u{435}\u{43c}\u{430}\u{454} \u{432}\u{456}\u{434}\u{43f}\u{43e}\u{432}\u{456}\u{434}\u{456} {s} \u{441}",
+        "net_latency_tip" => "\u{421}\u{435}\u{440}\u{435}\u{434}\u{43d}\u{454} {avg} \u{43c}\u{441}, \u{43f}\u{456}\u{43a} {peak} \u{43c}\u{441}, \u{434}\u{436}\u{438}\u{442}\u{435}\u{440} {jitter} \u{43c}\u{441}, \u{442}\u{430}\u{439}\u{43c}-\u{430}\u{443}\u{442}\u{456}\u{432}: {timeouts}",
         "status_dimensions" => "Розм",
         "status_cwd" => "Кат",
         "terminal_sidebar_left" => "Закріпити бічну панель ліворуч",

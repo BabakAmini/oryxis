@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Geçerli dizini göster",
         "status_bar_align_left" => "İçeriği sola hizala",
         "status_latency" => "RTT",
+        "net_stalled" => "{s} sn yan\u{131}t yok",
+        "net_latency_tip" => "Ortalama {avg} ms, tepe {peak} ms, se\u{11f}irme {jitter} ms, {timeouts} zaman a\u{15f}\u{131}m\u{131}",
         "status_dimensions" => "Boyut",
         "status_cwd" => "Dizin",
         "terminal_sidebar_left" => "Kenar çubuğunu sola yerleştir",

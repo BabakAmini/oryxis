@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Tampilkan direktori saat ini",
         "status_bar_align_left" => "Ratakan konten ke kiri",
         "status_latency" => "RTT",
+        "net_stalled" => "tidak ada balasan {s} dtk",
+        "net_latency_tip" => "Rata-rata {avg} ms, puncak {peak} ms, jitter {jitter} ms, {timeouts} kehabisan waktu",
         "status_dimensions" => "Ukuran",
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Tempatkan bilah sisi di kiri",

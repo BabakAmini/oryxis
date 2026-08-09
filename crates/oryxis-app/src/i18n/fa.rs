@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "نمایش پوشه فعلی",
         "status_bar_align_left" => "تراز کردن محتوا به چپ",
         "status_latency" => "RTT",
+        "net_stalled" => "{s} \u{62b}\u{627}\u{646}\u{6cc}\u{647} \u{628}\u{62f}\u{648}\u{646} \u{67e}\u{627}\u{633}\u{62e}",
+        "net_latency_tip" => "\u{645}\u{6cc}\u{627}\u{646}\u{6af}\u{6cc}\u{646} {avg} ms\u{60c} \u{627}\u{648}\u{62c} {peak} ms\u{60c} \u{644}\u{631}\u{632}\u{634} {jitter} ms\u{60c} {timeouts} \u{648}\u{642}\u{641}\u{647}",
         "status_dimensions" => "اندازه",
         "status_cwd" => "پوشه",
         "terminal_sidebar_left" => "نوار کناری را در چپ قرار بده",

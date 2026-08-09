@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "현재 디렉터리 표시",
         "status_bar_align_left" => "내용을 왼쪽으로 정렬",
         "status_latency" => "RTT",
+        "net_stalled" => "{s}\u{cd08}\u{c9f8} \u{c751}\u{b2f5} \u{c5c6}\u{c74c}",
+        "net_latency_tip" => "\u{d3c9}\u{ade0} {avg} ms, \u{cd5c}\u{b300} {peak} ms, \u{c9c0}\u{d130} {jitter} ms, \u{c2dc}\u{ac04} \u{cd08}\u{acfc} {timeouts}\u{d68c}",
         "status_dimensions" => "크기",
         "status_cwd" => "경로",
         "terminal_sidebar_left" => "사이드바를 왼쪽에 배치",

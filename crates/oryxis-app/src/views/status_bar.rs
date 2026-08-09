@@ -101,13 +101,9 @@ impl Oryxis {
         if let Some(pane) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active()) {
             if self.prefs.status_show_latency
                 && let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
-                && let Some(rtt) = ssh.net_quality().last_rtt
+                && let Some(segment) = latency_segment(&ssh.net_quality())
             {
-                items.push(vital(
-                    crate::i18n::t("status_latency"),
-                    format!("{} ms", rtt.as_millis()),
-                    OryxisColors::t().text_secondary,
-                ));
+                items.push(segment);
                 items.push(Space::new().width(12).into());
             }
             if self.prefs.status_show_dimensions
@@ -380,6 +376,62 @@ fn middle_truncate(s: &str, max: usize) -> String {
 /// (issue #83). Passive text, not a control: the sidebar Monitor tab is
 /// where the numbers are actionable. Owns its label copy, so callers
 /// can pass short-lived strings (the privacy-masked mount below).
+/// A link answering slower than this reads as degraded (amber); slower
+/// than [`RTT_BAD_MS`] reads as bad (red). Round numbers on purpose:
+/// they are a glanceable band, not a measurement, and the tooltip
+/// carries the real figures for anyone who wants them.
+const RTT_OK_MS: u128 = 80;
+const RTT_BAD_MS: u128 = 250;
+
+/// Colour and text for a link's current state.
+///
+/// A STALLED link is the first branch and the reason this function
+/// exists: `last_rtt` keeps reporting the last good round trip after
+/// the server goes quiet, so the bar used to show a healthy number on a
+/// connection that had stopped answering. Silence is the more important
+/// fact, so it replaces the number instead of colouring it.
+fn latency_reading(snapshot: &oryxis_ssh::NetQualitySnapshot) -> Option<(String, Color)> {
+    let c = OryxisColors::t();
+    if let Some(silent) = snapshot.silent_for {
+        return Some((
+            crate::i18n::t("net_stalled").replace("{s}", &silent.as_secs().to_string()),
+            c.error,
+        ));
+    }
+    let rtt = snapshot.last_rtt?;
+    let ms = rtt.as_millis();
+    let color = if ms < RTT_OK_MS {
+        c.success
+    } else if ms < RTT_BAD_MS {
+        c.warning
+    } else {
+        c.error
+    };
+    Some((format!("{ms} ms"), color))
+}
+
+/// The latency segment, with the fuller figures on hover. `None` when
+/// the link has never answered (a session still authenticating has no
+/// round trip to report, and inventing one would be worse than silence).
+fn latency_segment(
+    snapshot: &oryxis_ssh::NetQualitySnapshot,
+) -> Option<Element<'static, Message>> {
+    let (value, color) = latency_reading(snapshot)?;
+    let segment = vital(crate::i18n::t("status_latency"), value, color);
+    // avg / peak / jitter belong on hover: they are what you look at
+    // once the dot has already told you something is off.
+    let ms = |d: Option<std::time::Duration>| {
+        d.map(|d| d.as_millis().to_string())
+            .unwrap_or_else(|| "-".to_string())
+    };
+    let tip = crate::i18n::t("net_latency_tip")
+        .replace("{avg}", &ms(snapshot.avg_rtt))
+        .replace("{peak}", &ms(snapshot.peak_rtt))
+        .replace("{jitter}", &ms(snapshot.jitter))
+        .replace("{timeouts}", &snapshot.timeouts.to_string());
+    Some(crate::views::terminal::icon_tooltip_owned(segment, tip))
+}
+
 fn vital(label: &str, value: String, color: Color) -> Element<'static, Message> {
     crate::widgets::dir_row(vec![
         text(label.to_string())
@@ -503,4 +555,62 @@ fn broadcast_segment_btn(idx: usize, armed: bool) -> Element<'static, Message> {
             }
         })
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Duration;
+
+    fn snapshot(
+        last_rtt: Option<u64>,
+        silent_for: Option<u64>,
+    ) -> oryxis_ssh::NetQualitySnapshot {
+        oryxis_ssh::NetQualitySnapshot {
+            last_rtt: last_rtt.map(Duration::from_millis),
+            avg_rtt: last_rtt.map(Duration::from_millis),
+            peak_rtt: last_rtt.map(Duration::from_millis),
+            jitter: Some(Duration::from_millis(1)),
+            timeouts: 0,
+            silent_for: silent_for.map(Duration::from_secs),
+        }
+    }
+
+    /// The reason this branch is first: `last_rtt` keeps reporting the
+    /// last good round trip after the server goes quiet, so a stalled
+    /// link used to show a healthy number. Silence has to win over a
+    /// stale measurement, however good that measurement was.
+    #[test]
+    fn a_stalled_link_reports_silence_not_its_last_good_rtt() {
+        let (text, color) = latency_reading(&snapshot(Some(5), Some(12))).unwrap();
+        assert!(text.contains("12"), "expected the silence in seconds: {text}");
+        assert!(!text.contains("5 ms"), "the stale rtt must not show: {text}");
+        assert_eq!(color, OryxisColors::t().error);
+    }
+
+    #[test]
+    fn the_colour_bands_follow_the_round_trip() {
+        let c = OryxisColors::t();
+        assert_eq!(latency_reading(&snapshot(Some(0), None)).unwrap().1, c.success);
+        assert_eq!(latency_reading(&snapshot(Some(79), None)).unwrap().1, c.success);
+        // The boundaries belong to the worse band, so a link sitting
+        // exactly on one never reads better than it is.
+        assert_eq!(latency_reading(&snapshot(Some(80), None)).unwrap().1, c.warning);
+        assert_eq!(latency_reading(&snapshot(Some(249), None)).unwrap().1, c.warning);
+        assert_eq!(latency_reading(&snapshot(Some(250), None)).unwrap().1, c.error);
+        assert_eq!(latency_reading(&snapshot(Some(4000), None)).unwrap().1, c.error);
+    }
+
+    /// A session that has not completed a probe yet has nothing to say.
+    /// Rendering "0 ms" there would be an invented measurement.
+    #[test]
+    fn a_link_that_never_answered_renders_nothing() {
+        assert!(latency_reading(&snapshot(None, None)).is_none());
+    }
+
+    #[test]
+    fn the_reading_is_in_milliseconds() {
+        let (text, _) = latency_reading(&snapshot(Some(42), None)).unwrap();
+        assert_eq!(text, "42 ms");
+    }
 }

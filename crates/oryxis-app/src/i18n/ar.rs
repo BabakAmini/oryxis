@@ -383,6 +383,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "إظهار المجلد الحالي",
         "status_bar_align_left" => "محاذاة المحتوى إلى اليسار",
         "status_latency" => "RTT",
+        "net_stalled" => "\u{644}\u{627} \u{631}\u{62f} \u{645}\u{646}\u{630} {s} \u{62b}\u{627}\u{646}\u{64a}\u{629}",
+        "net_latency_tip" => "\u{627}\u{644}\u{645}\u{62a}\u{648}\u{633}\u{637} {avg} \u{645}.\u{62b}\u{60c} \u{627}\u{644}\u{630}\u{631}\u{648}\u{629} {peak} \u{645}.\u{62b}\u{60c} \u{627}\u{644}\u{62a}\u{630}\u{628}\u{630}\u{628} {jitter} \u{645}.\u{62b}\u{60c} {timeouts} \u{627}\u{646}\u{62a}\u{647}\u{62a} \u{645}\u{647}\u{644}\u{62a}\u{647}\u{627}",
         "status_dimensions" => "الحجم",
         "status_cwd" => "المجلد",
         "terminal_sidebar_left" => "إرساء الشريط الجانبي إلى اليسار",

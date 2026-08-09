@@ -378,6 +378,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "显示当前目录",
         "status_bar_align_left" => "内容左对齐",
         "status_latency" => "RTT",
+        "net_stalled" => "\u{5df2} {s} \u{79d2}\u{65e0}\u{54cd}\u{5e94}",
+        "net_latency_tip" => "\u{5e73}\u{5747} {avg} \u{6beb}\u{79d2}\u{ff0c}\u{5cf0}\u{503c} {peak} \u{6beb}\u{79d2}\u{ff0c}\u{6296}\u{52a8} {jitter} \u{6beb}\u{79d2}\u{ff0c}{timeouts} \u{6b21}\u{8d85}\u{65f6}",
         "status_dimensions" => "尺寸",
         "status_cwd" => "目录",
         "terminal_sidebar_left" => "将侧边栏停靠在左侧",

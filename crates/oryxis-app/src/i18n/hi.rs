@@ -402,6 +402,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "वर्तमान डायरेक्टरी दिखाएँ",
         "status_bar_align_left" => "सामग्री को बाईं ओर संरेखित करें",
         "status_latency" => "RTT",
+        "net_stalled" => "{s}\u{938}\u{947} \u{938}\u{947} \u{915}\u{94b}\u{908} \u{91c}\u{935}\u{93e}\u{92c} \u{928}\u{939}\u{940}\u{902}",
+        "net_latency_tip" => "\u{914}\u{938}\u{924} {avg} ms, \u{936}\u{93f}\u{916}\u{930} {peak} ms, \u{91c}\u{93f}\u{91f}\u{930} {jitter} ms, {timeouts} \u{92c}\u{93e}\u{930} \u{938}\u{92e}\u{92f} \u{938}\u{92e}\u{93e}\u{92a}\u{94d}\u{924}",
         "status_dimensions" => "आकार",
         "status_cwd" => "डायर",
         "terminal_sidebar_left" => "साइडबार को बाईं ओर लगाएँ",

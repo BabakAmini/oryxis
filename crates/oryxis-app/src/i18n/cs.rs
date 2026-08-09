@@ -402,6 +402,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Zobrazit aktuální adresář",
         "status_bar_align_left" => "Zarovnat obsah doleva",
         "status_latency" => "RTT",
+        "net_stalled" => "bez odpov\u{11b}di {s} s",
+        "net_latency_tip" => "Pr\u{16f}m\u{11b}r {avg} ms, \u{161}pi\u{10d}ka {peak} ms, jitter {jitter} ms, {timeouts} bez odpov\u{11b}di",
         "status_dimensions" => "Vel",
         "status_cwd" => "Adr",
         "terminal_sidebar_left" => "Ukotvit postranní panel vlevo",

@@ -378,6 +378,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "status_show_cwd" => "Mostrar directorio actual",
         "status_bar_align_left" => "Alinear el contenido a la izquierda",
         "status_latency" => "RTT",
+        "net_stalled" => "sin respuesta {s}s",
+        "net_latency_tip" => "Media {avg} ms, pico {peak} ms, jitter {jitter} ms, {timeouts} sin respuesta",
         "status_dimensions" => "Tam",
         "status_cwd" => "Dir",
         "terminal_sidebar_left" => "Anclar la barra lateral a la izquierda",
