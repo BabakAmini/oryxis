@@ -128,3 +128,40 @@ fn parse_header(blob: &[u8]) -> Result<&[u8], SyncError> {
     }
     Ok(&blob[HEADER_LEN..])
 }
+
+/// A stable fingerprint of everything the vault would put in a
+/// snapshot: entity ids, their kinds, their timestamps and their
+/// tombstones.
+///
+/// This exists because a snapshot BLOB cannot be compared for equality.
+/// The payload is sealed with a fresh nonce every time, so building the
+/// same vault twice yields different bytes, and a transport that
+/// commits "when the file changed" would commit on every round forever.
+/// The manifest is the logical content, so hashing it answers the
+/// question the bytes cannot: has anything actually changed?
+///
+/// It carries no secret and no plaintext: only a hash goes out, and it
+/// is derived from ids and timestamps rather than from any field
+/// value.
+pub fn vault_signature(vault: &Arc<Mutex<VaultStore>>) -> Result<String, SyncError> {
+    use sha2::{Digest, Sha256};
+    let mut manifest = build_manifest(vault)?;
+    // The manifest's order is whatever the queries returned; sort so
+    // two devices holding identical data agree on the fingerprint.
+    manifest.sort_by(|a, b| {
+        (a.entity_type as u8, a.entity_id).cmp(&(b.entity_type as u8, b.entity_id))
+    });
+    let mut hasher = Sha256::new();
+    for entry in &manifest {
+        hasher.update([entry.entity_type as u8]);
+        hasher.update(entry.entity_id.as_bytes());
+        hasher.update(entry.updated_at.timestamp_millis().to_le_bytes());
+        hasher.update([u8::from(entry.is_deleted)]);
+    }
+    // sha2 0.11 returns a generic `Array`, which has no `LowerHex`.
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect::<String>())
+}

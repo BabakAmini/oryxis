@@ -197,20 +197,29 @@ impl Oryxis {
         let p2p_label = crate::i18n::t("sync_transport_p2p").to_string();
         let sftp_label = crate::i18n::t("sync_transport_sftp").to_string();
         let folder_label = crate::i18n::t("sync_transport_folder").to_string();
+        let git_label = crate::i18n::t("sync_transport_git").to_string();
         let is_folder = self.sync.transport == "folder";
+        let is_git = self.sync.transport == "git";
         let transport_selected = if is_sftp {
             sftp_label.clone()
         } else if is_folder {
             folder_label.clone()
+        } else if is_git {
+            git_label.clone()
         } else {
             p2p_label.clone()
         };
-        let transport_options =
-            vec![p2p_label.clone(), sftp_label.clone(), folder_label.clone()];
+        let transport_options = vec![
+            p2p_label.clone(),
+            sftp_label.clone(),
+            folder_label.clone(),
+            git_label.clone(),
+        ];
         // Left/Right cycle the transports without opening the
         // dropdown; same label-to-token mapping as on_select.
         let sftp_label_for_cycle = sftp_label.clone();
         let folder_label_for_cycle = folder_label.clone();
+        let git_label_for_cycle = git_label.clone();
         let (transport_prev, transport_next) = crate::keynav::slots::cycle_pair(
             &transport_options,
             &transport_selected,
@@ -219,6 +228,8 @@ impl Oryxis {
                     "sftp"
                 } else if v == folder_label_for_cycle {
                     "folder"
+                } else if v == git_label_for_cycle {
+                    "git"
                 } else {
                     "p2p"
                 };
@@ -227,6 +238,7 @@ impl Oryxis {
         );
         let sftp_label_for_select = sftp_label.clone();
         let folder_label_for_select = folder_label.clone();
+        let git_label_for_select = git_label.clone();
         let transport_pick = pick_list(
             Some(transport_selected),
             transport_options,
@@ -237,6 +249,8 @@ impl Oryxis {
                 "sftp"
             } else if v == folder_label_for_select {
                 "folder"
+            } else if v == git_label_for_select {
+                "git"
             } else {
                 "p2p"
             };
@@ -276,7 +290,109 @@ impl Oryxis {
                 .push(Space::new().height(16))
                 .push(self.sync_folder_card());
         }
+        if is_git {
+            transport_col = transport_col
+                .push(Space::new().height(16))
+                .push(self.sync_git_card());
+        }
         panel_section(transport_col)
+    }
+
+    /// Git-transport config: the remote, the group passphrase, and the
+    /// one requirement this transport has that no other does.
+    ///
+    /// The `git` check runs here rather than at the first sync, so a
+    /// machine without it says so while the user is still choosing,
+    /// instead of after they have typed a URL and pressed a button.
+    fn sync_git_card(&self) -> Element<'_, Message> {
+        let busy = self.sync.git.in_progress;
+        let has_git = crate::dispatch_git_sync::git_available();
+        let mut col = column![
+            text(t("git_sync_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+        ];
+
+        if !has_git {
+            col = col
+                .push(
+                    text(t("git_sync_no_git"))
+                        .size(11)
+                        .color(OryxisColors::t().warning),
+                )
+                .push(Space::new().height(10));
+        }
+
+        col = col
+            .push(
+                text(t("git_sync_remote"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+            )
+            .push(Space::new().height(4))
+            .push(self.settings_nav_slot_labeled(
+                t("git_sync_remote"),
+                crate::keynav::RowAction::input(iced::widget::Id::new("sync-git-remote")),
+                crate::widgets::INPUT_RADIUS,
+                text_input("git@github.com:me/oryxis-vault.git", &self.sync.git.remote)
+                    .id(iced::widget::Id::new("sync-git-remote"))
+                    .on_input(|v| Message::Sync(SyncMessage::GitRemoteChanged(v)))
+                    .padding(10)
+                    .width(Length::Fill)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ))
+            .push(Space::new().height(10))
+            .push(
+                text(t("sftp_sync_passphrase"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+            )
+            .push(Space::new().height(4))
+            .push(self.settings_nav_slot_labeled(
+                t("sftp_sync_passphrase"),
+                crate::keynav::RowAction::input(iced::widget::Id::new("sync-git-pass")),
+                crate::widgets::INPUT_RADIUS,
+                text_input(t("sftp_sync_passphrase"), &self.sync.git.passphrase)
+                    .id(iced::widget::Id::new("sync-git-pass"))
+                    .on_input(|v| Message::Sync(SyncMessage::GitPassphraseChanged(v.into())))
+                    .secure(true)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ))
+            .push(Space::new().height(12));
+
+        col = col.push(self.settings_nav_slot_labeled(
+            t("sync_now"),
+            crate::keynav::RowAction::activate(Message::Sync(SyncMessage::GitSyncNow)),
+            8.0,
+            crate::widgets::styled_button_opt(
+                t("sync_now"),
+                (!busy && has_git).then_some(Message::Sync(SyncMessage::GitSyncNow)),
+                OryxisColors::t().accent,
+            ),
+        ));
+
+        if let Some(status) = &self.sync.git.status {
+            let (msg, color) = match status {
+                Ok(s) => (s.clone(), OryxisColors::t().success),
+                Err(e) => (e.clone(), OryxisColors::t().error),
+            };
+            col = col
+                .push(Space::new().height(8))
+                .push(text(msg).size(11).color(color));
+        }
+
+        col = col.push(Space::new().height(10)).push(
+            text(t("git_sync_history_note"))
+                .size(10)
+                .color(OryxisColors::t().text_muted),
+        );
+        col.into()
     }
 
     /// Folder-transport config: where the snapshot lives, the group

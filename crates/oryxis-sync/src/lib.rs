@@ -13,7 +13,8 @@ pub mod transport;
 
 pub use config::{SyncConfig, SyncMode, SyncTransport};
 pub use engine::{
-    build_full_snapshot, format_pairing_link, merge_snapshot, parse_pairing_link, SyncEngine,
+    build_full_snapshot, format_pairing_link, merge_snapshot, parse_pairing_link, vault_signature,
+    SyncEngine,
     SyncEvent, SyncHandle,
 };
 pub use error::SyncError;

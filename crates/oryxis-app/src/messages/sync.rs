@@ -22,6 +22,15 @@ pub enum SyncMessage {
     FolderPickDirectory,
     /// The picker returned; `None` is a cancel and stays silent.
     FolderDirectoryPicked(Option<String>),
+    /// A Git-sync round finished: `Ok(records pulled)` or the failure.
+    GitRoundFinished(Result<usize, String>),
+    /// Settings > Sync: the Git transport's remote URL and passphrase.
+    GitRemoteChanged(String),
+    /// `Redacted` for the same reason every other secret-bearing
+    /// variant is (`secret_bearing_variants_carry_redacted`).
+    GitPassphraseChanged(super::Redacted),
+    /// "Sync now" for the Git transport.
+    GitSyncNow,
     ToggleEnabled,
     TogglePasswords,
     ModeChanged(String),

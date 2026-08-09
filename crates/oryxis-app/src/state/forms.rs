@@ -617,6 +617,21 @@ pub(crate) struct SyncPairingForm {
     pub join_link_input: String,
 }
 
+/// Git sync transport: the snapshot committed to a Git remote.
+///
+/// The one backend that keeps HISTORY, which is why it exists next to
+/// the folder transport: every round is a commit, so a vault wrecked by
+/// a bad import can be read back from an earlier one.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct GitSyncForm {
+    /// Remote URL, anything `git clone` accepts.
+    pub remote: String,
+    /// Same group passphrase as the other snapshot transports.
+    pub passphrase: String,
+    pub in_progress: bool,
+    pub status: Option<Result<String, String>>,
+}
+
 /// Folder sync transport: one encrypted snapshot in a local directory.
 ///
 /// The directory is whatever the OS already mounts, which is the whole

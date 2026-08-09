@@ -41,7 +41,7 @@ An export is a snapshot in time. It does not update itself.
 
 ## Sync: the same vault in more than one place
 
-Settings > Sync. Sync is off by default and has three transports. Only
+Settings > Sync. Sync is off by default and has four transports. Only
 one runs at a time.
 
 ### Peer-to-peer
@@ -57,6 +57,29 @@ fastest and the only one with no file sitting anywhere.
 
 One encrypted snapshot on a host from your vault. Each device merges
 what is there and writes back.
+
+### Git
+
+The same snapshot, committed to a Git remote: any forge, or a bare
+repository on a box you own. This is the only transport that keeps
+**history**, so a vault you wrecked (a bad import, a deletion that
+synced from the wrong machine) can be read back from an earlier commit.
+
+It drives the `git` you already have installed rather than bundling
+one, so `git` has to be on PATH; the setting says so if it is not.
+Authentication is git's own: an SSH key your agent already holds, or a
+credential helper. Oryxis never prompts for it, and a remote that would
+have asked fails fast instead of hanging.
+
+Every round is one commit, and only when something actually changed:
+the snapshot is re-encrypted with a fresh nonce each time, so the app
+compares a fingerprint of the vault's contents rather than the bytes.
+
+Two things worth knowing. The repository ends up holding every past
+version of your vault, all encrypted, which is the feature and also a
+reason to keep it private. And the working copy lives in
+`~/.oryxis/sync-git/`; it is a cache, safe to delete, and the next sync
+re-creates it.
 
 ### Folder
 

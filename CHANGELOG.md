@@ -7,6 +7,22 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Sync through a Git remote, with history.** A fourth transport:
+  the same encrypted snapshot, committed to any Git remote you can
+  clone, whether that is a forge or a bare repository on your own box.
+  It is the only transport that keeps past versions, so a vault wrecked
+  by a bad import or by a deletion that synced from the wrong machine
+  can be read back from an earlier commit. It is also the strictest
+  about conflicts: a push rejected as non-fast-forward means another
+  device wrote first, so the round is redone on top of theirs, never
+  forced over it. A round only commits when the vault actually changed
+  (the snapshot re-seals with a fresh nonce every time, so the app
+  compares a fingerprint of the contents rather than the bytes) and the
+  history stays readable instead of filling with empty commits. Oryxis
+  drives the `git` you already have rather than bundling one, and says
+  so in the setting when it is missing; authentication is git's own, and
+  a remote that would have asked for credentials fails fast instead of
+  hanging.
 - **Sync through a folder, which means sync through any cloud you
   already use.** A third transport next to P2P and SFTP: one encrypted
   snapshot in a directory your system already mounts. Point it at a

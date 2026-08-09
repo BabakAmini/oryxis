@@ -432,6 +432,29 @@ impl Oryxis {
             SyncMessage::SftpHostPickerSearch(v) => {
                 self.sync.sftp.picker_search = v;
             }
+            SyncMessage::GitRemoteChanged(v) => {
+                self.sync.git.remote = v.clone();
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting("sync_git_remote", &v);
+                }
+            }
+            SyncMessage::GitPassphraseChanged(v) => {
+                let v = v.into_inner();
+                self.sync.git.passphrase = v.clone();
+                if let Some(vault) = &self.vault {
+                    // One group secret across every snapshot transport.
+                    let _ = vault.set_sync_sftp_passphrase(&v);
+                }
+            }
+            SyncMessage::GitSyncNow => return self.run_git_sync_round(),
+            SyncMessage::GitRoundFinished(result) => {
+                self.sync.git.in_progress = false;
+                self.sync.git.status = Some(match result {
+                    Ok(pulled) => Ok(crate::i18n::t("folder_sync_ok")
+                        .replace("{n}", &pulled.to_string())),
+                    Err(e) => Err(e),
+                });
+            }
             SyncMessage::FolderPathChanged(v) => {
                 self.sync.folder.path = v.clone();
                 if let Some(vault) = &self.vault {
