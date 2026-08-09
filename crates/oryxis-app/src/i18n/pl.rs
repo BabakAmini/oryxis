@@ -761,6 +761,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "Dwie maszyny pisz\u{105}ce do tego samego folderu w chmurze mog\u{105} si\u{119} \u{15b}ciga\u{107}, a klient chmury mo\u{17c}e zostawi\u{107} w\u{142}asn\u{105} kopi\u{119} konfliktu. W tej samej sieci lepszy jest P2P.",
         "sftp_sync_running" => "Synchronizacja przez SFTP...",
         "sftp_sync_active_label" => "Synchronizacja SFTP aktywna",
+        "snapshot_sync_active_label" => "Synchronizacja migawką aktywna",
         "sftp_sync_done" => "Synchronizacja SFTP zakończona (pobrano {n} rekordów)",
         "sftp_sync_note_group" => "Użyj tego samego hasła i tego samego pliku na każdym urządzeniu w grupie.",
         "sftp_sync_note_bridge" => "Urządzenie peer-to-peer i urządzenie SFTP nie synchronizują się ze sobą.",

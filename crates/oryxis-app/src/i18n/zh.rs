@@ -1143,6 +1143,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "\u{4e24}\u{53f0}\u{673a}\u{5668}\u{5199}\u{5165}\u{540c}\u{4e00}\u{4e2a}\u{4e91}\u{955c}\u{50cf}\u{6587}\u{4ef6}\u{5939}\u{53ef}\u{80fd}\u{76f8}\u{4e92}\u{7ade}\u{4e89}\u{ff0c}\u{4e91}\u{5ba2}\u{6237}\u{7aef}\u{4e5f}\u{53ef}\u{80fd}\u{7559}\u{4e0b}\u{81ea}\u{5df1}\u{7684}\u{51b2}\u{7a81}\u{526f}\u{672c}\u{3002}\u{5728}\u{540c}\u{4e00}\u{7f51}\u{7edc}\u{4e0b}\u{ff0c}P2P \u{662f}\u{66f4}\u{597d}\u{7684}\u{9009}\u{62e9}\u{3002}",
         "sftp_sync_running" => "正在通过 SFTP 同步...",
         "sftp_sync_active_label" => "SFTP 同步运行中",
+        "snapshot_sync_active_label" => "快照同步运行中",
         "sftp_sync_done" => "SFTP 同步完成 (已拉取 {n} 条记录)",
         "sftp_sync_note_group" => "请在组内的每台设备上使用相同的口令和相同的文件。",
         "sftp_sync_note_bridge" => "点对点设备与 SFTP 设备之间不会相互同步。",

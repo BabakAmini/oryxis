@@ -761,6 +761,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "Dva stroje zapisuj\u{ed}c\u{ed} do jedn\u{e9} zrcadlen\u{e9} slo\u{17e}ky si mohou konkurovat a klient cloudu m\u{16f}\u{17e}e zanechat vlastn\u{ed} konfliktn\u{ed} kopii. Ve stejn\u{e9} s\u{ed}ti je lep\u{161}\u{ed} P2P.",
         "sftp_sync_running" => "Synchronizace přes SFTP...",
         "sftp_sync_active_label" => "SFTP synchronizace aktivní",
+        "snapshot_sync_active_label" => "Synchronizace snímkem aktivní",
         "sftp_sync_done" => "SFTP synchronizace dokončena ({n} záznamů staženo)",
         "sftp_sync_note_group" => "Na každém zařízení ve skupině použijte stejnou frázi a stejný soubor.",
         "sftp_sync_note_bridge" => "Peer-to-peer zařízení a SFTP zařízení se spolu nesynchronizují.",

@@ -755,6 +755,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "Ayn\u{131} bulut yans\u{131}mal\u{131} klas\u{f6}re yazan iki makine yar\u{131}\u{15f}abilir ve bulut istemcisi kendi \u{e7}ak\u{131}\u{15f}ma kopyas\u{131}n\u{131} b\u{131}rakabilir. Ayn\u{131} a\u{11f}daysan\u{131}z P2P daha iyi bir yan\u{131}tt\u{131}r.",
         "sftp_sync_running" => "SFTP üzerinden senkronize ediliyor...",
         "sftp_sync_active_label" => "SFTP eşitleme etkin",
+        "snapshot_sync_active_label" => "Anlık görüntü eşitleme etkin",
         "sftp_sync_done" => "SFTP senkronizasyonu tamamlandı ({n} kayıt çekildi)",
         "sftp_sync_note_group" => "Gruptaki her cihazda aynı parolayı ve aynı dosyayı kullanın.",
         "sftp_sync_note_bridge" => "Bir eşler arası cihaz ile bir SFTP cihazı birbiriyle senkronize olmaz.",

@@ -1143,6 +1143,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "\u{5169}\u{53f0}\u{6a5f}\u{5668}\u{5beb}\u{5165}\u{540c}\u{4e00}\u{500b}\u{96f2}\u{7aef}\u{93e1}\u{50cf}\u{8cc7}\u{6599}\u{593e}\u{53ef}\u{80fd}\u{4e92}\u{76f8}\u{7af6}\u{722d}\u{ff0c}\u{96f2}\u{7aef}\u{7528}\u{6236}\u{7aef}\u{4e5f}\u{53ef}\u{80fd}\u{7559}\u{4e0b}\u{81ea}\u{5df1}\u{7684}\u{885d}\u{7a81}\u{526f}\u{672c}\u{3002}\u{5728}\u{540c}\u{4e00}\u{7db2}\u{8def}\u{4e0b}\u{ff0c}P2P \u{662f}\u{66f4}\u{597d}\u{7684}\u{9078}\u{64c7}\u{3002}",
         "sftp_sync_running" => "正在透過 SFTP 同步...",
         "sftp_sync_active_label" => "SFTP 同步執行中",
+        "snapshot_sync_active_label" => "快照同步執行中",
         "sftp_sync_done" => "SFTP 同步完成（已拉取 {n} 筆記錄）",
         "sftp_sync_note_group" => "請在群組內的每台裝置上使用相同的通關密語和相同的檔案。",
         "sftp_sync_note_bridge" => "點對點裝置與 SFTP 裝置之間不會互相同步。",

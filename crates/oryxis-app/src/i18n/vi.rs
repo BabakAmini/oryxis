@@ -755,6 +755,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "Hai m\u{e1}y c\u{f9}ng ghi v\u{e0}o m\u{1ed9}t th\u{1b0} m\u{1ee5}c \u{111}\u{1ed3}ng b\u{1ed9} \u{111}\u{e1}m m\u{e2}y c\u{f3} th\u{1ec3} tranh ch\u{1ea5}p, v\u{e0} \u{1ee9}ng d\u{1ee5}ng \u{111}\u{e1}m m\u{e2}y c\u{f3} th\u{1ec3} \u{111}\u{1ec3} l\u{1ea1}i b\u{1ea3}n sao xung \u{111}\u{1ed9}t ri\u{ea}ng. C\u{f9}ng m\u{1ea1}ng th\u{ec} P2P l\u{e0} l\u{1ef1}a ch\u{1ecd}n t\u{1ed1}t h\u{1a1}n.",
         "sftp_sync_running" => "Đang đồng bộ qua SFTP...",
         "sftp_sync_active_label" => "Đồng bộ SFTP đang hoạt động",
+        "snapshot_sync_active_label" => "Đồng bộ ảnh chụp đang hoạt động",
         "sftp_sync_done" => "Đồng bộ SFTP hoàn tất (đã kéo về {n} bản ghi)",
         "sftp_sync_note_group" => "Sử dụng cùng một cụm mật khẩu và cùng một tệp trên mọi thiết bị trong nhóm.",
         "sftp_sync_note_bridge" => "Thiết bị ngang hàng và thiết bị SFTP không đồng bộ với nhau.",

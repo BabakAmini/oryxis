@@ -7,18 +7,22 @@ impl Oryxis {
     /// Engine-state card at the top of the section. Keyboard slots
     /// record during construction, so `view_settings_sync` must call
     /// the per-card builders in on-screen order.
-    fn sync_engine_state_card(&self, is_sftp: bool) -> Element<'_, Message> {
+    fn sync_engine_state_card(&self, is_p2p: bool) -> Element<'_, Message> {
         // Enable/disable lives on the Plugins screen now.
         // Live engine state indicator, sits right under the
         // enable toggle so the user sees whether the QUIC /
-        // mDNS background tasks are actually up. The SFTP
-        // transport runs no background engine, so reporting
+        // mDNS background tasks are actually up. No snapshot
+        // transport runs a background engine, so reporting
         // "Engine stopped" there would read as broken; show a
         // transport-appropriate label instead.
-        let engine_state = if is_sftp {
+        let engine_state = if !is_p2p {
             let (label, color) = if self.sync.enabled {
                 (
-                    crate::i18n::t("sftp_sync_active_label"),
+                    crate::i18n::t(if self.sync.transport == "sftp" {
+                        "sftp_sync_active_label"
+                    } else {
+                        "snapshot_sync_active_label"
+                    }),
                     OryxisColors::t().success,
                 )
             } else {
@@ -505,7 +509,7 @@ impl Oryxis {
     /// Options card: the Auto/Manual mode picker, the password-sync
     /// toggle, the Sync Now / Cancel action and the status + health
     /// lines under it.
-    fn sync_options_card(&self, is_sftp: bool) -> Element<'_, Message> {
+    fn sync_options_card(&self, is_sftp: bool, is_p2p: bool) -> Element<'_, Message> {
         let mode_label = if self.sync.mode == "auto" { t("sync_mode_auto") } else { t("sync_mode_manual") };
         let auto_label = t("sync_mode_auto").to_string();
         let manual_label = t("sync_mode_manual").to_string();
@@ -576,7 +580,12 @@ impl Oryxis {
                 .color(OryxisColors::t().text_muted),
         ];
 
-        if self.sync.mode == "manual" {
+        // Manual mode's action button. SFTP and P2P live here; the
+        // folder, Git and WebDAV cards carry their own "Sync now" next
+        // to the config it acts on, so a second one here would be a
+        // duplicate (and, before the transport gates were fixed, a
+        // button that fired the P2P path and did nothing at all).
+        if self.sync.mode == "manual" && (is_sftp || is_p2p) {
             if is_sftp {
                 // SFTP round: relabel + disable the button while a
                 // round is in flight so the click has immediate
@@ -639,7 +648,8 @@ impl Oryxis {
 
         // Status line directly under the action button. SFTP shows
         // its own round outcome (success muted / error red); P2P
-        // keeps the engine status string.
+        // keeps the engine status string. The other snapshot
+        // transports report inside their own card.
         if is_sftp {
             if let Some(status) = &self.sync.sftp.status {
                 let (txt, color) = match status {
@@ -650,7 +660,9 @@ impl Oryxis {
                     .push(Space::new().height(8))
                     .push(text(txt).size(12).color(color));
             }
-        } else if let Some(status) = &self.sync.status {
+        } else if is_p2p
+            && let Some(status) = &self.sync.status
+        {
             options_section = options_section
                 .push(Space::new().height(8))
                 .push(text(status.as_str()).size(12).color(OryxisColors::t().text_muted));
@@ -660,7 +672,7 @@ impl Oryxis {
         // LAN discovery count plus the LAST signaling outcome, which
         // survives later events overwriting `status`, so "signaling
         // has been failing" stays visible instead of flashing once.
-        if !is_sftp {
+        if is_p2p {
             options_section = options_section.push(Space::new().height(8)).push(
                 text(format!(
                     "{} {}",
@@ -1358,8 +1370,13 @@ impl Oryxis {
         self.keynav_settings_reset();
 
         let is_sftp = self.sync.transport == "sftp";
+        // Pairing, LAN discovery and the signaling / relay / port
+        // fields are the P2P engine's own surface. Asking `!is_sftp`
+        // put all of it in front of folder and Git users, who have no
+        // engine to pair with.
+        let is_p2p = self.sync_uses_p2p();
 
-        let enable_card = self.sync_engine_state_card(is_sftp);
+        let enable_card = self.sync_engine_state_card(is_p2p);
 
         // Plain-language primer: what sync is, that it's optional and
         // LAN-only by default (no Oryxis server), and what the user
@@ -1385,7 +1402,7 @@ impl Oryxis {
 
         if self.sync.enabled {
             let transport_section = self.sync_transport_card(is_sftp);
-            let options_section = self.sync_options_card(is_sftp);
+            let options_section = self.sync_options_card(is_sftp, is_p2p);
 
             content_col = content_col
                 .push(Space::new().height(18))
@@ -1397,7 +1414,7 @@ impl Oryxis {
                 .push(Space::new().height(8))
                 .push(options_section);
 
-            if !is_sftp {
+            if is_p2p {
                 let devices_card = self.sync_devices_card();
                 let advanced_card = self.sync_advanced_card();
 

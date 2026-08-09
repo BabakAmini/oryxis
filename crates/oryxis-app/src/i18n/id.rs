@@ -755,6 +755,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "Dua mesin yang menulis ke folder tercermin yang sama bisa berebut, dan klien awan bisa meninggalkan salinan konfliknya sendiri. Di jaringan yang sama, P2P lebih tepat.",
         "sftp_sync_running" => "Menyinkronkan melalui SFTP...",
         "sftp_sync_active_label" => "Sinkronisasi SFTP aktif",
+        "snapshot_sync_active_label" => "Sinkronisasi snapshot aktif",
         "sftp_sync_done" => "Sinkronisasi SFTP selesai ({n} catatan ditarik)",
         "sftp_sync_note_group" => "Gunakan frasa sandi yang sama dan file yang sama di setiap perangkat dalam grup.",
         "sftp_sync_note_bridge" => "Perangkat peer-to-peer dan perangkat SFTP tidak saling menyinkronkan.",

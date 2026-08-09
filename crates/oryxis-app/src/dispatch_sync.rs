@@ -528,16 +528,27 @@ impl Oryxis {
                     let _ = vault.set_sync_sftp_passphrase(&v);
                 }
             }
-            SyncMessage::SftpTick => {
-                // Auto-cadence tick. Only act in SFTP+enabled+auto and
-                // when no round is already running; otherwise the tick
-                // is a no-op (the subscription keeps firing regardless).
-                if self.sync.transport == "sftp"
-                    && self.sync.enabled
-                    && self.sync.mode == "auto"
-                    && !self.sync.sftp.in_progress
-                {
-                    return self.run_sftp_sync_round();
+            SyncMessage::SnapshotTick => {
+                // Auto-cadence tick. Re-checks the conditions the
+                // subscription mounted on, because the subscription is
+                // rebuilt a frame LATE: a user who switches to manual
+                // (or to P2P) mid-interval would otherwise get one more
+                // round after the change. The per-transport
+                // `in_progress` guard keeps a slow round from stacking.
+                if !self.sync.enabled || self.sync.mode != "auto" {
+                    return Task::none();
+                }
+                match self.sync.transport.as_str() {
+                    "sftp" if !self.sync.sftp.in_progress => {
+                        return self.run_sftp_sync_round();
+                    }
+                    "folder" if !self.sync.folder.in_progress => {
+                        return self.run_folder_sync_round();
+                    }
+                    "git" if !self.sync.git.in_progress => {
+                        return self.run_git_sync_round();
+                    }
+                    _ => {}
                 }
             }
             SyncMessage::SftpDone(result) => {

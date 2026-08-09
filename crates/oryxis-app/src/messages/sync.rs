@@ -105,9 +105,12 @@ pub enum SyncMessage {
     /// Text-input change for the SFTP-sync passphrase (persisted
     /// encrypted on change).
     SftpPassphraseChanged(super::Redacted),
-    /// Auto-cadence timer fired (transport `sftp`, mode `auto`): run a
-    /// sync round if one isn't already in flight.
-    SftpTick,
+    /// Auto-cadence timer fired (any snapshot transport, mode `auto`):
+    /// run a round on whichever one is selected, if none is already in
+    /// flight. One variant for all of them, because exactly one
+    /// transport is active at a time and a per-transport tick would be
+    /// four subscriptions racing to say the same thing.
+    SnapshotTick,
     /// An SFTP-sync round finished. `Ok` carries a short status summary;
     /// `Err` a human-readable failure. A failed round never overwrites
     /// the remote snapshot (see `dispatch_sftp_sync`).

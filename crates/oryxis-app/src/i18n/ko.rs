@@ -755,6 +755,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "\u{ac19}\u{c740} \u{d074}\u{b77c}\u{c6b0}\u{b4dc} \u{bbf8}\u{b7ec} \u{d3f4}\u{b354}\u{c5d0} \u{b450} \u{b300}\u{ac00} \u{c4f0}\u{ba74} \u{acbd}\u{d569}\u{d560} \u{c218} \u{c788}\u{ace0}, \u{d074}\u{b77c}\u{c6b0}\u{b4dc} \u{d074}\u{b77c}\u{c774}\u{c5b8}\u{d2b8}\u{ac00} \u{c790}\u{ccb4} \u{cda9}\u{b3cc} \u{c0ac}\u{bcf8}\u{c744} \u{b0a8}\u{ae38} \u{c218}\u{b3c4} \u{c788}\u{c2b5}\u{b2c8}\u{b2e4}. \u{ac19}\u{c740} \u{b124}\u{d2b8}\u{c6cc}\u{d06c}\u{b77c}\u{ba74} P2P\u{ac00} \u{b354} \u{b0ab}\u{c2b5}\u{b2c8}\u{b2e4}.",
         "sftp_sync_running" => "SFTP로 동기화 중...",
         "sftp_sync_active_label" => "SFTP 동기화 활성",
+        "snapshot_sync_active_label" => "스냅샷 동기화 활성",
         "sftp_sync_done" => "SFTP 동기화 완료 ({n}개 레코드 가져옴)",
         "sftp_sync_note_group" => "그룹의 모든 기기에서 동일한 암호 구문과 동일한 파일을 사용하세요.",
         "sftp_sync_note_bridge" => "피어 투 피어 기기와 SFTP 기기는 서로 동기화되지 않습니다.",

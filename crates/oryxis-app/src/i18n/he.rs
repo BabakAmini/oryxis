@@ -761,6 +761,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "\u{5e9}\u{5ea}\u{5d9} \u{5de}\u{5db}\u{5d5}\u{5e0}\u{5d5}\u{5ea} \u{5e9}\u{5db}\u{5d5}\u{5ea}\u{5d1}\u{5d5}\u{5ea} \u{5dc}\u{5d0}\u{5d5}\u{5ea}\u{5d4} \u{5ea}\u{5d9}\u{5e7}\u{5d9}\u{5d9}\u{5d4} \u{5de}\u{5e1}\u{5d5}\u{5e0}\u{5db}\u{5e8}\u{5e0}\u{5ea} \u{5e2}\u{5dc}\u{5d5}\u{5dc}\u{5d5}\u{5ea} \u{5dc}\u{5d4}\u{5ea}\u{5e0}\u{5d2}\u{5e9}, \u{5d5}\u{5dc}\u{5e7}\u{5d5}\u{5d7} \u{5d4}\u{5e2}\u{5e0}\u{5df} \u{5e2}\u{5dc}\u{5d5}\u{5dc} \u{5dc}\u{5d4}\u{5e9}\u{5d0}\u{5d9}\u{5e8} \u{5e2}\u{5d5}\u{5ea}\u{5e7} \u{5d4}\u{5ea}\u{5e0}\u{5d2}\u{5e9}\u{5d5}\u{5ea} \u{5de}\u{5e9}\u{5dc}\u{5d5}. \u{5d1}\u{5d0}\u{5d5}\u{5ea}\u{5d4} \u{5e8}\u{5e9}\u{5ea}, P2P \u{5e2}\u{5d3}\u{5d9}\u{5e3}.",
         "sftp_sync_running" => "מסנכרן דרך SFTP...",
         "sftp_sync_active_label" => "סנכרון SFTP פעיל",
+        "snapshot_sync_active_label" => "סנכרון תמונת מצב פעיל",
         "sftp_sync_done" => "סנכרון SFTP הושלם ({n} רשומות נמשכו)",
         "sftp_sync_note_group" => "השתמשו באותו משפט סיסמה ובאותו קובץ בכל מכשיר בקבוצה.",
         "sftp_sync_note_bridge" => "מכשיר עמית-לעמית ומכשיר SFTP לא מסתנכרנים זה עם זה.",

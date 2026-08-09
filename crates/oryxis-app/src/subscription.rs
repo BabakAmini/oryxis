@@ -457,15 +457,16 @@ impl Oryxis {
                     .map(|_| Message::Tabs(TabsMessage::SsmKeepaliveTick)),
             );
         }
-        // SFTP-sync auto cadence. The P2P transport runs its own timer
-        // inside the engine; the SFTP transport has no engine, so the
-        // cadence lives here. Only mounts in sftp + enabled + auto; the
-        // tick is a no-op while a round is already in flight. 5 min
-        // matches the P2P `auto_interval_secs` default.
-        if self.sync.enabled && self.sync.transport == "sftp" && self.sync.mode == "auto" {
+        // Snapshot-transport auto cadence. The P2P transport runs its
+        // own timer inside the engine; the snapshot transports (SFTP,
+        // folder, Git, WebDAV) have none, so the cadence lives here.
+        // Mounts for any of them in enabled + auto; the tick is a no-op
+        // while a round is already in flight. 5 min matches the P2P
+        // `auto_interval_secs` default.
+        if self.sync.enabled && !self.sync_uses_p2p() && self.sync.mode == "auto" {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(300))
-                    .map(|_| Message::Sync(SyncMessage::SftpTick)),
+                    .map(|_| Message::Sync(SyncMessage::SnapshotTick)),
             );
         }
 

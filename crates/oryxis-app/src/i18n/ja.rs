@@ -1143,6 +1143,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "\u{540c}\u{3058}\u{30af}\u{30e9}\u{30a6}\u{30c9}\u{540c}\u{671f}\u{30d5}\u{30a9}\u{30eb}\u{30c0}\u{30fc}\u{306b} 2 \u{53f0}\u{304c}\u{66f8}\u{304d}\u{8fbc}\u{3080}\u{3068}\u{7af6}\u{5408}\u{3057}\u{5f97}\u{307e}\u{3059}\u{3057}\u{3001}\u{30af}\u{30e9}\u{30a6}\u{30c9}\u{30af}\u{30e9}\u{30a4}\u{30a2}\u{30f3}\u{30c8}\u{304c}\u{72ec}\u{81ea}\u{306e}\u{7af6}\u{5408}\u{30b3}\u{30d4}\u{30fc}\u{3092}\u{6b8b}\u{3059}\u{3053}\u{3068}\u{3082}\u{3042}\u{308a}\u{307e}\u{3059}\u{3002}\u{540c}\u{4e00}\u{30cd}\u{30c3}\u{30c8}\u{30ef}\u{30fc}\u{30af}\u{306a}\u{3089} P2P \u{306e}\u{65b9}\u{304c}\u{9069}\u{3057}\u{3066}\u{3044}\u{307e}\u{3059}\u{3002}",
         "sftp_sync_running" => "SFTP で同期中...",
         "sftp_sync_active_label" => "SFTP同期 稼働中",
+        "snapshot_sync_active_label" => "スナップショット同期 稼働中",
         "sftp_sync_done" => "SFTP 同期が完了しました ({n} 件取得)",
         "sftp_sync_note_group" => "グループ内のすべてのデバイスで同じパスフレーズと同じファイルを使用してください。",
         "sftp_sync_note_bridge" => "ピアツーピアのデバイスと SFTP のデバイスは互いに同期しません。",

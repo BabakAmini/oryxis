@@ -761,6 +761,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "folder_sync_shared_warning" => "Two machines writing one cloud-mirrored folder can race, and the cloud client may leave its own conflicted copy. On the same network, P2P is the better answer.",
         "sftp_sync_running" => "Syncing over SFTP...",
         "sftp_sync_active_label" => "SFTP sync active",
+        "snapshot_sync_active_label" => "Snapshot sync active",
         "sftp_sync_done" => "SFTP sync done ({n} records pulled)",
         "sftp_sync_note_group" => "Use the same passphrase and the same file on every device in the group.",
         "sftp_sync_note_bridge" => "A peer-to-peer device and an SFTP device don't sync with each other.",

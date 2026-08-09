@@ -730,6 +730,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "Duas m\u{e1}quinas escrevendo na mesma pasta espelhada podem competir, e o cliente de nuvem pode deixar uma c\u{f3}pia de conflito pr\u{f3}pria. Na mesma rede, o P2P \u{e9} a melhor resposta.",
         "sftp_sync_running" => "Sincronizando via SFTP...",
         "sftp_sync_active_label" => "Sincronização SFTP ativa",
+        "snapshot_sync_active_label" => "Sincronização por snapshot ativa",
         "sftp_sync_done" => "Sincronização SFTP concluída ({n} registros recebidos)",
         "sftp_sync_note_group" => "Use a mesma senha e o mesmo arquivo em todos os dispositivos do grupo.",
         "sftp_sync_note_bridge" => "Um dispositivo ponto a ponto e um dispositivo SFTP não sincronizam entre si.",

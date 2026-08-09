@@ -761,6 +761,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "folder_sync_shared_warning" => "\u{e2a}\u{e2d}\u{e07}\u{e40}\u{e04}\u{e23}\u{e37}\u{e48}\u{e2d}\u{e07}\u{e17}\u{e35}\u{e48}\u{e40}\u{e02}\u{e35}\u{e22}\u{e19}\u{e25}\u{e07}\u{e42}\u{e1f}\u{e25}\u{e40}\u{e14}\u{e2d}\u{e23}\u{e4c}\u{e04}\u{e25}\u{e32}\u{e27}\u{e14}\u{e4c}\u{e40}\u{e14}\u{e35}\u{e22}\u{e27}\u{e01}\u{e31}\u{e19}\u{e2d}\u{e32}\u{e08}\u{e0a}\u{e19}\u{e01}\u{e31}\u{e19} \u{e41}\u{e25}\u{e30}\u{e44}\u{e04}\u{e25}\u{e40}\u{e2d}\u{e19}\u{e15}\u{e4c}\u{e04}\u{e25}\u{e32}\u{e27}\u{e14}\u{e4c}\u{e2d}\u{e32}\u{e08}\u{e17}\u{e34}\u{e49}\u{e07}\u{e2a}\u{e33}\u{e40}\u{e19}\u{e32}\u{e04}\u{e27}\u{e32}\u{e21}\u{e02}\u{e31}\u{e14}\u{e41}\u{e22}\u{e49}\u{e07}\u{e02}\u{e2d}\u{e07}\u{e15}\u{e31}\u{e27}\u{e40}\u{e2d}\u{e07}\u{e44}\u{e27}\u{e49} \u{e16}\u{e49}\u{e32}\u{e2d}\u{e22}\u{e39}\u{e48}\u{e40}\u{e04}\u{e23}\u{e37}\u{e2d}\u{e02}\u{e48}\u{e32}\u{e22}\u{e40}\u{e14}\u{e35}\u{e22}\u{e27}\u{e01}\u{e31}\u{e19} P2P \u{e40}\u{e2b}\u{e21}\u{e32}\u{e30}\u{e01}\u{e27}\u{e48}\u{e32}",
         "sftp_sync_running" => "กำลังซิงค์ผ่าน SFTP...",
         "sftp_sync_active_label" => "ซิงค์ SFTP ทำงานอยู่",
+        "snapshot_sync_active_label" => "ซิงค์สแนปช็อตทำงานอยู่",
         "sftp_sync_done" => "ซิงค์ SFTP เสร็จแล้ว (ดึงมา {n} รายการ)",
         "sftp_sync_note_group" => "ใช้วลีรหัสผ่านเดียวกันและไฟล์เดียวกันบนทุกอุปกรณ์ในกลุ่ม",
         "sftp_sync_note_bridge" => "อุปกรณ์แบบเพียร์ทูเพียร์กับอุปกรณ์แบบ SFTP จะไม่ซิงค์ถึงกัน",
