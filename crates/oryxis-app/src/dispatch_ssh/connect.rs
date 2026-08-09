@@ -59,43 +59,9 @@ impl Oryxis {
         conn: &mut oryxis_core::models::Connection,
         origin: crate::state::ProgressOrigin,
     ) -> ConnectPlan {
-        // Resolve the effective proxy (saved identity OR inline)
-        // and hydrate its password from the encrypted vault column,
-        // then collapse onto `conn.proxy`, the engine only reads
-        // that field. A dangling `proxy_identity_id` resolves to
-        // None (warning logged inside `resolve_proxy`).
-        // Group inheritance (D4) is applied HERE, onto the working copy
-        // the engine reads, rather than inside the engine: the vault row
-        // keeps saying only what the user typed on the host, so opening
-        // the editor still shows an inherited field as unset (and
-        // clearing an override still means "go back to inheriting").
-        //
-        // `resolve_effective` layers over `resolve_proxy`, so the host's
-        // own proxy keeps every rule that method documents and the
-        // group's only applies when the host resolves to none.
-        if let Some(vault) = self.vault.as_ref() {
-            match vault.resolve_effective(conn, &self.groups) {
-                Ok(effective) => {
-                    conn.proxy = effective.proxy.map(|(p, _)| p);
-                    if conn.username.as_deref().unwrap_or_default().is_empty() {
-                        conn.username = effective.username.map(|(u, _)| u);
-                    }
-                    if conn.identity_id.is_none() {
-                        conn.identity_id = effective.identity_id.map(|(id, _)| id);
-                    }
-                    // Already merged by name, host winning, so this is
-                    // the whole set rather than an override.
-                    conn.env_vars = effective.env_vars;
-                }
-                // Resolution failing must not stop a connect that would
-                // otherwise work: fall back to the host's own proxy,
-                // which is exactly the pre-D4 behaviour.
-                Err(e) => {
-                    tracing::warn!(error = %e, "group inheritance failed, using the host's own settings");
-                    conn.proxy = vault.resolve_proxy(conn).ok().flatten();
-                }
-            }
-        }
+        // Group inheritance + the effective proxy, in one place
+        // shared with the split / quick-connect / reconnect path.
+        self.apply_group_inheritance(conn);
 
         // Resolve credentials: prefer identity if linked, otherwise inline
         // (shared helper, which also resolves the key's certificate for B2).
@@ -1154,6 +1120,67 @@ impl Oryxis {
             .unwrap_or(oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS)
     }
 
+    /// Collapse the effective proxy and the group's inherited settings
+    /// (D4) onto the working copy the engine reads.
+    ///
+    /// ONE function for every connect path. There are two of them, the
+    /// tab connect and `spawn_ssh_for_pane_conn` (split panes,
+    /// quick-connect and in-place reconnect), and applying this in only
+    /// the first is exactly the bug that shipped for one build: a host
+    /// inheriting its user connected as "root" because the second path
+    /// resolved the proxy and nothing else.
+    ///
+    /// It writes to the COPY, never the vault row, so the editor still
+    /// shows an inherited field as unset and clearing an override still
+    /// means "go back to inheriting".
+    pub(crate) fn apply_group_inheritance(&self, conn: &mut oryxis_core::models::Connection) {
+        let Some(vault) = self.vault.as_ref() else {
+            return;
+        };
+        // `resolve_effective` layers over `resolve_proxy`, so the host's
+        // own proxy keeps every rule that method documents (identity
+        // over inline, dangling id -> None with a warning) and the
+        // group's applies only when the host resolves to none.
+        let effective = match vault.resolve_effective(conn, &self.groups) {
+            Ok(effective) => effective,
+            // Resolution failing must not stop a connect that would
+            // otherwise work: fall back to the host's own proxy, which
+            // is exactly the pre-D4 behaviour.
+            Err(e) => {
+                tracing::warn!(error = %e, "group inheritance failed, using the host's own settings");
+                conn.proxy = vault.resolve_proxy(conn).ok().flatten();
+                return;
+            }
+        };
+        conn.proxy = effective.proxy.map(|(p, _)| p);
+        if conn.username.as_deref().unwrap_or_default().is_empty() {
+            conn.username = effective.username.map(|(u, _)| u);
+        }
+        if conn.identity_id.is_none() {
+            conn.identity_id = effective.identity_id.map(|(id, _)| id);
+        }
+        // An identity carries its own username and the engine does NOT
+        // look for it: `engine/auth.rs` reads `connection.username` and
+        // falls back to "root". A host that names no user and inherits
+        // only an identity would authenticate as root while the
+        // progress log claimed the identity's name, so the identity's
+        // username fills the empty field here, exactly as
+        // `host_ssh_url` already documents connect-time resolution.
+        if conn.username.as_deref().unwrap_or_default().is_empty()
+            && let Some(iid) = conn.identity_id
+        {
+            conn.username = self
+                .identities
+                .iter()
+                .find(|i| i.id == iid)
+                .and_then(|i| i.username.clone())
+                .filter(|u| !u.is_empty());
+        }
+        // Already merged by name with the host winning, so this is the
+        // whole set rather than an override.
+        conn.env_vars = effective.env_vars;
+    }
+
     fn spawn_ssh_for_pane_conn(
         &mut self,
         mut conn: oryxis_core::models::Connection,
@@ -1192,9 +1219,7 @@ impl Oryxis {
             }
             oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }
-        if let Some(vault) = self.vault.as_ref() {
-            conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
-        }
+        self.apply_group_inheritance(&mut conn);
         let (mut password, private_key, certificate) = self.resolve_forward_credentials(&conn);
         // Agent-auth pin (B3), same rule as the tab connect.
         let pinned_agent = self.pinned_agent_public(&conn);
