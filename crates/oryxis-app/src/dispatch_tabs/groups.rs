@@ -26,6 +26,7 @@ impl Oryxis {
                         .filter(|pid| self.groups.iter().any(|g| g.id == *pid))
                         .map(|pid| oryxis_core::models::Group::path_of(&self.groups, pid))
                         .unwrap_or_default();
+                    self.hydrate_group_defaults_form(gid);
                     self.group_edit.visible = true;
                     // Mutually exclusive with the other right-hand panels.
                     self.panels.host_panel = false;
@@ -55,6 +56,7 @@ impl Oryxis {
                         icon: String::new(),
                         color: String::new(),
                         parent_label,
+                        ..Default::default()
                     };
                     // Mutually exclusive with the other right-hand panels.
                     self.panels.host_panel = false;
@@ -80,6 +82,7 @@ impl Oryxis {
                     icon: String::new(),
                     color: String::new(),
                     parent_label: String::new(),
+                    ..Default::default()
                 };
                 // Mutually exclusive with the other right-hand panels.
                 self.panels.host_panel = false;
@@ -96,6 +99,52 @@ impl Oryxis {
             }
             TabsMessage::GroupEditParentChanged(v) => {
                 self.group_edit.parent_label = v;
+            }
+            TabsMessage::GroupEditToggleDefaults => {
+                self.group_edit.defaults_open = !self.group_edit.defaults_open;
+            }
+            TabsMessage::GroupEditDefaultUsername(v) => {
+                self.group_edit.username = v;
+            }
+            TabsMessage::GroupEditDefaultPort(v) => {
+                // Digits only, same guard the host editor's port field
+                // uses: a typo must not be storable.
+                self.group_edit.port = v.chars().filter(|c| c.is_ascii_digit()).collect();
+            }
+            TabsMessage::GroupEditDefaultIdentity(v) => {
+                self.group_edit.identity_label = v;
+            }
+            TabsMessage::GroupEditDefaultProxyIdentity(v) => {
+                self.group_edit.proxy_identity_label = v;
+            }
+            TabsMessage::GroupEditDefaultTheme(v) => {
+                self.group_edit.terminal_theme = v;
+            }
+            TabsMessage::GroupEditDefaultSnippet(v) => {
+                self.group_edit.startup_snippet_label = v;
+            }
+            TabsMessage::GroupEditEnvAdd => {
+                self.group_edit.env_vars.push(
+                    oryxis_core::models::connection::EnvVar {
+                        key: String::new(),
+                        value: String::new(),
+                    },
+                );
+            }
+            TabsMessage::GroupEditEnvRemove(idx) => {
+                if idx < self.group_edit.env_vars.len() {
+                    self.group_edit.env_vars.remove(idx);
+                }
+            }
+            TabsMessage::GroupEditEnvKey(idx, v) => {
+                if let Some(var) = self.group_edit.env_vars.get_mut(idx) {
+                    var.key = v;
+                }
+            }
+            TabsMessage::GroupEditEnvValue(idx, v) => {
+                if let Some(var) = self.group_edit.env_vars.get_mut(idx) {
+                    var.value = v;
+                }
             }
             TabsMessage::ShowGroupEditIconPicker => {
                 self.icon_picker.icon = if self.group_edit.icon.is_empty() {
@@ -147,12 +196,18 @@ impl Oryxis {
                     } else {
                         Some(self.group_edit.color.clone())
                     };
+                    // Labels resolve to ids HERE, against the lists as
+                    // they are at save time, so a picker left pointing
+                    // at something the user deleted meanwhile stores
+                    // nothing rather than a dangling id.
+                    let defaults = self.group_edit_defaults();
                     if let Some(gid) = self.group_edit.id {
                         if let Some(group) = self.groups.iter_mut().find(|g| g.id == gid) {
                             group.label = trimmed;
                             group.icon = icon;
                             group.color = color;
                             group.parent_id = parent_id;
+                            group.defaults = defaults;
                             group.updated_at = chrono::Utc::now();
                             if let Some(vault) = &self.vault {
                                 let _ = vault.save_group(group);
@@ -188,6 +243,7 @@ impl Oryxis {
                             {
                                 group.icon = icon;
                                 group.color = color;
+                                group.defaults = defaults;
                                 group.updated_at = chrono::Utc::now();
                                 if let Some(vault) = &self.vault {
                                     let _ = vault.save_group(group);
@@ -198,6 +254,7 @@ impl Oryxis {
                             group.icon = icon;
                             group.color = color;
                             group.parent_id = parent_id;
+                            group.defaults = defaults;
                             if let Some(vault) = &self.vault {
                                 let _ = vault.save_group(&group);
                             }

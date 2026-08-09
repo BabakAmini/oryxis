@@ -305,6 +305,18 @@ impl Oryxis {
         {
             return palette;
         }
+        // The host names none: its group chain may (D4). Between the
+        // host's own choice and the global setting, not instead of
+        // either.
+        if let Some(name) = self
+            .vault
+            .as_ref()
+            .and_then(|v| v.resolve_effective(conn, &self.groups).ok())
+            .and_then(|e| e.terminal_theme.map(|(name, _)| name))
+            && let Some(palette) = self.terminal_palette_for_name(&name)
+        {
+            return palette;
+        }
         self.resolve_global_terminal_palette()
     }
 

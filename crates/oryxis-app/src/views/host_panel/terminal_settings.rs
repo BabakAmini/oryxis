@@ -27,14 +27,31 @@ impl Oryxis {
                 self.terminal_palette_for_name(name).unwrap(),
                 name.to_string(),
             ),
-            None => (
-                self.resolve_global_terminal_palette(),
-                format!(
-                    "{} ({})",
-                    crate::i18n::t("terminal_theme_inherit_global"),
-                    self.resolve_global_terminal_theme_name()
-                ),
-            ),
+            // No host override: the group chain may still answer (D4),
+            // and naming the GROUP is more useful than saying "global"
+            // when the global is not actually what will be used.
+            None => {
+                let inherited = self
+                    .editor_inherited()
+                    .terminal_theme
+                    .filter(|(name, _)| self.terminal_palette_for_name(name).is_some());
+                match inherited {
+                    Some((name, group)) => (
+                        self.terminal_palette_for_name(&name).unwrap(),
+                        crate::i18n::t("inherited_from")
+                            .replace("{value}", &name)
+                            .replace("{group}", &group),
+                    ),
+                    None => (
+                        self.resolve_global_terminal_palette(),
+                        format!(
+                            "{} ({})",
+                            crate::i18n::t("terminal_theme_inherit_global"),
+                            self.resolve_global_terminal_theme_name()
+                        ),
+                    ),
+                }
+            }
         };
         let theme_trigger: Element<'_, Message> = self.panel_nav_slot(
             crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorOpenThemePicker)),

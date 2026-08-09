@@ -114,6 +114,17 @@ impl Oryxis {
         {
             self.editor_form.group_name =
                 oryxis_core::models::Group::path_of(&self.groups, gid);
+            // The group's default port (D4) prefills a host born here,
+            // and this is the ONLY place it applies: resolving it at
+            // connect time would move an existing host's destination
+            // the moment its group gained a default. The protocol's own
+            // default still wins, since choosing Telnet is a more
+            // specific statement about the port than the folder is.
+            if protocol.default_port().is_none()
+                && let Some(port) = self.group_default_port(Some(gid))
+            {
+                self.editor_form.port = port.to_string();
+            }
         }
         self.host_panel_error = None;
         self.rebuild_editor_combos();

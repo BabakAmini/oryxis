@@ -389,6 +389,19 @@ If your vault has no password, omit the `env` field.
   encrypted.
 - **Encrypted SSH key import.** Passphrase-protected keys are decrypted on
   import; the vault master password protects them at rest.
+- **Group settings inheritance.** A group carries defaults (login user,
+  identity, proxy identity, terminal theme, startup snippet,
+  environment variables, and the port new hosts start with) and every
+  host inside inherits what it does not set itself, resolved up through
+  nested subgroups. Per parameter, not all-or-nothing: a group that only
+  sets the proxy leaves the rest alone, and a subgroup overrides just
+  what it names. The host editor shows where an inherited value comes
+  from and typing your own overrides it. Environment variables merge by
+  name instead of replacing, so a host adds to its groups' set and
+  overrides only the names it repeats. Credentials are an identity
+  REFERENCE, never a copy, so no second place holds a password. The port
+  is the deliberate exception: it prefills a host created in the group
+  and never changes one that already exists.
 
 ## Vault & security
 

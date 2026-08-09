@@ -182,13 +182,36 @@ impl Oryxis {
             ),
         ]);
 
+        // ── Section: Defaults (D4) ──
+        // What every host inside this group inherits unless it says
+        // otherwise. Its own section rather than more rows in General:
+        // the fields above describe the FOLDER, these describe the
+        // hosts in it, and mixing the two reads as one long form where
+        // nothing signals that half of it reaches other records.
+        //
+        // Dynamic (cloud-backed) groups are excluded: their contents
+        // come from a query template that already carries username,
+        // key and identity, so a second inheritance path over the same
+        // fields would be two answers to one question.
+        let is_dynamic = self
+            .group_edit
+            .id
+            .and_then(|gid| self.groups.iter().find(|g| g.id == gid))
+            .is_some_and(|g| g.cloud_query.is_some());
+        let defaults_section: Element<'_, Message> = if is_dynamic {
+            Space::new().height(0).into()
+        } else {
+            panel_section(column![self.group_defaults_section()])
+        };
+
         let form_scroll = scrollable(
-            container(general_section).padding(Padding {
-                top: 0.0,
-                right: 16.0,
-                bottom: 16.0,
-                left: 16.0,
-            }),
+            container(column![general_section, Space::new().height(12), defaults_section])
+                .padding(Padding {
+                    top: 0.0,
+                    right: 16.0,
+                    bottom: 16.0,
+                    left: 16.0,
+                }),
         )
         // Shared id: the keyboard router keeps the selected row in view.
         .id(iced::widget::Id::new("side-panel-scroll"))

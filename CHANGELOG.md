@@ -7,6 +7,27 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Groups hand their settings down to the hosts inside them.** A group
+  now carries defaults: login user, identity, proxy identity, terminal
+  theme, startup snippet, environment variables and the port new hosts
+  are created with. A host that leaves a field empty takes it from the
+  nearest group that sets it, walking up through nested subgroups, so
+  forty hosts behind one bastion get the proxy and the identity set
+  once instead of forty times. Resolution is per parameter: a group
+  that only sets the proxy leaves everything else to be answered
+  further up or by the host itself, and a subgroup overrides just what
+  it names. The host editor says where an inherited value comes from
+  ("Inherits deploy from prod"), and typing your own still wins.
+  Environment variables merge by name rather than replacing, so a host
+  adds to what its groups provide and only overrides the variables it
+  names. Group credentials are a reference to an identity, never a copy
+  of a password: the vault keeps one place where a credential can live.
+  The port is the exception to inheritance and deliberately so, it
+  prefills a host created inside the group and never touches one that
+  already exists, because a host that connects today must not change
+  destination because a folder gained a default. Group defaults ride
+  sync and portable export like any other field, and older peers ignore
+  what they do not understand.
 - **tmux sessions from the sidebar (#116).** A new terminal-sidebar tab
   lists the tmux sessions running on the focused pane's host, with their
   window count and whether a client is already attached, and creates,

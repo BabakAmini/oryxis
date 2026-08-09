@@ -25,6 +25,7 @@ mod basics;
 mod credentials;
 mod footer;
 mod integration;
+mod inherited;
 mod login_script;
 mod network;
 mod terminal_settings;

@@ -173,6 +173,17 @@ impl Oryxis {
                 | TabsMessage::NewGroup
                 | TabsMessage::GroupEditLabelChanged(..)
                 | TabsMessage::GroupEditParentChanged(..)
+                | TabsMessage::GroupEditToggleDefaults
+                | TabsMessage::GroupEditDefaultUsername(..)
+                | TabsMessage::GroupEditDefaultPort(..)
+                | TabsMessage::GroupEditDefaultIdentity(..)
+                | TabsMessage::GroupEditDefaultProxyIdentity(..)
+                | TabsMessage::GroupEditDefaultTheme(..)
+                | TabsMessage::GroupEditDefaultSnippet(..)
+                | TabsMessage::GroupEditEnvAdd
+                | TabsMessage::GroupEditEnvRemove(..)
+                | TabsMessage::GroupEditEnvKey(..)
+                | TabsMessage::GroupEditEnvValue(..)
                 | TabsMessage::ShowGroupEditIconPicker
                 | TabsMessage::SaveGroupEdit
                 | TabsMessage::CancelGroupEdit
@@ -184,6 +195,7 @@ impl Oryxis {
     }
 }
 
+mod group_defaults;
 mod groups;
 mod hover;
 mod menus;

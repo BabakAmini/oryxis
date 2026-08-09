@@ -29,6 +29,55 @@ pub(crate) fn panel_field<'a>(label: &'a str, input: Element<'a, Message>) -> El
     .into()
 }
 
+/// `panel_field` plus a line saying where an unset field's value comes
+/// from (D4 group inheritance).
+///
+/// `inherited` is `Some((value, group label))` only when the host
+/// itself sets nothing AND an ancestor does; a host with its own value
+/// renders exactly like `panel_field`, because the inherited value is
+/// then not what will be used and saying otherwise would be a lie.
+///
+/// The hint is a LINE rather than placeholder text inside the input: a
+/// greyed value in the box reads as something already typed, and the
+/// user needs to see both that the field is empty and what will be used
+/// because it is.
+pub(crate) fn panel_field_inherited<'a>(
+    label: &'a str,
+    input: Element<'a, Message>,
+    inherited: Option<(String, String)>,
+) -> Element<'a, Message> {
+    let Some((value, group)) = inherited else {
+        // An empty label means the caller already has its own row
+        // header (or needs none), so it gets the bare input back
+        // instead of a blank line above it.
+        return if label.is_empty() {
+            input
+        } else {
+            panel_field(label, input)
+        };
+    };
+    let mut col = iced::widget::column![];
+    if !label.is_empty() {
+        col = col
+            .push(text(label).size(12).color(OryxisColors::t().text_muted))
+            .push(Space::new().height(4));
+    }
+    col.push(input)
+        .push(Space::new().height(3))
+        .push(
+            text(
+                crate::i18n::t("inherited_from")
+                    .replace("{value}", &value)
+                    .replace("{group}", &group),
+            )
+            .size(10)
+            .color(OryxisColors::t().accent),
+        )
+        .width(Length::Fill)
+        .align_x(dir_align_x())
+        .into()
+}
+
 /// `panel_field` for a credential input: standardizes the tri-state
 /// password placeholder every editor tracks by hand. While an existing
 /// secret is stored and the field untouched, the placeholder says the

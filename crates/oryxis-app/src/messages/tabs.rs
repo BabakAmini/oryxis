@@ -126,6 +126,28 @@ pub enum TabsMessage {
     GroupEditParentChanged(String),
     /// Open the icon/color picker routed to the group editor.
     ShowGroupEditIconPicker,
+    /// Expand / collapse the group editor's Defaults section (D4).
+    /// Collapsed by default: most groups are folders, and the
+    /// inheritance fields would otherwise dominate a panel whose usual
+    /// job is renaming.
+    GroupEditToggleDefaults,
+    /// Group default: login user hosts inherit when they name none.
+    GroupEditDefaultUsername(String),
+    /// Group default: port a NEW host in this group is created with.
+    /// Never applied to hosts that already exist.
+    GroupEditDefaultPort(String),
+    /// Group defaults picked from a list: the label, or `None` for the
+    /// explicit "not set" row that means "keep inheriting".
+    GroupEditDefaultIdentity(Option<String>),
+    GroupEditDefaultProxyIdentity(Option<String>),
+    GroupEditDefaultTheme(Option<String>),
+    GroupEditDefaultSnippet(Option<String>),
+    /// Group default environment variables, merged by name with the
+    /// host's and the other ancestors'.
+    GroupEditEnvAdd,
+    GroupEditEnvRemove(usize),
+    GroupEditEnvKey(usize, String),
+    GroupEditEnvValue(usize, String),
     SaveGroupEdit,
     CancelGroupEdit,
     StartDeleteFolder(Uuid),

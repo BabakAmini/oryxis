@@ -362,9 +362,21 @@ impl Oryxis {
                 // snippet edits propagate) wins over the literal
                 // `initial_command`; a dangling snippet id resolves to
                 // nothing, never an error.
+                // The snippet reference can come from the host or, when
+                // the host names none, from its group chain (D4). The
+                // literal `initial_command` is host-only by design: a
+                // group hands down a snippet, which stays editable in
+                // one place, never a copy of a command.
                 let (startup_snip, startup_lit) = self
                     .pane_origin_connection(pane_id)
-                    .map(|c| (c.startup_snippet_id, c.initial_command.clone()))
+                    .map(|c| {
+                        let inherited = self
+                            .vault
+                            .as_ref()
+                            .and_then(|v| v.resolve_effective(c, &self.groups).ok())
+                            .and_then(|e| e.startup_snippet_id.map(|(id, _)| id));
+                        (c.startup_snippet_id.or(inherited), c.initial_command.clone())
+                    })
                     .unwrap_or((None, None));
                 let fallback_cmd = match startup_snip {
                     Some(id) => self

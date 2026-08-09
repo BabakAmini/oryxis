@@ -14,21 +14,37 @@ impl Oryxis {
         let cred_items: Element<'_, Message> = if is_serial {
             empty()
         } else {
+        // Group inheritance (D4): an empty username says what the
+        // host's group chain will supply, and only while it IS empty,
+        // because once the user types the inherited value is no longer
+        // what connects.
+        let inherited = self.editor_inherited();
+        let username_hint = self
+            .editor_form
+            .username
+            .trim()
+            .is_empty()
+            .then_some(inherited.username.clone())
+            .flatten();
         let mut cred_items = column![
-            dir_row(vec![
-                iced_fonts::lucide::user().size(13).color(OryxisColors::t().text_muted).into(),
-                Space::new().width(10).into(),
-                self.panel_nav_slot(
-                    crate::keynav::RowAction::input(iced::widget::Id::new("editor-username")),
-                    10.0,
-                    text_input(t("username"), &self.editor_form.username)
-                        .id(iced::widget::Id::new("editor-username"))
-                        .on_input(|v| Message::Editor(EditorMessage::EditorUsernameChanged(v)))
-                        .on_submit(Message::Editor(EditorMessage::EditorSave))
-                        .padding(10)
-                        .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
-                ),
-            ]).align_y(iced::Alignment::Center)
+            crate::widgets::panel_field_inherited(
+                "",
+                dir_row(vec![
+                    iced_fonts::lucide::user().size(13).color(OryxisColors::t().text_muted).into(),
+                    Space::new().width(10).into(),
+                    self.panel_nav_slot(
+                        crate::keynav::RowAction::input(iced::widget::Id::new("editor-username")),
+                        10.0,
+                        text_input(t("username"), &self.editor_form.username)
+                            .id(iced::widget::Id::new("editor-username"))
+                            .on_input(|v| Message::Editor(EditorMessage::EditorUsernameChanged(v)))
+                            .on_submit(Message::Editor(EditorMessage::EditorSave))
+                            .padding(10)
+                            .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
+                    ),
+                ]).align_y(iced::Alignment::Center).into(),
+                username_hint,
+            )
         ];
 
         // Identity suggestion dropdown (only when username field is
@@ -135,6 +151,34 @@ impl Oryxis {
                 })
                 .into()
             });
+
+        // No identity on the host, but a group supplies one (D4): say so
+        // where the banner would be. Muted rather than accent-filled,
+        // because this is what WILL be used, not what the user chose,
+        // and the two must not read the same.
+        let inherited_identity_note: Option<Element<'_, Message>> = self
+            .editor_form
+            .selected_identity
+            .is_none()
+            .then_some(inherited.identity.clone())
+            .flatten()
+            .filter(|_| is_ssh)
+            .map(|(label, group)| {
+                container(
+                    text(
+                        crate::i18n::t("inherited_from")
+                            .replace("{value}", &label)
+                            .replace("{group}", &group),
+                    )
+                    .size(10)
+                    .color(OryxisColors::t().accent),
+                )
+                .padding(Padding { top: 2.0, right: 0.0, bottom: 0.0, left: 0.0 })
+                .into()
+            });
+        if let Some(note) = inherited_identity_note {
+            cred_items = cred_items.push(note);
+        }
 
         // Credentials body: password row when no identity, else the
         // "managed by identity" banner (both belong with the login).

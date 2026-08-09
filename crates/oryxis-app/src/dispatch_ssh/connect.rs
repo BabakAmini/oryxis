@@ -64,8 +64,37 @@ impl Oryxis {
         // then collapse onto `conn.proxy`, the engine only reads
         // that field. A dangling `proxy_identity_id` resolves to
         // None (warning logged inside `resolve_proxy`).
+        // Group inheritance (D4) is applied HERE, onto the working copy
+        // the engine reads, rather than inside the engine: the vault row
+        // keeps saying only what the user typed on the host, so opening
+        // the editor still shows an inherited field as unset (and
+        // clearing an override still means "go back to inheriting").
+        //
+        // `resolve_effective` layers over `resolve_proxy`, so the host's
+        // own proxy keeps every rule that method documents and the
+        // group's only applies when the host resolves to none.
         if let Some(vault) = self.vault.as_ref() {
-            conn.proxy = vault.resolve_proxy(conn).ok().flatten();
+            match vault.resolve_effective(conn, &self.groups) {
+                Ok(effective) => {
+                    conn.proxy = effective.proxy.map(|(p, _)| p);
+                    if conn.username.as_deref().unwrap_or_default().is_empty() {
+                        conn.username = effective.username.map(|(u, _)| u);
+                    }
+                    if conn.identity_id.is_none() {
+                        conn.identity_id = effective.identity_id.map(|(id, _)| id);
+                    }
+                    // Already merged by name, host winning, so this is
+                    // the whole set rather than an override.
+                    conn.env_vars = effective.env_vars;
+                }
+                // Resolution failing must not stop a connect that would
+                // otherwise work: fall back to the host's own proxy,
+                // which is exactly the pre-D4 behaviour.
+                Err(e) => {
+                    tracing::warn!(error = %e, "group inheritance failed, using the host's own settings");
+                    conn.proxy = vault.resolve_proxy(conn).ok().flatten();
+                }
+            }
         }
 
         // Resolve credentials: prefer identity if linked, otherwise inline

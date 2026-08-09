@@ -695,6 +695,28 @@ pub(crate) struct GroupEditForm {
     /// Parent-group combo, label-matched on Save like the dynamic
     /// group editor's `parent_label`. Empty / unmatched = root.
     pub parent_label: String,
+    /// Whether the Defaults section is expanded. Collapsed by default:
+    /// most groups are just folders, and seven inheritance fields
+    /// would otherwise be the loudest thing in a panel whose usual job
+    /// is renaming.
+    pub defaults_open: bool,
+    /// The inheritance fields (D4), held as edit-friendly strings and
+    /// labels the way the rest of the panel does, resolved to a
+    /// `GroupDefaults` on Save. An empty string is "not set", which is
+    /// what makes a host fall through to the next ancestor.
+    pub username: String,
+    /// Selected identity label, or `None` for "not set". The picker
+    /// shows an explicit inherit option rather than a blank row.
+    pub identity_label: Option<String>,
+    pub proxy_identity_label: Option<String>,
+    /// Port a new host in this group is created with. Empty = not set;
+    /// deliberately never applied to hosts that already exist.
+    pub port: String,
+    pub terminal_theme: Option<String>,
+    pub startup_snippet_label: Option<String>,
+    /// Environment variables the group contributes, merged by name
+    /// with what the host and the other ancestors provide.
+    pub env_vars: Vec<oryxis_core::models::connection::EnvVar>,
 }
 
 /// Edit form for a dynamic (cloud-backed) group. Opened from the ⋮ menu
