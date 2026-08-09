@@ -245,6 +245,11 @@ tracks it interactively.
 
 **Planned**
 
+- **Multiple vaults:** keep separate encrypted vaults (Personal, Work)
+  instead of one. Each has its own lock password, so isolation is real:
+  two vaults never share a key. A unified unlock is offered for people
+  who want the split for organization rather than secrecy, opening the
+  linked ones together; that is a per-vault choice, not the default.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
