@@ -404,8 +404,16 @@ impl Oryxis {
                     if let Some(vault) = &self.vault {
                         let _ = vault.set_setting("sync_transport", &v);
                     }
+                    // Every transport's status, not just SFTP's: the
+                    // old line was written when there were two, so
+                    // switching away and back showed the previous
+                    // transport's "Synced, N records" as if it were
+                    // this one's.
                     self.sync.status = None;
                     self.sync.sftp.status = None;
+                    self.sync.folder.status = None;
+                    self.sync.git.status = None;
+                    self.sync.webdav.status = None;
                     if !self.sync_uses_p2p() {
                         self.stop_sync_engine();
                     } else if self.sync.enabled {
@@ -579,7 +587,10 @@ impl Oryxis {
                 // (or to P2P) mid-interval would otherwise get one more
                 // round after the change. The per-transport
                 // `in_progress` guard keeps a slow round from stacking.
-                if !self.sync.enabled || self.sync.mode != "auto" {
+                if !self.sync.enabled
+                    || self.sync.mode != "auto"
+                    || self.vault_ui.state != crate::state::VaultState::Unlocked
+                {
                     return Task::none();
                 }
                 match self.sync.transport.as_str() {

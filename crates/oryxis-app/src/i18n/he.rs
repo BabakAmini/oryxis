@@ -757,6 +757,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "אין אוסף בכתובת הזאת בשרת",
         "webdav_sync_http_error" => "השרת השיב",
         "webdav_sync_cas_note" => "התעבורה מבוססת-הקובץ היחידה שמזהה התנגשות במקום לתקן אותה בדיעבד: הכתיבה נדחית אם מכשיר אחר הקדים, והסבב מתחיל מחדש מעל הנתונים שלו.",
+        "webdav_sync_cleartext" => "הכתובת הזאת שולחת את הסיסמה בטקסט גלוי. השתמשו ב-https:// אלא אם השרת נמצא במחשב הזה.",
         "git_sync_desc" => "\u{5d0}\u{5d5}\u{5ea}\u{5d4} \u{5ea}\u{5de}\u{5d5}\u{5e0}\u{5ea} \u{5de}\u{5e6}\u{5d1} \u{5de}\u{5d5}\u{5e6}\u{5e4}\u{5e0}\u{5ea}, \u{5d0}\u{5d1}\u{5dc} \u{5db}\u{5e7}\u{5d5}\u{5de}\u{5d9}\u{5d8} \u{5dc}\u{5de}\u{5d0}\u{5d2}\u{5e8} Git \u{5de}\u{5e8}\u{5d5}\u{5d7}\u{5e7}: \u{5db}\u{5dc} \u{5e4}\u{5d5}\u{5e8}\u{5d2}\u{5f3}, \u{5d0}\u{5d5} \u{5e9}\u{5e8}\u{5ea} \u{5de}\u{5e9}\u{5dc}\u{5db}\u{5dd}. \u{5d4}\u{5ea}\u{5e2}\u{5d1}\u{5d5}\u{5e8}\u{5d4} \u{5d4}\u{5d9}\u{5d7}\u{5d9}\u{5d3}\u{5d4} \u{5e9}\u{5e9}\u{5d5}\u{5de}\u{5e8}\u{5ea} \u{5d4}\u{5d9}\u{5e1}\u{5d8}\u{5d5}\u{5e8}\u{5d9}\u{5d4}, \u{5db}\u{5da} \u{5e9}\u{5db}\u{5e1}\u{5e4}\u{5ea} \u{5e9}\u{5e0}\u{5d4}\u{5e8}\u{5e1}\u{5d4} \u{5e0}\u{5e7}\u{5e8}\u{5d0}\u{5ea} \u{5de}\u{5e7}\u{5d5}\u{5de}\u{5d9}\u{5d8} \u{5e7}\u{5d5}\u{5d3}\u{5dd}.",
         "git_sync_remote" => "\u{5db}\u{5ea}\u{5d5}\u{5d1}\u{5ea} \u{5d4}\u{5de}\u{5d0}\u{5d2}\u{5e8}",
         "git_sync_no_remote" => "\u{5d4}\u{5d6}\u{5d9}\u{5e0}\u{5d5} \u{5d0}\u{5ea} \u{5db}\u{5ea}\u{5d5}\u{5d1}\u{5ea} \u{5d4}\u{5de}\u{5d0}\u{5d2}\u{5e8}",

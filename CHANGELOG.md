@@ -19,6 +19,10 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   A URL ending in `/` is a folder and gets the shared snapshot name;
   one naming a file is used as typed, so two sync groups can share an
   account. The folder is created on the first round if it is not there.
+  It is also the first transport where a credential crosses the wire at
+  all (SFTP is encrypted, Git delegates to ssh, a folder never leaves
+  the machine), so the card warns when a `http://` URL would send the
+  account password in the clear.
 - **Sync through a Git remote, with history.** A fourth transport:
   the same encrypted snapshot, committed to any Git remote you can
   clone, whether that is a forge or a bare repository on your own box.
@@ -79,7 +83,13 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 - **Auto mode did nothing on the folder and Git transports.** The
   cadence timer only ever mounted for SFTP, so a user who picked Auto
   got a transport that moved only when clicked. One timer now serves
-  every snapshot transport.
+  every snapshot transport, and none of them fires while the vault is
+  locked: a soft auto-lock keeps the app running, and a round would
+  otherwise reach a server with stored credentials on behalf of a vault
+  the user believes is closed.
+- **Switching transports showed the previous one's result.** The status
+  line was cleared for SFTP only, written when there were two of them,
+  so moving away and back read as if the new transport had just synced.
 - **A folder or Git round left the screen showing stale data.** The
   round merges on its own vault handle, so records it pulled stayed
   invisible until the next restart. Both reload now, as the SFTP round

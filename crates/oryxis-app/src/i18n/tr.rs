@@ -751,6 +751,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Sunucuda bu adreste koleksiyon yok",
         "webdav_sync_http_error" => "Sunucu yanıtı",
         "webdav_sync_cas_note" => "Çakışmayı sonradan onarmak yerine saptayan tek dosya aktarımı: başka bir cihaz önce vardıysa yazma reddedilir ve tur onun verisinin üzerinden baştan başlar.",
+        "webdav_sync_cleartext" => "Bu adres parolanızı açık metin olarak gönderir. Sunucu bu makinede değilse https:// kullanın.",
         "git_sync_desc" => "Ayn\u{131} \u{15f}ifreli anl\u{131}k g\u{f6}r\u{fc}nt\u{fc}, bir Git uzak deposuna i\u{15f}lenir: herhangi bir forge ya da kendi sunucunuz. Ge\u{e7}mi\u{15f}i tutan tek aktar\u{131}m; bozulmu\u{15f} bir kasa \u{f6}nceki bir i\u{15f}lemeden geri okunabilir.",
         "git_sync_remote" => "Uzak depo adresi",
         "git_sync_no_remote" => "Uzak depo adresini girin",

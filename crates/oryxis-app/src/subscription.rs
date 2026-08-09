@@ -463,7 +463,17 @@ impl Oryxis {
         // Mounts for any of them in enabled + auto; the tick is a no-op
         // while a round is already in flight. 5 min matches the P2P
         // `auto_interval_secs` default.
-        if self.sync.enabled && !self.sync_uses_p2p() && self.sync.mode == "auto" {
+        // Unlocked is a REAL condition here, not belt and braces: a soft
+        // auto-lock zeroizes the master key and drops
+        // `master_password` while the app keeps running, and the round
+        // would then reach a server with stored credentials on behalf
+        // of a vault the user believes is closed (and fail, since it
+        // cannot decrypt anything).
+        if self.sync.enabled
+            && !self.sync_uses_p2p()
+            && self.sync.mode == "auto"
+            && self.vault_ui.state == crate::state::VaultState::Unlocked
+        {
             subs.push(
                 iced::time::every(std::time::Duration::from_secs(300))
                     .map(|_| Message::Sync(SyncMessage::SnapshotTick)),

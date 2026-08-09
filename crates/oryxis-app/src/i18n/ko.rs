@@ -751,6 +751,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "그 주소에는 컬렉션이 없습니다",
         "webdav_sync_http_error" => "서버 응답",
         "webdav_sync_cas_note" => "충돌을 나중에 수습하지 않고 감지하는 유일한 파일 전송 방식입니다. 다른 기기가 먼저 도착했으면 쓰기가 거부되고, 그 내용 위에서 라운드를 다시 시작합니다.",
+        "webdav_sync_cleartext" => "이 주소는 비밀번호를 평문으로 보냅니다. 서버가 이 컴퓨터에 있지 않다면 https://를 쓰세요.",
         "git_sync_desc" => "\u{ac19}\u{c740} \u{c554}\u{d638}\u{d654} \u{c2a4}\u{b0c5}\u{c0f7}\u{c744} Git \u{c6d0}\u{aca9}\u{c5d0} \u{cee4}\u{bc0b}\u{d569}\u{b2c8}\u{b2e4}: \u{c5b4}\u{b5a4} \u{d3ec}\u{c9c0}\u{b4e0}, \u{c9c1}\u{c811} \u{c6b4}\u{c601}\u{d558}\u{b294} \u{c11c}\u{bc84}\u{b4e0}. \u{c774}\u{b825}\u{c744} \u{b0a8}\u{ae30}\u{b294} \u{c720}\u{c77c}\u{d55c} \u{bc29}\u{c2dd}\u{c774}\u{b77c} \u{b9dd}\u{ac00}\u{c9c4} \u{bcf4}\u{ad00}\u{d568}\u{c744} \u{c774}\u{c804} \u{cee4}\u{bc0b}\u{c5d0}\u{c11c} \u{b418}\u{c77d}\u{c744} \u{c218} \u{c788}\u{c2b5}\u{b2c8}\u{b2e4}.",
         "git_sync_remote" => "\u{c6d0}\u{aca9} URL",
         "git_sync_no_remote" => "\u{c6d0}\u{aca9} URL\u{c744} \u{c785}\u{b825}\u{d558}\u{c138}\u{c694}",

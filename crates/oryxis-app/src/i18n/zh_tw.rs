@@ -1139,6 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "該網址下沒有集合",
         "webdav_sync_http_error" => "伺服器回應",
         "webdav_sync_cas_note" => "唯一能偵測衝突而非事後修補的檔案傳輸方式：若其他裝置先寫入，本次寫入會被拒絕，然後在它的基礎上重跑一輪。",
+        "webdav_sync_cleartext" => "這個網址會以明文傳送密碼。除非伺服器就在本機，否則請改用 https://。",
         "git_sync_desc" => "\u{540c}\u{4e00}\u{4efd}\u{52a0}\u{5bc6}\u{5feb}\u{7167}\u{ff0c}\u{63d0}\u{4ea4}\u{5230} Git \u{9060}\u{7aef}\u{ff1a}\u{4efb}\u{4f55}\u{7a0b}\u{5f0f}\u{78bc}\u{6258}\u{7ba1}\u{ff0c}\u{6216}\u{4f60}\u{81ea}\u{5df1}\u{7684}\u{4f3a}\u{670d}\u{5668}\u{3002}\u{9019}\u{662f}\u{552f}\u{4e00}\u{4fdd}\u{7559}\u{6b77}\u{53f2}\u{7684}\u{50b3}\u{8f38}\u{65b9}\u{5f0f}\u{ff0c}\u{5f04}\u{58de}\u{7684}\u{4fdd}\u{96aa}\u{5eab}\u{53ef}\u{4ee5}\u{5f9e}\u{8f03}\u{65e9}\u{7684}\u{63d0}\u{4ea4}\u{8b80}\u{56de}\u{3002}",
         "git_sync_remote" => "\u{9060}\u{7aef}\u{7db2}\u{5740}",
         "git_sync_no_remote" => "\u{8acb}\u{586b}\u{5beb}\u{9060}\u{7aef}\u{7db2}\u{5740}",

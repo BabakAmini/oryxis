@@ -751,6 +751,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Tidak ada koleksi di URL itu",
         "webdav_sync_http_error" => "Server menjawab",
         "webdav_sync_cas_note" => "Satu-satunya transport berkas yang mendeteksi konflik alih-alih memperbaikinya belakangan: penulisan ditolak bila perangkat lain sampai duluan, lalu ronde diulang di atas datanya.",
+        "webdav_sync_cleartext" => "URL ini mengirim sandi Anda tanpa enkripsi. Pakai https:// kecuali servernya ada di mesin ini.",
         "git_sync_desc" => "Snapshot terenkripsi yang sama, di-commit ke remote Git: forge mana pun, atau server Anda sendiri. Satu-satunya transport yang menyimpan riwayat, jadi vault yang rusak bisa dibaca dari commit lebih awal.",
         "git_sync_remote" => "URL remote",
         "git_sync_no_remote" => "Masukkan URL remote",

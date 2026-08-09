@@ -1136,6 +1136,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "El servidor no tiene ninguna colección en esa URL",
         "webdav_sync_http_error" => "El servidor respondió",
         "webdav_sync_cas_note" => "El único transporte en archivo que detecta el conflicto en vez de repararlo después: la escritura se rechaza cuando otro dispositivo llegó antes, y la ronda vuelve a empezar sobre la suya.",
+        "webdav_sync_cleartext" => "Esta URL envía tu contraseña en claro. Usa https:// salvo que el servidor esté en esta máquina.",
         "git_sync_desc" => "La misma instant\u{e1}nea cifrada, confirmada en un remoto Git: cualquier forja, o tu propio servidor. Es el \u{fa}nico transporte que guarda historial, as\u{ed} que un vault estropeado puede leerse de un commit anterior.",
         "git_sync_remote" => "URL del remoto",
         "git_sync_no_remote" => "Introduce la URL del remoto",

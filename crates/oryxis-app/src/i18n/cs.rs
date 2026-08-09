@@ -757,6 +757,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Na té adrese server žádnou kolekci nemá",
         "webdav_sync_http_error" => "Server odpověděl",
         "webdav_sync_cas_note" => "Jediný souborový přenos, který konflikt odhalí, místo aby ho léčil zpětně: zápis se odmítne, pokud bylo jiné zařízení první, a kolo začne znovu nad jeho daty.",
+        "webdav_sync_cleartext" => "Tato adresa posílá heslo v otevřené podobě. Použijte https://, pokud server neběží na tomto počítači.",
         "git_sync_desc" => "Tent\u{fd}\u{17e} \u{161}ifrovan\u{fd} sn\u{ed}mek, ale jako commit do vzd\u{e1}len\u{e9}ho Gitu: jak\u{e1}koli forge nebo v\u{e1}\u{161} vlastn\u{ed} server. Jedin\u{fd} p\u{159}enos, kter\u{fd} dr\u{17e}\u{ed} historii, tak\u{17e}e po\u{161}kozen\u{fd} trezor lze p\u{159}e\u{10d}\u{ed}st ze star\u{161}\u{ed}ho commitu.",
         "git_sync_remote" => "URL repozit\u{e1}\u{159}e",
         "git_sync_no_remote" => "Zadejte URL repozit\u{e1}\u{159}e",

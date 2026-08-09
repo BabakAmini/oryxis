@@ -518,10 +518,12 @@ vulnerability disclosure policy.
 - **Smart merge.** Import merges by UUID, keeping the newer record (LWW).
 - **Round-trips proxy data** so a fresh device gets working proxy auth.
 
-## P2P sync
+## Sync
 
-- **Decentralized.** Sync vault data between devices over QUIC, no cloud
-  dependency and no account.
+Five transports, one at a time, all carrying the same encrypted payload.
+
+- **Peer-to-peer (default).** Sync vault data between devices over QUIC,
+  no cloud dependency and no account.
 - **LAN discovery.** Automatic peer discovery via mDNS with one-click pair.
 - **Cross-network discovery.** Self-hostable signaling (Cloudflare Worker
   or `oryxis-relay`) plus STUN for NAT traversal. See
@@ -537,6 +539,27 @@ vulnerability disclosure policy.
   server.
 - **Optional relay** (ciphertext-only) and **opt-in password sync**, off by
   default.
+- **SFTP file.** One encrypted snapshot on a host from your vault; each
+  device merges what is there and writes back.
+- **Folder.** The same snapshot in a directory the machine already
+  mounts, which covers every cloud client's folder (OneDrive, Google
+  Drive, Dropbox, iCloud), a network share, Syncthing or an external
+  disk without Oryxis talking to any provider. Installed with an atomic
+  rename, so a reader never sees half of one.
+- **Git.** The snapshot committed to any remote `git clone` accepts, and
+  the only transport that keeps HISTORY, so a vault wrecked by a bad
+  import can be read back from an earlier commit. Drives the `git`
+  already installed; a push rejected as non-fast-forward redoes the
+  round instead of forcing over it.
+- **WebDAV.** Nextcloud, ownCloud, Synology or anything else that speaks
+  it: a collection URL, an account and an app password, with no client
+  to install and no OAuth app to register. The only file transport that
+  DETECTS a conflict rather than healing one afterwards (`If-Match` on
+  the ETag), and it warns when a `http://` URL would send the password
+  in the clear.
+- **Auto or manual.** Snapshot transports reconcile on a five-minute
+  cadence in Auto, and only on demand in Manual. None of them runs while
+  the vault is locked.
 
 ## Plugin subsystem
 

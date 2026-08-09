@@ -757,6 +757,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Pod tym adresem nie ma kolekcji",
         "webdav_sync_http_error" => "Serwer odpowiedział",
         "webdav_sync_cas_note" => "Jedyny transport plikowy, który wykrywa konflikt zamiast leczyć go po fakcie: zapis zostaje odrzucony, gdy inne urządzenie było pierwsze, a runda zaczyna się od nowa na jego danych.",
+        "webdav_sync_cleartext" => "Ten adres wysyła hasło otwartym tekstem. Użyj https://, chyba że serwer działa na tym komputerze.",
         "git_sync_desc" => "Ta sama zaszyfrowana migawka, zatwierdzana w zdalnym repozytorium Git: dowolna forge albo w\u{142}asny serwer. Jedyny transport z histori\u{105}, wi\u{119}c zepsuty sejf da si\u{119} odczyta\u{107} z wcze\u{15b}niejszego commita.",
         "git_sync_remote" => "URL repozytorium",
         "git_sync_no_remote" => "Podaj URL repozytorium",

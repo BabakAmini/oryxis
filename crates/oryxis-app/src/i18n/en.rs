@@ -757,6 +757,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "webdav_sync_bad_path" => "The server has no collection at that URL",
         "webdav_sync_http_error" => "The server answered",
         "webdav_sync_cas_note" => "The only file transport that detects a conflict instead of healing it afterwards: the write is refused when another device got there first, and the round starts over on top of theirs.",
+        "webdav_sync_cleartext" => "This URL sends your password in the clear. Use https:// unless the server is on this machine.",
         "git_sync_desc" => "The same encrypted snapshot, committed to a Git remote: any forge, or your own server. The only transport that keeps history, so a vault you wrecked can be read back from an earlier commit.",
         "git_sync_remote" => "Remote URL",
         "git_sync_no_remote" => "Enter the remote URL",

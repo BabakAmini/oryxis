@@ -396,6 +396,22 @@ impl Oryxis {
             ),
         );
 
+        // Cleartext warning. This is the first transport where a
+        // credential crosses the wire at all: SFTP is encrypted, Git
+        // hands authentication to ssh or a credential helper, and the
+        // folder transport never leaves the machine. Basic auth over
+        // `http://` is the account password in base64, readable by
+        // anything on the path, so the card says so where the URL is
+        // typed instead of leaving it to the manual. Loopback is
+        // exempt because there is no path.
+        if webdav_is_cleartext(&self.sync.webdav.url) {
+            col = col.push(Space::new().height(2)).push(
+                text(t("webdav_sync_cleartext"))
+                    .size(11)
+                    .color(OryxisColors::t().warning),
+            );
+        }
+
         if let Some(status) = &self.sync.webdav.status {
             let (msg, color) = match status {
                 Ok(s) => (s.clone(), OryxisColors::t().success),
@@ -1553,5 +1569,50 @@ impl Oryxis {
         .on_scroll(|v| Message::Settings(SettingsMessage::SectionScrolled(v.relative_offset().y)))
         .height(Length::Fill)
         .into()
+    }
+}
+
+/// Whether this WebDAV URL would send the account password in the
+/// clear. `http://` to anywhere but the loopback address does; `https`,
+/// an empty field and a still-being-typed prefix do not.
+fn webdav_is_cleartext(url: &str) -> bool {
+    let url = url.trim();
+    let Some(rest) = url.strip_prefix("http://") else {
+        return false;
+    };
+    let authority = rest.split('/').next().unwrap_or("");
+    // Userinfo first: `http://me@nas.local/` must not read as host `me`.
+    let hostport = authority.rsplit('@').next().unwrap_or("");
+    // A bracketed IPv6 literal carries colons of its own, so the port
+    // is only whatever follows the closing bracket.
+    let host = match hostport.strip_prefix('[') {
+        Some(rest) => rest.split(']').next().unwrap_or(""),
+        None => hostport.split(':').next().unwrap_or(""),
+    };
+    !matches!(host, "localhost" | "127.0.0.1" | "::1")
+}
+
+#[cfg(test)]
+mod webdav_url_tests {
+    use super::webdav_is_cleartext;
+
+    #[test]
+    fn https_and_loopback_are_quiet() {
+        assert!(!webdav_is_cleartext("https://cloud.example/dav/"));
+        assert!(!webdav_is_cleartext("http://localhost:8080/dav/"));
+        assert!(!webdav_is_cleartext("http://127.0.0.1:8088/oryxis/"));
+        assert!(!webdav_is_cleartext("http://[::1]:8080/dav/"));
+        // Nothing typed yet is not a warning either.
+        assert!(!webdav_is_cleartext(""));
+        assert!(!webdav_is_cleartext("http"));
+    }
+
+    #[test]
+    fn plain_http_to_a_real_host_warns() {
+        assert!(webdav_is_cleartext("http://nas.local/dav/"));
+        assert!(webdav_is_cleartext("http://192.168.1.10:5005/dav/"));
+        assert!(webdav_is_cleartext("  http://cloud.example/dav/  "));
+        // Userinfo must not be mistaken for the host.
+        assert!(webdav_is_cleartext("http://me@nas.local/dav/"));
     }
 }

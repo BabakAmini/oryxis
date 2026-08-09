@@ -1130,6 +1130,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Der Server hat unter dieser URL keine Sammlung",
         "webdav_sync_http_error" => "Der Server antwortete",
         "webdav_sync_cas_note" => "Der einzige Datei-Transport, der einen Konflikt erkennt statt ihn nachträglich zu heilen: Der Schreibvorgang wird abgelehnt, wenn ein anderes Gerät zuerst da war, und die Runde beginnt auf dessen Stand neu.",
+        "webdav_sync_cleartext" => "Diese URL sendet Ihr Passwort im Klartext. Nutzen Sie https://, außer der Server läuft auf diesem Rechner.",
         "git_sync_desc" => "Derselbe verschl\u{fc}sselte Snapshot, in ein Git-Remote committet: jede Forge oder Ihr eigener Server. Der einzige Transport mit Historie, ein zerschossener Tresor l\u{e4}sst sich aus einem fr\u{fc}heren Commit zur\u{fc}cklesen.",
         "git_sync_remote" => "Remote-URL",
         "git_sync_no_remote" => "Geben Sie die Remote-URL ein",

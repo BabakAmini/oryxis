@@ -751,6 +751,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Máy chủ không có bộ sưu tập nào ở URL đó",
         "webdav_sync_http_error" => "Máy chủ trả lời",
         "webdav_sync_cas_note" => "Cách truyền qua tệp duy nhất phát hiện được xung đột thay vì vá lại sau: nếu thiết bị khác tới trước thì lần ghi bị từ chối, và vòng đồng bộ chạy lại trên dữ liệu của họ.",
+        "webdav_sync_cleartext" => "URL này gửi mật khẩu ở dạng rõ. Hãy dùng https:// trừ khi máy chủ nằm trên máy này.",
         "git_sync_desc" => "C\u{f9}ng m\u{1ed9}t \u{1ea3}nh ch\u{1ee5}p \u{111}\u{e3} m\u{e3} ho\u{e1}, nh\u{1b0}ng commit l\u{ea}n m\u{1ed9}t remote Git: b\u{1ea5}t k\u{1ef3} forge n\u{e0}o, ho\u{1eb7}c m\u{e1}y ch\u{1ee7} c\u{1ee7}a b\u{1ea1}n. L\u{e0} c\u{e1}ch duy nh\u{1ea5}t gi\u{1eef} l\u{1ecb}ch s\u{1eed}, n\u{ea}n m\u{1ed9}t vault b\u{1ecb} h\u{1ecf}ng c\u{f3} th\u{1ec3} \u{111}\u{1ecd}c l\u{1ea1}i t\u{1eeb} commit tr\u{1b0}\u{1edb}c \u{111}\u{f3}.",
         "git_sync_remote" => "URL remote",
         "git_sync_no_remote" => "H\u{e3}y nh\u{1ead}p URL remote",

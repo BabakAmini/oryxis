@@ -1139,6 +1139,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "webdav_sync_bad_path" => "Le serveur n'a aucune collection à cette URL",
         "webdav_sync_http_error" => "Le serveur a répondu",
         "webdav_sync_cas_note" => "Le seul transport par fichier qui détecte le conflit au lieu de le réparer après coup : l'écriture est refusée si un autre appareil est passé avant, et le cycle reprend par-dessus le sien.",
+        "webdav_sync_cleartext" => "Cette URL envoie votre mot de passe en clair. Utilisez https:// sauf si le serveur est sur cette machine.",
         "git_sync_desc" => "Le m\u{ea}me instantan\u{e9} chiffr\u{e9}, valid\u{e9} sur un d\u{e9}p\u{f4}t Git distant : n\u{2019}importe quelle forge, ou votre propre serveur. Le seul transport qui garde l\u{2019}historique, donc un coffre ab\u{ee}m\u{e9} se relit depuis un commit ant\u{e9}rieur.",
         "git_sync_remote" => "URL du d\u{e9}p\u{f4}t distant",
         "git_sync_no_remote" => "Saisissez l\u{2019}URL du d\u{e9}p\u{f4}t distant",
