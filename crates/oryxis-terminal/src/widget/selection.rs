@@ -196,6 +196,30 @@ mod selection_tests {
     }
 
     #[test]
+    fn flowing_selection_joins_soft_wrapped_rows() {
+        // A 40-char line at width 20 occupies two physical rows with a
+        // WRAPLINE on row 0's last cell. The copy must join them back into
+        // one logical line (tmux / xterm behaviour), not insert a newline at
+        // the wrap — that is what keeps a long URL intact when selected.
+        let mut state = TerminalState::new_no_pty(20, 6).unwrap();
+        let url = "u".repeat(40);
+        state.process(url.as_bytes());
+        let sel = Selection { start: (0, 0), end: (19, 1), block: false };
+        assert_eq!(state.get_selection_text(&sel), url);
+    }
+
+    #[test]
+    fn flowing_selection_keeps_real_break_after_wrapped_line() {
+        // A wrapped line followed by a genuine CRLF: the wrap joins silently,
+        // but the real line break still copies out as a newline.
+        let mut state = TerminalState::new_no_pty(20, 6).unwrap();
+        let line = format!("{}\r\n", "u".repeat(40));
+        state.process(line.as_bytes());
+        let sel = Selection { start: (0, 0), end: (19, 2), block: false };
+        assert_eq!(state.get_selection_text(&sel), format!("{}\n", "u".repeat(40)));
+    }
+
+    #[test]
     fn flowing_selection_skips_wide_char_spacers() {
         // Each CJK glyph occupies two grid cells: the leading cell holds the
         // character, the trailing cell is a WIDE_CHAR_SPACER whose `c` is a

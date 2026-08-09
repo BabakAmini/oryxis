@@ -788,7 +788,8 @@ impl TerminalState {
         // Each row is trimmed of trailing whitespace before joining, the
         // standard terminal behaviour so a wrapped/multi-line copy doesn't
         // carry the blank padding out to the right margin.
-        let mut rows: Vec<String> = Vec::new();
+        let mut text = String::new();
+        let mut prev_line: Option<i32> = None;
         for line_idx in start.1..=end.1 {
             let line = Line(line_idx);
             if line < topmost || line > bottommost {
@@ -819,10 +820,24 @@ impl TerminalState {
                     line_str.push(cell.c);
                 }
             }
-            rows.push(line_str.trim_end().to_string());
+            // A row whose predecessor ended in a soft wrap (WRAPLINE on its
+            // last cell) is the continuation of one logical line, so it joins
+            // WITHOUT a newline — the tmux / xterm behaviour that lets a
+            // wrapped long URL copy out intact. Real line breaks still get
+            // `\n` between the physical rows.
+            if let Some(prev) = prev_line {
+                let wrapped = grid[Line(prev)][Column(last_col as usize)]
+                    .flags
+                    .contains(CellFlags::WRAPLINE);
+                if !wrapped {
+                    text.push('\n');
+                }
+            }
+            prev_line = Some(line_idx);
+            text.push_str(line_str.trim_end());
         }
 
-        rows.join("\n")
+        text
     }
 
     /// Last `n_lines` rows of the terminal buffer as text, **including
