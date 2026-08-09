@@ -186,6 +186,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Security, "import_ssh_config_btn", "import ssh config openssh hosts migrate"),
     // ── Sync ───────────────────────────────────────────────────────
     e(S::Sync, "sync_transport_field", "sync transport method p2p sftp snapshot"),
+    e(S::Sync, "sync_transport_folder", "folder sync snapshot onedrive dropbox google drive icloud network share usb"),
     e(S::Sync, "sftp_sync_host", "sftp sync backup host server select"),
     e(S::Sync, "sftp_sync_path", "sftp sync remote path directory folder"),
     e(S::Sync, "sftp_sync_passphrase", "sftp sync passphrase password encrypt"),

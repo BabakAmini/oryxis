@@ -266,15 +266,11 @@ tracks it interactively.
 - **Utilities:** CSV export of hosts, and an optional network tools
   panel (DNS, ping / traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
-  import, extra sync snapshot
-  backends (private GitHub repo via device code, any WebDAV server;
-  ciphertext only, as always), backup export to external storage
-  (starting with Telegram via bot, with custom endpoint and proxy
-  support), one-click relay deploy (the app installs
-  `oryxis-relay` on a host from your vault over SSH, with the script
-  shown before it runs), connection health indicators with
-  connection reuse, and group settings inheritance (per-parameter
-  defaults hosts inherit, Termius-style).
+  import, extra sync snapshot backends (any WebDAV server, and a plain
+  Git remote so any forge works rather than one vendor's API;
+  ciphertext only, as always), and one-click relay deploy (the app
+  installs `oryxis-relay` on a host from your vault over SSH, with the
+  script shown before it runs).
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
   providers, and an East Asian ambiguous-width option.
 - **AI ops toolkit:** the assistant graduates from generating shell

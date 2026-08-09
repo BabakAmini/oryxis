@@ -7,7 +7,7 @@ use tokio::sync::oneshot;
 
 use oryxis_vault::SyncPeerRow;
 
-use super::{DiscoveredPeerInfo, SftpSyncForm, SyncPairingForm};
+use super::{DiscoveredPeerInfo, FolderSyncForm, SftpSyncForm, SyncPairingForm};
 use crate::sync_runtime::SyncRuntime;
 
 /// All sync settings + runtime + transient form state. Settings hydrate from
@@ -65,6 +65,9 @@ pub(crate) struct SyncState {
     /// path, group passphrase, host picker) plus the in-flight round's
     /// progress + last outcome.
     pub(crate) sftp: SftpSyncForm,
+    /// Transient state for the folder sync transport (path, group
+    /// passphrase) plus the in-flight round's progress + last outcome.
+    pub(crate) folder: FolderSyncForm,
     /// "Set up your own relay" wizard (Settings > Sync > P2P): inputs,
     /// generated-artifact format, and the reachability test state.
     pub(crate) relay_wizard: RelayWizardForm,
@@ -184,6 +187,7 @@ impl Default for SyncState {
             signaling_tick: 0,
             transport: "p2p".into(),
             sftp: SftpSyncForm::default(),
+            folder: FolderSyncForm::default(),
             relay_wizard: RelayWizardForm::default(),
             signaling_last: None,
         }

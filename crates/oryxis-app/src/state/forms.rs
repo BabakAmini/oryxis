@@ -617,6 +617,24 @@ pub(crate) struct SyncPairingForm {
     pub join_link_input: String,
 }
 
+/// Folder sync transport: one encrypted snapshot in a local directory.
+///
+/// The directory is whatever the OS already mounts, which is the whole
+/// point: a cloud client's folder (OneDrive, Drive, Dropbox, iCloud), a
+/// network share, an external disk, a Syncthing directory. No OAuth, no
+/// client secret, no provider API to keep working, and every one of
+/// those destinations arrives at once.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct FolderSyncForm {
+    /// Directory (or full file path) the snapshot lives in.
+    pub path: String,
+    /// Group passphrase, same derivation as the SFTP transport, so the
+    /// two can point at the same blob.
+    pub passphrase: String,
+    pub in_progress: bool,
+    pub status: Option<Result<String, String>>,
+}
+
 /// Transient state for syncing the vault over SFTP (the SFTP sync
 /// transport form in Settings → Sync), plus the in-flight progress. The
 /// persisted transport choice stays on `Oryxis`.

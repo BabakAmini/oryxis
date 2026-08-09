@@ -7,6 +7,21 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Sync through a folder, which means sync through any cloud you
+  already use.** A third transport next to P2P and SFTP: one encrypted
+  snapshot in a directory your system already mounts. Point it at a
+  cloud client's folder (OneDrive, Google Drive, Dropbox, iCloud), a
+  network share, a Syncthing directory or an external disk, and that
+  destination works, because Oryxis never talks to the provider: it
+  writes a file, and whatever owns the folder carries it. No account to
+  connect, no OAuth screen, no token to renew, and nothing about the
+  provider baked into the app. It is the same encrypted blob the SFTP
+  transport uses and the same group passphrase, so a device can move
+  between the two without leaving its sync group, and the snapshot is
+  installed with an atomic rename from a temp file in the same
+  directory, so a reader never sees half of one. Two machines writing
+  one mirrored folder can still race, exactly as they can over SFTP,
+  and the setting says so where you choose it.
 - **A second tab to a host reuses the connection it already has.**
   Opening another tab (or duplicating one) to a host that is connected
   now opens a channel on the live connection instead of paying for a

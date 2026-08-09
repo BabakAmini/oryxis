@@ -196,21 +196,29 @@ impl Oryxis {
         // it persists the setting and (un)mounts the P2P engine.
         let p2p_label = crate::i18n::t("sync_transport_p2p").to_string();
         let sftp_label = crate::i18n::t("sync_transport_sftp").to_string();
+        let folder_label = crate::i18n::t("sync_transport_folder").to_string();
+        let is_folder = self.sync.transport == "folder";
         let transport_selected = if is_sftp {
             sftp_label.clone()
+        } else if is_folder {
+            folder_label.clone()
         } else {
             p2p_label.clone()
         };
-        let transport_options = vec![p2p_label.clone(), sftp_label.clone()];
+        let transport_options =
+            vec![p2p_label.clone(), sftp_label.clone(), folder_label.clone()];
         // Left/Right cycle the transports without opening the
         // dropdown; same label-to-token mapping as on_select.
         let sftp_label_for_cycle = sftp_label.clone();
+        let folder_label_for_cycle = folder_label.clone();
         let (transport_prev, transport_next) = crate::keynav::slots::cycle_pair(
             &transport_options,
             &transport_selected,
             move |v: String| {
                 let tr = if v == sftp_label_for_cycle || v == "SFTP" {
                     "sftp"
+                } else if v == folder_label_for_cycle {
+                    "folder"
                 } else {
                     "p2p"
                 };
@@ -218,6 +226,7 @@ impl Oryxis {
             },
         );
         let sftp_label_for_select = sftp_label.clone();
+        let folder_label_for_select = folder_label.clone();
         let transport_pick = pick_list(
             Some(transport_selected),
             transport_options,
@@ -226,6 +235,8 @@ impl Oryxis {
         .on_select(move |v| {
             let tr = if v == sftp_label_for_select || v == "SFTP" {
                 "sftp"
+            } else if v == folder_label_for_select {
+                "folder"
             } else {
                 "p2p"
             };
@@ -260,7 +271,119 @@ impl Oryxis {
                 .push(Space::new().height(16))
                 .push(self.sync_snapshot_card());
         }
+        if is_folder {
+            transport_col = transport_col
+                .push(Space::new().height(16))
+                .push(self.sync_folder_card());
+        }
         panel_section(transport_col)
+    }
+
+    /// Folder-transport config: where the snapshot lives, the group
+    /// passphrase, and the one caveat worth stating up front.
+    ///
+    /// The path is the whole feature. Whatever the OS mounts becomes a
+    /// sync destination, so the field is deliberately a plain path with
+    /// a picker rather than a provider list: adding OneDrive or Drive
+    /// here would suggest Oryxis talks to them, when in fact it never
+    /// leaves the filesystem.
+    fn sync_folder_card(&self) -> Element<'_, Message> {
+        let busy = self.sync.folder.in_progress;
+        let mut col = column![
+            text(t("folder_sync_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+        ];
+
+        let path_row = dir_row(vec![
+            self.settings_nav_slot_labeled(
+                t("folder_sync_path"),
+                crate::keynav::RowAction::input(iced::widget::Id::new("sync-folder-path")),
+                crate::widgets::INPUT_RADIUS,
+                text_input(t("folder_sync_path"), &self.sync.folder.path)
+                    .id(iced::widget::Id::new("sync-folder-path"))
+                    .on_input(|v| Message::Sync(SyncMessage::FolderPathChanged(v)))
+                    .padding(10)
+                    .width(Length::Fill)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ),
+            Space::new().width(8).into(),
+            self.settings_nav_slot_labeled(
+                t("folder_sync_pick"),
+                crate::keynav::RowAction::activate(Message::Sync(
+                    SyncMessage::FolderPickDirectory,
+                )),
+                8.0,
+                crate::widgets::styled_button(
+                    t("folder_sync_pick"),
+                    Message::Sync(SyncMessage::FolderPickDirectory),
+                    OryxisColors::t().text_secondary,
+                ),
+            ),
+        ])
+        .align_y(iced::Alignment::Center);
+        col = col.push(path_row).push(Space::new().height(10));
+
+        // Same group passphrase as the SFTP transport, deliberately:
+        // it derives the snapshot key, so two devices that disagree
+        // here are two different sync groups pointed at one file.
+        col = col
+            .push(
+                text(t("sftp_sync_passphrase"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+            )
+            .push(Space::new().height(4))
+            .push(self.settings_nav_slot_labeled(
+                t("sftp_sync_passphrase"),
+                crate::keynav::RowAction::input(iced::widget::Id::new("sync-folder-pass")),
+                crate::widgets::INPUT_RADIUS,
+                text_input(t("sftp_sync_passphrase"), &self.sync.folder.passphrase)
+                    .id(iced::widget::Id::new("sync-folder-pass"))
+                    .on_input(|v| {
+                        Message::Sync(SyncMessage::FolderPassphraseChanged(v.into()))
+                    })
+                    .secure(true)
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+            ))
+            .push(Space::new().height(12));
+
+        col = col.push(self.settings_nav_slot_labeled(
+            t("sync_now"),
+            crate::keynav::RowAction::activate(Message::Sync(SyncMessage::FolderSyncNow)),
+            8.0,
+            crate::widgets::styled_button_opt(
+                t("sync_now"),
+                (!busy).then_some(Message::Sync(SyncMessage::FolderSyncNow)),
+                OryxisColors::t().accent,
+            ),
+        ));
+
+        if let Some(status) = &self.sync.folder.status {
+            let (msg, color) = match status {
+                Ok(s) => (s.clone(), OryxisColors::t().success),
+                Err(e) => (e.clone(), OryxisColors::t().error),
+            };
+            col = col
+                .push(Space::new().height(8))
+                .push(text(msg).size(11).color(color));
+        }
+
+        // Stated in the UI rather than buried in docs: a user pointing
+        // two machines at one cloud folder is choosing a trade-off, and
+        // they can only choose it if they know it exists.
+        col = col.push(Space::new().height(10)).push(
+            text(t("folder_sync_shared_warning"))
+                .size(10)
+                .color(OryxisColors::t().text_muted),
+        );
+        col.into()
     }
 
     /// Options card: the Auto/Manual mode picker, the password-sync

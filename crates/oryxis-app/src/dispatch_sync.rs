@@ -432,6 +432,52 @@ impl Oryxis {
             SyncMessage::SftpHostPickerSearch(v) => {
                 self.sync.sftp.picker_search = v;
             }
+            SyncMessage::FolderPathChanged(v) => {
+                self.sync.folder.path = v.clone();
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting("sync_folder_path", &v);
+                }
+            }
+            SyncMessage::FolderPassphraseChanged(v) => {
+                let v = v.into_inner();
+                self.sync.folder.passphrase = v.clone();
+                if let Some(vault) = &self.vault {
+                    // Same encrypted setting the SFTP transport uses:
+                    // it is the same group secret, and keeping two
+                    // copies would let them drift into two groups.
+                    let _ = vault.set_sync_sftp_passphrase(&v);
+                }
+            }
+            SyncMessage::FolderPickDirectory => {
+                return Task::perform(
+                    async {
+                        rfd::AsyncFileDialog::new()
+                            .pick_folder()
+                            .await
+                            .map(|h| h.path().to_string_lossy().into_owned())
+                    },
+                    |picked| Message::Sync(SyncMessage::FolderDirectoryPicked(picked)),
+                );
+            }
+            SyncMessage::FolderDirectoryPicked(picked) => {
+                // A cancel is silent: the user closing a file dialog is
+                // not an event worth reporting.
+                if let Some(path) = picked {
+                    self.sync.folder.path = path.clone();
+                    if let Some(vault) = &self.vault {
+                        let _ = vault.set_setting("sync_folder_path", &path);
+                    }
+                }
+            }
+            SyncMessage::FolderSyncNow => return self.run_folder_sync_round(),
+            SyncMessage::FolderRoundFinished(result) => {
+                self.sync.folder.in_progress = false;
+                self.sync.folder.status = Some(match result {
+                    Ok(pulled) => Ok(crate::i18n::t("folder_sync_ok")
+                        .replace("{n}", &pulled.to_string())),
+                    Err(e) => Err(e),
+                });
+            }
             SyncMessage::SftpPathChanged(v) => {
                 self.sync.sftp.remote_path = v.clone();
                 if let Some(vault) = &self.vault {

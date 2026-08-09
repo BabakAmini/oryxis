@@ -4,6 +4,24 @@
 
 #[derive(Debug, Clone)]
 pub enum SyncMessage {
+    /// A folder-sync round finished: `Ok(records pulled)` or the
+    /// failure to show inline. The transport is local file IO, so the
+    /// only failures are a bad path, a wrong passphrase, or a snapshot
+    /// that will not decrypt.
+    FolderRoundFinished(Result<usize, String>),
+    /// Settings > Sync: the folder transport's path and passphrase.
+    FolderPathChanged(String),
+    /// `Redacted` like every other secret-bearing variant: a plain
+    /// `String` here would print the group passphrase into any log line
+    /// or panic that formats a message (enforced by
+    /// `secret_bearing_variants_carry_redacted`).
+    FolderPassphraseChanged(super::Redacted),
+    /// "Sync now" for the folder transport.
+    FolderSyncNow,
+    /// Open the OS folder picker for the snapshot directory.
+    FolderPickDirectory,
+    /// The picker returned; `None` is a cancel and stays silent.
+    FolderDirectoryPicked(Option<String>),
     ToggleEnabled,
     TogglePasswords,
     ModeChanged(String),

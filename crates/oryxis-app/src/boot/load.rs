@@ -342,6 +342,11 @@ impl Oryxis {
                 self.sync.sftp.remote_path = v;
             }
             if let Ok(Some(v)) = vault.get_sync_sftp_passphrase() {
+                // One group secret, two transports: the folder form
+                // reads the same stored passphrase, so pointing a
+                // device at a folder instead of an SFTP host does not
+                // silently put it in a different sync group.
+                self.sync.folder.passphrase = v.clone();
                 self.sync.sftp.passphrase = v;
             }
             self.sync.peers = vault.list_sync_peers().unwrap_or_default();
@@ -796,6 +801,9 @@ impl Oryxis {
             }
             if let Ok(Some(v)) = vault.get_setting("ssh_connection_reuse") {
                 self.prefs.ssh_connection_reuse = v == "true";
+            }
+            if let Ok(Some(v)) = vault.get_setting("sync_folder_path") {
+                self.sync.folder.path = v;
             }
             if let Ok(Some(v)) = vault.get_setting("sftp_split_ratio")
                 && let Ok(r) = v.parse::<f32>()

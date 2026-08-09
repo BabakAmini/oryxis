@@ -35,6 +35,7 @@ mod dispatch_vault;
 mod dispatch_snippets;
 mod dispatch_navigation;
 mod dispatch_onboarding;
+mod dispatch_folder_sync;
 mod dispatch_global;
 mod dispatch_history;
 mod dispatch_player;
