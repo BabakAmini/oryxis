@@ -225,17 +225,18 @@ impl Oryxis {
         else {
             return Task::none();
         };
-        if let Some(vault) = self.vault.as_ref() {
-            conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
-        }
-        let (password, private_key, certificate) = self.resolve_forward_credentials(&conn);
+        // Same working copy every connect path dials: group inheritance
+        // (D4) plus the effective proxy, so the probe authenticates
+        // exactly like a tab to the same host would.
+        self.apply_group_inheritance(&mut conn);
+        let (password, private_key, certificate) = self.resolve_credentials(&conn);
         let pinned_agent = self.pinned_agent_public(&conn);
         let totp_secret = self
             .vault
             .as_ref()
             .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
-        let resolver = self.build_jump_resolver(&conn);
-        let host_key_check = self.build_host_key_check();
+        let resolver = self.make_jump_resolver(&conn);
+        let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
 
         self.monitor_dash.links.insert(conn_id, DashLink::Connecting);

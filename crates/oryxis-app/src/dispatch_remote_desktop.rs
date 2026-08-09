@@ -159,19 +159,19 @@ impl Oryxis {
         };
 
         // Gateway path: resolve the GATEWAY's SSH credentials for the tunnel
-        // (distinct from the desktop login above).
-        if let Some(vault) = self.vault.as_ref() {
-            gw.proxy = vault.resolve_proxy(&gw).ok().flatten();
-        }
-        let (password, private_key, certificate) = self.resolve_forward_credentials(&gw);
+        // (distinct from the desktop login above). Same working copy every
+        // connect path dials: group inheritance (D4) plus the effective
+        // proxy, so the gateway authenticates like a tab to it would.
+        self.apply_group_inheritance(&mut gw);
+        let (password, private_key, certificate) = self.resolve_credentials(&gw);
         // Agent-auth pin (B3), same rule as the tab connect.
         let pinned_agent = self.pinned_agent_public(&gw);
         let totp_secret = self
             .vault
             .as_ref()
             .and_then(|v| v.get_connection_totp_secret(&gw.id).ok().flatten());
-        let resolver = self.build_jump_resolver(&gw);
-        let host_key_check = self.build_host_key_check();
+        let resolver = self.make_jump_resolver(&gw);
+        let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&gw);
         // The tunnel socket goes to the GATEWAY, so its preference rules.
         let address_family = gw.address_family;

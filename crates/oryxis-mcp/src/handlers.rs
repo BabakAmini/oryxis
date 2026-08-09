@@ -144,6 +144,17 @@ pub async fn handle_ssh_execute(
         .find(|c| c.id == id)
         .ok_or_else(|| "Host not found or not MCP-enabled".to_string())?;
 
+    // Group inheritance (D4), the SAME collapse every app dial site
+    // applies (`VaultStore::apply_effective`): the effective proxy lands
+    // on `conn.proxy`, an inherited username / identity fills the empty
+    // fields. Skipping it here is how a headless dial once authenticated
+    // differently (as "root") than a tab to the very same host.
+    let groups = vault.list_groups().unwrap_or_default();
+    let identities = vault.list_identities().unwrap_or_default();
+    let mut conn = conn.clone();
+    vault.apply_effective(&mut conn, &groups, &identities);
+    let conn = &conn;
+
     // The certificate (B2) is resolved from the SAME key as the pem, so
     // it can never pair with the wrong key.
     let all_keys = vault.list_keys().unwrap_or_default();
@@ -161,10 +172,10 @@ pub async fn handle_ssh_execute(
         .and_then(|kid| vault.get_key_private(&kid).ok().flatten());
     let conn_cert = conn.key_id.as_ref().and_then(&cert_for);
 
-    // If identity linked, get identity credentials
+    // If identity linked (the host's own or a group-inherited one), get
+    // identity credentials
     let (ident_password, ident_key, ident_cert) = if let Some(iid) = conn.identity_id {
         let ident_pw = vault.get_identity_password(&iid).unwrap_or(None);
-        let identities = vault.list_identities().unwrap_or_default();
         let ident_key_id = identities.iter().find(|i| i.id == iid).and_then(|i| i.key_id);
         let ident_pk = ident_key_id.and_then(|kid| vault.get_key_private(&kid).ok().flatten());
         let ident_cert = ident_key_id.as_ref().and_then(&cert_for);
@@ -183,14 +194,12 @@ pub async fn handle_ssh_execute(
     };
     let username = conn.username.clone().unwrap_or_else(|| "root".into());
 
-    // Build a temporary Connection with resolved username for auth
+    // Build a temporary Connection with resolved username for auth. The
+    // effective proxy is already collapsed onto `conn.proxy` by
+    // `apply_effective` above (re-resolving here would overwrite a
+    // group-inherited proxy with the host's own).
     let mut auth_conn = conn.clone();
     auth_conn.username = Some(username);
-
-    // Resolve the effective proxy (saved identity OR inline) and hydrate
-    // its password from the encrypted vault column, then collapse onto
-    // `auth_conn.proxy`, the engine only reads that field.
-    auth_conn.proxy = vault.resolve_proxy(&auth_conn).ok().flatten();
 
     // Build engine and connect. Honor any per-host legacy-algorithm
     // overrides the user pinned in the app (MCP is headless, so there is

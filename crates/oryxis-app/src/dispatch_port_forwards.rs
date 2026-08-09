@@ -13,16 +13,15 @@
 // back up the chain. See the note in `dispatch_ssh.rs`.
 #![allow(clippy::result_large_err)]
 
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use iced::futures::SinkExt;
 use iced::Task;
 use uuid::Uuid;
 
-use oryxis_core::models::connection::{AuthMethod, Connection};
 use oryxis_core::models::port_forward_rule::PortForwardRule;
-use oryxis_ssh::{ConnectionResolver, ForwardConn, HostKeyQuery, KbiQuery, SshEngine};
+use oryxis_ssh::{ForwardConn, HostKeyQuery, KbiQuery, SshEngine};
 
 use crate::app::{SshMessage, PortForwardMessage, Message, Oryxis};
 
@@ -532,20 +531,20 @@ impl Oryxis {
             return Task::none();
         };
 
-        // Resolve the effective proxy onto `conn.proxy` (engine reads only
-        // that field), mirroring the terminal connect path.
-        if let Some(vault) = self.vault.as_ref() {
-            conn.proxy = vault.resolve_proxy(&conn).ok().flatten();
-        }
-        let (password, private_key, certificate) = self.resolve_forward_credentials(&conn);
+        // Same working copy every connect path dials: group inheritance
+        // (D4) collapses the effective proxy onto `conn.proxy` (engine
+        // reads only that field) plus the inherited username / identity,
+        // so a forward authenticates exactly like a tab to its host.
+        self.apply_group_inheritance(&mut conn);
+        let (password, private_key, certificate) = self.resolve_credentials(&conn);
         // Agent-auth pin (B3), same rule as the tab connect.
         let pinned_agent = self.pinned_agent_public(&conn);
         let totp_secret = self
             .vault
             .as_ref()
             .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
-        let resolver = self.build_jump_resolver(&conn);
-        let host_key_check = self.build_host_key_check();
+        let resolver = self.make_jump_resolver(&conn);
+        let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
         self.port_forward_starting.insert(id);
         // This rule opens the dial; siblings toggled on meanwhile queue
@@ -966,124 +965,6 @@ impl Oryxis {
             tasks.push(self.start_port_forward(id, true));
         }
         Task::batch(tasks)
-    }
-
-    /// Resolve password + private key for a connection, preferring a linked
-    /// identity over inline fields. Mirrors the terminal connect path in
-    /// `dispatch_ssh.rs`.
-    pub(crate) fn resolve_forward_credentials(
-        &self,
-        conn: &Connection,
-    ) -> (Option<String>, Option<String>, Option<String>) {
-        if let Some(iid) = conn.identity_id {
-            let id_pw = self
-                .vault
-                .as_ref()
-                .and_then(|v| v.get_identity_password(&iid).ok().flatten());
-            let kid = self
-                .identities
-                .iter()
-                .find(|i| i.id == iid)
-                .and_then(|i| i.key_id);
-            let id_key = kid.and_then(|kid| {
-                self.vault
-                    .as_ref()
-                    .and_then(|v| v.get_key_private(&kid).ok().flatten())
-            });
-            let id_cert = kid.and_then(|kid| self.key_certificate(&kid));
-            (id_pw, id_key, id_cert)
-        } else {
-            let pw = self
-                .vault
-                .as_ref()
-                .and_then(|v| v.get_connection_password(&conn.id).ok().flatten());
-            let (pk, cert) = if matches!(
-                conn.auth_method,
-                AuthMethod::Key | AuthMethod::Auto | AuthMethod::Certificate
-            ) {
-                let pk = conn.key_id.and_then(|kid| {
-                    self.vault
-                        .as_ref()
-                        .and_then(|v| v.get_key_private(&kid).ok().flatten())
-                });
-                let cert = conn.key_id.and_then(|kid| self.key_certificate(&kid));
-                (pk, cert)
-            } else {
-                (None, None)
-            };
-            (pw, pk, cert)
-        }
-    }
-
-    /// Build the jump-host resolver (hydrated passwords / keys / proxies)
-    /// for a connection, or `None` when it has no jump chain.
-    pub(crate) fn build_jump_resolver(&self, conn: &Connection) -> Option<ConnectionResolver> {
-        if conn.jump_chain.is_empty() {
-            return None;
-        }
-        let mut passwords = std::collections::HashMap::new();
-        let mut keys = std::collections::HashMap::new();
-        let mut certificates = std::collections::HashMap::new();
-        let mut proxies = std::collections::HashMap::new();
-        for jid in &conn.jump_chain {
-            if let Some(vault) = &self.vault
-                && let Ok(Some(pw)) = vault.get_connection_password(jid)
-            {
-                passwords.insert(*jid, pw);
-            }
-            if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid) {
-                if let Some(kid) = jconn.key_id {
-                    if let Some(vault) = &self.vault
-                        && let Ok(Some(pk)) = vault.get_key_private(&kid)
-                    {
-                        keys.insert(*jid, pk);
-                    }
-                    if let Some(cert) = self.key_certificate(&kid) {
-                        certificates.insert(*jid, cert);
-                    }
-                }
-                if let Some(vault) = &self.vault
-                    && let Ok(Some(p)) = vault.resolve_proxy(jconn)
-                {
-                    proxies.insert(*jid, p);
-                }
-            }
-        }
-        Some(ConnectionResolver {
-            certificates,
-            connections: self.connections.clone(),
-            passwords,
-            private_keys: keys,
-            proxies,
-        })
-    }
-
-    /// Build a host-key check callback over a snapshot of known hosts.
-    /// Forwards run it strict (unknown / changed → reject) since there is
-    /// no terminal modal to prompt; the user trusts a host by connecting a
-    /// terminal to it first.
-    pub(crate) fn build_host_key_check(&self) -> oryxis_ssh::HostKeyCheckCallback {
-        let snapshot = Arc::new(Mutex::new(self.known_hosts.clone()));
-        Arc::new(move |host: &str, port: u16, key_type: &str, fingerprint: &str| {
-            let hosts = match snapshot.lock() {
-                Ok(g) => g,
-                Err(poison) => poison.into_inner(),
-            };
-            // Per (host, port, key_type): a different offered algorithm is
-            // Unknown (verify + accept), not a "Changed" MITM warning.
-            if let Some(existing) = hosts
-                .iter()
-                .find(|h| h.hostname == host && h.port == port && h.key_type == key_type)
-            {
-                if existing.fingerprint != fingerprint {
-                    return oryxis_ssh::HostKeyStatus::Changed {
-                        old_fingerprint: existing.fingerprint.clone(),
-                    };
-                }
-                return oryxis_ssh::HostKeyStatus::Known;
-            }
-            oryxis_ssh::HostKeyStatus::Unknown
-        })
     }
 }
 

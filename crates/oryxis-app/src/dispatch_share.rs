@@ -876,7 +876,7 @@ impl Oryxis {
         if self.sftp_backup.busy {
             return Task::none();
         }
-        let Some(conn) = self
+        let Some(mut conn) = self
             .sftp_backup.host
             .and_then(|i| self.connections.get(i))
             .cloned()
@@ -885,6 +885,10 @@ impl Oryxis {
                 Some(Err(crate::i18n::t("sftp_backup_pick_host").to_string()));
             return Task::none();
         };
+        // Same working copy every connect path dials: group inheritance
+        // (D4) and the effective proxy, so the backup host authenticates
+        // exactly like a terminal tab to it would.
+        self.apply_group_inheritance(&mut conn);
         let path = self.sftp_backup.path.trim().to_string();
         if path.is_empty() {
             self.sftp_backup.status =

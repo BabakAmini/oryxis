@@ -88,6 +88,16 @@ impl Oryxis {
 
     /// Build a `ConnectionResolver` covering the jump-host chain of the
     /// given connection. `None` when there's no chain.
+    ///
+    /// The engine authenticates each hop from the resolver's OWN rows
+    /// (`connect_via_jump_hosts` reads username, port, algorithms off
+    /// them), so every hop gets the same working copy a direct connect
+    /// would dial: group inheritance (D4) applied, the effective proxy
+    /// collapsed onto `proxy`, an inherited identity's username filling
+    /// an empty field. Hop credentials mirror `resolve_credentials`
+    /// (identity-linked first, per-connection fields second) for the
+    /// same reason: a bastion must not authenticate differently
+    /// depending on whether it is dialed directly or as a hop.
     pub(crate) fn make_jump_resolver(
         &self,
         conn: &Connection,
@@ -95,42 +105,39 @@ impl Oryxis {
         if conn.jump_chain.is_empty() {
             return None;
         }
+        let mut connections = self.connections.clone();
         let mut passwords = std::collections::HashMap::new();
         let mut keys = std::collections::HashMap::new();
         let mut certificates = std::collections::HashMap::new();
         let mut proxies = std::collections::HashMap::new();
         for jid in &conn.jump_chain {
-            if let Some(vault) = &self.vault
-                && let Ok(Some(pw)) = vault.get_connection_password(jid)
-            {
+            // A dangling hop id stays a resolver miss, reported by the
+            // engine as "jump host not found" like before.
+            let Some(slot) = connections.iter_mut().find(|c| c.id == *jid) else {
+                continue;
+            };
+            let mut hop = slot.clone();
+            self.apply_group_inheritance(&mut hop);
+            let (pw, pk, cert) = self.resolve_credentials(&hop);
+            if let Some(pw) = pw {
                 passwords.insert(*jid, pw);
             }
-            if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid)
-                && let Some(kid) = jconn.key_id
-            {
-                if let Some(vault) = &self.vault
-                    && let Ok(Some(pk)) = vault.get_key_private(&kid)
-                {
-                    keys.insert(*jid, pk);
-                }
-                // The hop's certificate (if any), resolved from the same key.
-                if let Some(cert) = self.key_certificate(&kid) {
-                    certificates.insert(*jid, cert);
-                }
+            if let Some(pk) = pk {
+                keys.insert(*jid, pk);
             }
-            // Resolve the jump host's effective proxy (identity-based or
-            // inline) so the engine's first-hop dial can route through it.
-            // Only matters for the first jump but we hydrate every jump's
-            // entry, cheap and keeps the resolver self-contained.
-            if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid)
-                && let Some(vault) = &self.vault
-                && let Ok(Some(p)) = vault.resolve_proxy(jconn)
-            {
+            if let Some(cert) = cert {
+                certificates.insert(*jid, cert);
+            }
+            // Only matters for the first jump (later hops travel inside
+            // the tunnel) but we hydrate every jump's entry, cheap and
+            // keeps the resolver self-contained.
+            if let Some(p) = hop.proxy.clone() {
                 proxies.insert(*jid, p);
             }
+            *slot = hop;
         }
         Some(oryxis_ssh::ConnectionResolver {
-            connections: self.connections.clone(),
+            connections,
             passwords,
             private_keys: keys,
             certificates,

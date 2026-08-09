@@ -49,10 +49,14 @@ impl Oryxis {
             self.sync.sftp.status = Some(Err(t("sftp_sync_no_host").to_string()));
             return Task::none();
         };
-        let Some(conn) = self.connections.iter().find(|c| c.id == host_id).cloned() else {
+        let Some(mut conn) = self.connections.iter().find(|c| c.id == host_id).cloned() else {
             self.sync.sftp.status = Some(Err(t("sftp_sync_no_host").to_string()));
             return Task::none();
         };
+        // Same working copy every connect path dials: group inheritance
+        // (D4) and the effective proxy, so the sync host authenticates
+        // exactly like a terminal tab to it would.
+        self.apply_group_inheritance(&mut conn);
         let remote_input = self.sync.sftp.remote_path.trim();
         if remote_input.is_empty() {
             self.sync.sftp.status = Some(Err(t("sftp_sync_no_path").to_string()));

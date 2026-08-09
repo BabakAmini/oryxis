@@ -1146,12 +1146,15 @@ impl Oryxis {
     /// Collapse the effective proxy and the group's inherited settings
     /// (D4) onto the working copy the engine reads.
     ///
-    /// ONE function for every connect path. There are two of them, the
-    /// tab connect and `spawn_ssh_for_pane_conn` (split panes,
-    /// quick-connect and in-place reconnect), and applying this in only
-    /// the first is exactly the bug that shipped for one build: a host
-    /// inheriting its user connected as "root" because the second path
-    /// resolved the proxy and nothing else.
+    /// ONE function for EVERY dial site, headless ones included: the tab
+    /// connect, `spawn_ssh_for_pane_conn` (split panes, quick-connect,
+    /// in-place reconnect), the SFTP mount / SFTP-sync / vault-backup
+    /// sessions, port forwards, the monitor dashboard, the remote
+    /// desktop gateway, and every jump HOP via `make_jump_resolver`.
+    /// Applying it in only some of them is exactly the bug that shipped
+    /// twice: a host inheriting its user connected as "root" because
+    /// the path at hand resolved the proxy and nothing else. A new dial
+    /// site's first line after cloning the row is a call to this.
     ///
     /// It writes to the COPY, never the vault row, so the editor still
     /// shows an inherited field as unset and clearing an override still
@@ -1160,48 +1163,13 @@ impl Oryxis {
         let Some(vault) = self.vault.as_ref() else {
             return;
         };
-        // `resolve_effective` layers over `resolve_proxy`, so the host's
-        // own proxy keeps every rule that method documents (identity
-        // over inline, dangling id -> None with a warning) and the
-        // group's applies only when the host resolves to none.
-        let effective = match vault.resolve_effective(conn, &self.groups) {
-            Ok(effective) => effective,
-            // Resolution failing must not stop a connect that would
-            // otherwise work: fall back to the host's own proxy, which
-            // is exactly the pre-D4 behaviour.
-            Err(e) => {
-                tracing::warn!(error = %e, "group inheritance failed, using the host's own settings");
-                conn.proxy = vault.resolve_proxy(conn).ok().flatten();
-                return;
-            }
-        };
-        conn.proxy = effective.proxy.map(|(p, _)| p);
-        if conn.username.as_deref().unwrap_or_default().is_empty() {
-            conn.username = effective.username.map(|(u, _)| u);
-        }
-        if conn.identity_id.is_none() {
-            conn.identity_id = effective.identity_id.map(|(id, _)| id);
-        }
-        // An identity carries its own username and the engine does NOT
-        // look for it: `engine/auth.rs` reads `connection.username` and
-        // falls back to "root". A host that names no user and inherits
-        // only an identity would authenticate as root while the
-        // progress log claimed the identity's name, so the identity's
-        // username fills the empty field here, exactly as
-        // `host_ssh_url` already documents connect-time resolution.
-        if conn.username.as_deref().unwrap_or_default().is_empty()
-            && let Some(iid) = conn.identity_id
-        {
-            conn.username = self
-                .identities
-                .iter()
-                .find(|i| i.id == iid)
-                .and_then(|i| i.username.clone())
-                .filter(|u| !u.is_empty());
-        }
-        // Already merged by name with the host winning, so this is the
-        // whole set rather than an override.
-        conn.env_vars = effective.env_vars;
+        // The collapse itself lives in the vault (`apply_effective`) so
+        // the MCP server's dial resolves identically: `resolve_effective`
+        // layers over `resolve_proxy` (identity over inline, dangling id
+        // -> None with a warning), an inherited identity's username
+        // fills an empty field, and a resolution failure falls back to
+        // the host's own proxy, the pre-D4 behaviour.
+        vault.apply_effective(conn, &self.groups, &self.identities);
     }
 
     /// Open a pane on a connection that is already up (F2 reuse).
@@ -1349,7 +1317,7 @@ impl Oryxis {
             }
         }
 
-        let (mut password, private_key, certificate) = self.resolve_forward_credentials(&conn);
+        let (mut password, private_key, certificate) = self.resolve_credentials(&conn);
         // Agent-auth pin (B3), same rule as the tab connect.
         let pinned_agent = self.pinned_agent_public(&conn);
         let mut totp_secret = self
@@ -1360,8 +1328,8 @@ impl Oryxis {
             self.apply_quick_entry_secrets(id, &mut conn, &mut password, &mut totp_secret);
         }
         let is_quick = quick_id.is_some();
-        let resolver = self.build_jump_resolver(&conn);
-        let host_key_check = self.build_host_key_check();
+        let resolver = self.make_jump_resolver(&conn);
+        let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
         let address_family = conn.address_family;
         let rekey_limit_mb = conn.rekey_limit_mb;

@@ -101,7 +101,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, SftpMessage> {
         match message {
             SftpMessage::SftpPickHost(idx) => {
-                let conn = match self.connections.get(idx).cloned() {
+                let mut conn = match self.connections.get(idx).cloned() {
                     Some(c) => c,
                     None => {
                         // Bail-out must drop any one-shot initial-path hint or
@@ -110,6 +110,11 @@ impl Oryxis {
                         return Ok(Task::none());
                     }
                 };
+                // Same working copy the terminal connect dials: group
+                // inheritance (D4) and the effective proxy both land on
+                // the clone, so an SFTP-only mount authenticates exactly
+                // like a tab to the same host would.
+                self.apply_group_inheritance(&mut conn);
                 // The picker connects the host into whichever pane it was
                 // opened for.
                 let target = self.sftp.picker_target;
