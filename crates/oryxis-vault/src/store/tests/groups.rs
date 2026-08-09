@@ -150,3 +150,56 @@ fn group_cloud_query_round_trip() {
 // trip exactly, the underlying setting is not stored as plaintext,
 // and the value survives a master-password rotation.
 
+
+/// The whole point of the D4 storage layer: a group's defaults survive
+/// a save/load cycle.
+///
+/// This test exists because the column is named in TWO places, the
+/// INSERT in `save_group` and the SELECT in `list_groups`, and missing
+/// either fails silently: forget the SELECT and every read comes back
+/// `None`, forget the INSERT and every save wipes what was there.
+#[test]
+fn group_defaults_roundtrip() {
+    let vault = temp_vault();
+    let identity = Uuid::new_v4();
+    let proxy_identity = Uuid::new_v4();
+    let snippet = Uuid::new_v4();
+    let mut group = Group::new("prod");
+    group.defaults = Some(GroupDefaults {
+        username: Some("deploy".to_string()),
+        identity_id: Some(identity),
+        proxy_identity_id: Some(proxy_identity),
+        port: Some(2222),
+        env_vars: vec![EnvVar { key: "TERM".into(), value: "xterm-256color".into() }],
+        terminal_theme: Some("nord".to_string()),
+        startup_snippet_id: Some(snippet),
+    });
+    vault.save_group(&group).unwrap();
+
+    let loaded = vault.list_groups().unwrap();
+    assert_eq!(loaded.len(), 1);
+    let d = loaded[0].defaults.as_ref().expect("defaults survived the round trip");
+    assert_eq!(d.username.as_deref(), Some("deploy"));
+    assert_eq!(d.identity_id, Some(identity));
+    assert_eq!(d.proxy_identity_id, Some(proxy_identity));
+    assert_eq!(d.port, Some(2222));
+    assert_eq!(d.env_vars.len(), 1);
+    assert_eq!(d.env_vars[0].key, "TERM");
+    assert_eq!(d.terminal_theme.as_deref(), Some("nord"));
+    assert_eq!(d.startup_snippet_id, Some(snippet));
+}
+
+/// A group that sets nothing stores NULL, not `{}`, so a vault that
+/// never used the feature keeps the rows it always had.
+#[test]
+fn a_group_without_defaults_stores_null() {
+    let vault = temp_vault();
+    let mut group = Group::new("plain");
+    vault.save_group(&group).unwrap();
+    assert!(vault.list_groups().unwrap()[0].defaults.is_none());
+
+    // An all-unset struct is the same answer as never having one.
+    group.defaults = Some(GroupDefaults::default());
+    vault.save_group(&group).unwrap();
+    assert!(vault.list_groups().unwrap()[0].defaults.is_none());
+}

@@ -1,6 +1,6 @@
 use super::*;
-use oryxis_core::models::connection::Connection;
-use oryxis_core::models::group::Group;
+use oryxis_core::models::connection::{Connection, EnvVar};
+use oryxis_core::models::group::{Group, GroupDefaults};
 use oryxis_core::models::key::{KeyAlgorithm, SshKey};
 use oryxis_core::models::known_host::KnownHost;
 use oryxis_core::models::log_entry::{LogEntry, LogEvent};
@@ -33,6 +33,7 @@ mod core_crypto;
 mod forwarding;
 mod groups;
 mod identities;
+mod inheritance;
 mod keys;
 mod logs;
 mod portable;

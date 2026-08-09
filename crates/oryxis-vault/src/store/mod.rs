@@ -17,7 +17,7 @@ pub(crate) use oryxis_core::models::connection::{
     AddressFamily, AuthMethod, Connection, ConnectionProtocol, ProxyType,
 };
 pub(crate) use oryxis_core::models::remote_desktop::RemoteDesktopKind;
-pub(crate) use oryxis_core::models::group::Group;
+pub(crate) use oryxis_core::models::group::{Group, GroupDefaults};
 pub(crate) use oryxis_core::models::identity::Identity;
 pub(crate) use oryxis_core::models::proxy_identity::ProxyIdentity;
 pub(crate) use oryxis_core::models::session_group::SessionGroup;
@@ -431,6 +431,7 @@ mod connections;
 mod forwarding;
 mod groups;
 mod identities;
+mod inheritance;
 mod keys;
 mod known_hosts;
 mod login_scripts;

@@ -2,6 +2,58 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use super::cloud::CloudQuery;
+use super::connection::EnvVar;
+
+/// Per-parameter defaults a group hands down to the hosts inside it
+/// (and to nested subgroups), resolved host -> nearest ancestor ->
+/// app default. Every field is optional and resolves INDEPENDENTLY,
+/// so a group that only sets the proxy leaves everything else to be
+/// inherited from further up or answered by the host.
+///
+/// Credentials are a REFERENCE, never a copy: `identity_id` points at
+/// an `Identity`, which already carries the username, the key and (in
+/// its own encrypted column) the password. That is why no secret is
+/// stored on a group and why this whole struct can live in one plain
+/// JSON column: adding a group password would mean a second place a
+/// credential can hide, which the vault conventions exist to prevent.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GroupDefaults {
+    /// Login user for hosts that do not name one. Plain text, like
+    /// `Connection.username`; the secret half lives on the identity.
+    #[serde(default)]
+    pub username: Option<String>,
+    #[serde(default)]
+    pub identity_id: Option<Uuid>,
+    #[serde(default)]
+    pub proxy_identity_id: Option<Uuid>,
+    /// Port a NEW host inside this group is created with. Deliberately
+    /// not resolved at connect time: a host that already works must
+    /// never change destination because a group gained a default (see
+    /// `GroupDefaults::port` handling in the app's host editor).
+    #[serde(default)]
+    pub port: Option<u16>,
+    /// Merged by NAME rather than replaced, root-first, so a host adds
+    /// to what its groups provide instead of choosing between the two
+    /// lists. An empty host list therefore means "inherit", not
+    /// "override with nothing".
+    #[serde(default)]
+    pub env_vars: Vec<EnvVar>,
+    #[serde(default)]
+    pub terminal_theme: Option<String>,
+    /// A snippet REFERENCE, not a literal command: the snippet stays
+    /// editable in one place and every host in the group follows it.
+    #[serde(default)]
+    pub startup_snippet_id: Option<Uuid>,
+}
+
+impl GroupDefaults {
+    /// Whether the group sets anything at all. An all-unset struct is
+    /// stored as NULL rather than `{}`, so a group that never used the
+    /// feature stays byte-identical to a pre-D4 row.
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Group {
@@ -21,6 +73,11 @@ pub struct Group {
     /// from the query.
     #[serde(default)]
     pub cloud_query: Option<CloudQuery>,
+    /// Per-parameter defaults inherited by the hosts in this group.
+    /// `None` = the group sets nothing, which is what every group
+    /// created before this feature deserializes to.
+    #[serde(default)]
+    pub defaults: Option<GroupDefaults>,
 }
 
 impl Group {
@@ -316,6 +373,7 @@ impl Group {
             created_at: now,
             updated_at: now,
             cloud_query: None,
+            defaults: None,
         }
     }
 }

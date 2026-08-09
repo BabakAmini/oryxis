@@ -7,8 +7,8 @@ impl VaultStore {
 
     pub fn save_group(&self, group: &Group) -> Result<(), VaultError> {
         self.db.execute(
-            "INSERT OR REPLACE INTO groups (id, label, parent_id, color, icon, sort_order, is_shared, created_at, updated_at, cloud_query)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            "INSERT OR REPLACE INTO groups (id, label, parent_id, color, icon, sort_order, is_shared, created_at, updated_at, cloud_query, defaults)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
             params![
                 group.id.to_string(),
                 group.label,
@@ -20,6 +20,14 @@ impl VaultStore {
                 group.created_at.to_rfc3339(),
                 group.updated_at.to_rfc3339(),
                 group.cloud_query.as_ref().map(|q| serde_json::to_string(q).unwrap_or_default()),
+                // An all-unset defaults struct stores as NULL, so a
+                // group that never touched the feature keeps the exact
+                // row a pre-D4 vault had.
+                group
+                    .defaults
+                    .as_ref()
+                    .filter(|d| !d.is_empty())
+                    .map(|d| serde_json::to_string(d).unwrap_or_default()),
             ],
         )?;
         // Re-creating an entity clears any stale tombstone for it
@@ -33,7 +41,7 @@ impl VaultStore {
     pub fn list_groups(&self) -> Result<Vec<Group>, VaultError> {
         let mut stmt = self
             .db
-            .prepare("SELECT id, label, parent_id, color, icon, sort_order, is_shared, created_at, updated_at, cloud_query FROM groups ORDER BY sort_order")?;
+            .prepare("SELECT id, label, parent_id, color, icon, sort_order, is_shared, created_at, updated_at, cloud_query, defaults FROM groups ORDER BY sort_order")?;
         let groups = stmt
             .query_map([], |row| {
                 Ok(Group {
@@ -61,6 +69,14 @@ impl VaultStore {
                         .ok()
                         .flatten()
                         .and_then(|s| serde_json::from_str::<CloudQuery>(&s).ok()),
+                    // Unreadable JSON degrades to "no defaults" rather
+                    // than failing the whole listing: a group nobody
+                    // can load is a group nobody can fix.
+                    defaults: row
+                        .get::<_, Option<String>>(10)
+                        .ok()
+                        .flatten()
+                        .and_then(|s| serde_json::from_str::<GroupDefaults>(&s).ok()),
                 })
             })?
             .collect::<Result<Vec<_>, _>>()?;

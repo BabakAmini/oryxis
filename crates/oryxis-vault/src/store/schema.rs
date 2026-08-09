@@ -368,6 +368,11 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE keys ADD COLUMN updated_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN created_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN updated_at TEXT;");
+        // Per-parameter defaults the group hands down to its hosts
+        // (D4). JSON-encoded `GroupDefaults`, NULL when the group sets
+        // nothing, which is every group from before the feature. No
+        // secret lives here: credentials are an identity REFERENCE.
+        let _ = self.db.execute_batch("ALTER TABLE groups ADD COLUMN defaults TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN updated_at TEXT;");
         let _ = self.db.execute_batch("ALTER TABLE known_hosts ADD COLUMN updated_at TEXT;");
         // Snippet group ("folder") name; free-form, NULL = ungrouped.
