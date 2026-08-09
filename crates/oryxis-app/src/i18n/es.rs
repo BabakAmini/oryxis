@@ -1606,6 +1606,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "Archivo no reconocido. Usa uno de los formatos compatibles.",
         "import_hub_file_too_large" => "Archivo demasiado grande para ser una exportación de sesiones.",
         "import_has_proxy_command" => "⚠ ejecuta un comando de proxy",
+        "toggle_view" => "Alternar vista de cuadrícula / lista",
         "import_mremoteng_btn" => "Importar mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Este archivo está protegido con contraseña. Introdúcela:",
         "import_hub_unlock" => "Desbloquear",

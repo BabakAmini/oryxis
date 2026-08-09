@@ -1697,6 +1697,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "تعذر التعرف على الملف. استخدم أحد التنسيقات المدعومة.",
         "import_hub_file_too_large" => "الملف أكبر من أن يكون تصديرًا للجلسات.",
         "import_has_proxy_command" => "⚠ يشغّل أمر وكيل",
+        "toggle_view" => "تبديل عرض الشبكة / القائمة",
         "import_mremoteng_btn" => "استيراد mRemoteNG ‏(confCons.xml)",
         "import_hub_protected" => "هذا الملف محمي بكلمة مرور. أدخلها:",
         "import_hub_unlock" => "فتح",

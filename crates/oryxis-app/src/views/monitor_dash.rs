@@ -325,35 +325,35 @@ impl Oryxis {
             .unwrap_or_default();
         let link = self.monitor_dash.links.get(&conn_id);
 
+        let close_btn = button(
+            container(
+                iced_fonts::lucide::x()
+                    .size(14)
+                    .color(OryxisColors::t().text_secondary),
+            )
+            .center_y(Length::Fixed(22.0))
+            .center_x(Length::Fixed(22.0)),
+        )
+        .on_press(Message::Monitor(MonitorMessage::DashCloseDetail))
+        .padding(0)
+        .style(|_, status| {
+            let bg = match status {
+                BtnStatus::Hovered => OryxisColors::t().bg_hover,
+                BtnStatus::Pressed => OryxisColors::t().bg_selected,
+                _ => Color::TRANSPARENT,
+            };
+            button::Style {
+                background: Some(Background::Color(bg)),
+                border: Border { radius: Radius::from(6.0), ..Default::default() },
+                ..Default::default()
+            }
+        });
         let close = self.content_action_slot(
             crate::keynav::RowAction::activate(Message::Monitor(
                 MonitorMessage::DashCloseDetail,
             )),
             6.0,
-            button(
-                container(
-                    iced_fonts::lucide::x()
-                        .size(14)
-                        .color(OryxisColors::t().text_secondary),
-                )
-                .center_y(Length::Fixed(22.0))
-                .center_x(Length::Fixed(22.0)),
-            )
-            .on_press(Message::Monitor(MonitorMessage::DashCloseDetail))
-            .padding(0)
-            .style(|_, status| {
-                let bg = match status {
-                    BtnStatus::Hovered => OryxisColors::t().bg_hover,
-                    BtnStatus::Pressed => OryxisColors::t().bg_selected,
-                    _ => Color::TRANSPARENT,
-                };
-                button::Style {
-                    background: Some(Background::Color(bg)),
-                    border: Border { radius: Radius::from(6.0), ..Default::default() },
-                    ..Default::default()
-                }
-            })
-            .into(),
+            crate::views::terminal::icon_tooltip(close_btn.into(), crate::i18n::t("close")),
         );
 
         // The vitals themselves come from the SAME renderer as the
@@ -650,14 +650,16 @@ impl Oryxis {
 }
 
 /// Grid/List toggle for the monitor dashboard toolbar, mirroring the
-/// host grid's toggle button.
+/// host grid's toggle button: the glyph shows the CURRENT mode, same
+/// as `host_view_toggle_button` (the two live in the same card-grid
+/// family and were reading opposite ways).
 fn dash_view_toggle_button(list_view: bool) -> Element<'static, Message> {
     let glyph: iced::widget::Text<'static, iced::Theme, iced::Renderer> = if list_view {
-        iced_fonts::lucide::layout_grid()
-    } else {
         iced_fonts::lucide::list()
+    } else {
+        iced_fonts::lucide::layout_grid()
     };
-    button(
+    let btn = button(
         container(
             glyph.size(15).color(OryxisColors::t().button_text),
         )
@@ -675,6 +677,6 @@ fn dash_view_toggle_button(list_view: bool) -> Element<'static, Message> {
             border: Border { radius: Radius::from(6.0), ..Default::default() },
             ..Default::default()
         }
-    })
-    .into()
+    });
+    crate::views::terminal::icon_tooltip(btn.into(), crate::i18n::t("toggle_view"))
 }

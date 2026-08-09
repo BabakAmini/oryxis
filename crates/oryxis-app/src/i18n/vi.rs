@@ -1692,6 +1692,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "Không nhận diện được tệp. Hãy dùng một trong các định dạng được hỗ trợ.",
         "import_hub_file_too_large" => "Tệp quá lớn để là một bản xuất phiên.",
         "import_has_proxy_command" => "⚠ chạy một lệnh proxy",
+        "toggle_view" => "Chuyển đổi xem lưới / danh sách",
         "import_mremoteng_btn" => "Nhập mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Tệp này được bảo vệ bằng mật khẩu. Hãy nhập mật khẩu:",
         "import_hub_unlock" => "Mở khóa",

@@ -49,7 +49,7 @@ pub(crate) fn host_view_toggle_button(list_view: bool) -> Element<'static, Messa
     } else {
         iced_fonts::lucide::layout_grid()
     };
-    button(
+    let btn = button(
         container(
             glyph
                 .size(15)
@@ -69,8 +69,8 @@ pub(crate) fn host_view_toggle_button(list_view: bool) -> Element<'static, Messa
             border: Border { radius: Radius::from(6.0), ..Default::default() },
             ..Default::default()
         }
-    })
-    .into()
+    });
+    crate::views::terminal::icon_tooltip(btn.into(), crate::i18n::t("toggle_view"))
 }
 
 /// Shared 24×24 toolbar icon button (search-collapse + overflow). Styled

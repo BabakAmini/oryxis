@@ -1609,6 +1609,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "无法识别文件。请使用下列支持的格式。",
         "import_hub_file_too_large" => "文件过大，不像是会话导出文件。",
         "import_has_proxy_command" => "⚠ 会运行代理命令",
+        "toggle_view" => "切换网格 / 列表视图",
         "import_mremoteng_btn" => "导入 mRemoteNG（confCons.xml）",
         "import_hub_protected" => "该文件受密码保护。请输入其密码：",
         "import_hub_unlock" => "解锁",

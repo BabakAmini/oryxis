@@ -1734,6 +1734,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "import_hub_unrecognized" => "File not recognized. Pick one of the supported formats below.",
         "import_hub_file_too_large" => "File too large to be a sessions export.",
         "import_has_proxy_command" => "⚠ runs a proxy command",
+        "toggle_view" => "Toggle grid / list view",
         "import_mremoteng_btn" => "Import mRemoteNG (confCons.xml)",
         "import_hub_protected" => "This file is password-protected. Enter its password:",
         "import_hub_unlock" => "Unlock",

@@ -1734,6 +1734,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "ไม่รู้จักไฟล์นี้ โปรดใช้รูปแบบที่รองรับ",
         "import_hub_file_too_large" => "ไฟล์ใหญ่เกินกว่าจะเป็นไฟล์ส่งออกเซสชัน",
         "import_has_proxy_command" => "⚠ เรียกใช้คำสั่งพร็อกซี",
+        "toggle_view" => "สลับมุมมองตาราง / รายการ",
         "import_mremoteng_btn" => "นำเข้า mRemoteNG (confCons.xml)",
         "import_hub_protected" => "ไฟล์นี้ถูกป้องกันด้วยรหัสผ่าน โปรดป้อนรหัสผ่าน:",
         "import_hub_unlock" => "ปลดล็อก",

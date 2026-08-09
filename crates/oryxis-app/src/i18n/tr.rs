@@ -1692,6 +1692,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "Dosya tanınamadı. Desteklenen biçimlerden birini kullanın.",
         "import_hub_file_too_large" => "Oturum dışa aktarımı olamayacak kadar büyük dosya.",
         "import_has_proxy_command" => "⚠ bir proxy komutu çalıştırır",
+        "toggle_view" => "Izgara / liste görünümünü değiştir",
         "import_mremoteng_btn" => "mRemoteNG içe aktar (confCons.xml)",
         "import_hub_protected" => "Bu dosya parola korumalı. Parolasını girin:",
         "import_hub_unlock" => "Kilidi aç",

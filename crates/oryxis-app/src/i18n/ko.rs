@@ -1692,6 +1692,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "파일을 인식할 수 없습니다. 지원되는 형식을 사용하세요.",
         "import_hub_file_too_large" => "세션 내보내기 파일로 보기에는 너무 큽니다.",
         "import_has_proxy_command" => "⚠ 프록시 명령을 실행함",
+        "toggle_view" => "그리드 / 목록 보기 전환",
         "import_mremoteng_btn" => "mRemoteNG 가져오기 (confCons.xml)",
         "import_hub_protected" => "이 파일은 비밀번호로 보호되어 있습니다. 입력하세요:",
         "import_hub_unlock" => "잠금 해제",

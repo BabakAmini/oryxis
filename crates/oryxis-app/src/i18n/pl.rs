@@ -1698,6 +1698,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "Nie rozpoznano pliku. Użyj jednego z obsługiwanych formatów.",
         "import_hub_file_too_large" => "Plik zbyt duży jak na eksport sesji.",
         "import_has_proxy_command" => "⚠ uruchamia polecenie proxy",
+        "toggle_view" => "Przełącz widok siatki / listy",
         "import_mremoteng_btn" => "Importuj mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Ten plik jest chroniony hasłem. Podaj je:",
         "import_hub_unlock" => "Odblokuj",

@@ -1187,8 +1187,9 @@ impl Oryxis {
     /// A failure here is not shown to the user: it means the pooled
     /// connection turned out to be unusable (half-dead, or the server
     /// is at its channel cap), and the answer is the ordinary dial, not
-    /// an error. The retry re-enters `spawn_ssh_for_pane_conn` with the
-    /// pool entry already pruned, so it cannot loop.
+    /// an error. The `ReuseFailedDialFresh` handler drops the pool entry
+    /// (by the dial-time key) BEFORE re-entering `spawn_ssh_for_pane_conn`,
+    /// so the retry cannot pick the same dead connection and loop.
     fn spawn_reused_session(
         &mut self,
         transport: std::sync::Arc<oryxis_ssh::SshTransport>,

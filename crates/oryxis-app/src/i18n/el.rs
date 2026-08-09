@@ -1733,6 +1733,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "Το αρχείο δεν αναγνωρίστηκε. Χρησιμοποιήστε μία από τις υποστηριζόμενες μορφές.",
         "import_hub_file_too_large" => "Το αρχείο είναι πολύ μεγάλο για εξαγωγή συνεδριών.",
         "import_has_proxy_command" => "⚠ εκτελεί εντολή διακομιστή μεσολάβησης",
+        "toggle_view" => "Εναλλαγή προβολής πλέγματος / λίστας",
         "import_mremoteng_btn" => "Εισαγωγή mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Το αρχείο προστατεύεται με κωδικό. Εισαγάγετέ τον:",
         "import_hub_unlock" => "Ξεκλείδωμα",

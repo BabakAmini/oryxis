@@ -1692,6 +1692,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_unrecognized" => "Файл не розпізнано. Використайте один із підтримуваних форматів.",
         "import_hub_file_too_large" => "Файл завеликий для експорту сеансів.",
         "import_has_proxy_command" => "⚠ виконує команду проксі",
+        "toggle_view" => "Перемкнути вигляд: сітка / список",
         "import_mremoteng_btn" => "Імпорт mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Файл захищено паролем. Введіть його:",
         "import_hub_unlock" => "Розблокувати",
