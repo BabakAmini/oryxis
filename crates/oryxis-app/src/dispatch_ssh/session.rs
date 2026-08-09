@@ -11,17 +11,31 @@ use super::*;
 impl Oryxis {
     pub(super) fn handle_ssh_session(&mut self, message: SshMessage) -> Task<Message> {
         match message {
-            SshMessage::ReuseFailedDialFresh(pane_id, tab_idx) => {
+            SshMessage::ReuseFailedDialFresh(pane_id) => {
                 // The pooled connection could not carry another session
                 // (a server at its `MaxSessions` cap, or a link that
                 // died between the health check and the channel open).
                 // Forget it and dial for real. Dropping the entry FIRST
                 // is what makes this terminate: without it the retry
                 // would find the same dead transport and bounce here
-                // again.
-                if let Some(key) = self.reuse_key_for_pane(pane_id) {
+                // again. The key comes from the pending map (the exact
+                // key the failed reuse looked up with, minted at dial
+                // time), with a recompute as the fallback so the
+                // termination guarantee never rests on the map alone.
+                if let Some(key) = self
+                    .pending_reuse_keys
+                    .remove(&pane_id)
+                    .or_else(|| self.reuse_key_for_pane(pane_id))
+                {
                     self.ssh_transport_pool.remove(&key);
                 }
+                // The tab index is recomputed, never carried: a tab
+                // closed while the reuse attempt was in flight shifts
+                // every later index, and the session-log wiring in the
+                // spawn indexes `self.tabs` directly.
+                let Some(tab_idx) = self.pane_tab_index(pane_id) else {
+                    return Task::none();
+                };
                 let Some(conn) = self.pane_origin_connection(pane_id).cloned() else {
                     return Task::none();
                 };
@@ -46,6 +60,7 @@ impl Oryxis {
                 // tab is gone).
                 if self.pane_tab_index(pane_id).is_none() {
                     session.close();
+                    self.pending_reuse_keys.remove(&pane_id);
                     if self
                         .connecting
                         .as_ref()
@@ -74,11 +89,15 @@ impl Oryxis {
                 // next tab to the same host rides it instead of dialling
                 // again. Registered HERE rather than inside the async
                 // dial because the pool lives on `self`, and this is the
-                // first point that holds both. Re-registering after a
-                // reuse is harmless: the key and the transport are the
-                // same, so the insert is a no-op in effect.
-                if let Some(ssh) = session.ssh()
-                    && let Some(key) = self.reuse_key_for_pane(pane_id)
+                // first point that holds both. The key is the one MINTED
+                // AT DIAL TIME (pending map), never recomputed from the
+                // live row: a host edited while its dial was in flight
+                // would otherwise register the old endpoint's transport
+                // under the new row's key. Re-registering after a reuse
+                // is harmless: the key and the transport are the same,
+                // so the insert is a no-op in effect.
+                if let Some(key) = self.pending_reuse_keys.remove(&pane_id)
+                    && let Some(ssh) = session.ssh()
                 {
                     self.remember_transport(key, ssh);
                 }

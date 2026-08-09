@@ -22,10 +22,12 @@ pub enum SshMessage {
     SshPaneBanner(Uuid, String),
     SshConnected(Uuid, crate::state::TerminalTransport),  // (pane_id, transport)
     /// Opening a session on a pooled connection failed (F2 reuse), so
-    /// the pane dials for real: `(pane_id, tab_idx)`. Never surfaced to
-    /// the user; a pooled connection that turns out to be unusable is
-    /// an optimisation missing, not an error.
-    ReuseFailedDialFresh(Uuid, usize),
+    /// the pane dials for real: `(pane_id)`. The tab index is
+    /// recomputed on arrival (a tab closed mid-attempt shifts every
+    /// later index). Never surfaced to the user; a pooled connection
+    /// that turns out to be unusable is an optimisation missing, not
+    /// an error.
+    ReuseFailedDialFresh(Uuid),
 
     SshDisconnected(Uuid),  // (pane_id)
     SshError(String),

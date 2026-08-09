@@ -340,6 +340,11 @@ impl Oryxis {
                 };
                 if let Some(o) = reuse_origin {
                     let key = crate::ssh_reuse::ReuseKey::new(o, &conn);
+                    // Minted at dial time and parked for `SshConnected`
+                    // to register with: recomputing at registration
+                    // would key an edited row's OLD transport under its
+                    // NEW resolved key.
+                    self.pending_reuse_keys.insert(pane_id, key.clone());
                     if let Some(transport) = self.pooled_transport(&key) {
                         self.connecting = None;
                         self.active_view = crate::state::View::Terminal;
@@ -1242,13 +1247,13 @@ impl Oryxis {
             PaneConnMsg::Data(d) => Message::Terminal(TerminalMessage::PtyOutput(pane_id, d)),
             PaneConnMsg::Disconnected => Message::Ssh(SshMessage::SshDisconnected(pane_id)),
             // Reuse failed before the session existed: fall back to a
-            // real dial. The pool entry is already pruned (the lookup
-            // that handed out this transport removes it on any doubt,
-            // and a channel-open failure proves the doubt), so the
-            // retry cannot pick the same dead connection and loop.
+            // real dial. The handler drops the pool entry FIRST (by the
+            // key this reuse was minted with) and recomputes the tab
+            // index, so the retry cannot pick the same dead connection
+            // and loop, nor index a tab that moved.
             PaneConnMsg::Error(reason) => {
                 tracing::info!(%reason, "connection reuse failed, dialling fresh");
-                Message::Ssh(SshMessage::ReuseFailedDialFresh(pane_id, tab_idx))
+                Message::Ssh(SshMessage::ReuseFailedDialFresh(pane_id))
             }
             // A reused session never negotiates, so these cannot happen.
             PaneConnMsg::HostKey(_) | PaneConnMsg::Kbi(_) | PaneConnMsg::Banner(_) => {
@@ -1312,6 +1317,10 @@ impl Oryxis {
         };
         if let Some(origin) = reuse_origin {
             let key = crate::ssh_reuse::ReuseKey::new(origin, &conn);
+            // Minted at dial time and parked for `SshConnected` to
+            // register with: recomputing at registration would key an
+            // edited row's OLD transport under its NEW resolved key.
+            self.pending_reuse_keys.insert(pane_id, key.clone());
             if let Some(transport) = self.pooled_transport(&key) {
                 return self.spawn_reused_session(transport, conn, tab_idx, pane_id);
             }

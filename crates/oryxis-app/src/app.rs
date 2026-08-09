@@ -805,6 +805,14 @@ pub struct Oryxis {
     /// the sessions own the transports, so the pool never keeps a
     /// connection alive and a dead entry is pruned on next lookup.
     pub(crate) ssh_transport_pool: crate::ssh_reuse::TransportPool,
+    /// The reuse key each in-flight dial was keyed with, minted at DIAL
+    /// time and consumed at `SshConnected`. Registration must not
+    /// recompute the key from the live row: a host edited while its
+    /// dial is in flight would register the old endpoint's transport
+    /// under the new row's key, and the next open of the edited host
+    /// would ride a connection to the old machine.
+    pub(crate) pending_reuse_keys:
+        std::collections::HashMap<Uuid, crate::ssh_reuse::ReuseKey>,
     /// Multi-host dashboard links (issue #95). Samples go into
     /// `monitor.series` like the sidebar's, so the two surfaces can
     /// never disagree about a host.

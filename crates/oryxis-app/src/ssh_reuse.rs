@@ -40,6 +40,14 @@ pub(crate) struct ReuseKey {
     /// Resolved at connect time, so a host inheriting its user from a
     /// group keys on what it actually authenticates as.
     pub username: String,
+    /// Everything else that decides WHERE the link lands and what it
+    /// negotiates: jump chain, effective proxy, algorithm overrides,
+    /// address family. host:port alone cannot see any of it, and with
+    /// bastion-relative addressing (one private name reachable through
+    /// two different bastions) an edited route IS a different machine,
+    /// with no host-key prompt possible on a reused channel. See
+    /// [`route_digest`].
+    pub route: u64,
 }
 
 impl ReuseKey {
@@ -49,8 +57,39 @@ impl ReuseKey {
             host: conn.hostname.clone(),
             port: conn.port,
             username: conn.username.clone().unwrap_or_default(),
+            route: route_digest(conn),
         }
     }
+}
+
+/// Fold the route-shaping fields of a RESOLVED connection into one
+/// value. Hashed rather than stored so the key stays cheap to clone
+/// and compare; in-memory only, so the hasher needs no cross-run
+/// stability. The proxy PASSWORD is deliberately excluded: it changes
+/// how a dial authenticates, never where it lands, and including it
+/// would make a saved-password edit look like a different route.
+fn route_digest(conn: &oryxis_core::models::Connection) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    conn.jump_chain.hash(&mut h);
+    match &conn.proxy {
+        Some(p) => {
+            1u8.hash(&mut h);
+            // `ProxyType` carries data (`Command(cmd)`), so Debug is
+            // the cheapest faithful encoding of the whole variant.
+            format!("{:?}", p.proxy_type).hash(&mut h);
+            p.host.hash(&mut h);
+            p.port.hash(&mut h);
+            p.username.hash(&mut h);
+        }
+        None => 0u8.hash(&mut h),
+    }
+    conn.ciphers.hash(&mut h);
+    conn.kex.hash(&mut h);
+    conn.macs.hash(&mut h);
+    conn.host_key_algorithms.hash(&mut h);
+    format!("{:?}", conn.address_family).hash(&mut h);
+    h.finish()
 }
 
 impl Oryxis {
@@ -94,21 +133,29 @@ impl Oryxis {
 
     /// Drop entries whose transport is gone. Called on disconnect, so
     /// the map does not grow one dead `Weak` per host per app run.
+    /// Sweeps the pending dial-time keys the same way: an entry whose
+    /// pane no longer exists belongs to a dial that will never report
+    /// `SshConnected`.
     pub(crate) fn prune_transport_pool(&mut self) {
         self.ssh_transport_pool
             .retain(|_, weak| weak.strong_count() > 0);
+        let live: std::collections::HashSet<Uuid> = self
+            .tabs
+            .iter()
+            .flat_map(|t| t.pane_grid.panes.values().map(|p| p.id))
+            .collect();
+        self.pending_reuse_keys.retain(|id, _| live.contains(id));
     }
 
-    /// The reuse key for a pane, from what it is ACTUALLY connected to.
+    /// The reuse key for a pane recomputed from the CURRENT row: the
+    /// removal fallback when a failed reuse finds no pending dial-time
+    /// key. Registration never uses this (an edit while a dial is in
+    /// flight would re-key the old transport under the new row); it
+    /// consumes the key minted at dial time from `pending_reuse_keys`.
     ///
     /// The connection is RESOLVED first, exactly as the connect path
-    /// resolves it. That is not a detail: a host inheriting its user
-    /// from a group has an empty `username` in the vault row and
-    /// authenticates as the inherited one, so keying the registration
-    /// off the raw row and the lookup off the resolved copy produced
-    /// two different keys and reuse never matched. Both sides go
-    /// through the same resolution now, which is the only way they
-    /// cannot drift.
+    /// resolves it, so the recompute matches what the dial keyed on
+    /// whenever the row has not changed in between.
     ///
     /// Local, serial and ephemeral panes have nothing to key on.
     pub(crate) fn reuse_key_for_pane(&self, pane_id: Uuid) -> Option<ReuseKey> {
@@ -185,5 +232,56 @@ mod tests {
         let a = ReuseKey::new(Uuid::new_v4(), &conn("example.com", 22, Some("deploy")));
         let b = ReuseKey::new(Uuid::new_v4(), &conn("example.com", 22, Some("deploy")));
         assert_ne!(a, b);
+    }
+
+    /// Editing the ROUTE of one row between two opens is a different
+    /// key too: with bastion-relative addressing the same private name
+    /// through another jump chain or proxy is a different machine, and
+    /// a reused channel can never raise a host-key prompt to say so.
+    #[test]
+    fn an_edited_route_is_a_different_key() {
+        let id = Uuid::new_v4();
+        let base = ReuseKey::new(id, &conn("10.0.0.5", 22, Some("deploy")));
+
+        let mut jumped = conn("10.0.0.5", 22, Some("deploy"));
+        jumped.jump_chain = vec![Uuid::new_v4()];
+        assert_ne!(base, ReuseKey::new(id, &jumped));
+
+        let mut proxied = conn("10.0.0.5", 22, Some("deploy"));
+        proxied.proxy = Some(oryxis_core::models::connection::ProxyConfig {
+            proxy_type: oryxis_core::models::connection::ProxyType::Socks5,
+            host: "bastion-b".into(),
+            port: 1080,
+            username: None,
+            password: None,
+        });
+        assert_ne!(base, ReuseKey::new(id, &proxied));
+
+        let mut pinned = conn("10.0.0.5", 22, Some("deploy"));
+        pinned.kex = Some(vec!["diffie-hellman-group14-sha1".into()]);
+        assert_ne!(base, ReuseKey::new(id, &pinned));
+    }
+
+    /// The proxy PASSWORD is not part of the route: it changes how a
+    /// dial authenticates, never where it lands, so saving a new proxy
+    /// password must not orphan the live connection's pool entry.
+    #[test]
+    fn a_proxy_password_change_keeps_the_key() {
+        let id = Uuid::new_v4();
+        let with_pw = |pw: Option<&str>| {
+            let mut c = conn("10.0.0.5", 22, Some("deploy"));
+            c.proxy = Some(oryxis_core::models::connection::ProxyConfig {
+                proxy_type: oryxis_core::models::connection::ProxyType::Socks5,
+                host: "bastion-a".into(),
+                port: 1080,
+                username: Some("proxyuser".into()),
+                password: pw.map(|s| s.to_string()),
+            });
+            c
+        };
+        assert_eq!(
+            ReuseKey::new(id, &with_pw(None)),
+            ReuseKey::new(id, &with_pw(Some("s3cret")))
+        );
     }
 }

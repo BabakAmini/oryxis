@@ -450,6 +450,7 @@ impl Oryxis {
                 monitor: Default::default(),
                 tmux: Default::default(),
                 ssh_transport_pool: Default::default(),
+                pending_reuse_keys: Default::default(),
                 monitor_dash: Default::default(),
                 monitor_stamp: 0,
                 monitor_error: None,
