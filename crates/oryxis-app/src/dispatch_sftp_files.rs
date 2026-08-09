@@ -305,7 +305,7 @@ impl Oryxis {
                                 if auto {
                                     w.uploading = true;
                                     w.dirty = false;
-                                    tasks.push(watch_upload_task(w.clone()));
+                                    tasks.push(watch_upload_task(w.clone(), self.prefs.sftp_upload_temp_name));
                                 } else {
                                     w.dirty = true;
                                 }
@@ -395,7 +395,7 @@ impl Oryxis {
                         {
                             w.uploading = true;
                             w.dirty = false;
-                            return Ok(watch_upload_task(w.clone()));
+                            return Ok(watch_upload_task(w.clone(), self.prefs.sftp_upload_temp_name));
                         }
                     }
                     C::YesToAll | C::Autosave => {
@@ -415,7 +415,7 @@ impl Oryxis {
                                 if w.dirty && !w.uploading {
                                     w.uploading = true;
                                     w.dirty = false;
-                                    tasks.push(watch_upload_task(w.clone()));
+                                    tasks.push(watch_upload_task(w.clone(), self.prefs.sftp_upload_temp_name));
                                 }
                             }
                         };
@@ -939,7 +939,13 @@ fn open_with_os_picker(temp_path: &std::path::Path) -> Result<(), String> {
 /// Upload a watch entry's temp file to its remote path, resolving the
 /// temp mtime FIRST so the re-arm covers exactly the content uploaded
 /// (a save landing mid-upload keeps a newer mtime and prompts again).
-fn watch_upload_task(session: crate::state::EditSession) -> Task<Message> {
+///
+/// Routes through `upload_one` like every other upload, so the
+/// scratch-name setting applies here too: a dropped connection mid-save
+/// leaves the `.oryxis-part` scratch rather than a truncated remote
+/// file (a bare `write_file` opens WRITE|CREATE|TRUNCATE under the real
+/// name, destroying the file it was saving).
+fn watch_upload_task(session: crate::state::EditSession, temp_name: bool) -> Task<Message> {
     let temp_key = session.temp_path.clone();
     Task::perform(
         async move {
@@ -948,17 +954,18 @@ fn watch_upload_task(session: crate::state::EditSession) -> Task<Message> {
                 .ok()
                 .and_then(|m| m.modified().ok())
                 .unwrap_or_else(std::time::SystemTime::now);
-            let bytes = tokio::fs::read(&session.temp_path)
-                .await
-                .map_err(|e| format!("read temp: {e}"))?;
             let client = session
                 .client
                 .clone()
                 .ok_or_else(|| "no client attached to the edit watch".to_string())?;
-            client
-                .write_file(&session.remote_path, &bytes)
-                .await
-                .map_err(|e| e.to_string())?;
+            crate::sftp_helpers::upload_one(
+                &client,
+                std::path::Path::new(&session.temp_path),
+                &session.remote_path,
+                temp_name,
+                None,
+            )
+            .await?;
             Ok::<std::time::SystemTime, String>(mtime)
         },
         move |result| {

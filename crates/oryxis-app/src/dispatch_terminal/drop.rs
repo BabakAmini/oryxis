@@ -390,9 +390,20 @@ impl Oryxis {
                                         // Kill the in-flight write and
                                         // sweep the partial so a cancel
                                         // never masquerades as a
-                                        // complete file.
+                                        // complete file. Which path holds
+                                        // the bytes depends on the
+                                        // scratch-name setting: with it
+                                        // on they went to `<dst>.oryxis-
+                                        // part`, so removing `dst` would
+                                        // miss the scratch AND could
+                                        // delete a pre-existing real file
+                                        // this upload never touched.
                                         drop(up);
-                                        let _ = client.remove_file(&item.dst).await;
+                                        if temp_name {
+                                            client.discard_upload_scratch(&item.dst).await;
+                                        } else {
+                                            let _ = client.remove_file(&item.dst).await;
+                                        }
                                         send(DropProgress::Cancelled).await;
                                         return;
                                     }

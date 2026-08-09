@@ -570,6 +570,18 @@ impl SftpClient {
             }
             return Err(e);
         }
+        // Success, but the resume may have started from a scratch that
+        // was LONGER than the remote is now (the file shrank between
+        // attempts, with an identical prefix, so `resume_from < actual`
+        // still held): the window wrote `[resume_from, actual)` and left
+        // the stale tail above `actual` in place, which `finish_part`
+        // would rename into the final file as garbage bytes. Trim to the
+        // authoritative size before promoting. Only ever shortens, so
+        // the crash-recovery length invariant on the FAILURE path above
+        // is untouched: this runs after the copy fully succeeded.
+        if let Ok(f) = tokio::fs::OpenOptions::new().write(true).open(&part).await {
+            let _ = f.set_len(actual).await;
+        }
         finish_part(&part, local).await
     }
 
