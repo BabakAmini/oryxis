@@ -155,6 +155,40 @@ impl VaultStore {
         }
     }
 
+    /// Persist the WebDAV account password encrypted at rest.
+    ///
+    /// A DIFFERENT secret from the sync passphrase, deliberately: the
+    /// passphrase derives the snapshot key and every device in a group
+    /// shares it, while this is one account's credential on one server.
+    /// Collapsing them would put the server password in the hands of
+    /// everyone in the sync group.
+    pub fn set_sync_webdav_password(&self, password: &str) -> Result<(), VaultError> {
+        if password.is_empty() {
+            // Absence is the cleared state; see `set_sync_sftp_passphrase`.
+            self.db.execute(
+                "DELETE FROM settings WHERE key = ?1",
+                params!["sync_webdav_password"],
+            )?;
+            return Ok(());
+        }
+        let encrypted = self.encrypt_field(password)?;
+        let encoded = BASE64.encode(&encrypted);
+        self.set_setting("sync_webdav_password", &encoded)
+    }
+
+    /// Retrieve and decrypt the WebDAV account password.
+    pub fn get_sync_webdav_password(&self) -> Result<Option<String>, VaultError> {
+        match self.get_setting("sync_webdav_password")? {
+            Some(encoded) if !encoded.is_empty() => {
+                let encrypted = BASE64
+                    .decode(encoded.as_bytes())
+                    .map_err(|e| VaultError::Crypto(format!("Base64 decode: {}", e)))?;
+                Ok(Some(self.decrypt_field(&encrypted)?))
+            }
+            _ => Ok(None),
+        }
+    }
+
     /// Persist the sync `DeviceIdentity` blob encrypted at rest. The
     /// caller (oryxis-sync) is responsible for the byte layout (see
     /// `crypto::DeviceIdentity::to_bytes`). We treat the bytes as

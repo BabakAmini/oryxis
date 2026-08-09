@@ -7,6 +7,18 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 ## [Unreleased]
 
 ### Added
+- **Sync through a WebDAV server.** A fifth transport, for the
+  Nextcloud, ownCloud or Synology you already run: a collection URL, an
+  account and an app password, with no desktop client to install and no
+  OAuth application to register anywhere. It reaches those servers
+  directly, which is the difference from pointing the folder transport
+  at their sync client, and it is the only file transport that DETECTS
+  a conflict rather than healing one afterwards: the write carries the
+  tag the server handed out on the read, so a server that changed in
+  between refuses it and the round starts again on top of what landed.
+  A URL ending in `/` is a folder and gets the shared snapshot name;
+  one naming a file is used as typed, so two sync groups can share an
+  account. The folder is created on the first round if it is not there.
 - **Sync through a Git remote, with history.** A fourth transport:
   the same encrypted snapshot, committed to any Git remote you can
   clone, whether that is a forge or a bare repository on your own box.
@@ -55,6 +67,28 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   switch, on by default.
 
 ### Fixed
+- **The folder and Git transports were still running the peer-to-peer
+  engine.** Picking either of them left QUIC listening and mDNS
+  advertising on the local network, and the engine's own timer kept
+  syncing peer to peer behind the file the user believed they had
+  chosen. The same mistake put the pairing code, the LAN device count
+  and the signaling / relay / port fields in front of them, along with
+  a "Sync now" button that fired the peer-to-peer path and did nothing
+  at all. Every one of those now asks whether the transport IS
+  peer-to-peer, rather than whether it is not SFTP.
+- **Auto mode did nothing on the folder and Git transports.** The
+  cadence timer only ever mounted for SFTP, so a user who picked Auto
+  got a transport that moved only when clicked. One timer now serves
+  every snapshot transport.
+- **A folder or Git round left the screen showing stale data.** The
+  round merges on its own vault handle, so records it pulled stayed
+  invisible until the next restart. Both reload now, as the SFTP round
+  already did.
+- **A portable export carried the sync passphrase as unreadable
+  bytes.** It is encrypted under the exporting vault's master key, so
+  it arrived in the target vault undecryptable; inert until that vault
+  changed its master password, a pass that walks every encrypted
+  setting and aborts on the first one it cannot read.
 - **The latency segment stops claiming a dead link is fast.** The status
   bar's RTT read the last successful round trip, which keeps its value
   after the server goes quiet, so a connection that had stopped

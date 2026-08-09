@@ -22,6 +22,23 @@ pub enum SyncMessage {
     FolderPickDirectory,
     /// The picker returned; `None` is a cancel and stays silent.
     FolderDirectoryPicked(Option<String>),
+    /// A WebDAV-sync round finished: `Ok(records pulled)` or the
+    /// failure to show inline.
+    WebdavRoundFinished(Result<usize, String>),
+    /// Settings > Sync: the WebDAV transport's collection URL and the
+    /// account it authenticates as.
+    WebdavUrlChanged(String),
+    WebdavUserChanged(String),
+    /// The account's password on that server, `Redacted` like every
+    /// other secret-bearing variant
+    /// (`secret_bearing_variants_carry_redacted`). A DIFFERENT secret
+    /// from the passphrase below.
+    WebdavPasswordChanged(super::Redacted),
+    /// The group passphrase the snapshot is encrypted with, shared with
+    /// the other snapshot transports.
+    WebdavPassphraseChanged(super::Redacted),
+    /// "Sync now" for the WebDAV transport.
+    WebdavSyncNow,
     /// A Git-sync round finished: `Ok(records pulled)` or the failure.
     GitRoundFinished(Result<usize, String>),
     /// Settings > Sync: the Git transport's remote URL and passphrase.

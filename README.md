@@ -270,11 +270,9 @@ tracks it interactively.
 - **Utilities:** CSV export of hosts, and an optional network tools
   panel (DNS, ping / traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
-  import, extra sync snapshot backends (any WebDAV server, and any Git
-  remote through the `git` you already have installed, so every forge
-  works instead of one vendor's API; ciphertext only, as always), and one-click relay deploy (the app
-  installs `oryxis-relay` on a host from your vault over SSH, with the
-  script shown before it runs).
+  import, and one-click relay deploy (the app installs `oryxis-relay`
+  on a host from your vault over SSH, with the script shown before it
+  runs).
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
   providers, and an East Asian ambiguous-width option.
 - **AI ops toolkit:** the assistant graduates from generating shell

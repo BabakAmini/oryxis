@@ -632,6 +632,29 @@ pub(crate) struct GitSyncForm {
     pub status: Option<Result<String, String>>,
 }
 
+/// WebDAV sync transport: the snapshot on a Nextcloud / ownCloud /
+/// Synology or plain WebDAV server.
+///
+/// The only file transport with a real compare-and-swap (`If-Match` on
+/// the ETag), which is why it is worth having next to the folder
+/// transport that already reaches those servers through their desktop
+/// client: not every machine can run that client.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct WebdavSyncForm {
+    /// Collection or file URL. A trailing `/` means "put the shared
+    /// snapshot name in here".
+    pub url: String,
+    /// Account name on the server.
+    pub user: String,
+    /// Account password, ideally an app password. Stored encrypted and
+    /// deliberately NOT the group passphrase below.
+    pub password: String,
+    /// Same group passphrase as the other snapshot transports.
+    pub passphrase: String,
+    pub in_progress: bool,
+    pub status: Option<Result<String, String>>,
+}
+
 /// Folder sync transport: one encrypted snapshot in a local directory.
 ///
 /// The directory is whatever the OS already mounts, which is the whole

@@ -7,7 +7,10 @@ use tokio::sync::oneshot;
 
 use oryxis_vault::SyncPeerRow;
 
-use super::{DiscoveredPeerInfo, FolderSyncForm, GitSyncForm, SftpSyncForm, SyncPairingForm};
+use super::{
+    DiscoveredPeerInfo, FolderSyncForm, GitSyncForm, SftpSyncForm, SyncPairingForm,
+    WebdavSyncForm,
+};
 use crate::sync_runtime::SyncRuntime;
 
 /// All sync settings + runtime + transient form state. Settings hydrate from
@@ -68,6 +71,7 @@ pub(crate) struct SyncState {
     /// Transient state for the folder sync transport (path, group
     /// passphrase) plus the in-flight round's progress + last outcome.
     pub(crate) folder: FolderSyncForm,
+    pub(crate) webdav: WebdavSyncForm,
     /// Transient state for the Git sync transport.
     pub(crate) git: GitSyncForm,
     /// "Set up your own relay" wizard (Settings > Sync > P2P): inputs,
@@ -190,6 +194,7 @@ impl Default for SyncState {
             transport: "p2p".into(),
             sftp: SftpSyncForm::default(),
             folder: FolderSyncForm::default(),
+            webdav: WebdavSyncForm::default(),
             git: GitSyncForm::default(),
             relay_wizard: RelayWizardForm::default(),
             signaling_last: None,

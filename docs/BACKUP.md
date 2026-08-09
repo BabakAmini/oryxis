@@ -15,6 +15,7 @@ here.
 | The same vault on my laptop and my desktop | **Sync** | Changes flow both ways and merge |
 | A copy I can restore from if this machine dies | **Export** | One file, one moment in time, restorable on its own |
 | A copy in my cloud drive, kept current | **Sync to a folder** | Your cloud client already syncs that folder |
+| A copy on my Nextcloud / Synology, no client installed | **Sync over WebDAV** | Talks to the server directly, and detects a conflict instead of healing it |
 | A copy in a Telegram chat / an S3 bucket / anywhere exotic | **Sync to a folder + a tool that watches it** | See [Sending a copy somewhere Oryxis does not go](#sending-a-copy-somewhere-oryxis-does-not-go) |
 
 Oryxis has no scheduler and does not run in the background. Nothing
@@ -41,7 +42,7 @@ An export is a snapshot in time. It does not update itself.
 
 ## Sync: the same vault in more than one place
 
-Settings > Sync. Sync is off by default and has four transports. Only
+Settings > Sync. Sync is off by default and has five transports. Only
 one runs at a time.
 
 ### Peer-to-peer
@@ -80,6 +81,23 @@ version of your vault, all encrypted, which is the feature and also a
 reason to keep it private. And the working copy lives in
 `~/.oryxis/sync-git/`; it is a cache, safe to delete, and the next sync
 re-creates it.
+
+### WebDAV
+
+The same snapshot on a Nextcloud, ownCloud, Synology or plain WebDAV
+server. You give it a collection URL, an account and an app password;
+there is no desktop client to install and no OAuth app to register
+anywhere.
+
+This is the transport with the best conflict behaviour after Git. The
+write carries the tag the server gave you when you read, so a server
+that has changed since refuses it, and Oryxis redoes the round on top
+of what landed instead of flattening it. The folder and SFTP
+transports can only heal a collision afterwards.
+
+A URL ending in `/` is a folder and gets the shared snapshot name; a
+URL naming a file is used as typed, which is how two sync groups share
+one account. If the folder does not exist yet Oryxis creates it once.
 
 ### Folder
 

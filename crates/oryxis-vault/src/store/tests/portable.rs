@@ -525,6 +525,7 @@ fn settings_denylist_blocks_device_local_keys() {
     // useless.
     for denied in [
         "sync_sftp_passphrase",
+        "sync_webdav_password",
         "files_recent_folders",
     ] {
         assert!(

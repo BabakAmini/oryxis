@@ -67,6 +67,7 @@ mod dispatch_tabs;
 mod dispatch_telnet;
 mod dispatch_terminal;
 mod dispatch_update;
+mod dispatch_webdav_sync;
 mod dispatch_zmodem;
 mod fonts;
 #[cfg(feature = "harness")]

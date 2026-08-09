@@ -432,6 +432,50 @@ impl Oryxis {
             SyncMessage::SftpHostPickerSearch(v) => {
                 self.sync.sftp.picker_search = v;
             }
+            SyncMessage::WebdavUrlChanged(v) => {
+                self.sync.webdav.url = v.clone();
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting("sync_webdav_url", &v);
+                }
+            }
+            SyncMessage::WebdavUserChanged(v) => {
+                self.sync.webdav.user = v.clone();
+                if let Some(vault) = &self.vault {
+                    let _ = vault.set_setting("sync_webdav_user", &v);
+                }
+            }
+            SyncMessage::WebdavPasswordChanged(v) => {
+                let v = v.into_inner();
+                self.sync.webdav.password = v.clone();
+                if let Some(vault) = &self.vault {
+                    // Its own encrypted setting, not the group
+                    // passphrase: this one is an account credential on
+                    // one server, and every device has a different one.
+                    let _ = vault.set_sync_webdav_password(&v);
+                }
+            }
+            SyncMessage::WebdavPassphraseChanged(v) => {
+                let v = v.into_inner();
+                self.sync.webdav.passphrase = v.clone();
+                if let Some(vault) = &self.vault {
+                    // One group secret across every snapshot transport.
+                    let _ = vault.set_sync_sftp_passphrase(&v);
+                }
+            }
+            SyncMessage::WebdavSyncNow => return self.run_webdav_sync_round(),
+            SyncMessage::WebdavRoundFinished(result) => {
+                self.sync.webdav.in_progress = false;
+                if result.is_ok() {
+                    // The round merged on its own `VaultStore` handle,
+                    // so the in-memory lists are stale until this.
+                    self.load_data_from_vault();
+                }
+                self.sync.webdav.status = Some(match result {
+                    Ok(pulled) => Ok(crate::i18n::t("snapshot_sync_ok")
+                        .replace("{n}", &pulled.to_string())),
+                    Err(e) => Err(e),
+                });
+            }
             SyncMessage::GitRemoteChanged(v) => {
                 self.sync.git.remote = v.clone();
                 if let Some(vault) = &self.vault {
@@ -457,7 +501,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
                 self.sync.git.status = Some(match result {
-                    Ok(pulled) => Ok(crate::i18n::t("folder_sync_ok")
+                    Ok(pulled) => Ok(crate::i18n::t("snapshot_sync_ok")
                         .replace("{n}", &pulled.to_string())),
                     Err(e) => Err(e),
                 });
@@ -510,7 +554,7 @@ impl Oryxis {
                     self.load_data_from_vault();
                 }
                 self.sync.folder.status = Some(match result {
-                    Ok(pulled) => Ok(crate::i18n::t("folder_sync_ok")
+                    Ok(pulled) => Ok(crate::i18n::t("snapshot_sync_ok")
                         .replace("{n}", &pulled.to_string())),
                     Err(e) => Err(e),
                 });
@@ -547,6 +591,9 @@ impl Oryxis {
                     }
                     "git" if !self.sync.git.in_progress => {
                         return self.run_git_sync_round();
+                    }
+                    "webdav" if !self.sync.webdav.in_progress => {
+                        return self.run_webdav_sync_round();
                     }
                     _ => {}
                 }

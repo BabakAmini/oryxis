@@ -192,74 +192,61 @@ impl Oryxis {
         sftp_section_col
     }
 
-    /// Transport card: the P2P-vs-SFTP picker plus, under SFTP, the
-    /// snapshot config block.
+    /// The transports, in picker order: settings token, label key, and
+    /// whether the config block below the picker belongs to it.
+    ///
+    /// A TABLE and not a chain of `if`s, because the chain is what let
+    /// the folder and Git transports ship with the P2P surface still
+    /// attached: every place that had to name a transport named it by
+    /// exclusion instead. Adding one here is a single row.
+    const TRANSPORTS: &'static [(&'static str, &'static str)] = &[
+        ("p2p", "sync_transport_p2p"),
+        ("sftp", "sync_transport_sftp"),
+        ("folder", "sync_transport_folder"),
+        ("git", "sync_transport_git"),
+        ("webdav", "sync_transport_webdav"),
+    ];
+
+    /// Transport card: the transport picker plus, under it, the
+    /// selected transport's config block.
     fn sync_transport_card(&self, is_sftp: bool) -> Element<'_, Message> {
-        // Transport picker (P2P vs SFTP), the "one or the other"
-        // choice. Always visible while sync is enabled; selecting
-        // it persists the setting and (un)mounts the P2P engine.
-        let p2p_label = crate::i18n::t("sync_transport_p2p").to_string();
-        let sftp_label = crate::i18n::t("sync_transport_sftp").to_string();
-        let folder_label = crate::i18n::t("sync_transport_folder").to_string();
-        let git_label = crate::i18n::t("sync_transport_git").to_string();
-        let is_folder = self.sync.transport == "folder";
-        let is_git = self.sync.transport == "git";
-        let transport_selected = if is_sftp {
-            sftp_label.clone()
-        } else if is_folder {
-            folder_label.clone()
-        } else if is_git {
-            git_label.clone()
-        } else {
-            p2p_label.clone()
-        };
-        let transport_options = vec![
-            p2p_label.clone(),
-            sftp_label.clone(),
-            folder_label.clone(),
-            git_label.clone(),
-        ];
-        // Left/Right cycle the transports without opening the
-        // dropdown; same label-to-token mapping as on_select.
-        let sftp_label_for_cycle = sftp_label.clone();
-        let folder_label_for_cycle = folder_label.clone();
-        let git_label_for_cycle = git_label.clone();
-        let (transport_prev, transport_next) = crate::keynav::slots::cycle_pair(
-            &transport_options,
-            &transport_selected,
+        // Labels are translated, so the picker round-trips through them
+        // and back to the token. Built once and shared by the pick_list
+        // and the Left/Right cycle so the two cannot disagree.
+        let labels: Vec<String> = Self::TRANSPORTS
+            .iter()
+            .map(|(_, key)| crate::i18n::t(key).to_string())
+            .collect();
+        let selected = Self::TRANSPORTS
+            .iter()
+            .position(|(token, _)| *token == self.sync.transport)
+            // An unknown token (a settings row from a newer build)
+            // shows as P2P rather than an empty picker.
+            .unwrap_or(0);
+        let transport_selected = labels[selected].clone();
+
+        let to_message = {
+            let labels = labels.clone();
             move |v: String| {
-                let tr = if v == sftp_label_for_cycle || v == "SFTP" {
-                    "sftp"
-                } else if v == folder_label_for_cycle {
-                    "folder"
-                } else if v == git_label_for_cycle {
-                    "git"
-                } else {
-                    "p2p"
-                };
-                Message::Sync(SyncMessage::TransportChanged(tr.to_string()))
-            },
+                let token = labels
+                    .iter()
+                    .position(|l| *l == v)
+                    .map_or("p2p", |idx| Self::TRANSPORTS[idx].0);
+                Message::Sync(SyncMessage::TransportChanged(token.to_string()))
+            }
+        };
+        // Left/Right cycle the transports without opening the dropdown.
+        let (transport_prev, transport_next) = crate::keynav::slots::cycle_pair(
+            &labels,
+            &transport_selected,
+            to_message.clone(),
         );
-        let sftp_label_for_select = sftp_label.clone();
-        let folder_label_for_select = folder_label.clone();
-        let git_label_for_select = git_label.clone();
         let transport_pick = pick_list(
             Some(transport_selected),
-            transport_options,
+            labels,
             |s: &String| s.clone(),
         )
-        .on_select(move |v| {
-            let tr = if v == sftp_label_for_select || v == "SFTP" {
-                "sftp"
-            } else if v == folder_label_for_select {
-                "folder"
-            } else if v == git_label_for_select {
-                "git"
-            } else {
-                "p2p"
-            };
-            Message::Sync(SyncMessage::TransportChanged(tr.to_string()))
-        })
+        .on_select(to_message)
         .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
         .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
         .text_size(13)
@@ -281,25 +268,150 @@ impl Oryxis {
             .into(),
         );
         let mut transport_col = column![transport_row];
-        // SFTP-transport config joins the Transport card so the
-        // method picker and its settings read as one theme; built
-        // here so the keyboard rows record before Options renders.
-        if is_sftp {
+        // The selected transport's config joins the Transport card so
+        // the picker and its settings read as one theme; built here so
+        // the keyboard rows record before Options renders.
+        let config: Option<Element<'_, Message>> = match self.sync.transport.as_str() {
+            _ if is_sftp => Some(self.sync_snapshot_card().into()),
+            "folder" => Some(self.sync_folder_card()),
+            "git" => Some(self.sync_git_card()),
+            "webdav" => Some(self.sync_webdav_card()),
+            _ => None,
+        };
+        if let Some(config) = config {
             transport_col = transport_col
                 .push(Space::new().height(16))
-                .push(self.sync_snapshot_card());
-        }
-        if is_folder {
-            transport_col = transport_col
-                .push(Space::new().height(16))
-                .push(self.sync_folder_card());
-        }
-        if is_git {
-            transport_col = transport_col
-                .push(Space::new().height(16))
-                .push(self.sync_git_card());
+                .push(config);
         }
         panel_section(transport_col)
+    }
+
+    /// One labelled, keynav-recorded text input for the WebDAV card.
+    ///
+    /// A method and not a closure because the row borrows `self` for
+    /// the keynav ring AND the field value, and closure lifetime
+    /// elision cannot express that the two live as long as the element.
+    fn webdav_field<'a>(
+        &'a self,
+        label: &'static str,
+        id: &'static str,
+        value: &'a str,
+        secure: bool,
+        to_msg: fn(String) -> Message,
+    ) -> Element<'a, Message> {
+        self.settings_nav_slot_labeled(
+            t(label),
+            crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+            crate::widgets::INPUT_RADIUS,
+            text_input(t(label), value)
+                .id(iced::widget::Id::new(id))
+                .on_input(to_msg)
+                .secure(secure)
+                .padding(10)
+                .width(Length::Fill)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x())
+                .into(),
+        )
+    }
+
+    /// WebDAV-transport config: the collection URL, the account, and
+    /// the group passphrase.
+    ///
+    /// Three fields and no OAuth, which is the reason this transport
+    /// exists in the first place. The password field is the account's
+    /// credential on that server (an app password on Nextcloud), a
+    /// different secret from the passphrase under it, and the labels
+    /// say so because conflating the two silently puts a device in its
+    /// own sync group.
+    fn sync_webdav_card(&self) -> Element<'_, Message> {
+        let busy = self.sync.webdav.in_progress;
+        let mut col = column![
+            text(t("webdav_sync_desc"))
+                .size(11)
+                .color(OryxisColors::t().text_muted),
+            Space::new().height(10),
+        ];
+
+        for (label, id, value, secure, to_msg, placeholder) in [
+            (
+                "webdav_sync_url",
+                "sync-webdav-url",
+                self.sync.webdav.url.as_str(),
+                false,
+                (|v| Message::Sync(SyncMessage::WebdavUrlChanged(v))) as fn(String) -> Message,
+                Some("https://cloud.example.com/remote.php/dav/files/me/oryxis/"),
+            ),
+            (
+                "webdav_sync_user",
+                "sync-webdav-user",
+                self.sync.webdav.user.as_str(),
+                false,
+                |v| Message::Sync(SyncMessage::WebdavUserChanged(v)),
+                None,
+            ),
+            (
+                "webdav_sync_password",
+                "sync-webdav-pass",
+                self.sync.webdav.password.as_str(),
+                true,
+                |v| Message::Sync(SyncMessage::WebdavPasswordChanged(v.into())),
+                None,
+            ),
+            (
+                "sftp_sync_passphrase",
+                "sync-webdav-passphrase",
+                self.sync.webdav.passphrase.as_str(),
+                true,
+                |v| Message::Sync(SyncMessage::WebdavPassphraseChanged(v.into())),
+                None,
+            ),
+        ] {
+            col = col
+                .push(
+                    text(t(label))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                )
+                .push(Space::new().height(4))
+                .push(self.webdav_field(label, id, value, secure, to_msg));
+            if let Some(hint) = placeholder {
+                col = col.push(Space::new().height(4)).push(
+                    text(hint).size(10).color(OryxisColors::t().text_muted),
+                );
+            }
+            col = col.push(Space::new().height(10));
+        }
+
+        col = col.push(Space::new().height(2)).push(
+            self.settings_nav_slot_labeled(
+                t("sync_now"),
+                crate::keynav::RowAction::activate(Message::Sync(SyncMessage::WebdavSyncNow)),
+                8.0,
+                crate::widgets::styled_button_opt(
+                    t("sync_now"),
+                    (!busy).then_some(Message::Sync(SyncMessage::WebdavSyncNow)),
+                    OryxisColors::t().accent,
+                ),
+            ),
+        );
+
+        if let Some(status) = &self.sync.webdav.status {
+            let (msg, color) = match status {
+                Ok(s) => (s.clone(), OryxisColors::t().success),
+                Err(e) => (e.clone(), OryxisColors::t().error),
+            };
+            col = col
+                .push(Space::new().height(8))
+                .push(text(msg).size(11).color(color));
+        }
+
+        col = col.push(Space::new().height(10)).push(
+            text(t("webdav_sync_cas_note"))
+                .size(10)
+                .color(OryxisColors::t().text_muted),
+        );
+        col.into()
     }
 
     /// Git-transport config: the remote, the group passphrase, and the

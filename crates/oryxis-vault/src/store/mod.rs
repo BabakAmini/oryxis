@@ -1023,6 +1023,7 @@ impl VaultStore {
         self.convert_settings_b64("ai_api_key", dec, enc, lenient)?;
         self.convert_settings_b64("files_recent_folders", dec, enc, lenient)?;
         self.convert_settings_b64("sync_sftp_passphrase", dec, enc, lenient)?;
+        self.convert_settings_b64("sync_webdav_password", dec, enc, lenient)?;
         self.convert_settings_b64("sync_device_identity", dec, enc, lenient)?;
         // The session-recording content key only needs its wrapper
         // converted; the chunks themselves are sealed with the

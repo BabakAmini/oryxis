@@ -312,6 +312,7 @@ pub(crate) fn is_portable_setting(key: &str) -> bool {
         // decrypt, which would wedge the target's password change.
         // Same reasoning as `files_recent_folders` below.
         "sync_sftp_passphrase",
+        "sync_webdav_password",
         "mcp_server_token",
         "sync_enabled",
         "sync_mode",

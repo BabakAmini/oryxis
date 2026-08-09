@@ -341,6 +341,15 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sync_sftp_remote_path") {
                 self.sync.sftp.remote_path = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("sync_webdav_url") {
+                self.sync.webdav.url = v;
+            }
+            if let Ok(Some(v)) = vault.get_setting("sync_webdav_user") {
+                self.sync.webdav.user = v;
+            }
+            if let Ok(Some(v)) = vault.get_sync_webdav_password() {
+                self.sync.webdav.password = v;
+            }
             if let Ok(Some(v)) = vault.get_sync_sftp_passphrase() {
                 // One group secret, two transports: the folder form
                 // reads the same stored passphrase, so pointing a
@@ -348,6 +357,7 @@ impl Oryxis {
                 // silently put it in a different sync group.
                 self.sync.folder.passphrase = v.clone();
                 self.sync.git.passphrase = v.clone();
+                self.sync.webdav.passphrase = v.clone();
                 self.sync.sftp.passphrase = v;
             }
             self.sync.peers = vault.list_sync_peers().unwrap_or_default();
