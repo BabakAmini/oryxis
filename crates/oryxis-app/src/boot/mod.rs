@@ -639,11 +639,12 @@ impl Oryxis {
         // Bring the sync engine up if the vault is already open and the
         // user left sync enabled. When the vault is locked we defer to
         // the `VaultUnlock` handler, same as `--connect`.
-        // Only the P2P transport runs a background engine; the SFTP
-        // transport reconciles on the iced cadence subscription instead.
+        // Only the P2P transport runs a background engine; every
+        // snapshot transport reconciles on the iced cadence
+        // subscription instead.
         if app.vault_ui.state == VaultState::Unlocked
             && app.sync.enabled
-            && app.sync.transport != "sftp"
+            && app.sync_uses_p2p()
         {
             tasks.push(app.start_sync_engine());
         }

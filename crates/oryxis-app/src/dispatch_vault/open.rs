@@ -120,10 +120,9 @@ impl Oryxis {
                             // Bring the sync engine up now that the
                             // vault is open, if the user left it on. Only
                             // the P2P transport has a background engine;
-                            // SFTP reconciles on the cadence subscription.
-                            let sync_task = if self.sync.enabled
-                                && self.sync.transport != "sftp"
-                            {
+                            // the snapshot transports reconcile on the
+                            // cadence subscription.
+                            let sync_task = if self.sync.enabled && self.sync_uses_p2p() {
                                 self.start_sync_engine()
                             } else {
                                 Task::none()

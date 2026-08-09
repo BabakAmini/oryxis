@@ -128,6 +128,23 @@ impl Oryxis {
         config
     }
 
+    /// Whether the selected transport is the one with a background
+    /// engine. Every snapshot transport (SFTP, folder, Git, WebDAV)
+    /// reconciles on demand and must leave QUIC and mDNS down.
+    ///
+    /// An ALLOWLIST on purpose. The four callers used to ask
+    /// `transport != "sftp"`, written when SFTP was the only other
+    /// option, and each new transport silently inherited a live P2P
+    /// engine: the user picked a folder and the app was still
+    /// advertising itself on the LAN and syncing over QUIC behind the
+    /// file it thought it was writing. Phrased this way, a transport
+    /// nobody taught this function about runs no engine, which is the
+    /// safe answer, including for a settings row written by a newer
+    /// build.
+    pub(crate) fn sync_uses_p2p(&self) -> bool {
+        self.sync.transport == "p2p"
+    }
+
     /// Spawn the sync engine from current settings and return a `Task`
     /// that pumps its event stream into `|v| Message::Sync(SyncMessage::EngineEvent(v))`.
     /// No-op (`Task::none`) if the engine is already running or the

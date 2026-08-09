@@ -517,6 +517,22 @@ fn settings_denylist_blocks_device_local_keys() {
         assert!(!is_portable_setting(denied), "{denied} must not be portable");
     }
 
+    // Encrypted-under-this-vault settings are a separate class: they
+    // arrive as unreadable bytes, and the target's next master-password
+    // change walks every one of them in STRICT mode and aborts on the
+    // first it cannot decrypt. Exporting one wedges the OTHER vault's
+    // password change, which is why they are denied and not merely
+    // useless.
+    for denied in [
+        "sync_sftp_passphrase",
+        "files_recent_folders",
+    ] {
+        assert!(
+            !is_portable_setting(denied),
+            "{denied} is encrypted per-vault and must not be portable"
+        );
+    }
+
     // Genuine preferences ride along.
     for ok in [
         "language",

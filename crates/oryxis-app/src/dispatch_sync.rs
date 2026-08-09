@@ -25,7 +25,7 @@ impl Oryxis {
                 // SFTP transport has no background engine: enabling just
                 // persists the flag (the cadence subscription picks it up);
                 // disabling clears any stale status.
-                if self.sync.transport == "sftp" {
+                if !self.sync_uses_p2p() {
                     self.sync.status = Some(
                         crate::i18n::t(if self.sync.enabled {
                             "sync_status_enabled"
@@ -406,7 +406,7 @@ impl Oryxis {
                     }
                     self.sync.status = None;
                     self.sync.sftp.status = None;
-                    if v == "sftp" {
+                    if !self.sync_uses_p2p() {
                         self.stop_sync_engine();
                     } else if self.sync.enabled {
                         return self.start_sync_engine();
@@ -449,6 +449,13 @@ impl Oryxis {
             SyncMessage::GitSyncNow => return self.run_git_sync_round(),
             SyncMessage::GitRoundFinished(result) => {
                 self.sync.git.in_progress = false;
+                if result.is_ok() {
+                    // The round merged on its OWN `VaultStore` handle,
+                    // so every in-memory list is stale: whatever it
+                    // pulled is on disk and invisible until this
+                    // reload. Same reason `SftpDone` does it.
+                    self.load_data_from_vault();
+                }
                 self.sync.git.status = Some(match result {
                     Ok(pulled) => Ok(crate::i18n::t("folder_sync_ok")
                         .replace("{n}", &pulled.to_string())),
@@ -495,6 +502,13 @@ impl Oryxis {
             SyncMessage::FolderSyncNow => return self.run_folder_sync_round(),
             SyncMessage::FolderRoundFinished(result) => {
                 self.sync.folder.in_progress = false;
+                if result.is_ok() {
+                    // The round merged on its OWN `VaultStore` handle,
+                    // so every in-memory list is stale: whatever it
+                    // pulled is on disk and invisible until this
+                    // reload. Same reason `SftpDone` does it.
+                    self.load_data_from_vault();
+                }
                 self.sync.folder.status = Some(match result {
                     Ok(pulled) => Ok(crate::i18n::t("folder_sync_ok")
                         .replace("{n}", &pulled.to_string())),

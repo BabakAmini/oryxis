@@ -304,6 +304,14 @@ pub(crate) fn is_portable_setting(key: &str) -> bool {
         "sync_device_name",
         "sync_listen_port",
         "sync_signaling_token",
+        // Encrypted under THIS vault's master key, so the verbatim
+        // value `list_settings` hands out arrives as bytes the target
+        // cannot read. Inert on its own, but the next master-password
+        // change walks every encrypted setting in STRICT mode
+        // (`convert_all_fields`) and aborts on the one it cannot
+        // decrypt, which would wedge the target's password change.
+        // Same reasoning as `files_recent_folders` below.
+        "sync_sftp_passphrase",
         "mcp_server_token",
         "sync_enabled",
         "sync_mode",
