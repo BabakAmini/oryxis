@@ -1690,6 +1690,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "파일을 선택하면 형식이 자동으로 감지됩니다. 지원되는 소스:",
         "import_hub_choose" => "파일 선택...",
         "import_hub_unrecognized" => "파일을 인식할 수 없습니다. 지원되는 형식을 사용하세요.",
+        "import_hub_file_too_large" => "세션 내보내기 파일로 보기에는 너무 큽니다.",
+        "import_has_proxy_command" => "⚠ 프록시 명령을 실행함",
         "import_mremoteng_btn" => "mRemoteNG 가져오기 (confCons.xml)",
         "import_hub_protected" => "이 파일은 비밀번호로 보호되어 있습니다. 입력하세요:",
         "import_hub_unlock" => "잠금 해제",

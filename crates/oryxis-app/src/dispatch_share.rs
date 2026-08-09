@@ -156,6 +156,16 @@ impl Oryxis {
                             .and_then(|s| s.to_str())
                             .unwrap_or("session")
                             .to_string();
+                        // Same ceiling the folder scan applies per file:
+                        // a config export is kilobytes, so reject a
+                        // multi-GB pick before it is read fully into
+                        // memory and parsed on the UI thread.
+                        if let Ok(meta) = std::fs::metadata(&path)
+                            && meta.len() > crate::importers::detect::MAX_FILE_BYTES
+                        {
+                            return Some(Err(crate::i18n::t("import_hub_file_too_large")
+                                .to_string()));
+                        }
                         Some(
                             std::fs::read(&path)
                                 .map(|bytes| (bytes, stem))
@@ -195,6 +205,9 @@ impl Oryxis {
                 }
                 self.panels.import_hub = false;
                 return self.open_direct_preview(import);
+            }
+            ShareMessage::ImportHubMrngParsed(parsed, had_password) => {
+                return self.handle_import_hub_mrng_parsed(*parsed, had_password);
             }
             ShareMessage::ImportHubLoaded(Err(e)) => {
                 self.import_hub_error = Some(e);
@@ -1137,13 +1150,42 @@ impl Oryxis {
     /// hub, which grows a password row and retries via
     /// `ImportHubUnlock`; success sweeps the parked state and opens
     /// the shared preview.
+    /// Kick the confCons.xml parse OFF the UI thread: its PBKDF2 key
+    /// stretching (once per password blob) runs under a file-controlled
+    /// iteration count, so a hostile file could otherwise freeze the app
+    /// for the whole parse. The result comes back as
+    /// `ImportHubMrngParsed`. The held bytes are stashed so an
+    /// `ImportHubUnlock` retry has them without a second file read.
     fn import_hub_try_mremoteng(
         &mut self,
         bytes: Vec<u8>,
         password: Option<String>,
     ) -> Task<Message> {
-        use crate::importers::mremoteng::{self, MrngParse};
-        match mremoteng::parse(&bytes, password.as_deref()) {
+        let had_password = password.is_some();
+        // Keep the bytes for a possible password retry; cleared on a
+        // Ready / Invalid result in the parsed handler.
+        self.import_hub_pending = Some(bytes.clone());
+        Task::perform(
+            tokio::task::spawn_blocking(move || {
+                crate::importers::mremoteng::parse(&bytes, password.as_deref())
+            }),
+            move |res| {
+                let parsed = res.unwrap_or(crate::importers::mremoteng::MrngParse::Invalid);
+                Message::Share(ShareMessage::ImportHubMrngParsed(
+                    Box::new(parsed),
+                    had_password,
+                ))
+            },
+        )
+    }
+
+    fn handle_import_hub_mrng_parsed(
+        &mut self,
+        parsed: crate::importers::mremoteng::MrngParse,
+        had_password: bool,
+    ) -> Task<Message> {
+        use crate::importers::mremoteng::MrngParse;
+        match parsed {
             MrngParse::Ready(parsed) => {
                 self.import_hub_pending = None;
                 self.import_hub_password = String::new();
@@ -1164,13 +1206,14 @@ impl Oryxis {
             }
             MrngParse::NeedsPassword => {
                 // Second miss (a wrong typed password) reads different
-                // from the first (the silent default-password try).
-                self.import_hub_error = if password.is_some() {
+                // from the first (the silent default-password try). The
+                // held bytes stay in `import_hub_pending` (stashed at
+                // dispatch) so the unlock retry can reuse them.
+                self.import_hub_error = if had_password {
                     Some(crate::i18n::t("import_hub_wrong_password").to_string())
                 } else {
                     None
                 };
-                self.import_hub_pending = Some(bytes);
                 Task::none()
             }
             MrngParse::Invalid => {

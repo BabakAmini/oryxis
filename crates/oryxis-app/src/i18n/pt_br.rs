@@ -1649,6 +1649,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "Escolha um arquivo e o formato é detectado automaticamente. Fontes suportadas:",
         "import_hub_choose" => "Escolher arquivo...",
         "import_hub_unrecognized" => "Arquivo não reconhecido. Use um dos formatos suportados abaixo.",
+        "import_hub_file_too_large" => "Arquivo grande demais para ser uma exportação de sessões.",
+        "import_has_proxy_command" => "⚠ executa um comando de proxy",
         "import_mremoteng_btn" => "Importar mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Este arquivo é protegido por senha. Informe a senha dele:",
         "import_hub_unlock" => "Desbloquear",

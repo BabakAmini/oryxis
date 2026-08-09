@@ -31,6 +31,7 @@ use super::{DirectHost, DirectImport};
 /// RFC-standard 12 the `Aes256Gcm` alias fixes.
 type MrngCipher = AesGcm<Aes256, aes_gcm::aead::consts::U16>;
 
+#[derive(Debug, Clone)]
 pub(crate) enum MrngParse {
     Ready(DirectImport),
     /// The file (or its passwords) need a real file password: the hub
@@ -229,7 +230,16 @@ impl Document {
                                 .ok()?
                                 .into_owned();
                             if key == "KdfIterations" {
-                                kdf_iterations = value.parse().unwrap_or(1000);
+                                // File-controlled and driving PBKDF2 once
+                                // per password blob: unbounded, a hostile
+                                // file sets 4 billion and turns the parse
+                                // into hours of key stretching. mRemoteNG
+                                // itself defaults to 1000 and its UI caps
+                                // at 50k; 1M is far above any real file
+                                // and still finishes in well under a
+                                // second per blob.
+                                kdf_iterations =
+                                    value.parse().map(|n: u32| n.min(1_000_000)).unwrap_or(1000);
                             }
                         }
                         continue;

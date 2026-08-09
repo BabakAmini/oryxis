@@ -1731,6 +1731,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "Vyberte soubor, formát se rozpozná automaticky. Podporované zdroje:",
         "import_hub_choose" => "Vybrat soubor...",
         "import_hub_unrecognized" => "Soubor nebyl rozpoznán. Použijte jeden z podporovaných formátů.",
+        "import_hub_file_too_large" => "Soubor je příliš velký na export relací.",
+        "import_has_proxy_command" => "⚠ spouští proxy příkaz",
         "import_mremoteng_btn" => "Importovat mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Tento soubor je chráněn heslem. Zadejte ho:",
         "import_hub_unlock" => "Odemknout",

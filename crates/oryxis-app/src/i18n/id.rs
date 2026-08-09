@@ -1690,6 +1690,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "Pilih file dan formatnya terdeteksi otomatis. Sumber yang didukung:",
         "import_hub_choose" => "Pilih file...",
         "import_hub_unrecognized" => "File tidak dikenali. Gunakan salah satu format yang didukung.",
+        "import_hub_file_too_large" => "File terlalu besar untuk ekspor sesi.",
+        "import_has_proxy_command" => "⚠ menjalankan perintah proxy",
         "import_mremoteng_btn" => "Impor mRemoteNG (confCons.xml)",
         "import_hub_protected" => "File ini dilindungi kata sandi. Masukkan kata sandinya:",
         "import_hub_unlock" => "Buka kunci",

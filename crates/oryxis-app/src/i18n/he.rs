@@ -1731,6 +1731,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "בחר קובץ והפורמט יזוהה אוטומטית. מקורות נתמכים:",
         "import_hub_choose" => "בחר קובץ...",
         "import_hub_unrecognized" => "הקובץ לא זוהה. השתמש באחד מהפורמטים הנתמכים.",
+        "import_hub_file_too_large" => "הקובץ גדול מכדי להיות ייצוא של הפעלות.",
+        "import_has_proxy_command" => "⚠ מריץ פקודת פרוקסי",
         "import_mremoteng_btn" => "ייבוא mRemoteNG ‏(confCons.xml)",
         "import_hub_protected" => "קובץ זה מוגן בסיסמה. הזן אותה:",
         "import_hub_unlock" => "שחרר",

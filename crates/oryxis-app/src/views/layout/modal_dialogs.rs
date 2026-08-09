@@ -547,6 +547,18 @@ impl Oryxis {
                     if c.port > 0 {
                         detail = format!("{detail}:{}", c.port);
                     }
+                    // A ProxyCommand runs an arbitrary shell command at
+                    // connect time. Some source formats (PuTTY / WinSCP)
+                    // carry one, and a user tricked into importing a
+                    // hostile file must be able to SEE it before the
+                    // first connect spawns it, not discover it running.
+                    if matches!(
+                        c.proxy.as_ref().map(|p| &p.proxy_type),
+                        Some(oryxis_core::models::connection::ProxyType::Command(_))
+                    ) {
+                        detail.push_str("  · ");
+                        detail.push_str(crate::i18n::t("import_has_proxy_command"));
+                    }
                     (c.label.clone(), detail)
                 })
                 .collect(),

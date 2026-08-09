@@ -1598,6 +1598,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "Выберите файл, формат определяется автоматически. Поддерживаемые источники:",
         "import_hub_choose" => "Выбрать файл...",
         "import_hub_unrecognized" => "Файл не распознан. Используйте один из поддерживаемых форматов.",
+        "import_hub_file_too_large" => "Файл слишком большой для экспорта сеансов.",
+        "import_has_proxy_command" => "⚠ выполняет команду прокси",
         "import_mremoteng_btn" => "Импорт mRemoteNG (confCons.xml)",
         "import_hub_protected" => "Файл защищён паролем. Введите его:",
         "import_hub_unlock" => "Разблокировать",

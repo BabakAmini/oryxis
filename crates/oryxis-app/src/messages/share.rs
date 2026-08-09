@@ -34,6 +34,12 @@ pub enum ShareMessage {
     ImportHubPasswordChanged(super::Redacted),
     /// Retry the held protected file with the typed password.
     ImportHubUnlock,
+    /// A confCons.xml parse finished off-thread (PBKDF2 key stretching
+    /// runs there so a hostile KdfIterations can't freeze the UI). The
+    /// flag records whether a real password was supplied, so a second
+    /// miss reads as a wrong password rather than the silent default
+    /// try.
+    ImportHubMrngParsed(Box<crate::importers::mremoteng::MrngParse>, bool),
     /// File contents picked + read by the background task spawned from
     /// `ImportSshConfig`; the handler parses and opens the preview.
     SshConfigFileLoaded(Result<String, String>),

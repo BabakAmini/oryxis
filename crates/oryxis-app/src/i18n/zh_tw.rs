@@ -1607,6 +1607,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "選擇檔案，格式將自動辨識。支援的來源：",
         "import_hub_choose" => "選擇檔案...",
         "import_hub_unrecognized" => "無法辨識檔案。請使用下列支援的格式。",
+        "import_hub_file_too_large" => "檔案過大，不像是工作階段匯出檔。",
+        "import_has_proxy_command" => "⚠ 會執行代理命令",
         "import_mremoteng_btn" => "匯入 mRemoteNG（confCons.xml）",
         "import_hub_protected" => "此檔案受密碼保護。請輸入其密碼：",
         "import_hub_unlock" => "解鎖",

@@ -1731,6 +1731,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "फ़ाइल चुनें, प्रारूप अपने आप पहचाना जाएगा। समर्थित स्रोत:",
         "import_hub_choose" => "फ़ाइल चुनें...",
         "import_hub_unrecognized" => "फ़ाइल पहचानी नहीं गई। समर्थित प्रारूपों में से एक का उपयोग करें।",
+        "import_hub_file_too_large" => "सत्र निर्यात होने के लिए फ़ाइल बहुत बड़ी है।",
+        "import_has_proxy_command" => "⚠ एक प्रॉक्सी कमांड चलाता है",
         "import_mremoteng_btn" => "mRemoteNG आयात करें (confCons.xml)",
         "import_hub_protected" => "यह फ़ाइल पासवर्ड से सुरक्षित है। इसका पासवर्ड दर्ज करें:",
         "import_hub_unlock" => "अनलॉक करें",

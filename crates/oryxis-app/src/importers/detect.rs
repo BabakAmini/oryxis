@@ -19,6 +19,12 @@ use super::{
     DirectHost, DirectImport,
 };
 
+/// Ceiling for a single importable file: a session tree could
+/// plausibly hold this, a huge file is something else entirely. The
+/// folder scan applies it per entry; the single-file pick applies it
+/// before reading the file into memory.
+pub(crate) const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
+
 /// What the picked file turned out to be.
 pub(crate) enum Detected {
     /// An `.oryxis` portable export: route to the vault-import dialog.
@@ -127,7 +133,12 @@ pub(crate) fn detect(bytes: &[u8], file_stem: &str) -> Detected {
             continue;
         }
         let lower = line.to_ascii_lowercase();
-        if lower.starts_with("host ") || lower.starts_with("host\t") {
+        // A CSV header can begin `host name,user`, a prefix match for
+        // `host `; a delimiter on the line means it is a row, not an
+        // OpenSSH `Host` block (a real block header carries only
+        // whitespace-separated patterns).
+        let looks_delimited = line.contains(',') || line.contains(';');
+        if (lower.starts_with("host ") || lower.starts_with("host\t")) && !looks_delimited {
             has_host_block = true;
         } else if [
             "hostname", "port ", "port=", "user ", "user=", "identityfile",
@@ -158,9 +169,6 @@ pub(crate) fn detect(bytes: &[u8], file_stem: &str) -> Detected {
 /// user thinks in). Recurses, bounded so a mis-picked directory can
 /// never walk a whole disk.
 pub(crate) fn scan_folder(root: &std::path::Path) -> DirectImport {
-    /// Files a session tree could plausibly hold; a huge file is
-    /// something else entirely.
-    const MAX_FILE_BYTES: u64 = 4 * 1024 * 1024;
     const MAX_FILES: usize = 2_000;
     const MAX_DEPTH: usize = 6;
 
@@ -283,5 +291,18 @@ mod tests {
         // Garbage stays unknown instead of guessing.
         assert!(matches!(detect(b"not a config at all", "f"), Detected::Unknown));
         assert!(matches!(detect(&[0u8, 159, 146, 150], "f"), Detected::Unknown));
+    }
+
+    /// A two-line CSV whose header begins `host ` is a prefix match for
+    /// the OpenSSH `Host ` block header, and the `<= 2 lines` fallback
+    /// used to route it into the ssh_config flow. The delimiter on the
+    /// line is the tell that it is a CSV row, not a block header.
+    #[test]
+    fn a_short_csv_starting_with_host_is_not_ssh_config() {
+        let csv = "host name,user\nweb.corp,deploy\n";
+        assert!(matches!(
+            detect(csv.as_bytes(), "f"),
+            Detected::Foreign(d) if d.source_key == "import_csv_btn"
+        ));
     }
 }

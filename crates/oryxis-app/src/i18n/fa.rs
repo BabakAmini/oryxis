@@ -1679,6 +1679,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_hub_desc" => "یک فایل انتخاب کنید؛ قالب به‌طور خودکار تشخیص داده می‌شود. منابع پشتیبانی‌شده:",
         "import_hub_choose" => "انتخاب فایل...",
         "import_hub_unrecognized" => "فایل شناسایی نشد. از یکی از قالب‌های پشتیبانی‌شده استفاده کنید.",
+        "import_hub_file_too_large" => "فایل برای صادرات نشست‌ها بیش از حد بزرگ است.",
+        "import_has_proxy_command" => "⚠ یک فرمان پراکسی اجرا می‌کند",
         "import_mremoteng_btn" => "درون‌ریزی mRemoteNG ‏(confCons.xml)",
         "import_hub_protected" => "این فایل با گذرواژه محافظت می‌شود. آن را وارد کنید:",
         "import_hub_unlock" => "بازکردن",
