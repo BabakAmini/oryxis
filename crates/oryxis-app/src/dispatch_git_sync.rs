@@ -126,6 +126,11 @@ impl Oryxis {
         if self.sync.git.in_progress {
             return Task::none();
         }
+        // A locked vault has no master key to decrypt with; the
+        // manual buttons must not rely on the lock screen hiding them.
+        if !self.sync_round_allowed() {
+            return Task::none();
+        }
         let remote = self.sync.git.remote.trim().to_string();
         if remote.is_empty() {
             self.sync.git.status = Some(Err(t("git_sync_no_remote").to_string()));
@@ -183,9 +188,13 @@ fn ensure_clone(remote: &str, dir: &Path) -> Result<(), String> {
     if let Some(parent) = dir.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }
+    // `--` ends option parsing so a remote beginning with `-`
+    // (`--upload-pack=…`, `-c…`) is treated as a URL, not a git flag.
+    // The remote is user-typed and local, so this is defence in depth
+    // rather than a live attacker path, but it costs one token.
     git(
         None,
-        &["clone", remote, dir.to_string_lossy().as_ref()],
+        &["clone", "--", remote, dir.to_string_lossy().as_ref()],
     )
     .map(|_| ())
 }

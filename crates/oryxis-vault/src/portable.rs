@@ -313,6 +313,16 @@ pub(crate) fn is_portable_setting(key: &str) -> bool {
         // Same reasoning as `files_recent_folders` below.
         "sync_sftp_passphrase",
         "sync_webdav_password",
+        // The sync-transport ENDPOINTS are per-device config, not vault
+        // content, and the Git remote in particular can legitimately
+        // carry inline credentials (`https://user:token@host/...`):
+        // shipping it in an export would put that token in cleartext in
+        // the portable file. WebDAV keeps its password in the encrypted
+        // setting above; these are the plaintext locators next to it.
+        "sync_git_remote",
+        "sync_webdav_url",
+        "sync_webdav_user",
+        "sync_folder_path",
         "mcp_server_token",
         "sync_enabled",
         "sync_mode",

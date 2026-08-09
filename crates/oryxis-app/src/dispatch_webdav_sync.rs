@@ -94,6 +94,11 @@ impl Oryxis {
         if self.sync.webdav.in_progress {
             return Task::none();
         }
+        // A locked vault has no master key to decrypt with; the
+        // manual buttons must not rely on the lock screen hiding them.
+        if !self.sync_round_allowed() {
+            return Task::none();
+        }
         let url = self.sync.webdav.url.trim().to_string();
         if url.is_empty() {
             self.sync.webdav.status = Some(Err(t("webdav_sync_no_url").to_string()));

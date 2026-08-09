@@ -513,6 +513,12 @@ fn settings_denylist_blocks_device_local_keys() {
         "hint_link_click_used",
         "port_forwards_migrated",
         "keepalive_default_v2_applied",
+        // Sync-transport endpoints: per-device config, and the Git
+        // remote can carry an inline credential in cleartext.
+        "sync_git_remote",
+        "sync_webdav_url",
+        "sync_webdav_user",
+        "sync_folder_path",
     ] {
         assert!(!is_portable_setting(denied), "{denied} must not be portable");
     }

@@ -62,6 +62,11 @@ impl Oryxis {
         if self.sync.folder.in_progress {
             return Task::none();
         }
+        // A locked vault has no master key to decrypt with; the
+        // manual buttons must not rely on the lock screen hiding them.
+        if !self.sync_round_allowed() {
+            return Task::none();
+        }
         let input = self.sync.folder.path.trim().to_string();
         if input.is_empty() {
             self.sync.folder.status = Some(Err(t("folder_sync_no_path").to_string()));

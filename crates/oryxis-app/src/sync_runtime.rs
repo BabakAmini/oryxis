@@ -145,6 +145,19 @@ impl Oryxis {
         self.sync.transport == "p2p"
     }
 
+    /// Whether a snapshot round may run right now: only with the vault
+    /// unlocked. The automated tick already checks this, but the manual
+    /// "Sync now" buttons relied on the lock screen simply not rendering
+    /// their view. That holds today, yet it makes a security invariant
+    /// depend on view gating rather than stating it locally; each
+    /// `run_*_sync_round` calls this so the guard travels with the code
+    /// that needs the master key. A soft auto-lock keeps `self.vault`
+    /// set (established sessions survive it), so the `let Some(vault)`
+    /// check inside those functions is NOT the gate.
+    pub(crate) fn sync_round_allowed(&self) -> bool {
+        self.vault_ui.state == crate::state::VaultState::Unlocked
+    }
+
     /// Spawn the sync engine from current settings and return a `Task`
     /// that pumps its event stream into `|v| Message::Sync(SyncMessage::EngineEvent(v))`.
     /// No-op (`Task::none`) if the engine is already running or the

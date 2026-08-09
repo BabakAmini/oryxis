@@ -44,6 +44,11 @@ impl Oryxis {
         if self.sync.sftp.in_progress {
             return Task::none();
         }
+        // A locked vault has no master key to decrypt with; the
+        // manual buttons must not rely on the lock screen hiding them.
+        if !self.sync_round_allowed() {
+            return Task::none();
+        }
 
         let Some(host_id) = self.sync.sftp.host_id else {
             self.sync.sftp.status = Some(Err(t("sftp_sync_no_host").to_string()));
