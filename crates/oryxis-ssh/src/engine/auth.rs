@@ -1178,7 +1178,7 @@ impl SshEngine {
         let listeners = bind_port_forward_listeners(&connection.port_forwards).await?;
         let (mut session, rx) = tokio::time::timeout(
             session_timeout,
-            self.open_pty_session(handle, cols, rows, listeners),
+            self.open_pty_session(super::SshTransport::new(handle), cols, rows, listeners),
         )
         .await
         .map_err(|_| {

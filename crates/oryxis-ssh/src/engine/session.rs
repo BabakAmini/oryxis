@@ -57,8 +57,12 @@ pub(crate) async fn probe_on(
 
 /// A live SSH session with a remote PTY channel.
 pub struct SshSession {
-    /// Shared SSH handle, kept alive for port forward tasks to open channels.
-    pub(crate) _handle: Arc<tokio::sync::Mutex<client::Handle<ClientHandler>>>,
+    /// The CONNECTION this session's channel rides on, shared with
+    /// every other session on the same host, the SFTP surface and the
+    /// port-forward tasks. Holding an `Arc` is what keeps the link
+    /// alive exactly as long as someone is using it: the last owner
+    /// dropping it IS the disconnect (see `SshTransport`).
+    pub(crate) transport: Arc<super::SshTransport>,
     pub(crate) writer_tx: mpsc::UnboundedSender<Vec<u8>>,
     /// Forwarded to the SSH channel as `window-change` requests so the
     /// remote shell sees SIGWINCH and re-renders for the new viewport.
@@ -69,12 +73,9 @@ pub struct SshSession {
     pub(crate) reader_task: tokio::task::JoinHandle<()>,
     pub(crate) writer_task: tokio::task::JoinHandle<()>,
     pub(crate) port_forward_tasks: Vec<tokio::task::JoinHandle<()>>,
-    /// Rolling link-quality figures (RTT / jitter / stalls), fed by
-    /// `quality_task` and surfaced in the terminal performance HUD.
-    pub(crate) net_quality: Arc<NetQuality>,
-    /// The RTT prober behind `net_quality`; aborted on close so a
-    /// closed session stops pinging.
-    pub(crate) quality_task: tokio::task::JoinHandle<()>,
+    // Link quality lives on the transport now: one prober per
+    // CONNECTION rather than one per session, so two tabs to the same
+    // host no longer ping the same wire twice.
     /// Latched by `close()` so teardown runs exactly once even when both
     /// an explicit close and the `Drop` backstop fire.
     pub(crate) closed: std::sync::atomic::AtomicBool,
@@ -130,9 +131,9 @@ impl SshSession {
     /// hanging the UI when a server doesn't speak the sftp subsystem.
     pub async fn open_sftp(&self) -> Result<crate::sftp::SftpClient, SshError> {
         let timeout = self.sftp_open_timeout;
-        let handle_for_exec = self._handle.clone();
+        let handle_for_exec = Arc::clone(self.transport.handle());
         let inner = async {
-            let handle = self._handle.lock().await;
+            let handle = self.transport.handle().lock().await;
             let channel = handle
                 .channel_open_session()
                 .await
@@ -172,7 +173,7 @@ impl SshSession {
         command: &str,
         timeout: std::time::Duration,
     ) -> Option<String> {
-        probe_on(&self._handle, command, timeout).await
+        probe_on(self.transport.handle(), command, timeout).await
     }
 
     /// [`Self::probe`] with the full result: exit status, stdout AND
@@ -200,7 +201,7 @@ impl SshSession {
         stdin: Option<Vec<u8>>,
         timeout: std::time::Duration,
     ) -> Option<ExecResult> {
-        let handle = self._handle.lock().await;
+        let handle = self.transport.handle().lock().await;
         let mut channel = handle.channel_open_session().await.ok()?;
         channel.exec(true, command).await.ok()?;
         drop(handle); // release so other tasks can use the shared handle
@@ -262,10 +263,27 @@ impl SshSession {
             && !self.writer_tx.is_closed()
     }
 
-    /// Point-in-time link-quality figures for this session (RTT probe
-    /// window). See [`NetQualitySnapshot`].
+    /// Point-in-time link-quality figures for this session's CONNECTION
+    /// (RTT probe window). See [`NetQualitySnapshot`]. Sessions sharing
+    /// a connection report the same figures, which is correct: they are
+    /// measuring one wire.
     pub fn net_quality(&self) -> NetQualitySnapshot {
-        self.net_quality.snapshot()
+        self.transport.net_quality()
+    }
+
+    /// The connection this session rides, for opening another session
+    /// on it (see `SshEngine::open_session_on`) or for parking a `Weak`
+    /// in the app's reuse pool.
+    pub fn transport(&self) -> &Arc<super::SshTransport> {
+        &self.transport
+    }
+
+    /// How many owners this connection has, sessions plus whatever else
+    /// holds it. `1` means this session is the last one and closing it
+    /// takes the connection down with it, which is what the UI needs in
+    /// order to say whether a tab shares its link.
+    pub fn transport_owners(&self) -> usize {
+        Arc::strong_count(&self.transport)
     }
 
     /// The terminfo fallback applied when the PTY was requested, if the
@@ -291,23 +309,16 @@ impl SshSession {
         }
         self.reader_task.abort();
         self.writer_task.abort();
-        self.quality_task.abort();
         for task in &self.port_forward_tasks {
             task.abort();
         }
-        // Politely disconnect the transport. Needs a runtime to spawn
-        // on; when close() runs outside one (e.g. a late Drop during
-        // process shutdown) the aborts above already killed the tasks
-        // and the TCP socket dies with the last handle clone.
-        if let Ok(rt) = tokio::runtime::Handle::try_current() {
-            let handle = Arc::clone(&self._handle);
-            rt.spawn(async move {
-                let h = handle.lock().await;
-                let _ = h
-                    .disconnect(russh::Disconnect::ByApplication, "session closed", "")
-                    .await;
-            });
-        }
+        // The CONNECTION is deliberately not touched here. It belongs
+        // to `SshTransport`, which disconnects when its last owner
+        // drops it, and this session may not be the last: a second tab
+        // reusing the same link, or an SFTP surface still mounted on
+        // it, must survive this one closing. Dropping our `Arc` (which
+        // happens right after, when the session itself is dropped) is
+        // how this session says it is done with the link.
     }
 
     /// Detect the remote OS by executing a silent probe on a side channel
@@ -319,7 +330,7 @@ impl SshSession {
     /// | "openbsd" | "netbsd")` or `None` on any parse / channel failure.
     pub async fn detect_os(&self) -> Option<String> {
         let cmd = "cat /etc/os-release 2>/dev/null; echo '---OXYXIS-SEP---'; uname -s";
-        let handle = self._handle.lock().await;
+        let handle = self.transport.handle().lock().await;
         let mut channel = handle.channel_open_session().await.ok()?;
         channel.exec(true, cmd).await.ok()?;
         drop(handle); // release so other tasks can use the shared handle

@@ -25,14 +25,15 @@ mod kbi;
 mod monitor_conn;
 mod net_quality;
 mod session;
+mod transport;
 mod terminfo;
 
 pub use errors::*;
 pub use forwarding::*;
 pub use monitor_conn::MonitorConn;
 pub use net_quality::{NetQuality, NetQualitySnapshot};
-pub(crate) use net_quality::*;
 pub use session::*;
+pub use transport::SshTransport;
 pub use terminfo::TermFallback;
 pub(crate) use terminfo::*;
 pub(crate) use handler::*;

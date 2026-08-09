@@ -212,7 +212,7 @@ impl SshEngine {
         let listeners = bind_port_forward_listeners(port_forwards).await?;
         tokio::time::timeout(
             session_timeout,
-            self.open_pty_session(handle.0, cols, rows, listeners),
+            self.open_pty_session(super::SshTransport::new(handle.0), cols, rows, listeners),
         )
         .await
         .map_err(|_| {

@@ -53,14 +53,58 @@ impl SshEngine {
         })
     }
 
+    /// Open another PTY session on a connection that is ALREADY
+    /// authenticated (F2 reuse).
+    ///
+    /// This is the whole point of splitting `SshTransport` out: a
+    /// second tab to a host costs one channel instead of a TCP
+    /// handshake, a key exchange, an authentication and, on a jump
+    /// chain, all of that again per hop. It also cannot prompt for a
+    /// host key or a second factor, because the connection it rides was
+    /// already verified and authenticated.
+    ///
+    /// The engine's own settings (terminal type, env vars, agent and
+    /// X11 forwarding) apply to the NEW channel, so the caller should
+    /// build the engine for the host exactly as it would for a fresh
+    /// dial. Anything negotiated per CONNECTION (algorithms, keepalive,
+    /// the jump chain, the proxy) belongs to the transport and is
+    /// whatever the original dial agreed on.
+    ///
+    /// Any failure here is the caller's cue to dial fresh rather than
+    /// to show an error: a server at its `MaxSessions` cap and a
+    /// half-dead connection both surface as a channel-open error, and
+    /// neither is something to bother the user with when a new
+    /// connection would just work.
+    pub async fn open_session_on(
+        &self,
+        transport: Arc<super::SshTransport>,
+        cols: u32,
+        rows: u32,
+    ) -> Result<(SshSession, mpsc::UnboundedReceiver<Vec<u8>>), SshError> {
+        if !transport.looks_healthy() {
+            return Err(SshError::Channel(
+                "connection is not answering; dial a fresh one".into(),
+            ));
+        }
+        // No port-forward listeners: those are bound once per
+        // CONNECTION by the dial that created it, and binding them
+        // again for a second tab would fight over the same local ports.
+        self.open_pty_session(transport, cols, rows, Vec::new()).await
+    }
+
     pub(crate) async fn open_pty_session(
         &self,
-        handle: client::Handle<ClientHandler>,
+        transport: Arc<super::SshTransport>,
         cols: u32,
         rows: u32,
         pf_listeners: Vec<(PortForward, tokio::net::TcpListener)>,
     ) -> Result<(SshSession, mpsc::UnboundedReceiver<Vec<u8>>), SshError> {
-        // Open session channel
+        // Open session channel. The lock is held only while talking to
+        // the connection (channel open, and the terminfo probe below,
+        // which opens its own exec channel through this same borrow);
+        // everything after works on the channel and leaves the
+        // connection free for the other sessions riding it.
+        let handle = transport.handle().lock().await;
         let channel = handle.channel_open_session().await
             .map_err(|e| SshError::Channel(format!("Failed to open session channel: {}", e)))?;
 
@@ -161,6 +205,11 @@ impl SshEngine {
         // Request shell
         channel.request_shell(false).await
             .map_err(|e| SshError::Channel(format!("Shell request failed: {}", e)))?;
+
+        // Everything past this point works on the CHANNEL, so the
+        // connection lock goes back: the port-forward tasks below (and
+        // any other session on this transport) need it.
+        drop(handle);
 
         // I/O bridging
         let (output_tx, output_rx) = mpsc::unbounded_channel::<Vec<u8>>();
@@ -297,22 +346,16 @@ impl SshEngine {
             }
         });
 
-        let shared_handle = Arc::new(tokio::sync::Mutex::new(handle));
-        let pf_tasks = spawn_port_forward_tasks(pf_listeners, &shared_handle);
-        let net_quality = Arc::new(NetQuality::new());
-        let quality_task =
-            spawn_quality_probe(Arc::clone(&shared_handle), Arc::clone(&net_quality));
+        let pf_tasks = spawn_port_forward_tasks(pf_listeners, transport.handle());
 
         Ok((
             SshSession {
-                _handle: shared_handle,
+                transport,
                 writer_tx,
                 resize_tx,
                 reader_task,
                 writer_task,
                 port_forward_tasks: pf_tasks,
-                net_quality,
-                quality_task,
                 closed: std::sync::atomic::AtomicBool::new(false),
                 // Default, overridden by the engine right after this
                 // returns via `sftp_open_timeout` assignment.
