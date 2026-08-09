@@ -42,10 +42,13 @@ impl Oryxis {
                 let temp_name = self.prefs.sftp_upload_temp_name;
                 let downloading =
                     prompt.direction == crate::state::OverwriteDirection::Download;
-                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
-                    return Ok(Task::none());
-                };
+                // The dual-pane navigation client is only a fallback
+                // here: a queue transfer carries its own per-slot
+                // clients, and a sidebar-owned queue may run while the
+                // dual-pane surface has no client at all. Requiring it
+                // up front used to swallow the answer and park the
+                // queue forever.
+                let pane_client = self.sftp.pane(remote_side).client.clone();
                 // Pull a parked transfer item if this prompt fired from
                 // inside a queue runner. Two distinct flows hang off
                 // here: standalone single-file conflict, and in-transfer
@@ -99,13 +102,23 @@ impl Oryxis {
                     }
                     let slot = pending_slot.unwrap_or(0);
                     // Use the slot's own SFTP client for the apply
-                    // step; falls back to the original navigation
-                    // client only if the slot index is somehow stale.
-                    let client = self
+                    // step; the navigation client is only a fallback
+                    // for a somehow-stale slot index. With neither,
+                    // fail the item through the transfer's own error
+                    // path (visible on the strip and the tab badge),
+                    // never a pane error the owner may not render.
+                    let Some(client) = self
                         .transfer_slot_mut(owner)
                         .and_then(|s| s.state.as_ref())
                         .and_then(|t| t.clients.get(slot as usize).cloned())
-                        .unwrap_or(client);
+                        .or(pane_client)
+                    else {
+                        return Ok(Task::done(Message::Sftp(SftpMessage::SftpTransferError(
+                            owner,
+                            crate::i18n::t("sftp_not_connected").to_string(),
+                            slot,
+                        ))));
+                    };
                     if let Some(t) = self.transfer_slot_mut(owner).and_then(|s| s.state.as_mut())
                         && (slot as usize) < t.busy_slots.len()
                     {
@@ -152,6 +165,13 @@ impl Oryxis {
                     // don't need to hash to be sure.
                     return Ok(Task::none());
                 }
+                // This flow runs on the dual-pane surface, so its
+                // client is genuinely required from here on.
+                let Some(client) = pane_client else {
+                    self.sftp.pane_mut(remote_side).error =
+                        Some(crate::i18n::t("sftp_not_connected").to_string());
+                    return Ok(Task::none());
+                };
                 if downloading {
                     let dst_dir = std::path::PathBuf::from(&prompt.dst_dir);
                     let duplicate =

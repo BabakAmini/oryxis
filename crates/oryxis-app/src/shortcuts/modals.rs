@@ -172,6 +172,10 @@ impl Oryxis {
             Modal::SftpRename => self.sftp.rename = None,
             Modal::SftpNewEntry => self.sftp.new_entry = None,
             Modal::SftpProperties => self.sftp.properties = None,
+            // Raw dismissal only: dropping the prompt without an answer
+            // leaves a queue-raised conflict parked (paused, item taken).
+            // Esc never lands here; `close_topmost_modal` routes it to
+            // `SftpResolveOverwrite(Cancel)` instead.
             Modal::SftpOverwrite => self.sftp.overwrite_prompt = None,
             // Closing the save prompt without a button press means "skip
             // this save" (the safe default): re-arm so the next save
@@ -227,32 +231,34 @@ impl Oryxis {
     }
 
     /// Closes the topmost open modal / overlay if any, and returns
-    /// `true` when something was closed. Lets the Esc handler in
-    /// `dispatch_terminal.rs` decide whether to also forward the
-    /// byte to the active PTY (it doesn't, when this returns true).
+    /// `Some(task)` when something was closed (`None` lets the Esc
+    /// handler in `dispatch_terminal.rs` forward the byte to the
+    /// active PTY). Most closes return an inert task; the answer-
+    /// bearing modals route their safe default through the real
+    /// handler instead, which is why this returns a task at all.
     /// Priority follows visual stacking order: pickers on top of
     /// the chrome are checked before background panels.
-    pub(crate) fn close_topmost_modal(&mut self) -> bool {
+    pub(crate) fn close_topmost_modal(&mut self) -> Option<iced::Task<crate::app::Message>> {
         // Open dropdown / popover overlay (sort menu, kebab menus, the
         // floating toolbar search + overflow). Esc dismisses it first,
         // matching the click-outside backdrop. Lightweight, so it takes
         // priority over the heavier modals below.
         if self.overlay.is_some() {
             self.overlay = None;
-            return true;
+            return Some(iced::Task::none());
         }
         // The SFTP right-click row menu is the same weight as an overlay
         // dropdown; Esc dismisses it like its click-outside backdrop.
         if self.sftp.row_menu.is_some() {
             self.sftp.row_menu = None;
-            return true;
+            return Some(iced::Task::none());
         }
         // The SFTP path-history dropdown (issue #85) is the same weight;
         // Esc mirrors its scrim click.
         if self.sftp.left.path_history_open || self.sftp.right.path_history_open {
             self.sftp.left.path_history_open = false;
             self.sftp.right.path_history_open = false;
-            return true;
+            return Some(iced::Task::none());
         }
         // Walk the Esc-close priority order and dismiss the first open
         // modal. `close_modal` is a compiler-checked exhaustive match, so a
@@ -266,7 +272,7 @@ impl Oryxis {
                 if m == crate::state::Modal::ChainEditor && self.chain_editor_adding {
                     self.chain_editor_adding = false;
                     self.chain_editor_search.clear();
-                    return true;
+                    return Some(iced::Task::none());
                 }
                 // Same two-stage rule for the new-tab picker drilled
                 // into a group: first Esc backs out to the top level
@@ -276,18 +282,33 @@ impl Oryxis {
                 {
                     self.new_tab_picker_group = None;
                     self.new_tab_picker_search.clear();
-                    return true;
+                    return Some(iced::Task::none());
+                }
+                // Esc on the overwrite conflict is the Cancel BUTTON,
+                // not a dismissal: the conflict arm already parked the
+                // item and paused the queue, so the answer must reach
+                // the transfer that asked or it stays paused forever.
+                // Same rule as KbiPrompt / HostKey: route the safe
+                // default through the real handler.
+                if m == crate::state::Modal::SftpOverwrite {
+                    return Some(self.update(crate::app::Message::Sftp(
+                        crate::app::SftpMessage::SftpResolveOverwrite(
+                            crate::state::OverwriteAction::Cancel,
+                        ),
+                    )));
                 }
                 self.close_modal(m);
-                return true;
+                // Closing an agent-confirm prompt promotes the next
+                // queued one (no-op for every other modal).
+                return Some(self.advance_confirm_queue());
             }
         }
         // Burger menu last; it's a dropdown rather than a modal but
         // Esc still feels right for it.
         if self.panels.burger_menu {
             self.panels.burger_menu = false;
-            return true;
+            return Some(iced::Task::none());
         }
-        false
+        None
     }
 }

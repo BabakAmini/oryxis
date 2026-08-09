@@ -252,11 +252,13 @@ impl Oryxis {
         // 3. Esc closes the topmost open modal as a fallback. Only
         //    fires when nothing else above claimed it, so terminal
         //    apps that rely on raw Esc (vim, less) keep getting the
-        //    byte when no modal is open.
-        if matches!(key, Key::Named(Named::Escape)) && self.close_topmost_modal() {
-            // Closing an agent-confirm prompt promotes the next queued
-            // one (no-op for every other modal).
-            return Some(self.advance_confirm_queue());
+        //    byte when no modal is open. The close itself decides the
+        //    follow-up task (an answer-bearing modal routes its safe
+        //    default through its real handler).
+        if matches!(key, Key::Named(Named::Escape))
+            && let Some(task) = self.close_topmost_modal()
+        {
+            return Some(task);
         }
 
         None
