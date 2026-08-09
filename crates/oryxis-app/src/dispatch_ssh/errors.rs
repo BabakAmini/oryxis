@@ -18,6 +18,10 @@ impl Oryxis {
                 {
                     pane.connecting = false;
                 }
+                // A dial that failed before `SshConnected` never consumed
+                // its parked reuse key; drop it here so the pending map
+                // doesn't hold it until the next disconnect sweeps it.
+                self.pending_reuse_keys.remove(&pane_id);
                 // Identity / key switch on a split-pane quick connect: the
                 // error is the cancel we provoked, reconnect the same pane
                 // in place with the mutated entry.

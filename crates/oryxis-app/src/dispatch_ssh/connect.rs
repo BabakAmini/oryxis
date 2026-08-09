@@ -86,57 +86,12 @@ impl Oryxis {
             self.apply_quick_entry_secrets(id, conn, &mut password, &mut totp_secret);
         }
 
-        // Build resolver for jump hosts
-        let resolver = if !conn.jump_chain.is_empty() {
-            let mut passwords = std::collections::HashMap::new();
-            let mut keys = std::collections::HashMap::new();
-            let mut certificates = std::collections::HashMap::new();
-            let mut proxies = std::collections::HashMap::new();
-            for jid in &conn.jump_chain {
-                if let Some(vault) = &self.vault
-                    && let Ok(Some(pw)) = vault.get_connection_password(jid) {
-                        passwords.insert(*jid, pw);
-                    }
-                // Get jump host's key (and its cert) if it uses key auth
-                if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid)
-                    && let Some(kid) = jconn.key_id {
-                        if let Some(vault) = &self.vault
-                            && let Ok(Some(pk)) = vault.get_key_private(&kid) {
-                                keys.insert(*jid, pk);
-                            }
-                        if let Some(cert) = self.key_certificate(&kid) {
-                            certificates.insert(*jid, cert);
-                        }
-                    }
-                // Resolve effective proxy (inline or identity-based)
-                // for this jump host. Only the first jump's entry
-                // matters at connect-time, but we hydrate all of
-                // them so the resolver is self-contained.
-                if let Some(jconn) = self.connections.iter().find(|c| c.id == *jid)
-                    && let Some(vault) = &self.vault
-                    && let Ok(Some(p)) = vault.resolve_proxy(jconn)
-                {
-                    proxies.insert(*jid, p);
-                }
-            }
-            Some(oryxis_ssh::ConnectionResolver {
-                // Only the jump-chain hosts are looked up by
-                // the engine; cloning the full host list per
-                // connect is wasted work on large vaults.
-                connections: self
-                    .connections
-                    .iter()
-                    .filter(|c| conn.jump_chain.contains(&c.id))
-                    .cloned()
-                    .collect(),
-                passwords,
-                private_keys: keys,
-                certificates,
-                proxies,
-            })
-        } else {
-            None
-        };
+        // Jump-host resolver, through the SAME builder the split /
+        // reconnect path uses. Hand-rolling it here left the tab path
+        // without hop inheritance (D4) and without a hop's linked
+        // identity: a bastion inheriting its username from a group
+        // authenticated as "root" here while the pane path resolved it.
+        let resolver = self.make_jump_resolver(conn);
 
         ConnectPlan {
             password,

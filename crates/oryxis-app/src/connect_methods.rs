@@ -105,7 +105,10 @@ impl Oryxis {
         if conn.jump_chain.is_empty() {
             return None;
         }
-        let mut connections = self.connections.clone();
+        // Only the jump-chain hosts are ever looked up by the engine, so
+        // the resolver carries just those RESOLVED rows rather than a
+        // clone of the whole vault (wasted work on large vaults).
+        let mut connections = Vec::with_capacity(conn.jump_chain.len());
         let mut passwords = std::collections::HashMap::new();
         let mut keys = std::collections::HashMap::new();
         let mut certificates = std::collections::HashMap::new();
@@ -113,10 +116,10 @@ impl Oryxis {
         for jid in &conn.jump_chain {
             // A dangling hop id stays a resolver miss, reported by the
             // engine as "jump host not found" like before.
-            let Some(slot) = connections.iter_mut().find(|c| c.id == *jid) else {
+            let Some(hop) = self.connections.iter().find(|c| c.id == *jid) else {
                 continue;
             };
-            let mut hop = slot.clone();
+            let mut hop = hop.clone();
             self.apply_group_inheritance(&mut hop);
             let (pw, pk, cert) = self.resolve_credentials(&hop);
             if let Some(pw) = pw {
@@ -134,7 +137,7 @@ impl Oryxis {
             if let Some(p) = hop.proxy.clone() {
                 proxies.insert(*jid, p);
             }
-            *slot = hop;
+            connections.push(hop);
         }
         Some(oryxis_ssh::ConnectionResolver {
             connections,
