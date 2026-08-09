@@ -690,11 +690,21 @@ impl SyncEngine {
         if let Some(tx) = self.shutdown_tx.take() {
             let _ = tx.send(());
         }
-        // Drop the mDNS daemons so we deregister from the LAN as
-        // soon as the user toggles sync off (rather than lingering
-        // in service browsers until the process exits).
-        self.mdns_register = None;
-        self.mdns_browse = None;
+        // Shut the mDNS daemons down so we deregister from the LAN as
+        // soon as the user toggles sync off. Dropping the handle is NOT
+        // enough: `ServiceDaemon` has no `Drop`, its daemon thread runs
+        // until an explicit `Command::Exit`, and the struct holds its
+        // own command-sender clone, so a bare drop leaked two OS threads
+        // plus their multicast sockets per enable/disable cycle and kept
+        // answering queries after sync was off. `shutdown()` sends that
+        // exit (its cleanup path unregisters); best-effort, the socket
+        // dies with the last handle regardless.
+        if let Some(mdns) = self.mdns_register.take() {
+            let _ = mdns.shutdown();
+        }
+        if let Some(mdns) = self.mdns_browse.take() {
+            let _ = mdns.shutdown();
+        }
     }
 
     /// Get a cheap, cloneable handle for triggering syncs and pairing

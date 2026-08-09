@@ -30,7 +30,13 @@ pub fn register(
         port,
         &properties[..],
     )
-    .map_err(|e| SyncError::Discovery(format!("mDNS service info: {}", e)))?;
+    .map_err(|e| SyncError::Discovery(format!("mDNS service info: {}", e)))?
+    // Register with NO address (the "" above), then let the daemon fill
+    // in this host's interface addresses itself. Without this the record
+    // carries zero A/AAAA answers, and a browsing peer never resolves it
+    // (`ServiceResolved` only fires once a service has addresses), so LAN
+    // discovery silently never completed.
+    .enable_addr_auto();
 
     mdns.register(service)
         .map_err(|e| SyncError::Discovery(format!("mDNS register: {}", e)))?;
