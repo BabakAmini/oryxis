@@ -10,4 +10,4 @@
 # Bump this in the same commit that submits, so git log is the history of
 # what was pushed to the Store. The fourth field is appended as .0 by
 # .github/workflows/release-msix.yml (reserved for the Store).
-1.0.1
+1.0.2
