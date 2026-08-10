@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use oryxis_core::models::Group;
 
-use crate::app::{AiMessage, Message, Oryxis, SshMessage};
+use crate::app::{AiMessage, Message, Oryxis, SessionGroupMessage, SshMessage};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -83,6 +83,9 @@ impl Oryxis {
         for group in roots {
             self.tree_group_rows(&mut rows, group, 0, &needle, &visible, &mut visited);
         }
+        // Root session groups (saved split-pane arrangements): no
+        // folder, or a folder id that no longer resolves.
+        self.tree_session_rows(&mut rows, None, 0, &needle, true);
         // Root hosts: no group, or a group id that no longer resolves.
         let group_exists =
             |gid: Uuid| self.groups.iter().any(|g| g.id == gid);
@@ -155,6 +158,10 @@ impl Oryxis {
         }
 
         let label_match = !searching || group.label.to_lowercase().contains(needle);
+        // Saved split-pane arrangements filed under this folder, after
+        // the subfolders and before the hosts (they open a whole tab,
+        // like a folder of sessions in one click).
+        self.tree_session_rows(rows, Some(group.id), depth + 1, needle, label_match);
         let mut hosts: Vec<(usize, &oryxis_core::models::Connection)> = self
             .connections
             .iter()
@@ -226,6 +233,7 @@ impl Oryxis {
                 }
             } else {
                 let has_content = app.tree_subtree_host_count(gid) > 0
+                    || app.tree_subtree_session_count(gid) > 0
                     || app.tree_subtree_has_dynamic(gid, hidden_profiles);
                 if !has_content {
                     false
@@ -237,6 +245,13 @@ impl Oryxis {
                             .connections
                             .iter()
                             .any(|c| c.group_id == Some(gid) && host_matches(c, needle))
+                        || app
+                            .session_groups
+                            .iter()
+                            .any(|sg| {
+                                sg.group_id == Some(gid)
+                                    && sg.label.to_lowercase().contains(needle)
+                            })
                         || app
                             .groups
                             .iter()
@@ -462,6 +477,96 @@ impl Oryxis {
             6.0,
             tree_row_button(items, msg),
         )
+    }
+
+    /// The saved split-pane arrangements filed under `folder` (`None`
+    /// = root, including dangling folder ids), one row each: the
+    /// session group's own badge (custom icon / colour, `boxes`
+    /// default - the dashboard card at tree size), the label, and the
+    /// pane count. Click (or Enter on the ring) opens the whole
+    /// arrangement, the same message as the card. `parent_matched`
+    /// short-circuits the search filter, like hosts under a matching
+    /// folder.
+    fn tree_session_rows<'a>(
+        &'a self,
+        rows: &mut Vec<Element<'a, Message>>,
+        folder: Option<Uuid>,
+        depth: usize,
+        needle: &str,
+        parent_matched: bool,
+    ) {
+        let group_exists = |gid: Uuid| self.groups.iter().any(|g| g.id == gid);
+        let mut sessions: Vec<(usize, &oryxis_core::models::SessionGroup)> = self
+            .session_groups
+            .iter()
+            .enumerate()
+            .filter(|(_, sg)| match folder {
+                Some(gid) => sg.group_id == Some(gid),
+                None => sg.group_id.filter(|gid| group_exists(*gid)).is_none(),
+            })
+            .collect();
+        sessions.sort_by_key(|(_, sg)| sg.label.to_lowercase());
+        let c = OryxisColors::t();
+        for (idx, sg) in sessions {
+            if !parent_matched
+                && !needle.is_empty()
+                && !sg.label.to_lowercase().contains(needle)
+            {
+                continue;
+            }
+            let bg = sg
+                .color
+                .as_deref()
+                .and_then(crate::os_icon::parse_hex_color)
+                .unwrap_or(c.accent);
+            let glyph = sg
+                .icon_style
+                .as_deref()
+                .filter(|s| !s.is_empty())
+                .map(crate::os_icon::custom_icon_glyph)
+                .unwrap_or(crate::os_icon::BrandIcon::Glyph(iced_fonts::lucide::boxes()));
+            let icon_box = crate::widgets::host_icon(
+                crate::widgets::resolve_host_icon_style(None, &self.prefs.default_host_icon),
+                bg,
+                &sg.label,
+                Some(glyph.view(10.0, Color::WHITE)),
+                18.0,
+            );
+            let items: Vec<Element<'a, Message>> = vec![
+                Space::new().width(depth as f32 * INDENT + 16.0).into(),
+                icon_box,
+                Space::new().width(6).into(),
+                text(sg.label.as_str())
+                    .size(12)
+                    .color(c.text_primary)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+                Space::new().width(Length::Fill).into(),
+                text(format!("{} {}", pane_count(&sg.layout), t("session_group_panes")))
+                    .size(11)
+                    .color(c.text_muted)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+            ];
+            let msg = Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(idx));
+            rows.push(self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::list_button(msg.clone()),
+                STAB,
+                6.0,
+                tree_row_button(items, msg),
+            ));
+        }
+    }
+
+    /// Session groups anywhere in a folder's subtree (cycle-safe via
+    /// `Group::subtree_ids`): what keeps a folder holding only saved
+    /// arrangements visible.
+    fn tree_subtree_session_count(&self, gid: Uuid) -> usize {
+        let ids = Group::subtree_ids(&self.groups, gid);
+        self.session_groups
+            .iter()
+            .filter(|sg| sg.group_id.is_some_and(|g| ids.contains(&g)))
+            .count()
     }
 
     /// Hosts anywhere in a group's subtree (cycle-safe via
@@ -739,6 +844,15 @@ fn sort_groups(groups: &mut [&Group]) {
 /// positions in `Oryxis::connections`, which `ConnectSsh` consumes).
 fn sort_hosts(hosts: &mut [(usize, &oryxis_core::models::Connection)]) {
     hosts.sort_by_key(|(_, c)| c.label.to_lowercase());
+}
+
+/// Leaves of a saved split layout = how many panes open, the session
+/// row's trailing count.
+fn pane_count(layout: &oryxis_core::models::PaneLayout) -> usize {
+    match layout {
+        oryxis_core::models::PaneLayout::Split { a, b, .. } => pane_count(a) + pane_count(b),
+        oryxis_core::models::PaneLayout::Leaf(_) => 1,
+    }
 }
 
 /// Whether a host row survives the search needle (empty = everything).
