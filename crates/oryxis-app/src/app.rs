@@ -531,8 +531,11 @@ pub struct Oryxis {
     /// not fullscreen). This is what `persist_window_geometry` writes to
     /// the settings table so the next launch restores the floating size
     /// rather than whatever monitor-sized rectangle the window occupied
-    /// at close. Updated by `WindowResized` only while both optimistic
-    /// state flags below are off.
+    /// at close. Committed by `WindowMaximizedSynced` (which carries the
+    /// resize that triggered it) once the OS has confirmed the window is
+    /// not maximized: judging against the optimistic flag in the resize
+    /// handler let an OS-side maximize record its monitor-sized
+    /// rectangle here before the reconcile landed.
     pub(crate) window_windowed_size: iced::Size,
     /// The last outer position the window had while plain-windowed, in
     /// logical desktop coordinates (negative on monitors left of / above
@@ -543,6 +546,13 @@ pub struct Oryxis {
     /// whole session on Wayland, where window positions don't exist, so
     /// nothing is persisted and the next launch uses the WM's placement.
     pub(crate) window_windowed_pos: Option<Point>,
+    /// The value `window_windowed_pos` held before its last write. An
+    /// OS-side maximize (Win+Up, aero snap) parks the window at the
+    /// monitor origin while `window_maximized` is still stale-false, so
+    /// the accompanying `Moved` overwrites the real windowed position;
+    /// the `WindowMaximizedSynced` reconcile rolls back to this slot
+    /// when it detects that drift.
+    pub(crate) window_windowed_pos_prev: Option<Point>,
     /// Whether the OS window currently has focus. Driven by the
     /// `Focused` / `Unfocused` window events. The cloud SSM/ECS
     /// keepalive only ticks while this is `false` (the user alt-tabbed

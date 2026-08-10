@@ -164,15 +164,6 @@ impl Oryxis {
             || (snapped.height - self.window_size.height).abs() > 0.5
         {
             self.window_size = snapped;
-            // Track the last plain-windowed size separately: it is
-            // what `persist_window_geometry` restores on the next
-            // launch. The maximize / fullscreen flags flip
-            // optimistically *before* the OS resize arrives, so the
-            // monitor-sized events those transitions emit are
-            // correctly skipped here.
-            if !self.window_maximized && !self.window_fullscreen {
-                self.window_windowed_size = snapped;
-            }
             // The floating toolbar search / overflow popovers are
             // anchored to a width that just changed, and the inline
             // field may now fit again. Dismiss them so they re-pop
@@ -194,12 +185,18 @@ impl Oryxis {
             // `WindowResizeDrag` into a no-op (field report: the
             // window looked windowed but had no edges to grab).
             // `WM_SIZE` has already updated winit's cached state by
-            // the time this event reaches us, so the query returns
-            // the settled truth — no race with our own optimistic
-            // toggle.
-            return iced::window::latest().then(|id_opt| match id_opt {
-                Some(id) => iced::window::is_maximized(id)
-                    .map(|maximized| Message::Tabs(TabsMessage::WindowMaximizedSynced(maximized))),
+            // the time this event reaches us, so the query returns the
+            // settled truth, with no race against our own optimistic
+            // toggle. The snapped size rides along because the
+            // windowed-size tracking (what `persist_window_geometry`
+            // restores next launch) must also be judged against the OS
+            // truth: recording it here, gated on the optimistic flag,
+            // let an OS-side maximize slip its monitor-sized rectangle
+            // in as the "windowed" size before the reconcile landed.
+            return iced::window::latest().then(move |id_opt| match id_opt {
+                Some(id) => iced::window::is_maximized(id).map(move |maximized| {
+                    Message::Tabs(TabsMessage::WindowMaximizedSynced(maximized, snapped))
+                }),
                 None => Task::none(),
             });
         }
@@ -534,6 +531,14 @@ impl Oryxis {
                     && !self.window_fullscreen
                     && !minimized_sentinel
                 {
+                    // Keep the previous value around: an OS-side
+                    // maximize parks the window at the monitor origin
+                    // while `window_maximized` is still stale-false,
+                    // so that Moved passes this guard and overwrites
+                    // the real windowed position. When the
+                    // `WindowMaximizedSynced` reconcile then detects
+                    // the drift, it rolls back to this slot.
+                    self.window_windowed_pos_prev = self.window_windowed_pos;
                     self.window_windowed_pos = Some(pos);
                 }
             }
@@ -564,13 +569,35 @@ impl Oryxis {
             }
             TabsMessage::WindowExpandVertical => return self.handle_window_expand_vertical(),
             TabsMessage::WindowMinimize => return self.handle_window_minimize(),
-            TabsMessage::WindowMaximizedSynced(maximized) => {
+            TabsMessage::WindowMaximizedSynced(maximized, size) => {
+                // Deferred windowed-size commit: `size` is the snapped
+                // size of the `WindowResized` that triggered this
+                // query, recorded only now that the OS has said
+                // whether that rectangle was a real windowed size or a
+                // maximize transition's monitor-sized one. The
+                // fullscreen flag needs no such reconcile: F11 is the
+                // only path that changes it, so the optimistic flip
+                // always lands before the fullscreen resize arrives.
+                if !maximized && !self.window_fullscreen {
+                    self.window_windowed_size = size;
+                }
                 // Reconcile the optimistic flag with the OS truth
-                // (see `WindowMaximizedSynced`). Only touch state when
-                // it actually drifted so the common no-op path stays
-                // cheap.
+                // (see `WindowMaximizedSynced`).
                 if self.window_maximized != maximized {
+                    if maximized {
+                        // OS-side maximize: the Moved that parked the
+                        // window at the monitor origin was recorded
+                        // while the flag was still stale-false. Roll
+                        // the windowed position back to the value it
+                        // overwrote.
+                        self.window_windowed_pos = self.window_windowed_pos_prev;
+                    }
                     self.window_maximized = maximized;
+                    // Same rationale as `WindowMaximizeToggle`: cheap
+                    // write, and it keeps the restored state accurate
+                    // even when the process later dies without
+                    // reaching an exit path (OS shutdown, kill).
+                    self.persist_window_geometry();
                 }
             }
             TabsMessage::WindowMaximizeToggle => {

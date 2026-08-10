@@ -371,6 +371,7 @@ impl Oryxis {
                 window_size: restored_window_size,
                 window_windowed_size: restored_window_size,
                 window_windowed_pos: restored_window_pos,
+                window_windowed_pos_prev: restored_window_pos,
                 window_focused: true,
                 ssm_keepalive_base: None,
                 window_maximized: restored_maximized,
