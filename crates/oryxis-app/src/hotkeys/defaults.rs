@@ -366,6 +366,11 @@ pub fn default_bindings() -> HotkeyMap {
     // Ctrl+Shift+B (Cmd+Shift+B on macOS): the VS Code toggle-sidebar
     // convention; Shift lifts it out of the control-sequence gate.
     put(&mut m, ToggleSidebar, primary_ctrl, true, false, primary_logo, Char('b'));
+    // Ctrl+Alt+B (Cmd+Alt+B on macOS): the VS Code SECONDARY-side-bar
+    // convention, driving the counterpart region when tabs are docked
+    // to both sides (issue #102). Alt instead of Shift keeps the pair
+    // one modifier apart, mirroring how VS Code relates the two.
+    put(&mut m, ToggleSidebarOther, primary_ctrl, false, true, primary_logo, Char('b'));
     // Ctrl+Shift+F (Cmd+Shift+F on macOS): flip the focused SSH tab
     // between Terminal and Files. Shift lifts it out of the terminal
     // control-sequence gate (plain Ctrl+F is readline forward-char /

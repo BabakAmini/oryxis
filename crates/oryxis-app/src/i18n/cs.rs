@@ -263,6 +263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Přejít na panel dole",
         "hotkey_focus_sidebar_list" => "Přejít na seznamy bočního panelu",
         "hotkey_toggle_sidebar" => "Přepnout boční panel",
+        "hotkey_toggle_sidebar_other" => "Přepnout druhý boční panel",
         "hotkey_vault_section_slot" => "Otevřít konkrétní sekci trezoru",
         "hotkey_vault_section_prev" => "Předchozí sekce trezoru",
         "hotkey_vault_section_next" => "Další sekce trezoru",

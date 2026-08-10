@@ -260,6 +260,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "아래쪽 분할 창 포커스",
         "hotkey_focus_sidebar_list" => "사이드바 목록에 포커스",
         "hotkey_toggle_sidebar" => "사이드바 전환",
+        "hotkey_toggle_sidebar_other" => "다른 사이드바 전환",
         "hotkey_vault_section_slot" => "볼트의 특정 섹션 열기",
         "hotkey_vault_section_prev" => "이전 볼트 섹션",
         "hotkey_vault_section_next" => "다음 볼트 섹션",

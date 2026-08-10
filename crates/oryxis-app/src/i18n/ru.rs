@@ -259,6 +259,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Фокус на панель снизу",
         "hotkey_focus_sidebar_list" => "Фокус на списки боковой панели",
         "hotkey_toggle_sidebar" => "Показать/скрыть боковую панель",
+        "hotkey_toggle_sidebar_other" => "Показать/скрыть другую боковую панель",
         "hotkey_vault_section_slot" => "Открыть раздел хранилища",
         "hotkey_vault_section_prev" => "Предыдущий раздел хранилища",
         "hotkey_vault_section_next" => "Следующий раздел хранилища",

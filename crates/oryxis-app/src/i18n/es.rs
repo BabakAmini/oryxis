@@ -259,6 +259,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Enfocar panel de abajo",
         "hotkey_focus_sidebar_list" => "Enfocar listas de la barra lateral",
         "hotkey_toggle_sidebar" => "Alternar barra lateral",
+        "hotkey_toggle_sidebar_other" => "Alternar la otra barra lateral",
         "hotkey_vault_section_slot" => "Abrir sección específica del vault",
         "hotkey_vault_section_prev" => "Sección anterior del cofre",
         "hotkey_vault_section_next" => "Sección siguiente del cofre",

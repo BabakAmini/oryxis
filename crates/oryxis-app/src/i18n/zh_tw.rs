@@ -259,6 +259,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "聚焦下方窗格",
         "hotkey_focus_sidebar_list" => "聚焦側邊欄清單",
         "hotkey_toggle_sidebar" => "切換側邊欄",
+        "hotkey_toggle_sidebar_other" => "切換另一側邊欄",
         "hotkey_vault_section_slot" => "開啟指定的保險庫區段",
         "hotkey_vault_section_prev" => "上一個保險庫區段",
         "hotkey_vault_section_next" => "下一個保險庫區段",

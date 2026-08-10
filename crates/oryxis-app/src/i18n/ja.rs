@@ -259,6 +259,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "下のペインにフォーカス",
         "hotkey_focus_sidebar_list" => "サイドバーのリストにフォーカス",
         "hotkey_toggle_sidebar" => "サイドバーを切り替え",
+        "hotkey_toggle_sidebar_other" => "もう一方のサイドバーを切り替え",
         "hotkey_vault_section_slot" => "Vault の特定セクションを開く",
         "hotkey_vault_section_prev" => "前のボールトセクション",
         "hotkey_vault_section_next" => "次のボールトセクション",

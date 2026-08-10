@@ -260,6 +260,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Fokus na panel u dołu",
         "hotkey_focus_sidebar_list" => "Fokus na listy paska bocznego",
         "hotkey_toggle_sidebar" => "Przełącz pasek boczny",
+        "hotkey_toggle_sidebar_other" => "Przełącz drugi pasek boczny",
         "hotkey_vault_section_slot" => "Otwórz konkretną sekcję sejfu",
         "hotkey_vault_section_prev" => "Poprzednia sekcja sejfu",
         "hotkey_vault_section_next" => "Następna sekcja sejfu",

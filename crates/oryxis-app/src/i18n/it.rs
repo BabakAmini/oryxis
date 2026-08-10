@@ -259,6 +259,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Attiva riquadro in basso",
         "hotkey_focus_sidebar_list" => "Focalizza gli elenchi della barra laterale",
         "hotkey_toggle_sidebar" => "Attiva/disattiva barra laterale",
+        "hotkey_toggle_sidebar_other" => "Attiva/disattiva l'altra barra laterale",
         "hotkey_vault_section_slot" => "Apri una sezione specifica del vault",
         "hotkey_vault_section_prev" => "Sezione precedente del vault",
         "hotkey_vault_section_next" => "Sezione successiva del vault",

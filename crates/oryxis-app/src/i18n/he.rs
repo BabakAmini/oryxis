@@ -263,6 +263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "מיקוד בחלונית שמתחת",
         "hotkey_focus_sidebar_list" => "מיקוד ברשימות סרגל הצד",
         "hotkey_toggle_sidebar" => "הצגת/הסתרת סרגל הצד",
+        "hotkey_toggle_sidebar_other" => "הצגת/הסתרת סרגל הצד השני",
         "hotkey_vault_section_slot" => "פתיחת מקטע כספת מסוים",
         "hotkey_vault_section_prev" => "מקטע הכספת הקודם",
         "hotkey_vault_section_next" => "מקטע הכספת הבא",

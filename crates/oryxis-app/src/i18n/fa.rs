@@ -260,6 +260,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "تمرکز روی پنل پایین",
         "hotkey_focus_sidebar_list" => "تمرکز روی فهرست‌های نوار کناری",
         "hotkey_toggle_sidebar" => "تغییر وضعیت نوار کناری",
+        "hotkey_toggle_sidebar_other" => "تغییر وضعیت نوار کناری دیگر",
         "hotkey_vault_section_slot" => "باز کردن بخش مشخص گاوصندوق",
         "hotkey_vault_section_prev" => "بخش قبلی صندوقچه",
         "hotkey_vault_section_next" => "بخش بعدی صندوقچه",

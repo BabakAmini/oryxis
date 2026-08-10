@@ -260,6 +260,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Fokus ke panel bawah",
         "hotkey_focus_sidebar_list" => "Fokus ke daftar bilah samping",
         "hotkey_toggle_sidebar" => "Alihkan bilah samping",
+        "hotkey_toggle_sidebar_other" => "Alihkan bilah samping lainnya",
         "hotkey_vault_section_slot" => "Buka bagian vault tertentu",
         "hotkey_vault_section_prev" => "Bagian vault sebelumnya",
         "hotkey_vault_section_next" => "Bagian vault berikutnya",

@@ -52,7 +52,9 @@ pub enum HotkeyAction {
     /// opens the sidebar when closed, cycles the two list tabs on
     /// repeat. Terminal-only, like the split-pane family.
     FocusSidebarList,
-    /// Open/close the terminal sidebar for the focused tab.
+    /// Open/close the terminal sidebar for the focused tab. With tabs
+    /// docked to BOTH sides it drives the open region (else the right
+    /// one); `ToggleSidebarOther` reaches the counterpart.
     ToggleSidebar,
     /// Hybrid tab (issue #61): flip the focused SSH tab between its
     /// terminal and its host's files (full SFTP surface).
@@ -120,6 +122,11 @@ pub enum HotkeyAction {
     /// "restart this host"), same handler either way. Terminal-only:
     /// there is no focused tab to reconnect anywhere else.
     ReconnectTab,
+    /// Open/close the OTHER sidebar region: the counterpart of
+    /// whatever `ToggleSidebar` targets right now. Only meaningful
+    /// with tabs docked to both sides (issue #102); no-op otherwise,
+    /// since the primary key already reaches a lone region.
+    ToggleSidebarOther,
 }
 
 impl HotkeyAction {
@@ -158,6 +165,7 @@ impl HotkeyAction {
             ToggleMaximizePane,
             FocusSidebarList,
             ToggleSidebar,
+            ToggleSidebarOther,
             ToggleTabFiles,
             ToggleBroadcastInput,
             TogglePrivacyMode,
@@ -204,6 +212,7 @@ impl HotkeyAction {
             ToggleMaximizePane => "toggle_maximize_pane",
             FocusSidebarList => "focus_sidebar_list",
             ToggleSidebar => "toggle_sidebar",
+            ToggleSidebarOther => "toggle_sidebar_other",
             ToggleTabFiles => "toggle_tab_files",
             ToggleBroadcastInput => "toggle_broadcast_input",
             TogglePrivacyMode => "toggle_privacy_mode",
@@ -255,6 +264,7 @@ impl HotkeyAction {
             ToggleMaximizePane => "hotkey_toggle_maximize_pane",
             FocusSidebarList => "hotkey_focus_sidebar_list",
             ToggleSidebar => "hotkey_toggle_sidebar",
+            ToggleSidebarOther => "hotkey_toggle_sidebar_other",
             ToggleTabFiles => "hotkey_toggle_tab_files",
             ToggleBroadcastInput => "hotkey_toggle_broadcast_input",
             TogglePrivacyMode => "hotkey_toggle_privacy_mode",
@@ -297,6 +307,7 @@ impl HotkeyAction {
                 | ToggleMaximizePane
                 | FocusSidebarList
                 | ToggleSidebar
+                | ToggleSidebarOther
                 | ToggleTabFiles
                 | ToggleBroadcastInput
                 | ReconnectTab

@@ -263,6 +263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "Εστίαση στο κάτω τμήμα",
         "hotkey_focus_sidebar_list" => "Εστίαση στις λίστες της πλαϊνής μπάρας",
         "hotkey_toggle_sidebar" => "Εναλλαγή πλαϊνής μπάρας",
+        "hotkey_toggle_sidebar_other" => "Εναλλαγή της άλλης πλαϊνής μπάρας",
         "hotkey_vault_section_slot" => "Άνοιγμα συγκεκριμένης ενότητας του vault",
         "hotkey_vault_section_prev" => "Προηγούμενη ενότητα του vault",
         "hotkey_vault_section_next" => "Επόμενη ενότητα του vault",

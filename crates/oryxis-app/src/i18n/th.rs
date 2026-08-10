@@ -263,6 +263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "โฟกัสเพนล่าง",
         "hotkey_focus_sidebar_list" => "โฟกัสรายการแถบข้าง",
         "hotkey_toggle_sidebar" => "เปิด/ปิดแถบข้าง",
+        "hotkey_toggle_sidebar_other" => "เปิด/ปิดแถบข้างอีกด้าน",
         "hotkey_vault_section_slot" => "เปิดส่วนของ Vault ที่ระบุ",
         "hotkey_vault_section_prev" => "ส่วนก่อนหน้าของ Vault",
         "hotkey_vault_section_next" => "ส่วนถัดไปของ Vault",

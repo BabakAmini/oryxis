@@ -260,6 +260,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "التركيز على اللوحة السفلية",
         "hotkey_focus_sidebar_list" => "التركيز على قوائم الشريط الجانبي",
         "hotkey_toggle_sidebar" => "تبديل الشريط الجانبي",
+        "hotkey_toggle_sidebar_other" => "تبديل الشريط الجانبي الآخر",
         "hotkey_vault_section_slot" => "فتح قسم محدد من الخزنة",
         "hotkey_vault_section_prev" => "قسم الخزنة السابق",
         "hotkey_vault_section_next" => "قسم الخزنة التالي",

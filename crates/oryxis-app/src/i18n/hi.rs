@@ -263,6 +263,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "hotkey_focus_pane_down" => "निचले पेन पर फ़ोकस करें",
         "hotkey_focus_sidebar_list" => "साइडबार सूचियों पर फ़ोकस करें",
         "hotkey_toggle_sidebar" => "साइडबार टॉगल करें",
+        "hotkey_toggle_sidebar_other" => "दूसरा साइडबार टॉगल करें",
         "hotkey_vault_section_slot" => "कोई विशेष वॉल्ट सेक्शन खोलें",
         "hotkey_vault_section_prev" => "पिछला वॉल्ट सेक्शन",
         "hotkey_vault_section_next" => "अगला वॉल्ट सेक्शन",
