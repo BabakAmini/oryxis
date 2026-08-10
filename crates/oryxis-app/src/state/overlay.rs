@@ -5,6 +5,12 @@ use super::*;
 #[derive(Debug, Clone)]
 pub(crate) enum OverlayContent {
     HostActions(usize),
+    /// Right-click / Menu-key menu on a host row of the sidebar Hosts
+    /// tree (issue #102): the card menu's ACTION half. No Remove and
+    /// no filter-by-profile: the tree is a navigate-and-connect
+    /// surface, destruction and dashboard filters stay on the
+    /// dashboard (owner call).
+    TreeHostActions(usize),
     /// Kebab / right-click menu on a session-group card. Items: Open, Edit,
     /// Duplicate, Delete.
     SessionGroupActions(usize),

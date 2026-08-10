@@ -150,6 +150,7 @@ impl Oryxis {
                 | TabsMessage::ToggleSubnavOverflow
                 | TabsMessage::HideOverlayMenu
                 | TabsMessage::ShowCardMenu(..)
+                | TabsMessage::ShowTreeHostMenu(..)
                 | TabsMessage::HideCardMenu
                 | TabsMessage::RunHotkeyAction(..)
                 | TabsMessage::OpenSettingsSection(..)

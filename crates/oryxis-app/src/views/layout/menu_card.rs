@@ -115,6 +115,26 @@ impl Oryxis {
     }
 
     pub(crate) fn build_menu_host_actions(&self, idx: usize) -> Element<'_, Message> {
+        self.build_menu_host_actions_inner(idx, true)
+    }
+
+    /// The sidebar Hosts tree's reduced host menu (issue #102): the
+    /// same actions as the card menu minus Remove and the dashboard
+    /// filter entry.
+    pub(crate) fn build_menu_tree_host_actions(&self, idx: usize) -> Element<'_, Message> {
+        self.build_menu_host_actions_inner(idx, false)
+    }
+
+    /// `dashboard` gates the entries that only make sense on the
+    /// dashboard surface: Remove (the tree is navigate-and-connect,
+    /// destruction keeps its confirm over the card list) and
+    /// filter-by-cloud-profile (it drives the dashboard's own filter
+    /// chip).
+    fn build_menu_host_actions_inner(
+        &self,
+        idx: usize,
+        dashboard: bool,
+    ) -> Element<'_, Message> {
         let conn = self.connections.get(idx);
         let cloud_profile_id = conn
             .and_then(|c| c.cloud_ref.as_ref())
@@ -167,13 +187,16 @@ impl Oryxis {
                 OryxisColors::t().error,
             ));
         }
-        if let Some(pid) = cloud_profile_id {
+        if dashboard && let Some(pid) = cloud_profile_id {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::funnel(),
                 crate::i18n::t("host_filter_by_profile"),
                 Message::Navigation(NavigationMessage::HostFilterByCloudProfile(Some(pid))),
                 OryxisColors::t().text_secondary,
             ));
+        }
+        if !dashboard {
+            return items.into();
         }
         // Orphan hosts get a "Forget" label (semantically
         // closer to "this resource is gone upstream, drop my

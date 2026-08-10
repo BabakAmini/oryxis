@@ -36,6 +36,20 @@ impl Oryxis {
                     });
                 }
             }
+            TabsMessage::ShowTreeHostMenu(idx) => {
+                // Same anchor contract as ShowCardMenu: the Menu key
+                // parks the ringed row's rect in `keynav.menu_anchor`,
+                // a right-click falls back to the cursor. No
+                // `card_context_menu` here: that flag pins the
+                // dashboard card's kebab, which the tree row doesn't
+                // have.
+                let anchor = self.keynav_take_menu_anchor();
+                self.overlay = Some(OverlayState {
+                    content: OverlayContent::TreeHostActions(idx),
+                    x: anchor.0,
+                    y: anchor.1,
+                });
+            }
             TabsMessage::HideCardMenu => {
                 self.card_context_menu = None;
                 self.overlay = None;

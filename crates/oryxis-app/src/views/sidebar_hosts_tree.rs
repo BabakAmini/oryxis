@@ -471,11 +471,20 @@ impl Oryxis {
             );
         }
         let msg = Message::Ssh(SshMessage::ConnectSsh(idx));
+        // Right-click (and the Menu key on the ringed row, via
+        // `with_menu`) opens the reduced card menu: the action set
+        // minus Remove, per the right-click-opens-the-kebab
+        // convention.
+        let menu_msg = Message::Tabs(crate::app::TabsMessage::ShowTreeHostMenu(idx));
+        let row: Element<'a, Message> =
+            iced::widget::MouseArea::new(tree_row_button(items, msg.clone()))
+                .on_right_press(menu_msg.clone())
+                .into();
         self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::list_button(msg.clone()),
+            crate::keynav::SidebarRow::list_button(msg).with_menu(menu_msg),
             STAB,
             6.0,
-            tree_row_button(items, msg),
+            row,
         )
     }
 

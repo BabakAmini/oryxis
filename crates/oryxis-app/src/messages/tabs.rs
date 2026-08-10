@@ -221,6 +221,10 @@ pub enum TabsMessage {
     SnippetCardUnhovered(usize),
     IdentityCardUnhovered(usize),
     ShowCardMenu(usize),
+    /// Right-click / Menu-key on a host row of the sidebar Hosts tree
+    /// (issue #102): the reduced card menu (no Remove, no dashboard
+    /// filter), anchored at the cursor or the ringed row.
+    ShowTreeHostMenu(usize),
     #[allow(dead_code)]
     HideCardMenu,
     /// Hover entered the `+` button: reveal the New-Tab / Split popover.
