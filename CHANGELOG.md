@@ -69,6 +69,30 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   turns out to be unusable (a server at its session cap, a link that
   died between checks) just dials fresh. Settings > Connection has the
   switch, on by default.
+- **The terminal sidebar splits into two dockable regions (#102).**
+  Every sidebar tab (Chat, Snippets, History, Files, Monitor, Tmux,
+  Host config and the new Hosts tree) picks its side in Settings >
+  Terminal: left, right, or hidden entirely for the tabs you never
+  use. Both regions can be open at once, each with its own tab strip,
+  active tab and width, so the AI chat can live on the left while the
+  file browser stays on the right. The toggle hotkey follows the tabs
+  (a lone populated region is always its target, and with both
+  populated it prefers whichever is open, so the keyboard can always
+  close what is on screen); a second binding, Ctrl+Alt+B, drives the
+  counterpart region, mirroring how VS Code pairs its two side bars.
+- **A hosts tree in the terminal sidebar, and a tree view for the
+  dashboard (#102).** The new Hosts sidebar tab shows the vault as an
+  mRemoteNG-style tree: folders nest to any depth and fold in place,
+  a click on a host opens a session next to the one you are in, saved
+  split-pane arrangements sit alongside their hosts, and dynamic
+  (ECS / Kubernetes) groups resolve their tasks and pods inline on
+  expand. The dashboard gains the same shape as a third view mode
+  next to grid and list: dense rows, indent guides, the fold chevron
+  on the leading edge, with search force-expanding every match and a
+  matching folder showing its whole subtree. Both trees share the
+  vault's sort preference, one search predicate (label, hostname,
+  tags and username) and the expansion state, so what unfolds in one
+  is unfolded in the other.
 
 ### Fixed
 - **The folder and Git transports were still running the peer-to-peer

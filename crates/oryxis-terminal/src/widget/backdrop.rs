@@ -5,7 +5,7 @@
 //!
 //! Why a separate widget instead of drawing the picture inside the grid
 //! canvas: within one render layer the renderer draws by primitive KIND,
-//! not by submission order — quads, then meshes, then images, then text.
+//! not by submission order: quads, then meshes, then images, then text.
 //! Every `fill_rectangle` is a mesh, so a picture drawn in the grid's own
 //! frame sits ON TOP of every fill in that frame no matter where the
 //! calls sit in the code: the fade veil, cell backgrounds, the selection,
