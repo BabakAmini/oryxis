@@ -18,6 +18,14 @@ coming next, see the [Roadmap](../README.md#roadmap).
 - **Full SSH pipeline.** Direct, SOCKS4/5, HTTP CONNECT, ProxyCommand,
   multi-hop jump host chaining, and port forwarding via
   [russh](https://github.com/warp-tech/russh).
+- **Connection reuse.** A second tab to a connected host opens a channel
+  on the live connection instead of dialing, authenticating and second-
+  factoring again (per hop, on a jump chain). The connection closes with
+  its last tab, and a pooled link that turns out to be dead just dials
+  fresh. On by default, Settings > Connection has the switch.
+- **Wake-on-LAN.** Store a MAC address on a host and wake the machine
+  from its card menu with a magic-packet broadcast, before SSH can
+  reach it.
 - **Standalone port forwarding.** Local (`-L`), Remote (`-R`) and Dynamic
   SOCKS5 (`-D`) forwards live as their own entities with per-row on/off
   toggles, auto-start at boot, and no terminal required. Every forward
@@ -615,9 +623,18 @@ Five transports, one at a time, all carrying the same encrypted payload.
   (burger, Home, window buttons) to reclaim the top bar entirely, and run
   full height. Inactive tabs take a separation style of your choice
   (none, border or underline).
-- **Terminal sidebar, where you want it.** Dock it left or right, pick
-  which tab it opens on, and have it open itself on connect, globally or
-  per host.
+- **Terminal sidebar in two dockable regions.** Every sidebar tab
+  (Chat, Snippets, History, Files, Monitor, Tmux, Host config, Hosts
+  tree) picks its side, left or right, or hides entirely; both regions
+  can be open at once, each with its own strip and width. Pick which
+  tab a region opens on, have it open itself on connect (globally or
+  per host), and toggle either region from the keyboard: the main
+  binding follows the tabs, and Ctrl+Alt+B reaches the other region.
+- **Hosts tree.** An mRemoteNG-style tree of the vault as a sidebar tab
+  beside your session (folders fold in place, hosts connect on click,
+  saved arrangements and dynamic cloud groups included), and the same
+  tree as a third dashboard view mode next to grid and list, with
+  search force-expanding matches to their whole subtree.
 - **Configurable status bar.** Every segment is individually
   toggleable, including latency, transfer size, the working directory
   and the host vitals.

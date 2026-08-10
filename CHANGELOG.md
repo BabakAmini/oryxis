@@ -4,7 +4,17 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.13.0] - 2026-08-10
+
+The sync-anywhere and organization release. The encrypted vault
+snapshot now travels over a folder (which means any cloud you already
+use), a Git remote with history, or a WebDAV server; groups hand
+their defaults down to the hosts inside them; the terminal sidebar
+splits into two dockable regions and gains an mRemoteNG-style hosts
+tree, with the same tree joining the dashboard as a third view mode;
+a second tab to a connected host rides the connection it already
+has; and MobaXterm, Xshell, SecureCRT, FinalShell, Termius, mRemoteNG
+and plain CSV all import their sessions.
 
 ### Added
 - **Sync through a WebDAV server.** A fifth transport, for the
@@ -93,46 +103,6 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   vault's sort preference, one search predicate (label, hostname,
   tags and username) and the expansion state, so what unfolds in one
   is unfolded in the other.
-
-### Fixed
-- **The folder and Git transports were still running the peer-to-peer
-  engine.** Picking either of them left QUIC listening and mDNS
-  advertising on the local network, and the engine's own timer kept
-  syncing peer to peer behind the file the user believed they had
-  chosen. The same mistake put the pairing code, the LAN device count
-  and the signaling / relay / port fields in front of them, along with
-  a "Sync now" button that fired the peer-to-peer path and did nothing
-  at all. Every one of those now asks whether the transport IS
-  peer-to-peer, rather than whether it is not SFTP.
-- **Auto mode did nothing on the folder and Git transports.** The
-  cadence timer only ever mounted for SFTP, so a user who picked Auto
-  got a transport that moved only when clicked. One timer now serves
-  every snapshot transport, and none of them fires while the vault is
-  locked: a soft auto-lock keeps the app running, and a round would
-  otherwise reach a server with stored credentials on behalf of a vault
-  the user believes is closed.
-- **Switching transports showed the previous one's result.** The status
-  line was cleared for SFTP only, written when there were two of them,
-  so moving away and back read as if the new transport had just synced.
-- **A folder or Git round left the screen showing stale data.** The
-  round merges on its own vault handle, so records it pulled stayed
-  invisible until the next restart. Both reload now, as the SFTP round
-  already did.
-- **A portable export carried the sync passphrase as unreadable
-  bytes.** It is encrypted under the exporting vault's master key, so
-  it arrived in the target vault undecryptable; inert until that vault
-  changed its master password, a pass that walks every encrypted
-  setting and aborts on the first one it cannot read.
-- **The latency segment stops claiming a dead link is fast.** The status
-  bar's RTT read the last successful round trip, which keeps its value
-  after the server goes quiet, so a connection that had stopped
-  answering still showed a healthy number. Silence now replaces the
-  measurement ("no reply 21s") instead of colouring it, and the figure
-  itself is colour-banded: green under 80 ms, amber under 250 ms, red
-  above, so the bar is glanceable rather than something to read. Hovering
-  gives the average, the peak, the jitter and how many probes timed out.
-
-### Added
 - **Groups hand their settings down to the hosts inside them.** A group
   now carries defaults: login user, identity, proxy identity, terminal
   theme, startup snippet, environment variables and the port new hosts
@@ -345,6 +315,42 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
   `sftp_force_osc7` row in an old vault is inert.
 
 ### Fixed
+- **The folder and Git transports were still running the peer-to-peer
+  engine.** Picking either of them left QUIC listening and mDNS
+  advertising on the local network, and the engine's own timer kept
+  syncing peer to peer behind the file the user believed they had
+  chosen. The same mistake put the pairing code, the LAN device count
+  and the signaling / relay / port fields in front of them, along with
+  a "Sync now" button that fired the peer-to-peer path and did nothing
+  at all. Every one of those now asks whether the transport IS
+  peer-to-peer, rather than whether it is not SFTP.
+- **Auto mode did nothing on the folder and Git transports.** The
+  cadence timer only ever mounted for SFTP, so a user who picked Auto
+  got a transport that moved only when clicked. One timer now serves
+  every snapshot transport, and none of them fires while the vault is
+  locked: a soft auto-lock keeps the app running, and a round would
+  otherwise reach a server with stored credentials on behalf of a vault
+  the user believes is closed.
+- **Switching transports showed the previous one's result.** The status
+  line was cleared for SFTP only, written when there were two of them,
+  so moving away and back read as if the new transport had just synced.
+- **A folder or Git round left the screen showing stale data.** The
+  round merges on its own vault handle, so records it pulled stayed
+  invisible until the next restart. Both reload now, as the SFTP round
+  already did.
+- **A portable export carried the sync passphrase as unreadable
+  bytes.** It is encrypted under the exporting vault's master key, so
+  it arrived in the target vault undecryptable; inert until that vault
+  changed its master password, a pass that walks every encrypted
+  setting and aborts on the first one it cannot read.
+- **The latency segment stops claiming a dead link is fast.** The status
+  bar's RTT read the last successful round trip, which keeps its value
+  after the server goes quiet, so a connection that had stopped
+  answering still showed a healthy number. Silence now replaces the
+  measurement ("no reply 21s") instead of colouring it, and the figure
+  itself is colour-banded: green under 80 ms, amber under 250 ms, red
+  above, so the bar is glanceable rather than something to read. Hovering
+  gives the average, the peak, the jitter and how many probes timed out.
 - **The Monitor tab lists one disk per device, not one per mount.**
   `df` reports mounts rather than storage, so a rooted Android phone
   answered with 176 disk rows, nearly all of them `/system/bin/*` bind

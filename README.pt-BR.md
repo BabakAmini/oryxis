@@ -23,8 +23,8 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis em ação: conectando, executando snippets, navegando por SFTP">
 </p>
 
-> Este documento é uma tradução do README em inglês posterior à v0.12.0
-> (sincronizado em 2026-08-04). A documentação detalhada
+> Este documento é uma tradução do README em inglês posterior à v0.13.0
+> (sincronizado em 2026-08-10). A documentação detalhada
 > ([tour de funcionalidades](docs/FEATURES.md),
 > [arquitetura](docs/ARCHITECTURE.md)) permanece em inglês.
 
@@ -162,13 +162,14 @@ vulnerabilidades por canal privado.
 
 O Oryxis lança pequeno e com frequência (aproximadamente semanal), e
 as funcionalidades entram assim que ficam prontas. A última versão
-estável é a **v0.12.0**; o histórico completo está no
+estável é a **v0.13.0**; o histórico completo está no
 [CHANGELOG.md](CHANGELOG.md) e o roadmap interativo na
 [discussão de roadmap](https://github.com/wilsonglasser/oryxis/discussions/67).
 Entre as frentes em andamento: FIDO2 nativo (falar direto com a chave
-de segurança por USB / NFC), cliente Mosh nativo, suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud), e os
-pedidos recentes da comunidade: gerenciador de sessões tmux na barra
-lateral e visão em árvore dos hosts.
+de segurança por USB / NFC), cliente Mosh nativo, múltiplos cofres e
+suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud). Os pedidos
+recentes da comunidade, o gerenciador de sessões tmux e a visão em
+árvore dos hosts, foram entregues nesta versão.
 
 ## Contribuindo
 

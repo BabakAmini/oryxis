@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 實際操作：連線主機、執行程式碼片段、瀏覽 SFTP">
 </p>
 
-> 本文件譯自 v0.12.0 之後的英文 README（2026-08-04 同步），採用台灣慣用詞彙。
+> 本文件譯自 v0.13.0 之後的英文 README（2026-08-10 同步），採用台灣慣用詞彙。
 > 詳細文件（[功能總覽](docs/FEATURES.md)、[架構說明](docs/ARCHITECTURE.md)）為英文。
 
 ## Oryxis 是什麼？
@@ -146,12 +146,12 @@ macOS（Apple Silicon `.dmg`）和 Windows（系統層級與使用者層級安�
 ## 開發藍圖
 
 Oryxis 以大約每週一次的節奏持續發布，功能就緒即上線。最新穩定版為
-**v0.12.0**；完整歷史見 [CHANGELOG.md](CHANGELOG.md)，互動式藍圖見
+**v0.13.0**；完整歷史見 [CHANGELOG.md](CHANGELOG.md)，互動式藍圖見
 [藍圖討論](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推進的方向包括：原生 FIDO2（透過 USB / NFC 直接與安全金鑰通訊）、
-原生 Mosh 用戶端、
-以及東亞全形寬度選項。來自社群的
-新需求也已排入：側邊欄 tmux 工作階段管理器，以及主機樹狀檢視。
+原生 Mosh 用戶端、多保險庫，
+以及東亞全形寬度選項。社群呼聲很高的側邊欄 tmux 工作階段管理
+器和主機樹狀檢視已在本版本推出。
 
 ## 參與貢獻
 

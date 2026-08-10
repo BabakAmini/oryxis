@@ -242,7 +242,7 @@ information is collected or shared as part of this process.
 
 Oryxis ships small and often (roughly weekly). This section is
 forward-looking: items land incrementally as they are ready rather than
-being tied to a specific version. Latest stable is **v0.12.0**;
+being tied to a specific version. Latest stable is **v0.13.0**;
 [CHANGELOG.md](CHANGELOG.md) has the full history, and the
 [roadmap discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 tracks it interactively.
@@ -257,16 +257,11 @@ tracks it interactively.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
-- **tmux session manager:** a terminal-sidebar tab listing the tmux
-  sessions on the current host with attach / create / kill, read over
-  the live connection; nothing installed on the server, as always.
 - **Mosh:** a native Rust client for mosh's State Synchronization
   Protocol, interoperating with the stock `mosh-server`; sessions survive
   IP changes and sleep, with predictive local echo. This would be the
   first open-source mosh client to run natively on Windows (no Cygwin or
   WSL layer).
-- **Host tree view:** an mRemoteNG-style tree of groups and hosts as an
-  alternative view to the card grid.
 - **Utilities:** CSV export of hosts, and an optional network tools
   panel (DNS, ping / traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
