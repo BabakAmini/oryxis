@@ -190,6 +190,17 @@ pub enum TabsMessage {
     WindowExpandVertical,
     WindowMinimize,
     WindowMaximizeToggle,
+    /// OS truth about the maximized state, reconciled asynchronously
+    /// after a `WindowResized`. Win+Up/Down, aero snap, the taskbar's
+    /// Restore, and dragging the custom title bar down all change the
+    /// OS state without firing `WindowMaximizeToggle`, so the optimistic
+    /// flag would silently go stale and take the edge-resize border and
+    /// `WindowResizeDrag` down with it. Carries the snapped size of the
+    /// `WindowResized` that triggered the query: `window_windowed_size`
+    /// is committed here, once the OS has answered, rather than in the
+    /// resize handler where the stale flag could let a monitor-sized
+    /// rectangle through as the "windowed" size.
+    WindowMaximizedSynced(bool, iced::Size),
     WindowFullscreenToggle,
     /// Clears the "Press F11 to exit fullscreen" banner. Fired by a
     /// timed `Task::perform` 3 s after entering fullscreen.
