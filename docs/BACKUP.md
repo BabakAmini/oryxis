@@ -153,6 +153,15 @@ export ALL_PROXY=socks5://127.0.0.1:1080     # your proxy, if you need one
 rclone copy ~/OryxisSync remote:oryxis-backups
 ```
 
+**With Teldrive**, if you want Telegram to BE the folder rather than a
+destination you post to: [Teldrive](https://github.com/tgdrive/teldrive)
+stores files in a Telegram channel and plugs into rclone as a backend,
+so `rclone mount` gives you a directory the folder transport syncs
+into, both ways, and Teldrive itself takes a socks5 or HTTP proxy for
+the Telegram side. That makes Telegram the same kind of destination as
+the cloud folders above: mounted, kept current, and restorable by
+pointing a fresh install at the same folder.
+
 **With a bot and curl**, if Telegram specifically is the destination:
 
 ```bash
