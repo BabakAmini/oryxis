@@ -505,14 +505,14 @@ impl Oryxis {
             _ => None,
         };
 
-        // List / tree modes (cols == 1) render History-style rows:
-        // full-width rounded cards with a small gap, applied uniformly
-        // to groups and hosts. Grid mode keeps the roomier 12px
-        // gutters.
-        let gap = if self.prefs.host_view_mode == crate::state::HostViewMode::Grid {
-            12.0
-        } else {
-            8.0
+        // List mode (cols == 1) renders History-style rows: full-width
+        // rounded cards with a small gap. Grid mode keeps the roomier
+        // 12px gutters. Tree mode is dense on purpose - a hairline gap
+        // keeps its indent guide lines reading as near-continuous.
+        let gap = match self.prefs.host_view_mode {
+            crate::state::HostViewMode::Grid => 12.0,
+            crate::state::HostViewMode::List => 8.0,
+            crate::state::HostViewMode::Tree => 2.0,
         };
 
         let mut content_rows: Vec<Element<'_, Message>> = Vec::new();

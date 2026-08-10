@@ -1,10 +1,16 @@
 //! Dashboard grid: TREE view mode (issue #102). The mRemoteNG shape
 //! at dashboard scale: every level visible at once, folders fold in
 //! place (sharing the terminal-sidebar tree's expansion set), no
-//! drill-down for manual folders. Rows ARE the grid/list cards -
-//! `manual_folder_card`, `dashboard_host_card`, `session_group_card` -
-//! indented per level, so hover kebabs, right-click menus, privacy
-//! redaction and the vault keynav ring all come along unchanged.
+//! drill-down for manual folders.
+//!
+//! Rows are DENSE on purpose - this is what separates the tree from
+//! the list mode next to it. A compact ~30 px line (small icon, label
+//! and subtitle on ONE baseline, no card border, hover fills the full
+//! row width), the fold chevron on the LEADING edge where every tree
+//! control puts it, and vertical guide lines through the indent
+//! columns so nesting reads as structure instead of a margin. The
+//! hover kebab, right-click menu, privacy redaction and the vault
+//! keynav ring all ride the same messages as the grid cards.
 //!
 //! Construction order is display order on purpose: the keynav section
 //! is recorded from the returned tuples, and the Menu-key anchor rides
@@ -12,10 +18,31 @@
 
 use super::*;
 
-/// Indent per tree level, applied on the leading edge (via `dir_row`,
-/// so it mirrors under RTL). Card-sized: the 18 px sidebar step reads
-/// as nothing next to 56 px rows.
-const INDENT: f32 = 28.0;
+/// Indent per tree level. Sidebar-scale: the dense rows are ~30 px
+/// tall, so the 18 px sidebar step reads correctly here (the old
+/// full-height cards needed 28 px to register at all).
+const INDENT: f32 = 18.0;
+/// Fixed box for the leading fold chevron (folders) or its spacer
+/// (leaves), so icons at one level share a left edge.
+const LEAD: f32 = 18.0;
+/// Icon badge size inside a dense row.
+const ROW_ICON: f32 = 22.0;
+/// Content height of a dense row (the guides and the chevron box are
+/// FIXED to it rather than `Length::Fill`: a fill-height child inside
+/// a shrink Row collapses in the iced flex pass, which zeroed whole
+/// rows out of the layout).
+const ROW_H: f32 = 26.0;
+
+/// What sits in a row's leading slot and its trailing idle slot.
+enum TreeLead {
+    /// Manual folder: leading chevron mirroring the fold state.
+    Fold { expanded: bool },
+    /// Row that opens another screen (dynamic group, session group):
+    /// leading spacer, trailing drill-in chevron while not hovered.
+    Drill,
+    /// Host: leading spacer, no idle trailing affordance.
+    Leaf,
+}
 
 impl Oryxis {
     /// Every row of the tree, top to bottom, as the same
@@ -227,8 +254,8 @@ impl Oryxis {
             if searching && !sg.label.to_lowercase().contains(&search_lower) {
                 continue;
             }
-            let (el, color) = self.session_group_card(i, sg);
-            rows.push((indent_card(el, 0), color, DashNavItem::SessionGroup(i)));
+            let (el, color) = self.dash_tree_session_row(i, sg, 0);
+            rows.push((el, color, DashNavItem::SessionGroup(i)));
         }
 
         // Root hosts: no group, or a group id that no longer resolves.
@@ -248,8 +275,8 @@ impl Oryxis {
             |&i| self.connections[i].created_at,
         );
         for i in root_hosts {
-            let (el, color) = self.dashboard_host_card(i, &privacy_terms);
-            rows.push((indent_card(el, 0), color, DashNavItem::Host(i)));
+            let (el, color) = self.dash_tree_host_row(i, &privacy_terms, 0);
+            rows.push((el, color, DashNavItem::Host(i)));
         }
         rows
     }
@@ -294,11 +321,8 @@ impl Oryxis {
             // Dynamic (ECS / K8s) groups keep their drill-down: the
             // dedicated cloud-group screen (task list, refresh,
             // transport) is richer than inline rows at this scale.
-            rows.push((
-                self.tree_dynamic_group_row(group, query, depth),
-                OryxisColors::t().accent,
-                DashNavItem::Group(gid),
-            ));
+            let (el, color) = self.dash_tree_dynamic_group_row(group, query, depth);
+            rows.push((el, color, DashNavItem::Group(gid)));
             return;
         }
 
@@ -307,8 +331,8 @@ impl Oryxis {
         let nested_groups = nested_group_count.get(&gid).copied().unwrap_or(0);
         let count_text = crate::i18n::host_count(direct_hosts + nested_groups);
         let (el, color) =
-            self.manual_folder_card(group, count_text, infer_brand(&gid), Some(expanded));
-        rows.push((indent_card(el, depth), color, DashNavItem::Group(gid)));
+            self.dash_tree_folder_row(group, count_text, infer_brand(&gid), expanded, depth);
+        rows.push((el, color, DashNavItem::Group(gid)));
         if !expanded {
             return;
         }
@@ -356,8 +380,8 @@ impl Oryxis {
             {
                 continue;
             }
-            let (el, color) = self.session_group_card(i, sg);
-            rows.push((indent_card(el, depth + 1), color, DashNavItem::SessionGroup(i)));
+            let (el, color) = self.dash_tree_session_row(i, sg, depth + 1);
+            rows.push((el, color, DashNavItem::SessionGroup(i)));
         }
 
         let mut hosts: Vec<usize> = (0..self.connections.len())
@@ -373,20 +397,315 @@ impl Oryxis {
             |&i| self.connections[i].created_at,
         );
         for i in hosts {
-            let (el, color) = self.dashboard_host_card(i, privacy_terms);
-            rows.push((indent_card(el, depth + 1), color, DashNavItem::Host(i)));
+            let (el, color) = self.dash_tree_host_row(i, privacy_terms, depth + 1);
+            rows.push((el, color, DashNavItem::Host(i)));
         }
     }
 
-    /// A dynamic (cloud-query) group as a tree row: brand chip, label,
-    /// query subtitle, hover kebab, drill-in chevron. Press opens the
-    /// dedicated cloud-group screen, same as the card.
-    fn tree_dynamic_group_row<'a>(
+    /// A manual folder as a dense tree row: leading fold chevron,
+    /// icon chip, label with the record count inline, hover kebab.
+    /// Press toggles the expansion in place (the same expansion set
+    /// as the terminal-sidebar tree).
+    fn dash_tree_folder_row<'a>(
+        &'a self,
+        group: &'a oryxis_core::models::Group,
+        count_text: String,
+        inferred_brand: Option<&'static str>,
+        expanded: bool,
+        depth: usize,
+    ) -> (Element<'a, Message>, Color) {
+        let gid = group.id;
+        // Same icon precedence as `manual_folder_card`: explicit brand,
+        // inferred brand, explicit non-brand icon, generic cube.
+        let explicit_brand = group
+            .icon
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .and_then(crate::os_icon::canonical_brand_id);
+        let (folder_glyph, folder_bg): (BrandIcon, Color) =
+            if let Some(brand) = explicit_brand.or(inferred_brand) {
+                let glyph = crate::os_icon::custom_icon_glyph(brand);
+                let bg = group
+                    .color
+                    .as_deref()
+                    .and_then(crate::os_icon::parse_hex_color)
+                    .unwrap_or_else(|| {
+                        crate::os_icon::provider_icon(brand, OryxisColors::t().accent).1
+                    });
+                (glyph, bg)
+            } else if let Some(custom) =
+                group.icon.as_deref().filter(|s| !s.is_empty())
+            {
+                let glyph = crate::os_icon::custom_icon_glyph(custom);
+                let bg = group
+                    .color
+                    .as_deref()
+                    .and_then(crate::os_icon::parse_hex_color)
+                    .unwrap_or_else(|| OryxisColors::t().accent);
+                (glyph, bg)
+            } else {
+                (
+                    BrandIcon::Glyph(iced_fonts::lucide::boxes()),
+                    OryxisColors::t().accent,
+                )
+            };
+        let icon_box = self.dash_tree_row_icon(folder_bg, &group.label, folder_glyph);
+        let hovered = self.hover.folder_card == Some(gid);
+        let el = self.dash_tree_row(
+            depth,
+            TreeLead::Fold { expanded },
+            icon_box,
+            text(group.label.clone())
+                .size(13)
+                .color(OryxisColors::t().text_primary)
+                .wrapping(iced::widget::text::Wrapping::None)
+                .into(),
+            Some(
+                text(count_text)
+                    .size(10)
+                    .color(OryxisColors::t().text_muted)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+            ),
+            Message::Ai(crate::app::AiMessage::HostsTreeToggleGroup(gid)),
+            hovered,
+            Message::Tabs(TabsMessage::ShowFolderActions(gid)),
+            Message::Tabs(TabsMessage::FolderCardHovered(gid)),
+            Message::Tabs(TabsMessage::FolderCardUnhovered(gid)),
+        );
+        (el, folder_bg)
+    }
+
+    /// A host as a dense tree row: leading spacer (leaf), icon chip,
+    /// label + subtitle on one baseline, hover kebab. Press connects.
+    /// Privacy redaction mirrors `dashboard_host_card`: label and
+    /// address mask, hover reveals.
+    fn dash_tree_host_row<'a>(
+        &'a self,
+        idx: usize,
+        privacy_terms: &[String],
+        depth: usize,
+    ) -> (Element<'a, Message>, Color) {
+        let conn = &self.connections[idx];
+        let hovered = self.hover.card == Some(idx) || self.card_context_menu == Some(idx);
+        let display_label = if self.privacy_active(conn) && self.hover.card != Some(idx) {
+            crate::widgets::redact_for_display(
+                &conn.label,
+                privacy_terms,
+                self.privacy_classes(),
+            )
+        } else {
+            conn.label.clone()
+        };
+        let is_connected = self.tabs.iter().any(|t| t.label == conn.label);
+        let auth_label = crate::util::auth_method_label(&conn.auth_method);
+        let subtitle = if self.prefs.show_host_address {
+            use oryxis_core::models::connection::ConnectionProtocol;
+            let address = crate::util::host_address_label(conn);
+            let address = if self.privacy_active(conn) && self.hover.card != Some(idx) {
+                crate::widgets::mask_blocks(&address)
+            } else {
+                address
+            };
+            match conn.protocol {
+                ConnectionProtocol::Serial => address,
+                ConnectionProtocol::RemoteDesktop => {
+                    format!("{} · {}", address, conn.rd_kind)
+                }
+                _ => format!("{} · {}", address, auth_label),
+            }
+        } else {
+            auth_label.to_string()
+        };
+        let default_fallback = if is_connected {
+            OryxisColors::t().success
+        } else {
+            OryxisColors::t().accent
+        };
+        let (os_glyph, icon_color) = crate::os_icon::resolve_for(
+            conn.detected_os.as_deref(),
+            conn.custom_icon.as_deref(),
+            conn.custom_color.as_deref(),
+            conn.username.as_deref(),
+            default_fallback,
+        );
+        let host_style = crate::widgets::resolve_host_icon_style(
+            conn.icon_style.as_deref(),
+            &self.prefs.default_host_icon,
+        );
+        let badge_color = conn
+            .custom_color
+            .as_deref()
+            .or(conn.color.as_deref())
+            .and_then(crate::widgets::parse_hex_color)
+            .unwrap_or(icon_color);
+        let icon_box = crate::widgets::host_icon(
+            host_style,
+            badge_color,
+            &display_label,
+            Some(os_glyph.view(12.0, Color::WHITE)),
+            ROW_ICON,
+        );
+
+        // Cloud origin: brand glyph on the subtitle's leading edge,
+        // muted label + orphan pill when the resource is gone -
+        // the same signals as the card, one line tall.
+        let cloud: Option<(&'static str, Color, bool)> = conn.cloud_ref.as_ref().map(|cr| {
+            let provider = self
+                .cloud_profiles
+                .iter()
+                .find(|p| p.id == cr.profile_id)
+                .map(|p| p.provider.as_str())
+                .unwrap_or("cloud");
+            let brand_key: &'static str = match provider {
+                "aws" => "aws",
+                "k8s" | "kubernetes" => "kubernetes",
+                _ => "cloud",
+            };
+            let is_orphan = cr.orphaned_at.is_some();
+            let (_g, brand_color) =
+                crate::os_icon::provider_icon(brand_key, OryxisColors::t().accent);
+            let badge = if is_orphan {
+                OryxisColors::t().text_muted
+            } else {
+                brand_color
+            };
+            (brand_key, badge, is_orphan)
+        });
+        let is_orphan = matches!(cloud, Some((_, _, true)));
+        let label_color = if is_orphan {
+            OryxisColors::t().text_muted
+        } else {
+            OryxisColors::t().text_primary
+        };
+        let label_el: Element<'_, Message> = if is_orphan {
+            let muted = OryxisColors::t().text_muted;
+            let pill = container(
+                text(t("host_orphan_label")).size(9).color(muted),
+            )
+            .padding(Padding { top: 1.0, right: 6.0, bottom: 1.0, left: 6.0 })
+            .style(move |_| container::Style {
+                background: Some(Background::Color(Color { a: 0.10, ..muted })),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: Color { a: 0.30, ..muted },
+                    width: 1.0,
+                },
+                ..Default::default()
+            });
+            dir_row(vec![
+                text(display_label.clone())
+                    .size(13)
+                    .color(label_color)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+                Space::new().width(6).into(),
+                pill.into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into()
+        } else {
+            text(display_label.clone())
+                .size(13)
+                .color(label_color)
+                .wrapping(iced::widget::text::Wrapping::None)
+                .into()
+        };
+        let subtitle_el: Element<'_, Message> = match &cloud {
+            Some((brand_key, color, _)) => dir_row(vec![
+                crate::os_icon::custom_icon_glyph(brand_key).view(10.0, *color),
+                Space::new().width(4).into(),
+                text(subtitle)
+                    .size(10)
+                    .color(OryxisColors::t().text_muted)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+            ])
+            .align_y(iced::Alignment::Center)
+            .into(),
+            None => text(subtitle)
+                .size(10)
+                .color(OryxisColors::t().text_muted)
+                .wrapping(iced::widget::text::Wrapping::None)
+                .into(),
+        };
+
+        let el = self.dash_tree_row(
+            depth,
+            TreeLead::Leaf,
+            icon_box,
+            label_el,
+            Some(subtitle_el),
+            Message::Ssh(SshMessage::ConnectSsh(idx)),
+            hovered,
+            Message::Tabs(TabsMessage::ShowCardMenu(idx)),
+            Message::Tabs(TabsMessage::CardHovered(idx)),
+            Message::Tabs(TabsMessage::CardUnhovered(idx)),
+        );
+        (el, badge_color)
+    }
+
+    /// A saved session group as a dense tree row. Press restores the
+    /// arrangement; the idle trailing chevron keeps the "opens a
+    /// container" affordance the card had.
+    fn dash_tree_session_row<'a>(
+        &'a self,
+        idx: usize,
+        group: &'a oryxis_core::models::SessionGroup,
+        depth: usize,
+    ) -> (Element<'a, Message>, Color) {
+        let bg_color = group
+            .color
+            .as_deref()
+            .and_then(crate::os_icon::parse_hex_color)
+            .unwrap_or_else(|| OryxisColors::t().accent);
+        let glyph = group
+            .icon_style
+            .as_deref()
+            .filter(|s| !s.is_empty())
+            .map(crate::os_icon::custom_icon_glyph)
+            .unwrap_or(BrandIcon::Glyph(iced_fonts::lucide::boxes()));
+        let icon_box = self.dash_tree_row_icon(bg_color, &group.label, glyph);
+        let panes = count_leaves(&group.layout);
+        let subtitle = format!("{} {}", panes, t("session_group_panes"));
+        let menu_open = matches!(
+            self.overlay.as_ref().map(|o| &o.content),
+            Some(crate::state::OverlayContent::SessionGroupActions(i)) if *i == idx
+        );
+        let hovered = self.hover.session_group_card == Some(idx) || menu_open;
+        let el = self.dash_tree_row(
+            depth,
+            TreeLead::Drill,
+            icon_box,
+            text(group.label.clone())
+                .size(13)
+                .color(OryxisColors::t().text_primary)
+                .wrapping(iced::widget::text::Wrapping::None)
+                .into(),
+            Some(
+                text(subtitle)
+                    .size(10)
+                    .color(OryxisColors::t().text_muted)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+            ),
+            Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(idx)),
+            hovered,
+            Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(idx)),
+            Message::SessionGroup(SessionGroupMessage::SessionGroupCardHovered(idx)),
+            Message::SessionGroup(SessionGroupMessage::SessionGroupCardUnhovered(idx)),
+        );
+        (el, bg_color)
+    }
+
+    /// A dynamic (cloud-query) group as a dense tree row. Press opens
+    /// the dedicated cloud-group screen, same as the card.
+    fn dash_tree_dynamic_group_row<'a>(
         &'a self,
         group: &'a oryxis_core::models::Group,
         query: &'a oryxis_core::models::cloud::CloudQuery,
         depth: usize,
-    ) -> Element<'a, Message> {
+    ) -> (Element<'a, Message>, Color) {
         let gid = group.id;
         let subtitle = match &query.kind {
             oryxis_core::models::cloud::CloudQueryKind::EcsTasks { cluster, .. } => {
@@ -410,82 +729,186 @@ impl Oryxis {
             .unwrap_or_else(|| {
                 crate::os_icon::provider_icon(icon_id, OryxisColors::t().accent).1
             });
+        let icon_box = self.dash_tree_row_icon(folder_bg, &group.label, folder_glyph);
+        let hovered = self.hover.dynamic_group_card == Some(gid);
+        let el = self.dash_tree_row(
+            depth,
+            TreeLead::Drill,
+            icon_box,
+            text(group.label.clone())
+                .size(13)
+                .color(OryxisColors::t().text_primary)
+                .wrapping(iced::widget::text::Wrapping::None)
+                .into(),
+            Some(
+                text(subtitle)
+                    .size(10)
+                    .color(OryxisColors::t().text_muted)
+                    .wrapping(iced::widget::text::Wrapping::None)
+                    .into(),
+            ),
+            Message::Navigation(NavigationMessage::OpenGroup(gid)),
+            hovered,
+            Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)),
+            Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)),
+            Message::Cloud(CloudMessage::DynamicGroupCardUnhovered(gid)),
+        );
+        (el, folder_bg)
+    }
+
+    /// Icon badge for a dense row, honouring the global default shape
+    /// like the cards do (Circular / Square / Outline / Initials).
+    fn dash_tree_row_icon<'a>(
+        &self,
+        bg: Color,
+        label: &str,
+        glyph: BrandIcon,
+    ) -> Element<'a, Message> {
         let host_style =
             crate::widgets::resolve_host_icon_style(None, &self.prefs.default_host_icon);
-        let icon_box = crate::widgets::host_icon(
+        crate::widgets::host_icon(
             host_style,
-            folder_bg,
-            &group.label,
-            Some(folder_glyph.view(18.0, Color::WHITE)),
-            32.0,
-        );
+            bg,
+            label,
+            Some(glyph.view(12.0, Color::WHITE)),
+            ROW_ICON,
+        )
+    }
+
+    /// The dense-row chassis every tree entry shares: indent guides,
+    /// leading fold chevron / spacer, icon, one-baseline label +
+    /// subtitle, full-width hover fill, trailing kebab overlay,
+    /// MouseArea hover + right-click wiring.
+    #[allow(clippy::too_many_arguments)]
+    fn dash_tree_row<'a>(
+        &'a self,
+        depth: usize,
+        lead: TreeLead,
+        icon: Element<'a, Message>,
+        label: Element<'a, Message>,
+        subtitle: Option<Element<'a, Message>>,
+        on_press: Message,
+        hovered: bool,
+        kebab_msg: Message,
+        on_enter: Message,
+        on_exit: Message,
+    ) -> Element<'a, Message> {
         let rtl = crate::i18n::is_rtl_layout();
-        let show_dots = self.hover.dynamic_group_card == Some(gid);
-        let trailing: Element<'_, Message> = if show_dots {
+
+        // Indent guides: one vertical hairline per ancestor level,
+        // centred in its indent column, so nesting reads as structure.
+        // Inside the button on purpose: the hover fill and the keynav
+        // ring span the full row width, like every real tree control.
+        let mut cells: Vec<Element<'a, Message>> = (0..depth)
+            .map(|_| {
+                container(
+                    container(Space::new())
+                        .width(Length::Fixed(1.0))
+                        .height(Length::Fixed(ROW_H))
+                        .style(|_| container::Style {
+                            background: Some(Background::Color(
+                                OryxisColors::t().border,
+                            )),
+                            ..Default::default()
+                        }),
+                )
+                .width(Length::Fixed(INDENT))
+                .align_x(iced::alignment::Horizontal::Center)
+                .into()
+            })
+            .collect();
+
+        // Leading slot: the fold chevron is the tree affordance, so it
+        // sits where every tree control puts it. Leaves reserve the
+        // same box so icons at one level share a left edge.
+        let lead_el: Element<'a, Message> = match lead {
+            TreeLead::Fold { expanded } => {
+                let chevron = if expanded {
+                    iced_fonts::lucide::chevron_down()
+                } else if rtl {
+                    iced_fonts::lucide::chevron_left()
+                } else {
+                    iced_fonts::lucide::chevron_right()
+                };
+                container(chevron.size(13).color(OryxisColors::t().text_muted))
+                    .center_x(Length::Fixed(LEAD))
+                    .center_y(Length::Fixed(ROW_H))
+                    .into()
+            }
+            TreeLead::Drill | TreeLead::Leaf => {
+                Space::new().width(LEAD).into()
+            }
+        };
+        cells.push(lead_el);
+        cells.push(icon);
+        cells.push(Space::new().width(7).into());
+        cells.push(label);
+        if let Some(sub) = subtitle {
+            cells.push(Space::new().width(8).into());
+            cells.push(sub);
+        }
+        // Fill the remaining width so the row is clickable (and the
+        // hover fill paints) all the way across.
+        cells.push(Space::new().width(Length::Fill).into());
+
+        // 24 px trailing pad reserves the kebab overlay slot, same as
+        // the cards, so subtitles never slide under the ⋮.
+        let row_padding = if rtl {
+            Padding { top: 4.0, right: 4.0, bottom: 4.0, left: 24.0 }
+        } else {
+            Padding { top: 4.0, right: 24.0, bottom: 4.0, left: 4.0 }
+        };
+        let row_btn = button(
+            dir_row(cells).align_y(iced::Alignment::Center),
+        )
+        .on_press(on_press)
+        .width(Length::Fill)
+        .padding(row_padding)
+        .style(|_, status| {
+            // No idle chrome: a border per row at this density is
+            // noise, and the transparent ground is what makes the
+            // guides + indentation carry the structure. Hover / press
+            // fill the full row instead.
+            let bg = match status {
+                BtnStatus::Hovered => Some(OryxisColors::t().bg_hover),
+                BtnStatus::Pressed => Some(OryxisColors::t().bg_selected),
+                _ => None,
+            };
+            button::Style {
+                background: bg.map(Background::Color),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: Color::TRANSPARENT,
+                    width: 0.0,
+                },
+                ..Default::default()
+            }
+        });
+
+        // Trailing overlay: ⋮ on hover (drill rows show their muted
+        // drill-in chevron while idle; folds and leaves show nothing,
+        // the fold state already lives on the leading edge).
+        let show_drill_idle = matches!(lead, TreeLead::Drill) && !hovered;
+        let trailing: Element<'a, Message> = if hovered {
             crate::widgets::card_kebab_button(
                 OryxisColors::t().text_muted,
                 true,
-                Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)),
+                kebab_msg.clone(),
             )
             .into()
-        } else {
+        } else if show_drill_idle {
             let chevron = if rtl {
                 iced_fonts::lucide::chevron_left()
             } else {
                 iced_fonts::lucide::chevron_right()
             };
-            container(chevron.size(14).color(OryxisColors::t().text_muted))
+            container(chevron.size(13).color(OryxisColors::t().text_muted))
                 .center_x(Length::Fixed(22.0))
                 .center_y(Length::Fixed(22.0))
                 .into()
-        };
-        let card_padding = if rtl {
-            Padding { top: 8.0, right: 8.0, bottom: 8.0, left: 24.0 }
         } else {
-            Padding { top: 8.0, right: 24.0, bottom: 8.0, left: 8.0 }
+            Space::new().into()
         };
-        let card = button(
-            container(
-                dir_row(vec![
-                    icon_box,
-                    Space::new().width(10).into(),
-                    iced::widget::column![
-                        text(group.label.clone())
-                            .size(13)
-                            .color(OryxisColors::t().text_primary)
-                            .wrapping(iced::widget::text::Wrapping::None),
-                        text(subtitle)
-                            .size(10)
-                            .color(OryxisColors::t().text_muted)
-                            .wrapping(iced::widget::text::Wrapping::None),
-                    ]
-                    .width(Length::Fill)
-                    .align_x(crate::widgets::dir_align_x())
-                    .clip(true)
-                    .into(),
-                ])
-                .align_y(iced::Alignment::Center),
-            )
-            .padding(card_padding),
-        )
-        .on_press(Message::Navigation(NavigationMessage::OpenGroup(gid)))
-        .width(Length::Fill)
-        .style(|_, status| {
-            let (bg, bc, bw) = match status {
-                BtnStatus::Hovered => {
-                    (OryxisColors::t().bg_hover, OryxisColors::t().accent, 1.5)
-                }
-                BtnStatus::Pressed => {
-                    (OryxisColors::t().bg_selected, OryxisColors::t().accent, 2.0)
-                }
-                _ => (OryxisColors::t().bg_surface, OryxisColors::t().border, 1.0),
-            };
-            button::Style {
-                background: Some(Background::Color(bg)),
-                border: Border { radius: Radius::from(10.0), color: bc, width: bw },
-                ..Default::default()
-            }
-        });
         let dots_align = if rtl {
             iced::alignment::Horizontal::Left
         } else {
@@ -502,16 +925,13 @@ impl Oryxis {
             .align_x(dots_align)
             .align_y(iced::alignment::Vertical::Center)
             .padding(dots_pad);
-        let stacked: Element<'_, Message> =
-            iced::widget::Stack::new().push(card).push(overlay).into();
+        let stacked: Element<'a, Message> =
+            iced::widget::Stack::new().push(row_btn).push(overlay).into();
         let wrapped = MouseArea::new(stacked)
-            .on_enter(Message::Cloud(CloudMessage::DynamicGroupCardHovered(gid)))
-            .on_exit(Message::Cloud(CloudMessage::DynamicGroupCardUnhovered(gid)))
-            .on_right_press(Message::Cloud(CloudMessage::ShowDynamicGroupCardMenu(gid)));
-        indent_card(
-            Element::from(container(wrapped).width(Length::Fill).clip(true)),
-            depth,
-        )
+            .on_enter(on_enter)
+            .on_exit(on_exit)
+            .on_right_press(kebab_msg);
+        Element::from(container(wrapped).width(Length::Fill).clip(true))
     }
 }
 
@@ -555,17 +975,4 @@ fn search_visible_entry(
         v
     }
     rec(app, gid, search_lower, memo)
-}
-
-/// Leading indent for a tree row, mirrored under RTL like every other
-/// leading-edge inset.
-fn indent_card<'a>(card: Element<'a, Message>, depth: usize) -> Element<'a, Message> {
-    if depth == 0 {
-        return card;
-    }
-    dir_row(vec![
-        Space::new().width(depth as f32 * INDENT).into(),
-        card,
-    ])
-    .into()
 }

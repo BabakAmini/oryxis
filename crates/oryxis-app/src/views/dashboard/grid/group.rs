@@ -255,7 +255,7 @@ impl Oryxis {
                 let count_text =
                     crate::i18n::host_count(direct_hosts + nested_groups);
                 let (element, folder_bg) =
-                    self.manual_folder_card(group, count_text, infer_brand(&gid), None);
+                    self.manual_folder_card(group, count_text, infer_brand(&gid));
                 group_cards.push((element, folder_bg, DashNavItem::Group(gid)));
             }
 
@@ -475,7 +475,7 @@ impl Oryxis {
                 let count_text =
                     crate::i18n::host_count(direct_hosts + nested_groups);
                 let (element, folder_bg) =
-                    self.manual_folder_card(group, count_text, infer_brand(&gid), None);
+                    self.manual_folder_card(group, count_text, infer_brand(&gid));
                 group_cards.push((element, folder_bg, DashNavItem::Group(gid)));
             }
 
@@ -642,18 +642,13 @@ impl Oryxis {
     /// hover kebab / idle chevron), shared by the root pass and the
     /// nested-subgroup pass inside an open folder. Returns the wrapped
     /// element plus the folder's accent colour for the glass wash.
-    /// `tree_expanded`: `None` = grid/list card (press drills into the
-    /// folder, idle chevron points into it); `Some(expanded)` = tree
-    /// mode row (press toggles the expansion in place, the idle
-    /// chevron mirrors the fold state). Everything else - icon
-    /// precedence, kebab, hover, right-click - is identical, which is
-    /// the point: the tree is the same card, indented.
+    /// Tree mode does NOT use this: its rows are the dense
+    /// `tree_folder_row` chassis in `tree.rs`.
     pub(crate) fn manual_folder_card<'a>(
         &'a self,
         group: &'a oryxis_core::models::Group,
         count_text: String,
         inferred_brand: Option<&'static str>,
-        tree_expanded: Option<bool>,
     ) -> (Element<'a, Message>, Color) {
         let gid = group.id;
         // Folder card icon precedence:
@@ -765,12 +760,7 @@ impl Oryxis {
             )
             .padding(folder_padding),
         )
-        .on_press(match tree_expanded {
-            // Tree mode: the row folds/unfolds in place (the same
-            // expansion set as the terminal-sidebar tree).
-            Some(_) => Message::Ai(crate::app::AiMessage::HostsTreeToggleGroup(gid)),
-            None => Message::Navigation(NavigationMessage::OpenGroup(gid)),
-        })
+        .on_press(Message::Navigation(NavigationMessage::OpenGroup(gid)))
         .width(Length::Fill)
         .style(|_, status| {
             let (bg, bc, bw) = match status {
@@ -795,10 +785,10 @@ impl Oryxis {
             )
             .into()
         } else {
-            let chevron = match tree_expanded {
-                Some(true) => iced_fonts::lucide::chevron_down(),
-                _ if folder_rtl => iced_fonts::lucide::chevron_left(),
-                _ => iced_fonts::lucide::chevron_right(),
+            let chevron = if folder_rtl {
+                iced_fonts::lucide::chevron_left()
+            } else {
+                iced_fonts::lucide::chevron_right()
             };
             // Center the idle chevron in the same 22×22 box the hover
             // ⋮ uses, so idle and hover share a center (no x/y jitter
