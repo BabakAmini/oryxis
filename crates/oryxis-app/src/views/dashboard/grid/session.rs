@@ -49,6 +49,14 @@ impl Oryxis {
             .color(OryxisColors::t().text_muted)
             .wrapping(iced::widget::text::Wrapping::None);
 
+        // Same padding as the manual-folder card: 2 px leading so the
+        // icon lines up with folder / host cards in the shared grid,
+        // 24 px trailing to reserve the kebab / chevron overlay slot.
+        let card_padding = if rtl {
+            Padding { top: 8.0, right: 2.0, bottom: 8.0, left: 24.0 }
+        } else {
+            Padding { top: 8.0, right: 24.0, bottom: 8.0, left: 2.0 }
+        };
         let card_btn = button(
             container(
                 dir_row(vec![
@@ -66,7 +74,7 @@ impl Oryxis {
                 ])
                 .align_y(iced::Alignment::Center),
             )
-            .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 }),
+            .padding(card_padding),
         )
         .on_press(Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(idx)))
         .width(Length::Fill)
@@ -100,16 +108,6 @@ impl Oryxis {
             show_dots,
             Message::SessionGroup(SessionGroupMessage::ShowSessionGroupMenu(idx)),
         );
-        let dots_align = if rtl {
-            iced::alignment::Horizontal::Left
-        } else {
-            iced::alignment::Horizontal::Right
-        };
-        let dots_pad = if rtl {
-            Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 4.0 }
-        } else {
-            Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 0.0 }
-        };
         // Idle shows a muted chevron (this card opens into a restored
         // session, the same "opens a container" affordance the host-group
         // folders use); hover / menu-open swaps it for the ⋮ kebab.
@@ -121,21 +119,15 @@ impl Oryxis {
             } else {
                 iced_fonts::lucide::chevron_right()
             };
+            // Center the idle chevron in the same 22×22 box the hover
+            // ⋮ uses, so idle and hover share a center (no jitter),
+            // matching the manual-folder card.
             container(chevron.size(14).color(OryxisColors::t().text_muted))
-                .padding(Padding { top: 1.0, right: 6.0, bottom: 1.0, left: 6.0 })
+                .center_x(Length::Fixed(22.0))
+                .center_y(Length::Fixed(22.0))
                 .into()
         };
-        let dots_overlay = container(trailing)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(dots_align)
-            .align_y(iced::alignment::Vertical::Center)
-            .padding(dots_pad);
-
-        let card_element: Element<'a, Message> = iced::widget::Stack::new()
-            .push(card_btn)
-            .push(dots_overlay)
-            .into();
+        let card_element = crate::widgets::card_trailing_overlay(card_btn.into(), trailing);
 
         let wrapped = MouseArea::new(card_element)
             .on_enter(Message::SessionGroup(SessionGroupMessage::SessionGroupCardHovered(idx)))

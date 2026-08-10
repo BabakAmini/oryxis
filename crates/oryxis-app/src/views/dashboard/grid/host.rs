@@ -139,11 +139,7 @@ impl Oryxis {
                     .find(|p| p.id == cr.profile_id)
                     .map(|p| p.provider.as_str())
                     .unwrap_or("cloud");
-                let brand_key: &'static str = match provider {
-                    "aws" => "aws",
-                    "k8s" | "kubernetes" => "kubernetes",
-                    _ => "cloud",
-                };
+                let brand_key = crate::os_icon::provider_brand_key(provider);
                 let is_orphan = cr.orphaned_at.is_some();
                 let (_brand_glyph, brand_color_default) = crate::os_icon::provider_icon(
                     brand_key,
@@ -283,26 +279,8 @@ impl Oryxis {
             show_dots,
             Message::Tabs(TabsMessage::ShowCardMenu(idx)),
         );
-        let dots_align = if rtl {
-            iced::alignment::Horizontal::Left
-        } else {
-            iced::alignment::Horizontal::Right
-        };
-        let dots_pad = if rtl {
-            Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 4.0 }
-        } else {
-            Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 0.0 }
-        };
-        let dots_overlay = container(dots_btn)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(dots_align)
-            .align_y(iced::alignment::Vertical::Center)
-            .padding(dots_pad);
-        let card_element: Element<'_, Message> = iced::widget::Stack::new()
-            .push(card_btn)
-            .push(dots_overlay)
-            .into();
+        let card_element =
+            crate::widgets::card_trailing_overlay(card_btn.into(), dots_btn.into());
 
         // Wrap in MouseArea for hover tracking and right-click
         let wrapped = MouseArea::new(card_element)

@@ -130,6 +130,42 @@ impl Oryxis {
     /// destruction keeps its confirm over the card list) and
     /// filter-by-cloud-profile (it drives the dashboard's own filter
     /// chip).
+    /// Row count of `build_menu_host_actions_inner` for the SAME idx +
+    /// surface, feeding `overlay_menu_height`. Kept next to the builder
+    /// so a new entry can't ship without its height: the old fixed
+    /// estimates clipped the menu whenever every conditional entry
+    /// applied at once (WoL + SSH URL on the tree = 7 rows, not 6).
+    pub(crate) fn host_actions_menu_rows(&self, idx: usize, dashboard: bool) -> f32 {
+        use oryxis_core::models::connection::ConnectionProtocol;
+        let conn = self.connections.get(idx);
+        let protocol = conn.map(|c| c.protocol).unwrap_or(ConnectionProtocol::Ssh);
+        let mut rows = 3.0; // Connect + Edit + Duplicate
+        if protocol == ConnectionProtocol::Ssh {
+            rows += 1.0; // Share
+            if self.sftp_enabled {
+                rows += 1.0; // Open SFTP tab
+            }
+        }
+        if matches!(protocol, ConnectionProtocol::Ssh | ConnectionProtocol::Telnet) {
+            rows += 1.0; // Copy SSH URL
+        }
+        if conn.and_then(|c| c.mac_address.as_deref()).is_some_and(|m| !m.is_empty()) {
+            rows += 1.0; // Wake on LAN
+        }
+        if protocol == ConnectionProtocol::RemoteDesktop
+            && conn.is_some_and(|c| self.remote_desktop_forwards.contains_key(&c.id))
+        {
+            rows += 1.0; // Stop remote desktop
+        }
+        if dashboard {
+            if conn.and_then(|c| c.cloud_ref.as_ref()).is_some() {
+                rows += 1.0; // Filter by cloud profile
+            }
+            rows += 1.0; // Remove / Forget
+        }
+        rows
+    }
+
     fn build_menu_host_actions_inner(
         &self,
         idx: usize,

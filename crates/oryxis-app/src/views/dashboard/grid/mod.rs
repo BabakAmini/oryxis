@@ -154,6 +154,150 @@ pub(crate) fn apply_card_wash<'a>(
         .collect()
 }
 
+/// The pre-pass both dashboard host surfaces share (the folder-card
+/// grid and the tree view): one scan over connections + groups per
+/// view call, so the per-card lookups (host / nested counts, brand
+/// inference, provider hiding, filter chips) all hit maps in O(1).
+/// Grew up inside `dashboard_group_cards` and was then copied whole
+/// into the tree - this struct is that copy, deduplicated.
+pub(crate) struct DashGridPrePass {
+    /// Cloud profiles whose provider plugin isn't installed.
+    pub(crate) hidden_profiles: std::collections::HashSet<Uuid>,
+    /// Groups hidden with them: a dynamic group of a hidden profile,
+    /// or a manual folder with no visible content left.
+    pub(crate) hidden_groups: std::collections::HashSet<Uuid>,
+    /// Direct (non-hidden) connections per group.
+    pub(crate) direct_host_count: std::collections::HashMap<Uuid, usize>,
+    /// First cloud_ref profile seen per group (connections order),
+    /// feeding the brand-inference fallback.
+    first_cloud_profile: std::collections::HashMap<Uuid, Uuid>,
+    /// Visible child groups per parent.
+    pub(crate) nested_group_count: std::collections::HashMap<Uuid, usize>,
+    /// First nested cloud-query brand per parent (groups order), the
+    /// primary brand-inference source.
+    child_query_brand: std::collections::HashMap<Uuid, &'static str>,
+    /// Subtree-match set for the cloud-profile filter chip (None when
+    /// the filter is off).
+    pub(crate) cloud_filter_groups: Option<std::collections::HashSet<Uuid>>,
+    /// Same subtree treatment for the tag filter.
+    pub(crate) tag_filter_groups: Option<std::collections::HashSet<Uuid>>,
+}
+
+impl DashGridPrePass {
+    /// Brand inference for a manual folder: the first nested
+    /// cloud-query child wins, else the first cloud-imported host.
+    pub(crate) fn infer_brand(&self, app: &Oryxis, gid: &Uuid) -> Option<&'static str> {
+        self.child_query_brand.get(gid).copied().or_else(|| {
+            self.first_cloud_profile.get(gid).and_then(|pid| {
+                app.cloud_profiles
+                    .iter()
+                    .find(|p| p.id == *pid)
+                    .map(|p| crate::os_icon::provider_brand_key(&p.provider))
+            })
+        })
+    }
+}
+
+impl Oryxis {
+    pub(crate) fn dash_grid_pre_pass(&self) -> DashGridPrePass {
+        let hidden_profiles = self.hidden_cloud_profile_ids();
+        let hidden_groups: std::collections::HashSet<Uuid> = if hidden_profiles.is_empty() {
+            std::collections::HashSet::new()
+        } else {
+            let mut has_visible_conn: std::collections::HashSet<Uuid> =
+                std::collections::HashSet::new();
+            for c in &self.connections {
+                if let Some(gid) = c.group_id
+                    && !c
+                        .cloud_ref
+                        .as_ref()
+                        .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
+                {
+                    has_visible_conn.insert(gid);
+                }
+            }
+            let mut memo: std::collections::HashMap<Uuid, bool> =
+                std::collections::HashMap::new();
+            let mut set: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+            for g in &self.groups {
+                let hide = if let Some(q) = g.cloud_query.as_ref() {
+                    hidden_profiles.contains(&q.profile_id)
+                } else {
+                    !group_has_visible_content(
+                        g.id,
+                        &self.groups,
+                        &has_visible_conn,
+                        &hidden_profiles,
+                        &mut memo,
+                    )
+                };
+                if hide {
+                    set.insert(g.id);
+                }
+            }
+            set
+        };
+        let mut direct_host_count: std::collections::HashMap<Uuid, usize> =
+            std::collections::HashMap::new();
+        let mut first_cloud_profile: std::collections::HashMap<Uuid, Uuid> =
+            std::collections::HashMap::new();
+        for conn in &self.connections {
+            if let Some(cgid) = conn.group_id {
+                // Hidden cloud hosts don't count toward the folder's
+                // host total or its brand inference.
+                if conn
+                    .cloud_ref
+                    .as_ref()
+                    .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
+                {
+                    continue;
+                }
+                *direct_host_count.entry(cgid).or_insert(0) += 1;
+                if let Some(cref) = conn.cloud_ref.as_ref() {
+                    first_cloud_profile.entry(cgid).or_insert(cref.profile_id);
+                }
+            }
+        }
+        let mut nested_group_count: std::collections::HashMap<Uuid, usize> =
+            std::collections::HashMap::new();
+        let mut child_query_brand: std::collections::HashMap<Uuid, &'static str> =
+            std::collections::HashMap::new();
+        for g in &self.groups {
+            if let Some(pgid) = g.parent_id {
+                // Hidden cloud sub-groups don't count toward the
+                // parent folder's nested-group total.
+                if hidden_groups.contains(&g.id) {
+                    continue;
+                }
+                *nested_group_count.entry(pgid).or_insert(0) += 1;
+                if let Some(q) = g.cloud_query.as_ref() {
+                    child_query_brand.entry(pgid).or_insert(match q.kind {
+                        oryxis_core::models::cloud::CloudQueryKind::EcsTasks { .. } => "ecs",
+                        oryxis_core::models::cloud::CloudQueryKind::K8sPods { .. } => {
+                            "kubernetes"
+                        }
+                    });
+                }
+            }
+        }
+        let cloud_filter_groups: Option<std::collections::HashSet<Uuid>> = self
+            .host_filter_cloud_profile
+            .map(|pid| self.groups_containing_cloud_profile(pid));
+        let tag_filter_groups: Option<std::collections::HashSet<Uuid>> =
+            self.groups_containing_filtered_tags();
+        DashGridPrePass {
+            hidden_profiles,
+            hidden_groups,
+            direct_host_count,
+            first_cloud_profile,
+            nested_group_count,
+            child_query_brand,
+            cloud_filter_groups,
+            tag_filter_groups,
+        }
+    }
+}
+
 // Card/section view methods, split into sibling files.
 mod cloud;
 mod empty;
@@ -335,14 +479,7 @@ impl Oryxis {
                 } else if conn.group_id.is_some() && !flatten {
                     return false;
                 }
-                if !search_lower.is_empty()
-                    && !conn.label.to_lowercase().contains(&search_lower)
-                    && !conn.hostname.to_lowercase().contains(&search_lower)
-                    && !conn
-                        .tags
-                        .iter()
-                        .any(|tg| tg.to_lowercase().contains(&search_lower))
-                {
+                if !crate::util::host_matches_search(conn, &search_lower) {
                     return false;
                 }
                 if let Some(filter_pid) = self.host_filter_cloud_profile
@@ -623,11 +760,7 @@ impl Oryxis {
             let profile = self.cloud_profiles.iter().find(|p| p.id == filter_pid);
             let profile_label = profile.map(|p| p.label.clone()).unwrap_or_default();
             let provider = profile.map(|p| p.provider.as_str()).unwrap_or("cloud");
-            let brand_key = match provider {
-                "aws" => "aws",
-                "k8s" | "kubernetes" => "kubernetes",
-                _ => "cloud",
-            };
+            let brand_key = crate::os_icon::provider_brand_key(provider);
             let (brand_glyph, brand_color) =
                 crate::os_icon::provider_icon(brand_key, OryxisColors::t().accent);
             let bg_color = brand_color;

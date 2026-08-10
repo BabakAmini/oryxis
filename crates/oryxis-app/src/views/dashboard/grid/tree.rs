@@ -50,105 +50,14 @@ impl Oryxis {
     pub(crate) fn dashboard_tree_cards(&self) -> Vec<(Element<'_, Message>, Color, DashNavItem)> {
         let search_lower = self.host_search.to_lowercase();
         let searching = !search_lower.trim().is_empty();
-        let hidden_profiles = self.hidden_cloud_profile_ids();
-        // Provider-hiding: same classification as the grid (dynamic
-        // group of a hidden profile, manual folder with no visible
-        // content while some plugin is missing).
-        let hidden_groups: std::collections::HashSet<Uuid> = if hidden_profiles.is_empty() {
-            std::collections::HashSet::new()
-        } else {
-            let mut has_visible_conn: std::collections::HashSet<Uuid> =
-                std::collections::HashSet::new();
-            for c in &self.connections {
-                if let Some(gid) = c.group_id
-                    && !c
-                        .cloud_ref
-                        .as_ref()
-                        .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
-                {
-                    has_visible_conn.insert(gid);
-                }
-            }
-            let mut memo: std::collections::HashMap<Uuid, bool> =
-                std::collections::HashMap::new();
-            let mut set: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
-            for g in &self.groups {
-                let hide = if let Some(q) = g.cloud_query.as_ref() {
-                    hidden_profiles.contains(&q.profile_id)
-                } else {
-                    !group_has_visible_content(
-                        g.id,
-                        &self.groups,
-                        &has_visible_conn,
-                        &hidden_profiles,
-                        &mut memo,
-                    )
-                };
-                if hide {
-                    set.insert(g.id);
-                }
-            }
-            set
-        };
-        let cloud_filter_groups: Option<std::collections::HashSet<Uuid>> = self
-            .host_filter_cloud_profile
-            .map(|pid| self.groups_containing_cloud_profile(pid));
-        let tag_filter_groups: Option<std::collections::HashSet<Uuid>> =
-            self.groups_containing_filtered_tags();
-        // Count + brand maps, the same pre-pass the folder cards use.
-        let mut direct_host_count: std::collections::HashMap<Uuid, usize> =
-            std::collections::HashMap::new();
-        let mut first_cloud_profile: std::collections::HashMap<Uuid, Uuid> =
-            std::collections::HashMap::new();
-        for conn in &self.connections {
-            if let Some(cgid) = conn.group_id {
-                if conn
-                    .cloud_ref
-                    .as_ref()
-                    .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
-                {
-                    continue;
-                }
-                *direct_host_count.entry(cgid).or_insert(0) += 1;
-                if let Some(cref) = conn.cloud_ref.as_ref() {
-                    first_cloud_profile.entry(cgid).or_insert(cref.profile_id);
-                }
-            }
-        }
-        let mut nested_group_count: std::collections::HashMap<Uuid, usize> =
-            std::collections::HashMap::new();
-        let mut child_query_brand: std::collections::HashMap<Uuid, &'static str> =
-            std::collections::HashMap::new();
-        for g in &self.groups {
-            if let Some(pgid) = g.parent_id {
-                if hidden_groups.contains(&g.id) {
-                    continue;
-                }
-                *nested_group_count.entry(pgid).or_insert(0) += 1;
-                if let Some(q) = g.cloud_query.as_ref() {
-                    child_query_brand.entry(pgid).or_insert(match q.kind {
-                        oryxis_core::models::cloud::CloudQueryKind::EcsTasks { .. } => "ecs",
-                        oryxis_core::models::cloud::CloudQueryKind::K8sPods { .. } => {
-                            "kubernetes"
-                        }
-                    });
-                }
-            }
-        }
-        let infer_brand = |gid: &Uuid| -> Option<&'static str> {
-            child_query_brand.get(gid).copied().or_else(|| {
-                first_cloud_profile.get(gid).and_then(|pid| {
-                    self.cloud_profiles
-                        .iter()
-                        .find(|p| p.id == *pid)
-                        .map(|p| match p.provider.as_str() {
-                            "aws" => "aws",
-                            "k8s" | "kubernetes" => "kubernetes",
-                            _ => "cloud",
-                        })
-                })
-            })
-        };
+        // Provider hiding, counts, brand inference and the filter
+        // chips: the same pre-pass the folder cards run.
+        let pre = self.dash_grid_pre_pass();
+        let hidden_profiles = &pre.hidden_profiles;
+        let hidden_groups = &pre.hidden_groups;
+        let cloud_filter_groups = &pre.cloud_filter_groups;
+        let tag_filter_groups = &pre.tag_filter_groups;
+        let infer_brand = |gid: &Uuid| pre.infer_brand(self, gid);
         let privacy_terms = self.privacy_terms();
 
         // Which host indices pass the non-search filters (provider
@@ -179,11 +88,7 @@ impl Oryxis {
             true
         };
         let host_search_match = |i: usize| -> bool {
-            let conn = &self.connections[i];
-            !searching
-                || conn.label.to_lowercase().contains(&search_lower)
-                || conn.hostname.to_lowercase().contains(&search_lower)
-                || conn.tags.iter().any(|tg| tg.to_lowercase().contains(&search_lower))
+            !searching || crate::util::host_matches_search(&self.connections[i], &search_lower)
         };
         let group_passes = |g: &oryxis_core::models::Group| -> bool {
             !hidden_groups.contains(&g.id)
@@ -222,13 +127,14 @@ impl Oryxis {
                 0,
                 searching,
                 &search_lower,
+                false,
                 &mut search_memo,
                 &group_passes,
                 &host_passes,
                 &host_search_match,
                 &infer_brand,
-                &direct_host_count,
-                &nested_group_count,
+                &pre.direct_host_count,
+                &pre.nested_group_count,
                 &privacy_terms,
                 &mut visited,
             );
@@ -283,6 +189,9 @@ impl Oryxis {
 
     /// Emit one group's row and, when expanded, its subtree - strictly
     /// in display order (subfolders, session groups, hosts).
+    /// `ancestor_match` carries a search hit on any ANCESTOR folder
+    /// down the recursion: a folder that matches shows its WHOLE
+    /// subtree, subfolders included, not just its direct rows.
     #[allow(clippy::too_many_arguments)]
     fn tree_walk_group<'a>(
         &'a self,
@@ -291,6 +200,7 @@ impl Oryxis {
         depth: usize,
         searching: bool,
         search_lower: &str,
+        ancestor_match: bool,
         search_memo: &mut std::collections::HashMap<Uuid, bool>,
         group_passes: &dyn Fn(&oryxis_core::models::Group) -> bool,
         host_passes: &dyn Fn(usize) -> bool,
@@ -307,8 +217,9 @@ impl Oryxis {
         if !group_passes(group) {
             return;
         }
-        let label_match =
-            !searching || group.label.to_lowercase().contains(search_lower);
+        let label_match = ancestor_match
+            || !searching
+            || group.label.to_lowercase().contains(search_lower);
         if searching
             && !label_match
             && !search_visible_entry(self, group.id, search_lower, search_memo)
@@ -352,6 +263,9 @@ impl Oryxis {
                 depth + 1,
                 searching,
                 search_lower,
+                // A hit on THIS folder (or above) short-circuits the
+                // whole subtree's filters.
+                searching && label_match,
                 search_memo,
                 group_passes,
                 host_passes,
@@ -557,11 +471,7 @@ impl Oryxis {
                 .find(|p| p.id == cr.profile_id)
                 .map(|p| p.provider.as_str())
                 .unwrap_or("cloud");
-            let brand_key: &'static str = match provider {
-                "aws" => "aws",
-                "k8s" | "kubernetes" => "kubernetes",
-                _ => "cloud",
-            };
+            let brand_key = crate::os_icon::provider_brand_key(provider);
             let is_orphan = cr.orphaned_at.is_some();
             let (_g, brand_color) =
                 crate::os_icon::provider_icon(brand_key, OryxisColors::t().accent);
@@ -909,24 +819,7 @@ impl Oryxis {
         } else {
             Space::new().into()
         };
-        let dots_align = if rtl {
-            iced::alignment::Horizontal::Left
-        } else {
-            iced::alignment::Horizontal::Right
-        };
-        let dots_pad = if rtl {
-            Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 4.0 }
-        } else {
-            Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 0.0 }
-        };
-        let overlay = container(trailing)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(dots_align)
-            .align_y(iced::alignment::Vertical::Center)
-            .padding(dots_pad);
-        let stacked: Element<'a, Message> =
-            iced::widget::Stack::new().push(row_btn).push(overlay).into();
+        let stacked = crate::widgets::card_trailing_overlay(row_btn.into(), trailing);
         let wrapped = MouseArea::new(stacked)
             .on_enter(on_enter)
             .on_exit(on_exit)
@@ -958,10 +851,7 @@ fn search_visible_entry(
         };
         let v = group.label.to_lowercase().contains(search_lower)
             || app.connections.iter().any(|c| {
-                c.group_id == Some(gid)
-                    && (c.label.to_lowercase().contains(search_lower)
-                        || c.hostname.to_lowercase().contains(search_lower)
-                        || c.tags.iter().any(|tg| tg.to_lowercase().contains(search_lower)))
+                c.group_id == Some(gid) && crate::util::host_matches_search(c, search_lower)
             })
             || app.session_groups.iter().any(|sg| {
                 sg.group_id == Some(gid) && sg.label.to_lowercase().contains(search_lower)

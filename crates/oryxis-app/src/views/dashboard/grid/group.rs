@@ -6,124 +6,21 @@ impl Oryxis {
     /// Folder + provider group cards for the dashboard grid.
     pub(crate) fn dashboard_group_cards(&self) -> Vec<(Element<'_, Message>, Color, DashNavItem)> {
         let search_lower = self.host_search.to_lowercase();
-        let hidden_profiles = self.hidden_cloud_profile_ids();
-        let hidden_groups: std::collections::HashSet<Uuid> = if hidden_profiles.is_empty() {
-            std::collections::HashSet::new()
-        } else {
-            let mut has_visible_conn: std::collections::HashSet<Uuid> =
-                std::collections::HashSet::new();
-            for c in &self.connections {
-                if let Some(gid) = c.group_id
-                    && !c
-                        .cloud_ref
-                        .as_ref()
-                        .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
-                {
-                    has_visible_conn.insert(gid);
-                }
-            }
-            let mut memo: std::collections::HashMap<Uuid, bool> =
-                std::collections::HashMap::new();
-            let mut set: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
-            for g in &self.groups {
-                let hide = if let Some(q) = g.cloud_query.as_ref() {
-                    hidden_profiles.contains(&q.profile_id)
-                } else {
-                    !group_has_visible_content(
-                        g.id,
-                        &self.groups,
-                        &has_visible_conn,
-                        &hidden_profiles,
-                        &mut memo,
-                    )
-                };
-                if hide {
-                    set.insert(g.id);
-                }
-            }
-            set
-        };
+        // Provider hiding, counts, brand inference and the filter
+        // chips: the shared pre-pass (one scan over connections +
+        // groups per view call; the tree view runs the same one), so
+        // the per-card lookups below all hit maps in O(1).
+        let pre = self.dash_grid_pre_pass();
+        let hidden_profiles = &pre.hidden_profiles;
+        let hidden_groups = &pre.hidden_groups;
+        let direct_host_count = &pre.direct_host_count;
+        let nested_group_count = &pre.nested_group_count;
+        let cloud_filter_groups = &pre.cloud_filter_groups;
+        let tag_filter_groups = &pre.tag_filter_groups;
+        let infer_brand = |gid: &Uuid| pre.infer_brand(self, gid);
         let mut group_cards: Vec<(Element<'_, Message>, Color, DashNavItem)> = Vec::new();
-        // Pre-pass over connections + groups, one scan each per view
-        // call, shared by the root pass and the inside-a-folder pass
-        // (manual subgroups render as folder cards in both). The
-        // per-card lookups below (group resolve, host / nested counts,
-        // brand inference) all hit these maps in O(1) instead of
-        // rescanning the full lists for every folder card on every
-        // frame.
         let group_by_id: std::collections::HashMap<Uuid, _> =
             self.groups.iter().map(|g| (g.id, g)).collect();
-        let mut direct_host_count: std::collections::HashMap<Uuid, usize> =
-            std::collections::HashMap::new();
-        // First cloud_ref profile seen per group (connections
-        // order), feeding the brand-inference fallback below.
-        let mut first_cloud_profile: std::collections::HashMap<Uuid, Uuid> =
-            std::collections::HashMap::new();
-        for conn in &self.connections {
-            if let Some(cgid) = conn.group_id {
-                // Hidden cloud hosts don't count toward the folder's
-                // host total or its brand inference.
-                if conn
-                    .cloud_ref
-                    .as_ref()
-                    .is_some_and(|r| hidden_profiles.contains(&r.profile_id))
-                {
-                    continue;
-                }
-                *direct_host_count.entry(cgid).or_insert(0) += 1;
-                if let Some(cref) = conn.cloud_ref.as_ref() {
-                    first_cloud_profile.entry(cgid).or_insert(cref.profile_id);
-                }
-            }
-        }
-        let mut nested_group_count: std::collections::HashMap<Uuid, usize> =
-            std::collections::HashMap::new();
-        // First nested cloud-query brand per parent (groups order),
-        // the primary brand-inference source.
-        let mut child_query_brand: std::collections::HashMap<Uuid, &'static str> =
-            std::collections::HashMap::new();
-        for g in &self.groups {
-            if let Some(pgid) = g.parent_id {
-                // Hidden cloud sub-groups don't count toward the
-                // parent folder's nested-group total.
-                if hidden_groups.contains(&g.id) {
-                    continue;
-                }
-                *nested_group_count.entry(pgid).or_insert(0) += 1;
-                if let Some(q) = g.cloud_query.as_ref() {
-                    child_query_brand.entry(pgid).or_insert(match q.kind {
-                        oryxis_core::models::cloud::CloudQueryKind::EcsTasks { .. } => "ecs",
-                        oryxis_core::models::cloud::CloudQueryKind::K8sPods { .. } => "kubernetes",
-                    });
-                }
-            }
-        }
-        // Brand inference for a manual folder card: the first nested
-        // cloud-query child wins, else the first cloud-imported host.
-        let infer_brand = |gid: &Uuid| -> Option<&'static str> {
-            child_query_brand.get(gid).copied().or_else(|| {
-                first_cloud_profile.get(gid).and_then(|pid| {
-                    self.cloud_profiles
-                        .iter()
-                        .find(|p| p.id == *pid)
-                        .map(|p| match p.provider.as_str() {
-                            "aws" => "aws",
-                            "k8s" | "kubernetes" => "kubernetes",
-                            _ => "cloud",
-                        })
-                })
-            })
-        };
-        // Subtree-match set for the cloud-profile filter chip, built
-        // once per view call (None when the filter is off).
-        let cloud_filter_groups: Option<std::collections::HashSet<Uuid>> =
-            self.host_filter_cloud_profile
-                .map(|pid| self.groups_containing_cloud_profile(pid));
-        // Same subtree treatment for the tag filter: a folder stays
-        // visible only while some descendant host carries one of the
-        // selected tags.
-        let tag_filter_groups: Option<std::collections::HashSet<Uuid>> =
-            self.groups_containing_filtered_tags();
         if self.active_group.is_none() {
             // Root view: show folder cards for manual groups that have
             // either direct connections or nested children (e.g. an
@@ -802,26 +699,8 @@ impl Oryxis {
             .center_y(Length::Fixed(22.0))
             .into()
         };
-        let folder_dots_align = if folder_rtl {
-            iced::alignment::Horizontal::Left
-        } else {
-            iced::alignment::Horizontal::Right
-        };
-        let folder_dots_pad = if folder_rtl {
-            Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 4.0 }
-        } else {
-            Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 0.0 }
-        };
-        let folder_trailing_overlay = container(folder_trailing)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .align_x(folder_dots_align)
-            .align_y(iced::alignment::Vertical::Center)
-            .padding(folder_dots_pad);
-        let folder_element: Element<'_, Message> = iced::widget::Stack::new()
-            .push(folder_card)
-            .push(folder_trailing_overlay)
-            .into();
+        let folder_element =
+            crate::widgets::card_trailing_overlay(folder_card.into(), folder_trailing);
 
         // Wrap in MouseArea so hover events drive the dots-button
         // visibility, and right-click opens the kebab menu (app-wide

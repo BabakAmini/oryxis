@@ -92,9 +92,11 @@ impl Oryxis {
             OverlayContent::MonitorPortActions(p) => {
                 if p.proto == "tcp" { 3.0 } else { 2.0 }
             }
-            OverlayContent::HostActions(_) => 8.0,
+            // Counted next to the builder (`host_actions_menu_rows`)
+            // so the height follows the conditional entries exactly.
+            OverlayContent::HostActions(idx) => self.host_actions_menu_rows(*idx, true),
             // The card menu minus Remove / filter-by-profile.
-            OverlayContent::TreeHostActions(_) => 6.0,
+            OverlayContent::TreeHostActions(idx) => self.host_actions_menu_rows(*idx, false),
             OverlayContent::PluginActions(_) => 3.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,

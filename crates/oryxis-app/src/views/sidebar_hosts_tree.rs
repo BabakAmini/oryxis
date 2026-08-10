@@ -20,6 +20,16 @@ use crate::widgets::dir_row;
 
 const STAB: crate::state::TerminalSidebarTab = crate::state::TerminalSidebarTab::HostsTree;
 
+/// Per-group subtree aggregates (hosts, saved arrangements, visible
+/// dynamic groups anywhere below), built once per frame by
+/// `tree_subtree_counts`.
+#[derive(Default)]
+struct TreeSubtreeCounts {
+    hosts: std::collections::HashMap<Uuid, usize>,
+    sessions: std::collections::HashMap<Uuid, usize>,
+    dynamic: std::collections::HashSet<Uuid>,
+}
+
 /// Indent per tree level, applied on the leading edge (via `dir_row`,
 /// so it mirrors under RTL).
 const INDENT: f32 = 14.0;
@@ -47,7 +57,13 @@ impl Oryxis {
         .padding(Padding { top: 10.0, right: 12.0, bottom: 8.0, left: 12.0 })
         .width(Length::Fill);
 
-        if self.connections.is_empty() && self.groups.is_empty() {
+        // Saved arrangements count as content: a vault holding only
+        // session groups still has rows to show (the empty-state gate
+        // once hid them behind the placeholder).
+        if self.connections.is_empty()
+            && self.groups.is_empty()
+            && self.session_groups.is_empty()
+        {
             return column![header, placeholder(t("hosts_tree_empty"))]
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -66,7 +82,19 @@ impl Oryxis {
         // folder, records phantom indices the keyboard then acts on -
         // that shipped as Enter connecting a host that wasn't even on
         // screen).
-        let visible = self.tree_visibility(&needle, &hidden_profiles);
+        let counts = self.tree_subtree_counts(&hidden_profiles);
+        let visible = self.tree_visibility(&needle, &hidden_profiles, &counts);
+        // The needle-free visibility, for subtrees under a folder that
+        // MATCHED the search: a matching folder shows everything it
+        // would show without a search (the ancestor-match rule both
+        // trees follow), so its descendants gate on content alone.
+        // With no needle the two maps are identical; skip the rebuild.
+        let visible_base = if needle.is_empty() {
+            None
+        } else {
+            Some(self.tree_visibility("", &hidden_profiles, &counts))
+        };
+        let visible_base = visible_base.as_ref().unwrap_or(&visible);
         // Sync LWW merges can leave dangling parents and cycles; a
         // group whose chain doesn't reach a root degrades to root
         // (same policy as the dashboard), and the visited set keeps a
@@ -79,13 +107,25 @@ impl Oryxis {
                 g.parent_id.is_none() || !Group::is_reachable_from_root(&self.groups, g.id)
             })
             .collect();
-        sort_groups(&mut roots);
+        self.hosts_sort.sort_items(&mut roots, |g| g.label.clone(), |g| g.created_at);
         for group in roots {
-            self.tree_group_rows(&mut rows, group, 0, &needle, &visible, &mut visited);
+            self.tree_group_rows(
+                &mut rows,
+                group,
+                0,
+                &needle,
+                false,
+                &visible,
+                visible_base,
+                &counts,
+                &mut visited,
+            );
         }
         // Root session groups (saved split-pane arrangements): no
-        // folder, or a folder id that no longer resolves.
-        self.tree_session_rows(&mut rows, None, 0, &needle, true);
+        // folder, or a folder id that no longer resolves. The root has
+        // no matching ancestor, so the needle applies (a `true` here
+        // once let every root arrangement bypass the search).
+        self.tree_session_rows(&mut rows, None, 0, &needle, false);
         // Root hosts: no group, or a group id that no longer resolves.
         let group_exists =
             |gid: Uuid| self.groups.iter().any(|g| g.id == gid);
@@ -95,9 +135,13 @@ impl Oryxis {
             .enumerate()
             .filter(|(_, c)| c.group_id.filter(|gid| group_exists(*gid)).is_none())
             .collect();
-        sort_hosts(&mut root_hosts);
+        self.hosts_sort.sort_items(
+            &mut root_hosts,
+            |(_, c)| c.label.clone(),
+            |(_, c)| c.created_at,
+        );
         for (idx, conn) in root_hosts {
-            if host_matches(conn, &needle) {
+            if crate::util::host_matches_search(conn, &needle) {
                 rows.push(self.tree_host_row(idx, conn, 0));
             }
         }
@@ -124,40 +168,60 @@ impl Oryxis {
     /// row the moment it is built, so nothing is ever built ahead of
     /// its on-screen position and nothing built is ever discarded.
     /// Whether a branch shows at all was decided up front by
-    /// `tree_visibility`.
+    /// `tree_visibility`; `ancestor_match` carries a search hit on any
+    /// ancestor folder down the recursion (a matching folder shows its
+    /// WHOLE subtree, so its descendants gate on the needle-free
+    /// `visible_base` instead).
+    #[allow(clippy::too_many_arguments)]
     fn tree_group_rows<'a>(
         &'a self,
         rows: &mut Vec<Element<'a, Message>>,
         group: &'a Group,
         depth: usize,
         needle: &str,
+        ancestor_match: bool,
         visible: &std::collections::HashMap<Uuid, bool>,
+        visible_base: &std::collections::HashMap<Uuid, bool>,
+        counts: &TreeSubtreeCounts,
         visited: &mut std::collections::HashSet<Uuid>,
     ) {
         if !visited.insert(group.id) {
             return;
         }
-        if !visible.get(&group.id).copied().unwrap_or(false) {
+        let gate = if ancestor_match { visible_base } else { visible };
+        if !gate.get(&group.id).copied().unwrap_or(false) {
             return;
         }
         let searching = !needle.is_empty();
         let expanded = searching || self.hosts_tree_expanded.contains(&group.id);
-        rows.push(self.tree_group_row(group, depth, expanded));
+        rows.push(self.tree_group_row(group, depth, expanded, counts));
         if !expanded {
             return;
         }
 
+        let label_match = ancestor_match
+            || !searching
+            || group.label.to_lowercase().contains(needle);
         let mut children: Vec<&Group> = self
             .groups
             .iter()
             .filter(|g| g.parent_id == Some(group.id))
             .collect();
-        sort_groups(&mut children);
+        self.hosts_sort.sort_items(&mut children, |g| g.label.clone(), |g| g.created_at);
         for child in children {
-            self.tree_group_rows(rows, child, depth + 1, needle, visible, visited);
+            self.tree_group_rows(
+                rows,
+                child,
+                depth + 1,
+                needle,
+                searching && label_match,
+                visible,
+                visible_base,
+                counts,
+                visited,
+            );
         }
 
-        let label_match = !searching || group.label.to_lowercase().contains(needle);
         // Saved split-pane arrangements filed under this folder, after
         // the subfolders and before the hosts (they open a whole tab,
         // like a folder of sessions in one click).
@@ -168,11 +232,11 @@ impl Oryxis {
             .enumerate()
             .filter(|(_, c)| c.group_id == Some(group.id))
             .collect();
-        sort_hosts(&mut hosts);
+        self.hosts_sort.sort_items(&mut hosts, |(_, c)| c.label.clone(), |(_, c)| c.created_at);
         for (idx, conn) in hosts {
             // A matching group shows its whole host list; otherwise
             // only the hosts that match themselves.
-            if label_match || host_matches(conn, needle) {
+            if label_match || crate::util::host_matches_search(conn, needle) {
                 rows.push(self.tree_host_row(idx, conn, depth + 1));
             }
         }
@@ -206,12 +270,14 @@ impl Oryxis {
         &self,
         needle: &str,
         hidden_profiles: &std::collections::HashSet<Uuid>,
+        counts: &TreeSubtreeCounts,
     ) -> std::collections::HashMap<Uuid, bool> {
         fn visible(
             app: &Oryxis,
             gid: Uuid,
             needle: &str,
             hidden_profiles: &std::collections::HashSet<Uuid>,
+            counts: &TreeSubtreeCounts,
             memo: &mut std::collections::HashMap<Uuid, bool>,
         ) -> bool {
             if let Some(&v) = memo.get(&gid) {
@@ -232,19 +298,19 @@ impl Oryxis {
                         || app.tree_dynamic_host_matches(gid, needle)
                 }
             } else {
-                let has_content = app.tree_subtree_host_count(gid) > 0
-                    || app.tree_subtree_session_count(gid) > 0
-                    || app.tree_subtree_has_dynamic(gid, hidden_profiles);
+                let has_content = counts.hosts.get(&gid).copied().unwrap_or(0) > 0
+                    || counts.sessions.get(&gid).copied().unwrap_or(0) > 0
+                    || counts.dynamic.contains(&gid);
                 if !has_content {
                     false
                 } else if !searching {
                     true
                 } else {
                     group.label.to_lowercase().contains(needle)
-                        || app
-                            .connections
-                            .iter()
-                            .any(|c| c.group_id == Some(gid) && host_matches(c, needle))
+                        || app.connections.iter().any(|c| {
+                            c.group_id == Some(gid)
+                                && crate::util::host_matches_search(c, needle)
+                        })
                         || app
                             .session_groups
                             .iter()
@@ -256,7 +322,9 @@ impl Oryxis {
                             .groups
                             .iter()
                             .filter(|g| g.parent_id == Some(gid))
-                            .any(|g| visible(app, g.id, needle, hidden_profiles, memo))
+                            .any(|g| {
+                                visible(app, g.id, needle, hidden_profiles, counts, memo)
+                            })
                 }
             };
             memo.insert(gid, v);
@@ -264,7 +332,7 @@ impl Oryxis {
         }
         let mut memo = std::collections::HashMap::new();
         for g in &self.groups {
-            visible(self, g.id, needle, hidden_profiles, &mut memo);
+            visible(self, g.id, needle, hidden_profiles, counts, &mut memo);
         }
         memo
     }
@@ -294,6 +362,7 @@ impl Oryxis {
         group: &'a Group,
         depth: usize,
         expanded: bool,
+        counts: &TreeSubtreeCounts,
     ) -> Element<'a, Message> {
         let c = OryxisColors::t();
         let chevron = if expanded {
@@ -351,7 +420,7 @@ impl Oryxis {
                 _ => 0,
             }
         } else {
-            self.tree_subtree_host_count(group.id)
+            counts.hosts.get(&group.id).copied().unwrap_or(0)
         };
         let mut items: Vec<Element<'a, Message>> = vec![
             Space::new().width(depth as f32 * INDENT).into(),
@@ -514,7 +583,11 @@ impl Oryxis {
                 None => sg.group_id.filter(|gid| group_exists(*gid)).is_none(),
             })
             .collect();
-        sessions.sort_by_key(|(_, sg)| sg.label.to_lowercase());
+        self.hosts_sort.sort_items(
+            &mut sessions,
+            |(_, sg)| sg.label.clone(),
+            |(_, sg)| sg.created_at,
+        );
         let c = OryxisColors::t();
         for (idx, sg) in sessions {
             if !parent_matched
@@ -551,7 +624,11 @@ impl Oryxis {
                     .wrapping(iced::widget::text::Wrapping::None)
                     .into(),
                 Space::new().width(Length::Fill).into(),
-                text(format!("{} {}", pane_count(&sg.layout), t("session_group_panes")))
+                text(format!(
+                    "{} {}",
+                    crate::views::dashboard::grid::count_leaves(&sg.layout),
+                    t("session_group_panes")
+                ))
                     .size(11)
                     .color(c.text_muted)
                     .wrapping(iced::widget::text::Wrapping::None)
@@ -567,42 +644,51 @@ impl Oryxis {
         }
     }
 
-    /// Session groups anywhere in a folder's subtree (cycle-safe via
-    /// `Group::subtree_ids`): what keeps a folder holding only saved
-    /// arrangements visible.
-    fn tree_subtree_session_count(&self, gid: Uuid) -> usize {
-        let ids = Group::subtree_ids(&self.groups, gid);
-        self.session_groups
-            .iter()
-            .filter(|sg| sg.group_id.is_some_and(|g| ids.contains(&g)))
-            .count()
-    }
-
-    /// Hosts anywhere in a group's subtree (cycle-safe via
-    /// `Group::subtree_ids`), the folder row's count badge.
-    fn tree_subtree_host_count(&self, gid: Uuid) -> usize {
-        let ids = Group::subtree_ids(&self.groups, gid);
-        self.connections
-            .iter()
-            .filter(|c| c.group_id.is_some_and(|g| ids.contains(&g)))
-            .count()
-    }
-
-    /// Whether a group's subtree holds any VISIBLE dynamic
-    /// (cloud-query) group, which keeps an otherwise host-less branch
-    /// on screen: the dynamic contents only exist after a resolve.
-    fn tree_subtree_has_dynamic(
+    /// Subtree aggregates for EVERY group in one pass over the vault:
+    /// each host / saved arrangement / visible dynamic group marks its
+    /// whole ancestor chain walking up (cycle-guarded, the
+    /// `groups_containing_cloud_profile` shape). Replaces the
+    /// per-folder `Group::subtree_ids` scans, which made every frame
+    /// quadratic in the group count.
+    fn tree_subtree_counts(
         &self,
-        gid: Uuid,
         hidden_profiles: &std::collections::HashSet<Uuid>,
-    ) -> bool {
-        let ids = Group::subtree_ids(&self.groups, gid);
-        self.groups.iter().any(|g| {
-            ids.contains(&g.id)
-                && g.cloud_query
-                    .as_ref()
-                    .is_some_and(|q| !hidden_profiles.contains(&q.profile_id))
-        })
+    ) -> TreeSubtreeCounts {
+        let parent_of: std::collections::HashMap<Uuid, Option<Uuid>> =
+            self.groups.iter().map(|g| (g.id, g.parent_id)).collect();
+        let mut counts = TreeSubtreeCounts::default();
+        let up_chain = |start: Uuid, mark: &mut dyn FnMut(Uuid)| {
+            let mut seen: std::collections::HashSet<Uuid> = std::collections::HashSet::new();
+            let mut cur = Some(start);
+            while let Some(g) = cur {
+                if !seen.insert(g) || !parent_of.contains_key(&g) {
+                    break;
+                }
+                mark(g);
+                cur = parent_of.get(&g).copied().flatten();
+            }
+        };
+        for c in &self.connections {
+            if let Some(gid) = c.group_id {
+                up_chain(gid, &mut |g| *counts.hosts.entry(g).or_insert(0) += 1);
+            }
+        }
+        for sg in &self.session_groups {
+            if let Some(gid) = sg.group_id {
+                up_chain(gid, &mut |g| *counts.sessions.entry(g).or_insert(0) += 1);
+            }
+        }
+        for g in &self.groups {
+            if g.cloud_query
+                .as_ref()
+                .is_some_and(|q| !hidden_profiles.contains(&q.profile_id))
+            {
+                up_chain(g.id, &mut |anc| {
+                    counts.dynamic.insert(anc);
+                });
+            }
+        }
+        counts
     }
 
     /// A dynamic group's children: the resolved ECS tasks / K8s pods,
@@ -839,40 +925,3 @@ fn placeholder(label: &str) -> Element<'_, Message> {
         .into()
 }
 
-/// Folders sort by their explicit order first, then A-Z, mirroring
-/// the dashboard.
-fn sort_groups(groups: &mut [&Group]) {
-    groups.sort_by(|a, b| {
-        a.sort_order
-            .cmp(&b.sort_order)
-            .then_with(|| a.label.to_lowercase().cmp(&b.label.to_lowercase()))
-    });
-}
-
-/// Hosts sort A-Z by label (indices ride along untouched: they are
-/// positions in `Oryxis::connections`, which `ConnectSsh` consumes).
-fn sort_hosts(hosts: &mut [(usize, &oryxis_core::models::Connection)]) {
-    hosts.sort_by_key(|(_, c)| c.label.to_lowercase());
-}
-
-/// Leaves of a saved split layout = how many panes open, the session
-/// row's trailing count.
-fn pane_count(layout: &oryxis_core::models::PaneLayout) -> usize {
-    match layout {
-        oryxis_core::models::PaneLayout::Split { a, b, .. } => pane_count(a) + pane_count(b),
-        oryxis_core::models::PaneLayout::Leaf(_) => 1,
-    }
-}
-
-/// Whether a host row survives the search needle (empty = everything).
-fn host_matches(conn: &oryxis_core::models::Connection, needle: &str) -> bool {
-    if needle.is_empty() {
-        return true;
-    }
-    conn.label.to_lowercase().contains(needle)
-        || conn.hostname.to_lowercase().contains(needle)
-        || conn
-            .username
-            .as_deref()
-            .is_some_and(|u| u.to_lowercase().contains(needle))
-}

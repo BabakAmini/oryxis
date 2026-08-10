@@ -423,22 +423,17 @@ impl Oryxis {
         }
     }
 
-    /// Build the tab strip bar. `bottom == false` is the classic combined
-    /// top bar (burger + tabs + right cluster with chrome); `bottom ==
-    /// true` renders only the strip pieces (tabs, `+`, `⋯`), the chrome
-    /// half living in `view_top_chrome_bar` instead.
-    fn tab_strip_bar(&self, bottom: bool) -> Element<'_, Message> {
-        let n_tabs = self.tabs.len();
-        let active_idx = self.active_tab;
-
-        // For compaction we need a rough estimate of the strip's width
-        // (active tab natural, inactives shrink to fit). The exact
-        // value isn't critical, `scrollable` is the safety net for
-        // any miscalculation. Subtract everything else on the row.
-        // right_cluster_width = toggles(n*(46+2)) + +(28) + 2 + ⋯(28)
-        // + 2 + chrome(3*46); the sidebar toggles count one per
-        // non-empty region (issue #102), matching what the cluster
-        // actually renders.
+    /// Rough width available to the horizontal tab strip: the window
+    /// minus the burger, the right cluster (the per-region sidebar
+    /// toggles with the `+` / `⋯` / chrome buttons, matching what the
+    /// cluster actually renders, issue #102) and the Workspace-mode
+    /// area tabs. The exact value isn't critical (`scrollable` is the
+    /// safety net); what matters is that the strip renderer and the
+    /// center-active-tab scroll math read the SAME estimate, which is
+    /// why this is one method instead of the two mirrored copies it
+    /// used to be. `bottom` is the bottom-docked strip, whose burger
+    /// and chrome live in the slim top bar.
+    fn approx_strip_width(&self, bottom: bool) -> f32 {
         let toggle_count = if self.active_tab.is_some() {
             self.sidebar_toggle_sides().len() as f32
         } else {
@@ -451,32 +446,31 @@ impl Oryxis {
             + 2.0
             + CHROME_TOTAL_WIDTH;
         // Workspace mode prepends area tabs (Hosts, SFTP) that consume
-        // strip width before the connection tabs even start; subtract
-        // a rough estimate so the connection-tab allocator and the
-        // scroll_mode trigger see the actual budget. Each area tab is
+        // strip width before the connection tabs even start. Each is
         // roughly icon(16) + gap(6) + label(~50) + padding(20) ~= 90 px.
         let area_tab_count = 1 + (self.sftp_enabled as u32);
         const AREA_TAB_APPROX_WIDTH: f32 = 100.0;
-        let area_tabs_total = area_tab_count as f32
-            * (AREA_TAB_APPROX_WIDTH + TAB_SPACING);
-        // Burger menu button (SIDEBAR_TOGGLE_WIDTH) lives on the
-        // leading edge.
-        let burger_width = SIDEBAR_TOGGLE_WIDTH;
-        // Logo removed from the top strip; no width reserved for it.
-        let logo_width = 0.0;
-        // Bottom-docked strip: the burger + chrome live in the slim top
-        // bar, so the tabs get (almost) the full window width; only the
-        // `+` / `⋯` companions still share the row.
+        let area_tabs_total =
+            area_tab_count as f32 * (AREA_TAB_APPROX_WIDTH + TAB_SPACING);
         let reserved = if bottom {
             PLUS_BUTTON_WIDTH + 2.0 + DOTS_BUTTON_WIDTH
         } else {
-            burger_width + logo_width + right_cluster_width
+            SIDEBAR_TOGGLE_WIDTH + right_cluster_width
         };
-        let approx_strip_width = (self.window_size.width
-            - reserved
-            - area_tabs_total
-            - 12.0)
-            .max(120.0);
+        (self.window_size.width - reserved - area_tabs_total - 12.0).max(120.0)
+    }
+
+    /// Build the tab strip bar. `bottom == false` is the classic combined
+    /// top bar (burger + tabs + right cluster with chrome); `bottom ==
+    /// true` renders only the strip pieces (tabs, `+`, `⋯`), the chrome
+    /// half living in `view_top_chrome_bar` instead.
+    fn tab_strip_bar(&self, bottom: bool) -> Element<'_, Message> {
+        let n_tabs = self.tabs.len();
+        let active_idx = self.active_tab;
+
+        // For compaction we need a rough estimate of the strip's width
+        // (active tab natural, inactives shrink to fit).
+        let approx_strip_width = self.approx_strip_width(bottom);
 
         // Per-tab width allocation. Inactive tabs hug their own label
         // (clamped to [MIN, NATURAL]); the active tab claims the full
@@ -941,40 +935,10 @@ impl Oryxis {
                 iced::widget::scrollable::AbsoluteOffset { x: 0.0, y },
             );
         }
-        // Mirror the layout math in view_tab_bar so the offsets line up,
-        // including the burger button + area tabs that Workspace mode
-        // prepends to the strip (and the per-region sidebar toggles,
-        // issue #102).
-        let toggle_count = if self.active_tab.is_some() {
-            self.sidebar_toggle_sides().len() as f32
-        } else {
-            0.0
-        };
-        let right_cluster_width: f32 = toggle_count * (SIDEBAR_BUTTON_WIDTH + 2.0)
-            + PLUS_BUTTON_WIDTH
-            + 2.0
-            + DOTS_BUTTON_WIDTH
-            + 2.0
-            + CHROME_TOTAL_WIDTH;
-        let area_tab_count = 1 + (self.sftp_enabled as u32);
-        const AREA_TAB_APPROX_WIDTH: f32 = 100.0;
-        let area_tabs_total = area_tab_count as f32
-            * (AREA_TAB_APPROX_WIDTH + TAB_SPACING);
-        let burger_width = SIDEBAR_TOGGLE_WIDTH;
-        // Logo removed from the top strip; no width reserved for it.
-        let logo_width = 0.0;
-        // Same per-position reserve as `tab_strip_bar`: the bottom-docked
-        // strip has no burger / chrome sharing its row.
-        let reserved = if tab_bar_pos() == TabBarPos::Bottom {
-            PLUS_BUTTON_WIDTH + 2.0 + DOTS_BUTTON_WIDTH
-        } else {
-            burger_width + logo_width + right_cluster_width
-        };
-        let approx_strip_width = (self.window_size.width
-            - reserved
-            - area_tabs_total
-            - 12.0)
-            .max(120.0);
+        // The same estimate the strip renderer uses, so the offsets
+        // line up with the layout.
+        let approx_strip_width =
+            self.approx_strip_width(tab_bar_pos() == TabBarPos::Bottom);
         let (active_w, inactive_w) =
             allocate_tab_widths(self.tabs.len(), approx_strip_width);
         // Sum widths of all tabs that come before the active one, plus

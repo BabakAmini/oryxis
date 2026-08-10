@@ -147,6 +147,35 @@ pub(crate) fn toolbar_overflow_icon(active: bool) -> Element<'static, Message> {
     )
 }
 
+/// Stack a card's trailing affordance (the hover `⋮` kebab, or the
+/// idle drill-in chevron) over the card in the shared overlay slot:
+/// trailing edge (RTL-aware), vertically centered, 4 px edge pad. The
+/// chassis every dashboard card wraps itself in; one copy so a new
+/// card can't drift the slot geometry.
+pub(crate) fn card_trailing_overlay<'a>(
+    card: Element<'a, Message>,
+    trailing: Element<'a, Message>,
+) -> Element<'a, Message> {
+    let rtl = crate::i18n::is_rtl_layout();
+    let align = if rtl {
+        iced::alignment::Horizontal::Left
+    } else {
+        iced::alignment::Horizontal::Right
+    };
+    let pad = if rtl {
+        Padding { top: 0.0, right: 0.0, bottom: 0.0, left: 4.0 }
+    } else {
+        Padding { top: 0.0, right: 4.0, bottom: 0.0, left: 0.0 }
+    };
+    let overlay = container(trailing)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .align_x(align)
+        .align_y(iced::alignment::Vertical::Center)
+        .padding(pad);
+    iced::widget::Stack::new().push(card).push(overlay).into()
+}
+
 /// Floating `⋮` kebab action button shown on hover over cards (and the
 /// SFTP pane toolbar). Fixed 22×22 with the glyph centered, so the hover
 /// highlight is a square with a soft radius instead of the wider-than-tall

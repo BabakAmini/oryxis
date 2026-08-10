@@ -9,7 +9,7 @@
 //! with the right-side panel slot (host editor / discovery /
 //! dynamic-group editor).
 
-mod grid;
+pub(crate) mod grid;
 mod toolbar;
 
 use iced::Element;

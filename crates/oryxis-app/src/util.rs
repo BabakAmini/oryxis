@@ -741,6 +741,28 @@ pub(crate) fn host_address_label(conn: &oryxis_core::models::Connection) -> Stri
     }
 }
 
+/// Whether a host matches a search needle (already lowercased; empty =
+/// everything). The ONE predicate behind the dashboard grid, the
+/// dashboard tree and the sidebar hosts tree, so the same query can
+/// never find a host on one surface and miss it on another (the two
+/// #102 trees shipped with divergent field sets: tags on one,
+/// username on the other; this is their union).
+pub(crate) fn host_matches_search(
+    conn: &oryxis_core::models::Connection,
+    needle_lower: &str,
+) -> bool {
+    if needle_lower.is_empty() {
+        return true;
+    }
+    conn.label.to_lowercase().contains(needle_lower)
+        || conn.hostname.to_lowercase().contains(needle_lower)
+        || conn.tags.iter().any(|tg| tg.to_lowercase().contains(needle_lower))
+        || conn
+            .username
+            .as_deref()
+            .is_some_and(|u| u.to_lowercase().contains(needle_lower))
+}
+
 // ── New-connection default helpers ──
 //
 // These translate the typed "default host profile" settings to / from

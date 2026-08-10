@@ -163,6 +163,18 @@ fn brand_color(id: &str) -> Option<Color> {
 /// `BRAND_ICONS`. Strips the legacy `si:` prefix that early storage
 /// formats carried over from the Simple-Icons era. Returns `None` when
 /// no brand entry matches; callers should fall back to the Tux glyph.
+/// Brand key for a cloud provider id ("aws" / "k8s" / "kubernetes"),
+/// falling back to the generic "cloud" glyph. The one mapping behind
+/// every provider badge (cards, both trees, the filter chip), so a new
+/// provider lands its glyph in one place.
+pub(crate) fn provider_brand_key(provider: &str) -> &'static str {
+    match provider {
+        "aws" => "aws",
+        "k8s" | "kubernetes" => "kubernetes",
+        _ => "cloud",
+    }
+}
+
 pub(crate) fn canonical_brand_id(id: &str) -> Option<&'static str> {
     let id = id.strip_prefix("si:").unwrap_or(id);
     Some(match id {

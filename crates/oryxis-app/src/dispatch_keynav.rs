@@ -375,10 +375,15 @@ impl Oryxis {
         // as linear prev/next (same shape as the SettingsRow picker
         // interception below). Dynamic groups are drill-in leaves
         // here, and an already-collapsed Left / expanded Right falls
-        // through to plain movement so the keys never go dead.
+        // through to plain movement so the keys never go dead. An
+        // active SEARCH force-expands every fold, so the interception
+        // steps aside too: toggling the remembered set under a search
+        // changes nothing on screen (Left looked dead) and re-surfaces
+        // as a surprise fold state once the needle clears.
         if matches!(named, Named::ArrowLeft | Named::ArrowRight)
             && self.active_view == View::Dashboard
             && self.prefs.host_view_mode == crate::state::HostViewMode::Tree
+            && self.host_search.trim().is_empty()
             && let NavItem::Dash(DashNavItem::Group(gid)) = cur
             && self
                 .groups
@@ -832,7 +837,10 @@ impl Oryxis {
                 match self.prefs.host_view_mode {
                     crate::state::HostViewMode::Grid => 60.0,
                     crate::state::HostViewMode::List => 56.0,
-                    crate::state::HostViewMode::Tree => 56.0,
+                    // Dense rows: 26 px content + 2x4 padding + list
+                    // spacing. The list-mode 56 overshot the snap by
+                    // half a screen on long trees.
+                    crate::state::HostViewMode::Tree => 36.0,
                 },
             ),
             View::Keys => ("keys-grid-scroll", 60.0),
