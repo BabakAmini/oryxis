@@ -1148,6 +1148,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Řadit",
         "toolbar_view_grid" => "Zobrazení v mřížce",
         "toolbar_view_list" => "Zobrazení v seznamu",
+        "toolbar_view_tree" => "Stromové zobrazení",
         "toolbar_prev" => "Předchozí",
         "toolbar_next" => "Další",
         "snippet_run" => "Spustit (+ Enter)",

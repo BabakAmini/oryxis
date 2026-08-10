@@ -1149,6 +1149,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "เรียงลำดับ",
         "toolbar_view_grid" => "มุมมองตาราง",
         "toolbar_view_list" => "มุมมองรายการ",
+        "toolbar_view_tree" => "มุมมองแบบต้นไม้",
         "toolbar_prev" => "ก่อนหน้า",
         "toolbar_next" => "ถัดไป",
         "snippet_run" => "รัน (+ Enter)",

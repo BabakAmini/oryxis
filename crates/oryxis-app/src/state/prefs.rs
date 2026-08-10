@@ -214,9 +214,11 @@ pub(crate) struct AppPrefs {
     /// optional surface on the sidebar Monitor tab's engine, and an
     /// optional feature hides ALL its UI when off.
     pub(crate) monitor_status_bar: bool,
-    /// Host dashboard view mode: `true` forces a single-column list,
-    /// `false` (default) uses the responsive multi-column card grid.
-    pub(crate) host_list_view: bool,
+    /// Host dashboard view mode: responsive card grid (default),
+    /// single-column list, or the mRemoteNG-style tree (issue #102).
+    /// Persisted as `host_view_mode`; the pre-tree `host_list_view`
+    /// bool is grandfathered at boot.
+    pub(crate) host_view_mode: crate::state::HostViewMode,
     /// Monitor dashboard layout (issue #95): `true` caps the grid at
     /// two full-width columns (the "list" reading), `false` (default)
     /// uses the responsive card grid.
@@ -571,7 +573,7 @@ impl Default for AppPrefs {
             sidebar_auto_open: false,
             sidebar_default_tab: None,
             monitor_status_bar: false,
-            host_list_view: false,
+            host_view_mode: crate::state::HostViewMode::default(),
             monitor_dash_list_view: false,
             card_accent_glass: true,
             show_host_address: false,

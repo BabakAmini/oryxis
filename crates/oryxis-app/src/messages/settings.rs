@@ -288,7 +288,7 @@ pub enum SettingsMessage {
     SettingToggleTmuxManager,
     /// Flip the host dashboard between the responsive card grid and a
     /// single-column list.
-    ToggleHostListView,
+    CycleHostViewMode,
     /// Flip the per-colour accent wash on dashboard cards (glass vs pure).
     ToggleCardAccentGlass,
     /// Flip showing of the `user@host:port` address on host cards.

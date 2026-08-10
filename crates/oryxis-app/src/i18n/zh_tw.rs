@@ -958,6 +958,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "排序",
         "toolbar_view_grid" => "格狀檢視",
         "toolbar_view_list" => "清單檢視",
+        "toolbar_view_tree" => "樹狀檢視",
         "toolbar_prev" => "上一頁",
         "toolbar_next" => "下一頁",
         "snippet_run" => "執行（+ Enter）",

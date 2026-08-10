@@ -522,6 +522,9 @@ impl Oryxis {
         // its dividers stay grabbable with the panes flush.
         resize_margins: (f32, f32, f32, f32),
     ) -> Element<'a, Message> {
+        // Resolved once for this pane's tab: the picture (if any) and the
+        // translucent-backdrop alpha both decide who paints the base fill.
+        let appearance = self.active_terminal_appearance();
         let mut term_view = TerminalView::new(Arc::clone(&pane.terminal))
             .focused(is_focused)
             .with_bell_flash(pane.bell_flash)
@@ -547,12 +550,14 @@ impl Oryxis {
             .with_privacy_terms(&self.privacy_terms())
             .with_privacy_classes(self.privacy_classes())
             .with_smart_contrast(self.prefs.smart_contrast)
-            // Translucent terminal: the backdrop is painted once, by the
-            // container this canvas sits on (see `base` in `view_terminal`).
-            .with_transparent_bg(self.terminal_backdrop_alpha().is_some())
-            // Background picture, resolved from the tab's origin host and
-            // drawn per pane (see `oryxis_terminal::BackgroundImage`).
-            .with_background_image(self.active_terminal_appearance().image)
+            // The backdrop is painted once, by whoever sits behind this
+            // canvas: the container in `view_terminal` (translucent
+            // terminal) or the per-pane `Backdrop` canvas stacked below
+            // (background picture; it must be a separate canvas because
+            // images always render above every fill within one layer, so
+            // a picture drawn in the grid's own frame would bury the
+            // selection, the cursor and every cell background).
+            .with_transparent_bg(appearance.alpha.is_some() || appearance.image.is_some())
             // C5: a host with `disable_mouse_reporting` keeps clicks local
             // even when the remote turns on mouse tracking.
             .with_mouse_reporting(!pane.quirks.disable_mouse_reporting)
@@ -614,6 +619,26 @@ impl Oryxis {
         let term_canvas = canvas(term_view)
             .width(Length::Fill)
             .height(Length::Fill);
+        // Background picture: its own canvas UNDER the grid, per pane so a
+        // split lays out one copy in each half. `Stack` gives the grid its
+        // own render layer above it, which is what keeps the grid's fills
+        // (selection, cursor, cell backgrounds, fade) over the picture and
+        // lets the fade actually show (see `oryxis_terminal::Backdrop`).
+        let term_canvas: Element<'a, Message> = if let Some(image) = appearance.image {
+            iced::widget::Stack::new()
+                .push(
+                    canvas(oryxis_terminal::Backdrop::new(
+                        Arc::clone(&pane.terminal),
+                        image,
+                    ))
+                    .width(Length::Fill)
+                    .height(Length::Fill),
+                )
+                .push(term_canvas)
+                .into()
+        } else {
+            term_canvas.into()
+        };
         let host = crate::widgets::ime_host(
             term_canvas,
             is_focused,

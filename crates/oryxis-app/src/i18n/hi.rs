@@ -1148,6 +1148,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "क्रमबद्ध करें",
         "toolbar_view_grid" => "ग्रिड दृश्य",
         "toolbar_view_list" => "सूची दृश्य",
+        "toolbar_view_tree" => "ट्री दृश्य",
         "toolbar_prev" => "पिछला",
         "toolbar_next" => "अगला",
         "snippet_run" => "चलाएं (+ Enter)",

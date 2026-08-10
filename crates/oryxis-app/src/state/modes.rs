@@ -180,6 +180,44 @@ impl TerminalSidebarTab {
     }
 }
 
+/// How the Hosts dashboard lays its content out (issue #102 follow
+/// up): the responsive card grid, a single-column list, or the
+/// mRemoteNG-style tree (every level visible, folders expand in
+/// place, no drill-down).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum HostViewMode {
+    #[default]
+    Grid,
+    List,
+    Tree,
+}
+
+impl HostViewMode {
+    /// The toolbar button walks the three modes in this order.
+    pub fn next(self) -> HostViewMode {
+        match self {
+            HostViewMode::Grid => HostViewMode::List,
+            HostViewMode::List => HostViewMode::Tree,
+            HostViewMode::Tree => HostViewMode::Grid,
+        }
+    }
+
+    /// Stable code persisted in the `host_view_mode` setting.
+    pub fn code(self) -> &'static str {
+        match self {
+            HostViewMode::Grid => "grid",
+            HostViewMode::List => "list",
+            HostViewMode::Tree => "tree",
+        }
+    }
+
+    pub fn from_code(code: &str) -> Option<HostViewMode> {
+        [HostViewMode::Grid, HostViewMode::List, HostViewMode::Tree]
+            .into_iter()
+            .find(|m| m.code() == code)
+    }
+}
+
 /// Identifies a secret text field whose reveal/eye toggle is on. One
 /// shared enum + a `HashSet` in app state instead of a bool per field,
 /// so adding the eye to a new password input is a one-variant change.

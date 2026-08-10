@@ -603,8 +603,17 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("monitor_dash_list_view") {
                 self.prefs.monitor_dash_list_view = v == "true";
             }
-            if let Ok(Some(v)) = vault.get_setting("host_list_view") {
-                self.prefs.host_list_view = v == "true";
+            if let Ok(Some(v)) = vault.get_setting("host_view_mode") {
+                if let Some(mode) = crate::state::HostViewMode::from_code(&v) {
+                    self.prefs.host_view_mode = mode;
+                }
+            } else if let Ok(Some(v)) = vault.get_setting("host_list_view") {
+                // Pre-tree bool (grid/list). Read-only migration: the
+                // new key is only written when the user next cycles
+                // the view.
+                if v == "true" {
+                    self.prefs.host_view_mode = crate::state::HostViewMode::List;
+                }
             }
             if let Ok(Some(v)) = vault.get_setting("card_accent_glass") {
                 self.prefs.card_accent_glass = v == "true";

@@ -29,6 +29,7 @@ use tokio::sync::mpsc;
 /// universal PUA coverage, so we route every PUA codepoint to it.
 const NERD_FONT: Font = Font::new("Symbols Nerd Font");
 
+mod backdrop;
 mod background;
 mod clipboard;
 mod highlight;
@@ -40,6 +41,7 @@ mod builder;
 mod draw;
 mod events;
 
+pub use backdrop::Backdrop;
 pub use background::{BackgroundImage, BgFit};
 pub use clipboard::wrap_paste;
 pub use selection::Selection;
@@ -318,13 +320,6 @@ struct RenderKey {
     smart_contrast: bool,
     bold_is_bright: bool,
     transparent_bg: bool,
-    /// Identity of the background picture, its fit and its dim, plus the
-    /// size the renderer measured it at. The measured size is part of
-    /// the key on purpose: it is `None` until the picture has been
-    /// decoded, and without it the first (blank) frame would be cached
-    /// under a key that never changes again, leaving the background
-    /// permanently missing on a slow disk.
-    background: Option<(iced::advanced::image::Id, BgFit, u32, Option<Size<u32>>)>,
     /// Order-independent digest of `privacy_terms` (0 when privacy is off).
     privacy_terms_hash: u64,
     /// Per-class privacy gates (issue #78): flipping a class in
@@ -530,20 +525,16 @@ pub struct TerminalView<Message = ()> {
     /// emulator asked, which a few colour-precise tools rely on.
     smart_contrast: bool,
     /// When true the canvas skips the full-bounds fill it normally
-    /// paints with the palette's background colour, because the host
-    /// already painted that colour (at reduced alpha) on the container
-    /// behind this widget. Exactly one layer must carry the alpha, or
-    /// two translucent fills of the same colour composite into a
-    /// noticeably more opaque plate. Cells that carry an explicit
-    /// background still paint theirs: a coloured block from a TUI is
-    /// content, not backdrop, and stays solid.
+    /// paints with the palette's background colour, because something
+    /// behind this widget already carries it: the host container (at
+    /// reduced alpha, translucent terminal) or the [`Backdrop`] canvas
+    /// (background picture). Exactly one layer must carry a translucent
+    /// fill, or two fills of the same colour composite into a noticeably
+    /// more opaque plate; and with a picture the grid's opaque fill
+    /// would simply cover it. Cells that carry an explicit background
+    /// still paint theirs: a coloured block from a TUI is content, not
+    /// backdrop, and stays solid.
     transparent_bg: bool,
-    /// Picture laid behind the grid, already resolved by the app from
-    /// the tab's origin host (or the global default). Drawn per pane, so
-    /// a split shows one copy in each half rather than one picture
-    /// stretched across the seam, which is what Windows Terminal and
-    /// iTerm2 do and what makes `Tile` mean anything.
-    background_image: Option<BackgroundImage>,
     /// Whether this pane honours remote mouse-tracking requests (C5). When
     /// false (a host with `disable_mouse_reporting`), clicks always
     /// select / paste locally even while the remote enabled tracking, so a

@@ -1142,6 +1142,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Sắp xếp",
         "toolbar_view_grid" => "Xem dạng lưới",
         "toolbar_view_list" => "Xem dạng danh sách",
+        "toolbar_view_tree" => "Chế độ xem cây",
         "toolbar_prev" => "Trước",
         "toolbar_next" => "Tiếp",
         "snippet_run" => "Chạy (+ Enter)",

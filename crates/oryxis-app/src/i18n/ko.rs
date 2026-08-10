@@ -1142,6 +1142,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "정렬",
         "toolbar_view_grid" => "그리드 보기",
         "toolbar_view_list" => "목록 보기",
+        "toolbar_view_tree" => "트리 보기",
         "toolbar_prev" => "이전",
         "toolbar_next" => "다음",
         "snippet_run" => "실행 (+ Enter)",

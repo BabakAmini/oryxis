@@ -1148,6 +1148,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "מיון",
         "toolbar_view_grid" => "תצוגת רשת",
         "toolbar_view_list" => "תצוגת רשימה",
+        "toolbar_view_tree" => "תצוגת עץ",
         "toolbar_prev" => "הקודם",
         "toolbar_next" => "הבא",
         "snippet_run" => "הרצה (+ Enter)",

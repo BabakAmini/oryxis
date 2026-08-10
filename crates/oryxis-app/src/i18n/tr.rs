@@ -1142,6 +1142,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Sırala",
         "toolbar_view_grid" => "Izgara görünümü",
         "toolbar_view_list" => "Liste görünümü",
+        "toolbar_view_tree" => "Ağaç görünümü",
         "toolbar_prev" => "Önceki",
         "toolbar_next" => "Sonraki",
         "snippet_run" => "Çalıştır (+ Enter)",

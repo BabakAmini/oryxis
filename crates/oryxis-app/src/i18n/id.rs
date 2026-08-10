@@ -1142,6 +1142,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Urutkan",
         "toolbar_view_grid" => "Tampilan kisi",
         "toolbar_view_list" => "Tampilan daftar",
+        "toolbar_view_tree" => "Tampilan pohon",
         "toolbar_prev" => "Sebelumnya",
         "toolbar_next" => "Berikutnya",
         "snippet_run" => "Jalankan (+ Enter)",

@@ -1144,6 +1144,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "مرتب‌سازی",
         "toolbar_view_grid" => "نمای شبکه‌ای",
         "toolbar_view_list" => "نمای فهرستی",
+        "toolbar_view_tree" => "نمای درختی",
         "toolbar_prev" => "قبلی",
         "toolbar_next" => "بعدی",
         "snippet_run" => "اجرا (+ Enter)",

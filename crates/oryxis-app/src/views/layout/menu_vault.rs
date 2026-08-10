@@ -780,20 +780,26 @@ impl Oryxis {
                         ));
                     }
                 }
-                // View toggle (grid <-> list) only when the grid
-                // shows more than one column.
-                let (icon, label) = if self.prefs.host_list_view {
-                    (
+                // View cycler: the entry names the NEXT mode (grid ->
+                // list -> tree -> grid), opposite convention from the
+                // toolbar button, which shows the current one.
+                let (icon, label) = match self.prefs.host_view_mode.next() {
+                    crate::state::HostViewMode::Grid => (
                         iced_fonts::lucide::layout_grid(),
                         crate::i18n::t("toolbar_view_grid"),
-                    )
-                } else {
-                    (iced_fonts::lucide::list(), crate::i18n::t("toolbar_view_list"))
+                    ),
+                    crate::state::HostViewMode::List => {
+                        (iced_fonts::lucide::list(), crate::i18n::t("toolbar_view_list"))
+                    }
+                    crate::state::HostViewMode::Tree => (
+                        iced_fonts::lucide::folder_tree(),
+                        crate::i18n::t("toolbar_view_tree"),
+                    ),
                 };
                 col = col.push(self.menu_item(
                     icon,
                     label,
-                    Message::Settings(SettingsMessage::ToggleHostListView),
+                    Message::Settings(SettingsMessage::CycleHostViewMode),
                     secondary,
                 ));
                 col = col.push(self.menu_item(

@@ -354,12 +354,17 @@ impl Oryxis {
             .max(0.0);
         let responsive_cols =
             crate::widgets::card_grid_columns(available, crate::app::CARD_WIDTH, 12.0);
-        let show_view_toggle = responsive_cols > 1;
+        // Narrow windows used to hide the toggle (grid == list at one
+        // column), but the TREE mode is meaningful at any width - and
+        // hiding the button would strand a user who cycled into tree
+        // with no way back (issue #102).
+        let show_view_toggle = responsive_cols > 1
+            || self.prefs.host_view_mode != crate::state::HostViewMode::Grid;
         let view_toggle: Element<'_, Message> = if show_view_toggle {
             dir_row(vec![
                 self.keynav_toolbar_ring(
                     crate::keynav::ToolbarItem::ViewToggle,
-                    crate::widgets::host_view_toggle_button(self.prefs.host_list_view),
+                    crate::widgets::host_view_toggle_button(self.prefs.host_view_mode),
                 ),
                 Space::new().width(6).into(),
             ])

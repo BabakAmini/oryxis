@@ -226,7 +226,7 @@ impl Oryxis {
             | SettingsMessage::SettingToggleConnectionReuse
             | SettingsMessage::SettingToggleMonitorStatusBar
             | SettingsMessage::SettingMonitorIntervalChanged(..)
-            | SettingsMessage::ToggleHostListView
+            | SettingsMessage::CycleHostViewMode
             | SettingsMessage::ToggleCardAccentGlass
             | SettingsMessage::ToggleShowHostAddress
             | SettingsMessage::ToggleShowTabHostAddress

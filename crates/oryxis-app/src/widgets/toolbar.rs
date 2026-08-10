@@ -41,13 +41,17 @@ pub(crate) fn sort_toolbar_button(
     .into()
 }
 
-/// Grid/List view toggle for the host dashboard toolbar. Shows the
-/// glyph for the CURRENT mode, styled like the sort button.
-pub(crate) fn host_view_toggle_button(list_view: bool) -> Element<'static, Message> {
-    let glyph: iced::widget::Text<'static, iced::Theme, iced::Renderer> = if list_view {
-        iced_fonts::lucide::list()
-    } else {
-        iced_fonts::lucide::layout_grid()
+/// Grid / List / Tree view cycler for the host dashboard toolbar.
+/// Shows the glyph for the CURRENT mode, styled like the sort button;
+/// each press advances to the next mode (issue #102).
+pub(crate) fn host_view_toggle_button(
+    mode: crate::state::HostViewMode,
+) -> Element<'static, Message> {
+    use crate::state::HostViewMode;
+    let glyph: iced::widget::Text<'static, iced::Theme, iced::Renderer> = match mode {
+        HostViewMode::Grid => iced_fonts::lucide::layout_grid(),
+        HostViewMode::List => iced_fonts::lucide::list(),
+        HostViewMode::Tree => iced_fonts::lucide::folder_tree(),
     };
     let btn = button(
         container(
@@ -58,7 +62,7 @@ pub(crate) fn host_view_toggle_button(list_view: bool) -> Element<'static, Messa
         .center_y(Length::Fixed(24.0))
         .center_x(Length::Fixed(24.0)),
     )
-    .on_press(Message::Settings(SettingsMessage::ToggleHostListView))
+    .on_press(Message::Settings(SettingsMessage::CycleHostViewMode))
     .style(|_, status| {
         let bg = match status {
             BtnStatus::Hovered => OryxisColors::t().button_bg_hover,

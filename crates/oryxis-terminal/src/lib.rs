@@ -23,8 +23,8 @@ pub use trigger::TriggerHit;
 pub use colors::{TerminalPalette, TerminalTheme};
 pub use widget::{
     ime_caret_rect, ipv4_is_private_or_loopback, ipv6_is_local, looks_like_ipv6,
-    take_privacy_mask_drawn, wrap_paste, BackgroundImage, BgFit, HoveredLink, NetHud,
-    PrivacyClasses, RightClickAction, TerminalState, TerminalView,
+    take_privacy_mask_drawn, wrap_paste, Backdrop, BackgroundImage, BgFit, HoveredLink,
+    NetHud, PrivacyClasses, RightClickAction, TerminalState, TerminalView,
 };
 pub use pty::PtyHandle;
 

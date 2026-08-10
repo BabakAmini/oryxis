@@ -153,15 +153,18 @@ impl Oryxis {
                     if self.prefs.sidebar_auto_open { "true" } else { "false" },
                 );
             }
-            SettingsMessage::ToggleHostListView => {
-                // Dismiss the `…` overflow menu when toggled from there
+            SettingsMessage::CycleHostViewMode => {
+                // Dismiss the `…` overflow menu when cycled from there
                 // (no-op for the inline toolbar button).
                 self.overlay = None;
-                self.prefs.host_list_view = !self.prefs.host_list_view;
-                self.persist_setting(
-                    "host_list_view",
-                    if self.prefs.host_list_view { "true" } else { "false" },
-                );
+                self.prefs.host_view_mode = self.prefs.host_view_mode.next();
+                self.persist_setting("host_view_mode", self.prefs.host_view_mode.code());
+                // Tree mode shows every level in place, so a pending
+                // drill-down cursor would only confuse the walk once
+                // the user cycles back to grid/list from inside it.
+                if self.prefs.host_view_mode == crate::state::HostViewMode::Tree {
+                    self.active_group = None;
+                }
             }
             SettingsMessage::ToggleCardAccentGlass => {
                 self.prefs.card_accent_glass = !self.prefs.card_accent_glass;

@@ -369,6 +369,31 @@ impl Oryxis {
         cur: NavItem,
     ) -> Option<Task<Message>> {
         use keyboard::key::Named;
+        // Tree view mode (issue #102): Left/Right on a MANUAL folder
+        // row fold/unfold it in place, the universal tree-widget
+        // convention, intercepted before `grid_move` consumes the keys
+        // as linear prev/next (same shape as the SettingsRow picker
+        // interception below). Dynamic groups are drill-in leaves
+        // here, and an already-collapsed Left / expanded Right falls
+        // through to plain movement so the keys never go dead.
+        if matches!(named, Named::ArrowLeft | Named::ArrowRight)
+            && self.active_view == View::Dashboard
+            && self.prefs.host_view_mode == crate::state::HostViewMode::Tree
+            && let NavItem::Dash(DashNavItem::Group(gid)) = cur
+            && self
+                .groups
+                .iter()
+                .any(|g| g.id == gid && g.cloud_query.is_none())
+        {
+            let rtl = crate::i18n::is_rtl_layout();
+            let expand = matches!(named, Named::ArrowRight) != rtl;
+            let expanded = self.hosts_tree_expanded.contains(&gid);
+            if expand != expanded {
+                return Some(
+                    self.update(Message::Ai(crate::app::AiMessage::HostsTreeToggleGroup(gid))),
+                );
+            }
+        }
         if matches!(named, Named::ArrowLeft | Named::ArrowRight)
             && let NavItem::SettingsRow(idx) = cur
         {
@@ -684,6 +709,15 @@ impl Oryxis {
             return Task::none();
         }
         let msg = match item {
+            // Tree view mode: Enter folds/unfolds a MANUAL folder in
+            // place (there is no drill-down to open); dynamic groups
+            // keep the drill into their cloud screen.
+            NavItem::Dash(DashNavItem::Group(gid))
+                if self.prefs.host_view_mode == crate::state::HostViewMode::Tree
+                    && self.groups.iter().any(|g| g.id == gid && g.cloud_query.is_none()) =>
+            {
+                Message::Ai(crate::app::AiMessage::HostsTreeToggleGroup(gid))
+            }
             NavItem::Dash(DashNavItem::Group(gid)) => Message::Navigation(NavigationMessage::OpenGroup(gid)),
             NavItem::Dash(DashNavItem::SessionGroup(i)) => Message::SessionGroup(SessionGroupMessage::OpenSessionGroup(i)),
             NavItem::Dash(DashNavItem::Host(i)) => Message::Ssh(SshMessage::ConnectSsh(i)),
@@ -738,7 +772,7 @@ impl Oryxis {
     fn toolbar_item_message(&self, item: ToolbarItem) -> Option<Message> {
         use crate::state::SortMenuKind;
         Some(match (self.active_view, item) {
-            (View::Dashboard, ToolbarItem::ViewToggle) => Message::Settings(SettingsMessage::ToggleHostListView),
+            (View::Dashboard, ToolbarItem::ViewToggle) => Message::Settings(SettingsMessage::CycleHostViewMode),
             // Monitoring toolbar (issue #95): shared tag filter, plus
             // its own grid/list toggle.
             (View::Monitoring, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
@@ -775,7 +809,11 @@ impl Oryxis {
     /// Proxies and Known Hosts are true 1-D lists.
     fn content_list_mode(&self) -> bool {
         match self.active_view {
-            View::Dashboard => self.prefs.host_list_view,
+            // List AND tree are one item per row; only the card grid
+            // is 2-D.
+            View::Dashboard => {
+                self.prefs.host_view_mode != crate::state::HostViewMode::Grid
+            }
             View::Keys | View::Snippets | View::Cloud | View::PortForwarding => false,
             // Settings rows and the remaining vault views are
             // single-column lists.
@@ -791,7 +829,11 @@ impl Oryxis {
         let (id, row_h) = match self.active_view {
             View::Dashboard => (
                 "dashboard-grid-scroll",
-                if self.prefs.host_list_view { 56.0 } else { 60.0 },
+                match self.prefs.host_view_mode {
+                    crate::state::HostViewMode::Grid => 60.0,
+                    crate::state::HostViewMode::List => 56.0,
+                    crate::state::HostViewMode::Tree => 56.0,
+                },
             ),
             View::Keys => ("keys-grid-scroll", 60.0),
             View::Snippets => ("snippets-grid-scroll", 60.0),

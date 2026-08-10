@@ -27,7 +27,6 @@ impl<Message> TerminalView<Message> {
             privacy_classes: PrivacyClasses::default(),
             smart_contrast: true,
             transparent_bg: false,
-            background_image: None,
             mouse_reporting: true,
             word_delimiters: crate::backend::DEFAULT_WORD_DELIMITERS.to_string(),
             on_font_size_increase: None,
@@ -153,19 +152,11 @@ impl<Message> TerminalView<Message> {
         self
     }
 
-    /// Lay a picture behind the grid. `None` (the default) draws the
-    /// palette's background colour as before. The app resolves which
-    /// picture applies (host override, else the global default) before
-    /// building the widget; this only draws what it is handed.
-    pub fn with_background_image(mut self, image: Option<BackgroundImage>) -> Self {
-        self.background_image = image;
-        self
-    }
-
-    /// Hand the background fill to the container behind this widget.
-    /// Pass `true` only when that container paints the same colour with
-    /// the alpha the user asked for; see `transparent_bg` on the widget
-    /// for why the two must never both paint it.
+    /// Hand the background fill to whatever sits behind this widget:
+    /// the host container (translucent terminal) or the [`Backdrop`]
+    /// canvas (background picture). Pass `true` only when that layer
+    /// really paints it; see `transparent_bg` on the widget for why the
+    /// two must never both paint it.
     pub fn with_transparent_bg(mut self, on: bool) -> Self {
         self.transparent_bg = on;
         self

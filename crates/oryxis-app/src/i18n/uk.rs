@@ -1142,6 +1142,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Сортувати",
         "toolbar_view_grid" => "Сітка",
         "toolbar_view_list" => "Список",
+        "toolbar_view_tree" => "Дерево",
         "toolbar_prev" => "Назад",
         "toolbar_next" => "Далі",
         "snippet_run" => "Виконати (+ Enter)",

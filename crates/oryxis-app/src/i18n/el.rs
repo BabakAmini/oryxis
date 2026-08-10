@@ -1148,6 +1148,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Ταξινόμηση",
         "toolbar_view_grid" => "Προβολή πλέγματος",
         "toolbar_view_list" => "Προβολή λίστας",
+        "toolbar_view_tree" => "Προβολή δέντρου",
         "toolbar_prev" => "Προηγούμενο",
         "toolbar_next" => "Επόμενο",
         "snippet_run" => "Εκτέλεση (+ Enter)",

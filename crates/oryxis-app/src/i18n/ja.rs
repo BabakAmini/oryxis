@@ -958,6 +958,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "並び替え",
         "toolbar_view_grid" => "グリッド表示",
         "toolbar_view_list" => "リスト表示",
+        "toolbar_view_tree" => "ツリー表示",
         "toolbar_prev" => "前へ",
         "toolbar_next" => "次へ",
         "snippet_run" => "実行（+ Enter）",

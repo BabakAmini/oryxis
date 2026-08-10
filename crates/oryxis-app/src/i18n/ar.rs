@@ -1160,6 +1160,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "فرز",
         "toolbar_view_grid" => "عرض شبكي",
         "toolbar_view_list" => "عرض قائمة",
+        "toolbar_view_tree" => "عرض شجري",
         "toolbar_prev" => "السابق",
         "toolbar_next" => "التالي",
         "snippet_run" => "تشغيل (+ Enter)",

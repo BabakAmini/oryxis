@@ -160,6 +160,7 @@ mod empty;
 mod group;
 mod host;
 mod session;
+mod tree;
 
 impl Oryxis {
     /// Build the set of groups whose subtree contains at least one host
@@ -416,8 +417,15 @@ impl Oryxis {
             return self.dashboard_cloud_group_view(gid, query);
         }
 
-        let group_cards = self.dashboard_group_cards();
-        let host_cards = self.dashboard_host_cards();
+        // Tree mode builds its own depth-aware walk (grid/tree.rs);
+        // the flat collectors stay empty so nothing below double
+        // renders.
+        let tree_mode = self.prefs.host_view_mode == crate::state::HostViewMode::Tree;
+        let (group_cards, host_cards) = if tree_mode {
+            (Vec::new(), Vec::new())
+        } else {
+            (self.dashboard_group_cards(), self.dashboard_host_cards())
+        };
 
         // Column count adapts to current window width minus the visible
         // chrome (left nav + optional right panel + horizontal padding).
@@ -435,12 +443,12 @@ impl Oryxis {
             - self.side_strip_reserve()
             - 48.0)
             .max(0.0);
-        // List mode forces a single column; otherwise the grid reflows
-        // responsively to the available width.
-        let cols = if self.prefs.host_list_view {
-            1
-        } else {
+        // List and tree modes force a single column; otherwise the
+        // grid reflows responsively to the available width.
+        let cols = if self.prefs.host_view_mode == crate::state::HostViewMode::Grid {
             card_grid_columns(available, CARD_WIDTH, 12.0)
+        } else {
+            1
         };
 
         // Section header (Termius-style "Groups" / "Hosts" labels).
@@ -471,17 +479,22 @@ impl Oryxis {
 
         // Saved session groups that live in the current folder. The
         // enumerate index is absolute (into `self.session_groups`), which is
-        // what Open/Edit/Delete expect.
-        let session_group_cards: Vec<(Element<'_, Message>, Color, DashNavItem)> = self
-            .session_groups
-            .iter()
-            .enumerate()
-            .filter(|(_, g)| g.group_id == self.active_group)
-            .map(|(i, g)| {
-                let (el, color) = self.session_group_card(i, g);
-                (el, color, DashNavItem::SessionGroup(i))
-            })
-            .collect();
+        // what Open/Edit/Delete expect. Tree mode emits them inside
+        // its own walk, at their folder's level.
+        let session_group_cards: Vec<(Element<'_, Message>, Color, DashNavItem)> = if tree_mode
+        {
+            Vec::new()
+        } else {
+            self.session_groups
+                .iter()
+                .enumerate()
+                .filter(|(_, g)| g.group_id == self.active_group)
+                .map(|(i, g)| {
+                    let (el, color) = self.session_group_card(i, g);
+                    (el, color, DashNavItem::SessionGroup(i))
+                })
+                .collect()
+        };
 
         // Per the `card_accent_glass` setting: glass on → each card gets
         // the soft per-colour wash; off → cards stay pure (just the
@@ -492,32 +505,49 @@ impl Oryxis {
             _ => None,
         };
 
-        // List mode (cols == 1) renders History-style rows: full-width
-        // rounded cards with a small gap, applied uniformly to groups and
-        // hosts. Grid mode keeps the roomier 12px gutters.
-        let gap = if self.prefs.host_list_view { 8.0 } else { 12.0 };
+        // List / tree modes (cols == 1) render History-style rows:
+        // full-width rounded cards with a small gap, applied uniformly
+        // to groups and hosts. Grid mode keeps the roomier 12px
+        // gutters.
+        let gap = if self.prefs.host_view_mode == crate::state::HostViewMode::Grid {
+            12.0
+        } else {
+            8.0
+        };
 
+        let mut content_rows: Vec<Element<'_, Message>> = Vec::new();
+        let tree_cards = if tree_mode { self.dashboard_tree_cards() } else { Vec::new() };
         // Record the keyboard-navigation order as visual rows (groups rows
         // then hosts rows, each chunked to the column count) so the key
         // handler can move the selection in 2-D without re-deriving the
         // group order. Groups + session groups share the groups section.
-        let cw = cols.max(1);
-        let group_nav: Vec<DashNavItem> = group_cards
-            .iter()
-            .chain(session_group_cards.iter())
-            .map(|(_, _, n)| *n)
-            .collect();
-        let host_nav: Vec<DashNavItem> = host_cards.iter().map(|(_, _, n)| *n).collect();
-        let dash_row =
-            |c: &[DashNavItem]| c.iter().map(|&n| crate::keynav::NavItem::Dash(n)).collect();
-        // Two Tab sections (Groups, then Hosts); arrows still flow
-        // continuously across both.
-        self.keynav_set_content_sections(vec![
-            group_nav.chunks(cw).map(dash_row).collect(),
-            host_nav.chunks(cw).map(dash_row).collect(),
-        ]);
+        // Tree mode is one linear section instead: one item per row,
+        // in exactly the walk's display order.
+        if tree_mode {
+            self.keynav_set_content_sections(vec![tree_cards
+                .iter()
+                .map(|(_, _, n)| vec![crate::keynav::NavItem::Dash(*n)])
+                .collect()]);
+        } else {
+            let cw = cols.max(1);
+            let group_nav: Vec<DashNavItem> = group_cards
+                .iter()
+                .chain(session_group_cards.iter())
+                .map(|(_, _, n)| *n)
+                .collect();
+            let host_nav: Vec<DashNavItem> =
+                host_cards.iter().map(|(_, _, n)| *n).collect();
+            let dash_row = |c: &[DashNavItem]| {
+                c.iter().map(|&n| crate::keynav::NavItem::Dash(n)).collect()
+            };
+            // Two Tab sections (Groups, then Hosts); arrows still flow
+            // continuously across both.
+            self.keynav_set_content_sections(vec![
+                group_nav.chunks(cw).map(dash_row).collect(),
+                host_nav.chunks(cw).map(dash_row).collect(),
+            ]);
+        }
 
-        let mut content_rows: Vec<Element<'_, Message>> = Vec::new();
         // Search filtered everything out but the query parses as an
         // ad-hoc `user@host[:port]` target: offer a centered quick-connect
         // card instead of a bare no-results gap (mirrors the picker row
@@ -525,12 +555,17 @@ impl Oryxis {
         if group_cards.is_empty()
             && session_group_cards.is_empty()
             && host_cards.is_empty()
+            && tree_cards.is_empty()
             && !self.host_search.trim().is_empty()
             && let Some(conn) = self.quick_connect_target(&self.host_search)
         {
             content_rows.push(self.quick_connect_card(conn));
         }
-        if flatten {
+        if tree_mode {
+            let washed =
+                apply_card_wash(tree_cards, glass, selected, self.keynav.ring_bounds.clone());
+            content_rows.push(distribute_card_grid(washed, 1, gap, gap));
+        } else if flatten {
             // Session groups live under the same "Groups" section as host
             // groups (they're both group-shaped entries), instead of a
             // separate "Session Groups" section. Host groups come first.

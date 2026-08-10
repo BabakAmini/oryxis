@@ -958,6 +958,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "排序",
         "toolbar_view_grid" => "网格视图",
         "toolbar_view_list" => "列表视图",
+        "toolbar_view_tree" => "树状视图",
         "toolbar_prev" => "上一页",
         "toolbar_next" => "下一页",
         "snippet_run" => "运行（+ 回车）",

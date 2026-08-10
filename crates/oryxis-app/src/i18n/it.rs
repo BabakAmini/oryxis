@@ -949,6 +949,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Ordina",
         "toolbar_view_grid" => "Vista a griglia",
         "toolbar_view_list" => "Vista a elenco",
+        "toolbar_view_tree" => "Vista ad albero",
         "toolbar_prev" => "Precedente",
         "toolbar_next" => "Successivo",
         "snippet_run" => "Esegui (+ Invio)",

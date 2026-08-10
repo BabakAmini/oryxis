@@ -955,6 +955,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "toolbar_sort" => "Ordenar",
         "toolbar_view_grid" => "Vista en cuadrícula",
         "toolbar_view_list" => "Vista en lista",
+        "toolbar_view_tree" => "Vista de árbol",
         "toolbar_prev" => "Anterior",
         "toolbar_next" => "Siguiente",
         "snippet_run" => "Ejecutar (+ Enter)",
