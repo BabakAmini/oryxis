@@ -571,9 +571,11 @@ pub struct Oryxis {
     #[cfg(target_os = "windows")]
     pub(crate) last_printscreen: Option<std::time::Instant>,
     /// Whether the OS window is currently maximized. Used by the custom
-    /// chrome to swap the maximize glyph for a "restore" glyph. Toggled
-    /// optimistically on `WindowMaximizeToggle` since our chrome is the only
-    /// path that can change this state (native titlebar is disabled).
+    /// chrome to swap the maximize glyph for a "restore" glyph. Flipped
+    /// optimistically by `WindowMaximizeToggle` and reconciled with the
+    /// OS truth by `WindowMaximizedSynced` after a `WindowResized`
+    /// (Win+Up/Down, aero snap and dragging the custom title bar down
+    /// all change the OS state without firing a toggle message).
     pub(crate) window_maximized: bool,
     /// Whether the window is in native fullscreen mode. Flipped by F11.
     /// Same optimistic pattern as `window_maximized` because the OS-side

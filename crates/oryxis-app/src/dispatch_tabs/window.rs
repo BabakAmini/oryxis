@@ -185,6 +185,23 @@ impl Oryxis {
             ) {
                 self.overlay = None;
             }
+            // Reconcile the optimistic `window_maximized` with the OS
+            // truth. Win+Up/Down, aero snap, the taskbar's Restore and
+            // dragging the custom title bar down (a restore inside the
+            // OS move loop, so no app message ever fires) all change
+            // the OS state without `WindowMaximizeToggle`; a stale
+            // `true` would hide the edge-resize border and turn
+            // `WindowResizeDrag` into a no-op (field report: the
+            // window looked windowed but had no edges to grab).
+            // `WM_SIZE` has already updated winit's cached state by
+            // the time this event reaches us, so the query returns
+            // the settled truth — no race with our own optimistic
+            // toggle.
+            return iced::window::latest().then(|id_opt| match id_opt {
+                Some(id) => iced::window::is_maximized(id)
+                    .map(|maximized| Message::Tabs(TabsMessage::WindowMaximizedSynced(maximized))),
+                None => Task::none(),
+            });
         }
         Task::none()
     }
@@ -547,6 +564,15 @@ impl Oryxis {
             }
             TabsMessage::WindowExpandVertical => return self.handle_window_expand_vertical(),
             TabsMessage::WindowMinimize => return self.handle_window_minimize(),
+            TabsMessage::WindowMaximizedSynced(maximized) => {
+                // Reconcile the optimistic flag with the OS truth
+                // (see `WindowMaximizedSynced`). Only touch state when
+                // it actually drifted so the common no-op path stays
+                // cheap.
+                if self.window_maximized != maximized {
+                    self.window_maximized = maximized;
+                }
+            }
             TabsMessage::WindowMaximizeToggle => {
                 self.window_maximized = !self.window_maximized;
                 // Cheap write, and it keeps the restored state accurate
