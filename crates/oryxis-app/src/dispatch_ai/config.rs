@@ -13,6 +13,12 @@ impl Oryxis {
         match message {
             AiMessage::ToggleAiEnabled => {
                 self.ai.enabled = !self.ai.enabled;
+                // Disabling AI ungates the Chat tab everywhere, taking the
+                // Stop / Reset affordances with it; a chat task left running
+                // on any tab would have no reachable stop control.
+                if !self.ai.enabled {
+                    self.abort_all_chat_tasks();
+                }
                 if let Some(vault) = &self.vault {
                     let _ = vault.set_setting("ai_enabled", if self.ai.enabled { "true" } else { "false" });
                 }

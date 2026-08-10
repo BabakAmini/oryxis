@@ -674,18 +674,6 @@ impl AppPrefs {
         self.sidebar_tab_placement(tab).side()
     }
 
-    /// Every tab docked to `side`, in strip order (hidden tabs are on
-    /// no side at all).
-    pub(crate) fn sidebar_tabs_on(
-        &self,
-        side: crate::state::SidebarSide,
-    ) -> Vec<crate::state::TerminalSidebarTab> {
-        crate::state::TerminalSidebarTab::ALL
-            .into_iter()
-            .filter(|t| self.sidebar_tab_side(*t) == Some(side))
-            .collect()
-    }
-
     /// Serialize the EXPLICIT placement choices as `"tab:placement"`
     /// CSV in `ALL` order (deterministic, so the persisted value is
     /// stable across sessions and sync-friendly). Defaults are

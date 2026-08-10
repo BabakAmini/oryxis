@@ -187,25 +187,28 @@ impl Oryxis {
             Some(_) => index_move(len, cur, forward)?,
             // A fresh forward walk starts on the list BODY (the
             // mouse-selected anchor when one exists, else the first
-            // list row), NOT at index 0: the strip records Close
-            // first, and starting there puts Enter one keypress away
-            // from closing the panel while the user meant "go to the
-            // rows below" (live QA on the Hosts tree, whose search
-            // holds real focus with no ring). Same landing rule as
-            // arrow entry; Close and the header stay reachable by
-            // walking on (the walk wraps). Backward keeps the
-            // end-of-list start.
+            // list row), NOT on the strip's own chrome: starting there
+            // puts Enter one keypress away from closing the panel
+            // while the user meant "go to the rows below" (live QA on
+            // the Hosts tree, whose search holds real focus with no
+            // ring). Same landing rule as arrow entry; the chrome pair
+            // stays reachable by walking on (the walk wraps).
+            // Backward keeps the end-of-list start.
             None if forward => {
                 let items = self.sidebar_items_for(tab).borrow();
                 items
                     .iter()
                     .position(|r| r.anchor)
                     .or_else(|| items.iter().position(|r| r.list))
-                    // No list rows this frame (empty tab body): start
-                    // on the first row after Close (index 0), so an
-                    // empty Snippets list lands on "+ SNIPPET", not on
-                    // the panel's own close button.
-                    .unwrap_or(1.min(len - 1))
+                    // No list rows this frame (empty tab body): the
+                    // first NON-CHROME row, so an empty Snippets list
+                    // lands on "+ SNIPPET" and Chat lands on its mode
+                    // picker. Never an index guess: the chrome count
+                    // varies per tab (Chat records Reset before
+                    // Close), which is how a fresh walk into Chat once
+                    // ringed the CLOSE button.
+                    .or_else(|| items.iter().position(|r| !r.chrome))
+                    .unwrap_or(0)
             }
             None => len - 1,
         };

@@ -964,7 +964,8 @@ impl Oryxis {
         // the walk: the FocusSidebarList hotkey already cycles them.
         if active == STab::Chat {
             strip.push(self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ChatResetConversation)),
+                crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ChatResetConversation))
+                    .chrome(),
                 active,
                 6.0,
                 icon_tooltip(
@@ -978,7 +979,8 @@ impl Oryxis {
             strip.push(Space::new().width(4).into());
         }
         strip.push(self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleSidebarRegion(side))),
+            crate::keynav::SidebarRow::button(Message::Ai(AiMessage::ToggleSidebarRegion(side)))
+                .chrome(),
             active,
             6.0,
             icon_tooltip(

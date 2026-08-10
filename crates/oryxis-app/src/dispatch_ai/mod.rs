@@ -285,6 +285,20 @@ impl Oryxis {
         }
     }
 
+    /// Abort every tab's chat stream and clear the loading flags. The
+    /// no-UI-left paths: hiding the Chat tab's placement or disabling AI
+    /// takes the Stop / Reset affordances away from EVERY terminal tab at
+    /// once, so a loop left running on a background tab would have no
+    /// reachable stop control at all.
+    pub(crate) fn abort_all_chat_tasks(&mut self) {
+        for tab in &mut self.tabs {
+            if let Some(handle) = tab.chat_task.take() {
+                handle.abort();
+            }
+            tab.chat_loading = false;
+        }
+    }
+
     /// Replace a tab's tracked chat task: abort whatever was running on it,
     /// make the new task abortable, store its handle on the tab, and return
     /// the wrapped task to hand back to iced. Funnel every chat-stream /

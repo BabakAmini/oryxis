@@ -68,7 +68,10 @@ impl Oryxis {
                     // Only this region's ring: the other region keeps its
                     // engagement. Same for the dropdown gate: a HostConfig
                     // pick_list open at close time unmounts without
-                    // on_close.
+                    // on_close, but only when HostConfig was what THIS
+                    // region showed; clearing unconditionally would drop
+                    // the modality gate under a dropdown still open in the
+                    // other region, double-dispatching its next Enter/Esc.
                     if self
                         .keynav
                         .sidebar_selected
@@ -76,13 +79,27 @@ impl Oryxis {
                     {
                         self.keynav.sidebar_selected = None;
                     }
-                    self.keynav.pick_open = false;
+                    if self.sidebar_region_tab(side)
+                        == Some(crate::state::TerminalSidebarTab::HostConfig)
+                    {
+                        self.keynav.pick_open = false;
+                    }
                 }
             }
             AiMessage::SelectTerminalSidebarTab(tab) => {
                 // A HostConfig dropdown open when the sidebar tab swaps
-                // unmounts without on_close; drop the gate with it.
-                self.keynav.pick_open = false;
+                // unmounts without on_close; drop the gate with it, but
+                // only when the swap happens in the region HostConfig was
+                // showing in: switching tabs in the OTHER region leaves
+                // the dropdown mounted, and clearing would double-dispatch
+                // its next Enter/Esc.
+                let host_config = crate::state::TerminalSidebarTab::HostConfig;
+                if tab != host_config
+                    && let Some(region) = self.prefs.sidebar_tab_side(tab)
+                    && self.sidebar_region_tab(region) == Some(host_config)
+                {
+                    self.keynav.pick_open = false;
+                }
                 // Leaving the Files tab is a blur for its path edit; a
                 // stale full-width input waiting behind the tab switch
                 // would read as broken on return.

@@ -236,23 +236,9 @@ impl Oryxis {
                         self.prefs.sidebar_auto_open
                     }
                 };
-                if auto_open {
-                    use crate::state::SidebarSide;
-                    // The default tab's region when it has one (a
-                    // hidden default can't be opened onto); else the
-                    // historical right, falling back to left only
-                    // when every tab is docked there.
-                    let side = self
-                        .prefs
-                        .sidebar_default_tab
-                        .and_then(|t| self.prefs.sidebar_tab_side(t))
-                        .unwrap_or_else(|| {
-                            if self.prefs.sidebar_tabs_on(SidebarSide::Right).is_empty() {
-                                SidebarSide::Left
-                            } else {
-                                SidebarSide::Right
-                            }
-                        });
+                if auto_open
+                    && let Some(side) = self.sidebar_auto_open_side()
+                {
                     new_tab.sidebar_open[side.idx()] = true;
                 }
                 // C5: resolve this host's terminal quirks once, on the hot

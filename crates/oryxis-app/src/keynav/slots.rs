@@ -80,6 +80,11 @@ pub(crate) struct SidebarRow {
     /// on the anchored row instead of the list edge, so keyboard
     /// navigation picks up where the mouse left off.
     pub(crate) anchor: bool,
+    /// Whether this row is the strip's own header chrome (the Close X,
+    /// Chat's Reset). A fresh Tab walk must never LAND on chrome: the
+    /// header's row count varies per tab (Chat records Reset before
+    /// Close), so an index guess lands wrong; walking onto it is fine.
+    pub(crate) chrome: bool,
 }
 
 impl SidebarRow {
@@ -93,6 +98,7 @@ impl SidebarRow {
             menu: None,
             list: true,
             anchor: false,
+            chrome: false,
         }
     }
 
@@ -105,6 +111,7 @@ impl SidebarRow {
             menu: None,
             list: false,
             anchor: false,
+            chrome: false,
         }
     }
 
@@ -119,6 +126,7 @@ impl SidebarRow {
             menu: None,
             list: true,
             anchor: false,
+            chrome: false,
         }
     }
 
@@ -131,6 +139,7 @@ impl SidebarRow {
             menu: None,
             list: false,
             anchor: false,
+            chrome: false,
         }
     }
 
@@ -143,6 +152,7 @@ impl SidebarRow {
             menu: None,
             list: false,
             anchor: false,
+            chrome: false,
         }
     }
 
@@ -158,6 +168,13 @@ impl SidebarRow {
     /// arrow hover-entry's preferred landing spot.
     pub(crate) fn with_anchor(mut self, anchor: bool) -> Self {
         self.anchor = anchor;
+        self
+    }
+
+    /// Mark this row as strip header chrome (Close / Reset): a fresh
+    /// Tab walk skips over it when picking where to land.
+    pub(crate) fn chrome(mut self) -> Self {
+        self.chrome = true;
         self
     }
 }

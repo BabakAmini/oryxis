@@ -449,22 +449,9 @@ impl Oryxis {
             .and_then(|id| self.connections.iter().find(|c| c.id == id))
             .map(|c| c.sidebar_auto_open.unwrap_or(self.prefs.sidebar_auto_open))
             .unwrap_or(self.prefs.sidebar_auto_open);
-        if auto_open {
-            use crate::state::SidebarSide;
-            // Same region choice as the single-host connect path: the
-            // default tab's region when it has one (a hidden default
-            // can't be opened onto), else right-unless-empty.
-            let side = self
-                .prefs
-                .sidebar_default_tab
-                .and_then(|t| self.prefs.sidebar_tab_side(t))
-                .unwrap_or_else(|| {
-                    if self.prefs.sidebar_tabs_on(SidebarSide::Right).is_empty() {
-                        SidebarSide::Left
-                    } else {
-                        SidebarSide::Right
-                    }
-                });
+        if auto_open
+            && let Some(side) = self.sidebar_auto_open_side()
+        {
             tab.sidebar_open[side.idx()] = true;
         }
         let tab_idx = self.tabs.len();

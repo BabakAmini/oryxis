@@ -140,10 +140,14 @@ impl Oryxis {
             }
             SettingsMessage::SidebarTabSideChanged(tab, placement) => {
                 if let Some(placement) = crate::state::SidebarPlacement::from_code(&placement) {
+                    // Resolved BEFORE the write (the resolver applies the
+                    // per-tab defaults a raw map read would miss), so the
+                    // move handler knows which side the tab actually left.
+                    let came_from = self.prefs.sidebar_tab_side(tab);
                     self.prefs.sidebar_tab_sides.insert(tab, placement);
                     let encoded = self.prefs.encode_sidebar_tab_sides();
                     self.persist_setting("sidebar_tab_sides", &encoded);
-                    self.sidebar_tab_moved(tab, placement);
+                    self.sidebar_tab_moved(tab, came_from, placement);
                 }
             }
             SettingsMessage::SettingToggleSidebarAutoOpen => {

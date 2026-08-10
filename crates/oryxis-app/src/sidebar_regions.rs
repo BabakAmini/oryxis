@@ -29,6 +29,25 @@ impl Oryxis {
             .is_some()
     }
 
+    /// Whether a sidebar tab can show at all under the current feature
+    /// toggles, ignoring the focused pane's MOMENTARY transport. The
+    /// auto-open decision runs while a session is still dialing (nothing
+    /// has SSH yet), so it needs this eventual form: gating it on the
+    /// live transport would refuse to open a region whose tabs appear
+    /// the instant the dial lands.
+    fn sidebar_tab_possible(&self, tab: TerminalSidebarTab) -> bool {
+        match tab {
+            TerminalSidebarTab::Chat => self.ai.enabled,
+            TerminalSidebarTab::Files => self.sftp_enabled,
+            TerminalSidebarTab::Monitor => self.prefs.host_monitoring,
+            TerminalSidebarTab::Tmux => self.prefs.tmux_manager,
+            TerminalSidebarTab::Snippets
+            | TerminalSidebarTab::History
+            | TerminalSidebarTab::HostConfig
+            | TerminalSidebarTab::HostsTree => true,
+        }
+    }
+
     /// Whether a sidebar tab is offered at all for the active terminal
     /// tab: its feature toggles plus the focused pane's transport.
     /// Snippets / History / Host config / Hosts never gate, so a
@@ -36,18 +55,73 @@ impl Oryxis {
     /// separate axis: a HIDDEN tab never reaches the region filters,
     /// available or not.)
     pub(crate) fn sidebar_tab_available(&self, tab: TerminalSidebarTab) -> bool {
-        match tab {
-            TerminalSidebarTab::Chat => self.ai.enabled,
-            TerminalSidebarTab::Files => self.sftp_enabled && self.active_pane_has_ssh(),
-            TerminalSidebarTab::Monitor => {
-                self.prefs.host_monitoring && self.active_pane_has_ssh()
+        self.sidebar_tab_possible(tab)
+            && match tab {
+                TerminalSidebarTab::Files
+                | TerminalSidebarTab::Monitor
+                | TerminalSidebarTab::Tmux => self.active_pane_has_ssh(),
+                _ => true,
             }
-            TerminalSidebarTab::Tmux => self.prefs.tmux_manager && self.active_pane_has_ssh(),
-            TerminalSidebarTab::Snippets
-            | TerminalSidebarTab::History
-            | TerminalSidebarTab::HostConfig
-            | TerminalSidebarTab::HostsTree => true,
+    }
+
+    /// The region the ToggleSidebar hotkey drives. With ONE populated
+    /// region it is simply that one (owner ask 2026-08-10: the key
+    /// should follow the tabs, whichever side they live on). With tabs
+    /// docked to BOTH sides it prefers the region that is OPEN, so the
+    /// key can always close what is on screen (the old
+    /// unconditional-right bias left an open left region
+    /// keyboard-uncloseable); when neither or both are open it keeps
+    /// the historical right bias, and `ToggleSidebarOther` covers the
+    /// counterpart. `None` when no region has tabs: a toggle would
+    /// only latch an invisible open flag.
+    pub(crate) fn sidebar_toggle_target(&self) -> Option<SidebarSide> {
+        let populated: Vec<SidebarSide> = SidebarSide::BOTH
+            .into_iter()
+            .filter(|s| self.sidebar_region_has_tabs(*s))
+            .collect();
+        match populated[..] {
+            [] => None,
+            [only] => Some(only),
+            _ => {
+                let open: Vec<SidebarSide> = SidebarSide::BOTH
+                    .into_iter()
+                    .filter(|s| self.active_sidebar_shown(*s))
+                    .collect();
+                match open[..] {
+                    [only_open] => Some(only_open),
+                    _ => Some(SidebarSide::Right),
+                }
+            }
         }
+    }
+
+    /// The region the ToggleSidebarOther hotkey drives: the counterpart
+    /// of whatever `sidebar_toggle_target` picks right now, and only
+    /// while BOTH regions have tabs (with a single populated region the
+    /// primary key already reaches it, and "the other" would be empty).
+    pub(crate) fn sidebar_toggle_other_target(&self) -> Option<SidebarSide> {
+        if !SidebarSide::BOTH.into_iter().all(|s| self.sidebar_region_has_tabs(s)) {
+            return None;
+        }
+        self.sidebar_toggle_target().map(SidebarSide::other)
+    }
+
+    /// The region the connect paths' sidebar auto-open should open:
+    /// the configured default tab's region when that region can show
+    /// SOMETHING under the feature toggles, else the historical right
+    /// bias, and `None` when no region can (a latched-open empty
+    /// region renders nothing and reads as the setting being broken).
+    pub(crate) fn sidebar_auto_open_side(&self) -> Option<SidebarSide> {
+        let possible = |side: SidebarSide| {
+            TerminalSidebarTab::ALL.into_iter().any(|t| {
+                self.prefs.sidebar_tab_side(t) == Some(side) && self.sidebar_tab_possible(t)
+            })
+        };
+        self.prefs
+            .sidebar_default_tab
+            .and_then(|t| self.prefs.sidebar_tab_side(t))
+            .filter(|s| possible(*s))
+            .or_else(|| [SidebarSide::Right, SidebarSide::Left].into_iter().find(|s| possible(*s)))
     }
 
     /// The tabs a region offers right now, in strip order (hidden
@@ -134,16 +208,28 @@ impl Oryxis {
     /// open state over from the other region when the tab was showing
     /// there so it visibly travels instead of vanishing. Hiding needs
     /// no handoff: the regions re-resolve on the next read.
+    ///
+    /// `came_from` is the side the tab LEFT (`None` = it was hidden),
+    /// captured by the caller before writing the new placement: the
+    /// remembered slots are never cleared on hide, so deciding "was it
+    /// showing" from the raw slot would hand a Hidden -> region move a
+    /// carry-over that pops a sidebar open out of nowhere.
     pub(crate) fn sidebar_tab_moved(
         &mut self,
         tab: TerminalSidebarTab,
+        came_from: Option<SidebarSide>,
         to: crate::state::SidebarPlacement,
     ) {
         if let Some(to_side) = to.side() {
-            let from = to_side.other();
-            let was_showing = self.terminal_sidebar_tab[from.idx()] == tab;
+            let was_showing = came_from.is_some_and(|from| {
+                from != to_side
+                    && self.terminal_sidebar_tab[from.idx()] == tab
+                    && self.sidebar_tab_available(tab)
+            });
             self.terminal_sidebar_tab[to_side.idx()] = tab;
-            if was_showing {
+            if was_showing
+                && let Some(from) = came_from
+            {
                 let from_open = self
                     .active_tab
                     .and_then(|i| self.tabs.get(i))
@@ -164,6 +250,14 @@ impl Oryxis {
                     }
                 }
             }
+        }
+        // Hiding Chat removes the Stop / Reset affordances from every
+        // terminal tab at once, and the close-region abort gate keys on
+        // Chat's side, which is now `None`, so it can never fire again:
+        // without this, a running tool loop would keep executing
+        // commands with no reachable stop control.
+        if tab == TerminalSidebarTab::Chat && to.side().is_none() {
+            self.abort_all_chat_tasks();
         }
         // A ring engaged on the moved tab points at rows that next
         // frame will re-record in another region's list (or nowhere,
