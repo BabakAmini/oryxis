@@ -447,10 +447,35 @@ pub use logs::{SealedSessionOutput, CONTENT_SEARCH_MAX_SCAN_BYTES};
 #[cfg(test)]
 mod tests;
 
+/// Resolves the home directory the vault lives under: the `ORYXIS_HOME`
+/// override when set and non-empty, the OS home otherwise. Split from
+/// [`VaultStore::open_default`] so the resolution is unit-testable
+/// without mutating the process environment (`set_var` is unsafe under
+/// Rust 2024, and the test binary runs its tests on parallel threads).
+fn vault_home(
+    override_home: Option<std::ffi::OsString>,
+    os_home: Option<PathBuf>,
+) -> Option<PathBuf> {
+    override_home
+        // An empty export must fall through to the real home, matching
+        // `dirs_sys`' own `HOME` handling; otherwise the vault would
+        // land in `./.oryxis` under the process working directory.
+        .filter(|h| !h.is_empty())
+        .map(PathBuf::from)
+        .or(os_home)
+}
+
 impl VaultStore {
     /// Open or create the vault database at the default location (~/.oryxis/vault.db).
+    ///
+    /// `ORYXIS_HOME` overrides the home directory (the harness sandbox
+    /// relies on it on Windows, where `dirs::home_dir()` is a WinAPI call
+    /// that ignores `$HOME` / `%USERPROFILE%`); without the override the
+    /// harness would read and write the REAL profile vault. An empty value
+    /// is treated as unset, so an accidental `export ORYXIS_HOME=` can
+    /// never land the vault in the process working directory.
     pub fn open_default() -> Result<Self, VaultError> {
-        let dir = dirs::home_dir()
+        let dir = vault_home(std::env::var_os("ORYXIS_HOME"), dirs::home_dir())
             .ok_or_else(|| VaultError::Io(std::io::Error::other("No home directory")))?
             .join(".oryxis");
         std::fs::create_dir_all(&dir)?;

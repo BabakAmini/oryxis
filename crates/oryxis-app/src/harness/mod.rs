@@ -127,9 +127,13 @@ pub struct Options {
 /// a test tool must never silently mis-run.
 ///
 /// When a mode IS requested, this redirects `$HOME` (and
-/// `%USERPROFILE%` on Windows) to the sandbox before returning, so
-/// every later `dirs::home_dir()` call in the process, the vault,
-/// plugin cache, fonts, logs, resolves inside the sandbox.
+/// `%USERPROFILE%` on Windows) to the sandbox before returning: on
+/// Unix every later `dirs::home_dir()` call in the process (vault,
+/// plugin cache, fonts, logs) resolves inside the sandbox. On Windows
+/// `dirs::home_dir()` is a WinAPI call that ignores both variables,
+/// so the vault is redirected separately through `ORYXIS_HOME`; the
+/// other `~/.oryxis` consumers (plugin cache, fonts, logs, tray
+/// runtime) still resolve to the real profile there, a known gap.
 pub fn options_from_args() -> Option<Options> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let options = match parse(&args) {
@@ -159,6 +163,13 @@ pub fn options_from_args() -> Option<Options> {
         std::env::set_var("HOME", &options.home);
         #[cfg(windows)]
         std::env::set_var("USERPROFILE", &options.home);
+        // `dirs::home_dir()` on Windows is `SHGetKnownFolderPath`
+        // (WinAPI) and ignores `$HOME` / `%USERPROFILE%`, so the
+        // vault would still resolve to the REAL profile. `ORYXIS_HOME`
+        // is the vault-level override `VaultStore::open_default`
+        // honors; point it at the sandbox on every platform so a
+        // harness run can never touch the real ~/.oryxis.
+        std::env::set_var("ORYXIS_HOME", &options.home);
     }
 
     Some(options)
