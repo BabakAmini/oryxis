@@ -76,6 +76,16 @@ fn pf_retry_backoff(attempts: u32) -> Duration {
     Duration::from_secs(secs.min(120))
 }
 
+/// Whether a down forward rule should keep its retry entry. This mirrors
+/// the gate `pf_mark_retry_pending` uses for the `Dropped` cause: an
+/// `auto_start` rule always retries, and any rule retries while the user
+/// has `auto_reconnect` on. Keeping the prune side in sync with the mark
+/// side is what stops a manually started `auto_reconnect` forward from
+/// being pruned on the first tick and never retrying again (issue #144).
+fn pf_retry_still_wanted(auto_start: bool, auto_reconnect: bool) -> bool {
+    auto_start || auto_reconnect
+}
+
 /// A reading of the keys an agent-backed forward could authenticate
 /// with: what every reachable ssh-agent holds, plus how many keys
 /// external tools have pushed into our own agent server.
@@ -928,13 +938,14 @@ impl Oryxis {
     /// kick.
     fn pf_issue_due_retries(&mut self, now: Instant) -> Task<Message> {
         let ids: Vec<Uuid> = self.port_forward_retry.keys().copied().collect();
+        let auto_reconnect = self.prefs.auto_reconnect;
         let mut due = Vec::new();
         for id in ids {
-            let still_auto = self
+            let still_wanted = self
                 .port_forward_rules
                 .iter()
-                .any(|r| r.id == id && r.auto_start);
-            if !still_auto || self.active_forwards.contains_key(&id) {
+                .any(|r| r.id == id && pf_retry_still_wanted(r.auto_start, auto_reconnect));
+            if !still_wanted || self.active_forwards.contains_key(&id) {
                 self.port_forward_retry.remove(&id);
                 continue;
             }
@@ -978,7 +989,7 @@ fn parse_port(s: &str) -> Option<u16> {
 
 #[cfg(test)]
 mod tests {
-    use super::{pf_agent_changed, pf_retry_backoff, PfAgentWatch};
+    use super::{pf_agent_changed, pf_retry_backoff, pf_retry_still_wanted, PfAgentWatch};
     use std::time::Duration;
 
     fn watch(agents: &[&str], added_keys: u64) -> PfAgentWatch {
@@ -1047,5 +1058,19 @@ mod tests {
         assert_eq!(pf_retry_backoff(4), Duration::from_secs(120));
         assert_eq!(pf_retry_backoff(50), Duration::from_secs(120));
         assert_eq!(pf_retry_backoff(u32::MAX), Duration::from_secs(120));
+    }
+
+    #[test]
+    fn auto_reconnect_keeps_a_manual_forward_retrying() {
+        // An auto_start forward always keeps retrying.
+        assert!(pf_retry_still_wanted(true, false));
+        // A manually started forward keeps retrying while auto_reconnect is
+        // on. Regression for issue #144: the prune gate only checked
+        // auto_start, so such a forward was dropped from the retry set on
+        // the first tick (the retry subscription then unmounted) and never
+        // came back after the local network dropped, unlike host sessions.
+        assert!(pf_retry_still_wanted(false, true));
+        // A manual forward with auto_reconnect off is not retried.
+        assert!(!pf_retry_still_wanted(false, false));
     }
 }
