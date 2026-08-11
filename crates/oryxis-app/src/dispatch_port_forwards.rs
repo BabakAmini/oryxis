@@ -835,10 +835,11 @@ impl Oryxis {
             .collect()
     }
 
-    /// Mark an `auto_start` rule as failed/dropped and schedule its first
-    /// re-attempt. No-op for a rule that isn't `auto_start` (nothing opted
-    /// it into self-healing) or that already has a pending retry (`or_insert`
-    /// so a repeated failure never resets a backoff that's already climbing).
+    /// Mark a failed/dropped rule as pending and schedule its first
+    /// re-attempt. No-op for a rule that nothing opted into self-healing
+    /// (per-cause gates below) or that already has a pending retry
+    /// (`or_insert` so a repeated failure never resets a backoff that's
+    /// already climbing).
     fn pf_mark_retry_pending(&mut self, id: Uuid, cause: PfRetryCause) {
         let is_auto = self
             .port_forward_rules
@@ -932,10 +933,10 @@ impl Oryxis {
     }
 
     /// Issue a connect for every pending rule whose backoff has elapsed.
-    /// Prunes entries that are no longer eligible (rule deleted,
-    /// `auto_start` cleared, or already up) so the subscription unmounts
-    /// once nothing is pending. Shared by the heartbeat and the census
-    /// kick.
+    /// Prunes entries that are no longer eligible (rule deleted, no longer
+    /// wanted per `pf_retry_still_wanted`, or already up) so the
+    /// subscription unmounts once nothing is pending. Shared by the
+    /// heartbeat and the census kick.
     fn pf_issue_due_retries(&mut self, now: Instant) -> Task<Message> {
         let ids: Vec<Uuid> = self.port_forward_retry.keys().copied().collect();
         let auto_reconnect = self.prefs.auto_reconnect;
