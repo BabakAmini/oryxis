@@ -775,11 +775,16 @@ impl Oryxis {
                     // connection drop and close.
                     return Task::none();
                 }
-                let tasks: Vec<Task<Message>> = due
+                let mut tasks: Vec<Task<Message>> = due
                     .iter()
                     .map(|rid| self.attach_port_forward_task(fconn.clone(), *rid))
                     .collect();
                 self.forward_conns.insert(host_id, PfHostConn::Up(fconn));
+                // This dial proves the route is back: pull every other
+                // pending forward off its backoff too (issue #144). The
+                // rules attaching above are still in
+                // `port_forward_starting`, so the kick skips them.
+                tasks.push(self.pf_kick_pending_retries());
                 Task::batch(tasks)
             }
             Err(e) => {
@@ -921,6 +926,14 @@ impl Oryxis {
         // the reading only moves on a real agent event, and one extra
         // dial is cheap next to leaving a forward down for two minutes.
         tracing::info!("ssh-agent keys changed, re-attempting pending port forwards");
+        self.pf_reissue_pending_now()
+    }
+
+    /// Pull every pending rule off its backoff and re-attempt it now.
+    /// Shared by the two "conditions changed" signals: the agent census
+    /// (a key just arrived) and a fresh connection coming up (the
+    /// network is back).
+    fn pf_reissue_pending_now(&mut self) -> Task<Message> {
         let now = Instant::now();
         for retry in self.port_forward_retry.values_mut() {
             retry.next_at = now;
@@ -930,6 +943,22 @@ impl Oryxis {
             retry.attempts = 0;
         }
         self.pf_issue_due_retries(now)
+    }
+
+    /// A connection just dialed successfully somewhere in the app,
+    /// which after a local outage is the proof that the network is
+    /// back (issue #144): re-attempt every pending forward right away
+    /// instead of letting each wait out a backoff that may have
+    /// climbed to the 120 s ceiling. Host tabs already reconnect on
+    /// their own, so riding their success is what keeps forwards
+    /// symmetric with them. No-op while nothing is pending, so the
+    /// connect hot path stays free.
+    pub(crate) fn pf_kick_pending_retries(&mut self) -> Task<Message> {
+        if self.port_forward_retry.is_empty() {
+            return Task::none();
+        }
+        tracing::info!("a connection came up, re-attempting pending port forwards");
+        self.pf_reissue_pending_now()
     }
 
     /// Issue a connect for every pending rule whose backoff has elapsed.

@@ -156,19 +156,36 @@ impl Oryxis {
                     }
                     _ => Task::none(),
                 };
+                // A successful dial is the "network is back" signal the
+                // port-forward retry ladder waits for after a local
+                // outage (issue #144); without it a pending forward
+                // sits out a backoff of up to 120 s that the host tabs
+                // themselves never pay. A serial line says nothing
+                // about the network, so it does not kick.
+                let pf_kick = match &session {
+                    crate::state::TerminalTransport::Serial(_) => Task::none(),
+                    _ => self.pf_kick_pending_retries(),
+                };
                 if let Some((conn_id, sess)) = detect_for {
                     return Task::batch([
                         files_sync,
                         hybrid_sftp,
                         pending_files,
                         login_script_task,
+                        pf_kick,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
                             |(id, os)| Message::Ssh(SshMessage::OsDetected(id, os)),
                         ),
                     ]);
                 }
-                return Task::batch([files_sync, hybrid_sftp, pending_files, login_script_task]);
+                return Task::batch([
+                    files_sync,
+                    hybrid_sftp,
+                    pending_files,
+                    login_script_task,
+                    pf_kick,
+                ]);
             }
             SshMessage::OsDetected(conn_id, os) => {
                 // Persist + update in-memory list so the icon refreshes.
