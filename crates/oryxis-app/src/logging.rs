@@ -124,35 +124,38 @@ pub(crate) fn disable() {
     }
 }
 
-/// Wipe the log (a live sink is wiped and re-armed, otherwise the file
-/// and any rotated leftover are deleted). Returns `false` when there
-/// was nothing to clear.
+/// Wipe the log (a live sink's file is truncated through a fresh write
+/// handle and re-stamped, otherwise the file and any rotated leftover
+/// are deleted). Returns `false` when there was nothing to clear.
 pub(crate) fn clear() -> io::Result<bool> {
     let Some(path) = log_path() else {
         return Ok(false);
     };
-    let removed_old = std::fs::remove_file(rotated_path(&path)).is_ok();
-    let mut guard = sink();
-    if let Some(file) = guard.take() {
+    clear_at(&path)
+}
+
+/// [`clear`] against an explicit path, split out (like [`enable_at`])
+/// so the lifecycle test can exercise the real branches against its
+/// sandboxed file instead of duplicating them.
+fn clear_at(path: &Path) -> io::Result<bool> {
+    let removed_old = std::fs::remove_file(rotated_path(path)).is_ok();
+    let guard = sink();
+    if guard.is_some() {
         // The sink handle is append-only, and Rust deliberately strips
-        // FILE_WRITE_DATA from append handles on Windows, so it cannot
-        // truncate itself ("Clear debug log" errored there for this).
-        // Close it, wipe the file through a fresh write handle and
-        // re-arm the sink so subsequent writes keep appending.
-        drop(file);
-        std::fs::remove_file(&path)?;
-        // `truncate(false)`: the delete above already wiped the file, a
-        // fresh create starts empty (explicit so `suspicious_open_options`
-        // stays quiet).
-        let mut fresh = OpenOptions::new().create(true).write(true).truncate(false).open(&path)?;
+        // FILE_WRITE_DATA from append handles on Windows, so a truncate
+        // through the live handle is denied there ("Clear debug log"
+        // errored whenever the log was on). Truncate through a second
+        // write handle instead: append-mode writes always land at the
+        // current end of file, so the sink keeps appending afterwards
+        // and stays untouched when the wipe itself fails. The guard is
+        // held across the wipe so the tracing layer cannot interleave.
+        let mut fresh = OpenOptions::new().create(true).write(true).truncate(true).open(path)?;
         write_session_header(&mut fresh)?;
-        drop(fresh);
-        *guard = Some(OpenOptions::new().create(true).append(true).open(&path)?);
         return Ok(true);
     }
     drop(guard);
     if path.exists() {
-        std::fs::remove_file(&path)?;
+        std::fs::remove_file(path)?;
         return Ok(true);
     }
     Ok(removed_old)
@@ -442,27 +445,20 @@ mod tests {
         assert!(body.contains("line-a"));
         assert!(body.contains("line-b"));
 
-        // Clear through the live handle wipes and re-stamps the header.
-        // (clear() resolves the real home-dir path, so exercise the same
-        // wipe-and-rearm branch directly against the test file.) On
-        // Windows the append sink cannot truncate itself (Rust strips
-        // FILE_WRITE_DATA from append handles), so the branch wipes the
-        // file through a fresh write handle and re-arms the sink.
-        {
-            let mut guard = sink();
-            let file = guard.take().unwrap();
-            drop(file);
-            std::fs::remove_file(&path).unwrap();
-            let mut fresh =
-                OpenOptions::new().create(true).write(true).truncate(false).open(&path).unwrap();
-            write_session_header(&mut fresh).unwrap();
-            drop(fresh);
-            *guard = Some(OpenOptions::new().create(true).append(true).open(&path).unwrap());
-        }
-        assert!(is_enabled()); // the sink stays armed across the wipe
+        // Clear wipes the file and re-stamps the header while the sink
+        // stays armed. (clear() resolves the real home-dir path, so go
+        // through clear_at against the test file.) On Windows the
+        // append sink cannot truncate itself (Rust strips
+        // FILE_WRITE_DATA from append handles), so the wipe goes
+        // through a second write handle.
+        assert!(clear_at(&path).unwrap());
         let cleared = std::fs::read_to_string(&path).unwrap();
         assert!(cleared.contains("Oryxis debug session started"));
         assert!(!cleared.contains("line-a"));
+        // The untouched sink keeps appending at the new end of file.
+        DebugFileWriter.write_all(b"line-c\n").unwrap();
+        DebugFileWriter.flush().unwrap();
+        assert!(std::fs::read_to_string(&path).unwrap().contains("line-c"));
 
         // Disable closes the sink and the writer goes back to discarding.
         disable();
