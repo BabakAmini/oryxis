@@ -189,9 +189,6 @@ impl Modal {
         // Same class: Esc refuses to let remote output type into the
         // session, and the refusal sticks for the session.
         Modal::TriggerConfirm,
-        // Esc = don't lock (the safe default for a teardown that severs
-        // every live connection); same lightweight-confirm group.
-        Modal::LockVaultConfirm,
         // The error dialog can pop over another flow, so it dismisses
         // before the heavier editors below; the two confirm dialogs
         // follow in the same lightweight-confirm group.
@@ -200,6 +197,11 @@ impl Modal {
         // Esc = don't signal anything (the safe default for a remote,
         // irreversible action); same lightweight-confirm group.
         Modal::MonitorKill,
+        // Esc = don't lock (the safe default for a teardown that severs
+        // every live connection). After MonitorKill to mirror the
+        // `main_layout` chain, where every dialog above renders on top
+        // of this one: Esc must answer the dialog the user can see.
+        Modal::LockVaultConfirm,
         // Esc = neither reopen nor discard the local copy. Ahead of the
         // save prompt because `layer_sftp_modals` renders it on top: Esc
         // must always answer the dialog the user can actually see.

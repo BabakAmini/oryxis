@@ -241,6 +241,20 @@ impl Oryxis {
                                 session.close();
                             }
                         }
+                        // The ACTIVE standalone tab's live state rides the
+                        // swap-on-focus buffer (`self.sftp`), not its parked
+                        // `state` slot (a taken default), so its sessions must
+                        // be closed here too: replacing the buffer below only
+                        // drops the Arc, and a clone held by an in-flight
+                        // transfer would keep the connection alive behind the
+                        // lock screen. A hybrid owner's mounts sit on pane
+                        // sessions already closed above; close() is idempotent.
+                        if let Some(session) = &self.sftp.left.session {
+                            session.close();
+                        }
+                        if let Some(session) = &self.sftp.right.session {
+                            session.close();
+                        }
                         self.sftp_tabs.clear();
                         self.tab_order.retain(|r| !matches!(r, crate::state::TabRef::Sftp(_)));
                         self.sftp = crate::state::SftpState::default();

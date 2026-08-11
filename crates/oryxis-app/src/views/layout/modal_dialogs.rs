@@ -882,10 +882,18 @@ impl Oryxis {
                 }
             }
         }
-        for tab in &self.sftp_tabs {
+        for (idx, tab) in self.sftp_tabs.iter().enumerate() {
             // A tab counts only while it has a mounted session: a
-            // disconnected SFTP tab has nothing to sever.
-            if tab.state.left.session.is_some() || tab.state.right.session.is_some() {
+            // disconnected SFTP tab has nothing to sever. The ACTIVE
+            // tab's live state rides the swap-on-focus buffer
+            // (`self.sftp`); its parked slot is a taken default, so
+            // resolve each tab against where its state actually lives.
+            let st: &crate::state::SftpState = if self.active_sftp == Some(idx) {
+                &self.sftp
+            } else {
+                &tab.state
+            };
+            if st.left.session.is_some() || st.right.session.is_some() {
                 rows.push(lock_impact_row(iced_fonts::lucide::folder(), tab.label.clone()));
             }
         }
