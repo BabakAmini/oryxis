@@ -702,6 +702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "La password è obbligatoria",
         "import_wrong_password" => "Password errata",
         "import_done" => "Importato:",
+        "import_nothing_new" => "Niente di nuovo da importare: la cassaforte contiene già tutto il contenuto di questo file",
         "export_select_what" => "Cosa esportare",
         "import_select_what" => "Cosa importare",
         "import_inspect" => "Ispeziona",

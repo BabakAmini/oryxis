@@ -711,6 +711,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Le mot de passe est requis",
         "import_wrong_password" => "Mot de passe incorrect",
         "import_done" => "Importé :",
+        "import_nothing_new" => "Rien de nouveau à importer : le coffre contient déjà tout le contenu de ce fichier",
         "export_select_what" => "Quoi exporter",
         "import_select_what" => "Quoi importer",
         "import_inspect" => "Inspecter",

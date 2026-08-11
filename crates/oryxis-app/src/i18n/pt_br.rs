@@ -837,6 +837,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "A senha é obrigatória",
         "import_wrong_password" => "Senha incorreta",
         "import_done" => "Importado:",
+        "import_nothing_new" => "Nada novo para importar: o cofre já contém tudo deste arquivo",
         "export_select_what" => "O que exportar",
         "import_select_what" => "O que importar",
         "import_inspect" => "Inspecionar",

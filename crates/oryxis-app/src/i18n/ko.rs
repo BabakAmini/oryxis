@@ -865,6 +865,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "비밀번호가 필요합니다",
         "import_wrong_password" => "잘못된 비밀번호",
         "import_done" => "가져옴:",
+        "import_nothing_new" => "가져올 새 항목이 없습니다: 이 파일의 내용이 이미 볼트에 모두 있습니다",
         "export_select_what" => "내보낼 항목",
         "import_select_what" => "가져올 항목",
         "import_inspect" => "검사",

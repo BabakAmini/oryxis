@@ -871,6 +871,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "पासवर्ड आवश्यक है",
         "import_wrong_password" => "गलत पासवर्ड",
         "import_done" => "इंपोर्ट हुआ:",
+        "import_nothing_new" => "इंपोर्ट करने के लिए कुछ नया नहीं: वॉल्ट में इस फ़ाइल की सारी चीज़ें पहले से मौजूद हैं",
         "export_select_what" => "क्या एक्सपोर्ट करना है",
         "import_select_what" => "क्या इंपोर्ट करना है",
         "import_inspect" => "निरीक्षण करें",

@@ -711,6 +711,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "パスワードが必要です",
         "import_wrong_password" => "パスワードが違います",
         "import_done" => "インポート済み:",
+        "import_nothing_new" => "新しくインポートする項目はありません: このファイルの内容はすべて保管庫に存在します",
         "export_select_what" => "エクスポートする項目",
         "import_select_what" => "インポートする項目",
         "import_inspect" => "確認",

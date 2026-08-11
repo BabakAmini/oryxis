@@ -226,6 +226,21 @@ impl Oryxis {
                             oryxis_vault::ExportSelection::all();
                         self.vault_import.file_data = Some(bytes);
                         self.panels.import_dialog = true;
+                        // The vault-import dialog renders inline in
+                        // Settings > Security ONLY, while the hub opens
+                        // from the dashboard and the onboarding
+                        // follow-up: without navigating there the flag
+                        // is invisible and the pick silently does
+                        // nothing (issue #151). RevealSetting rides the
+                        // palette path: view + section switch plus the
+                        // scroll that brings the dialog into view (the
+                        // export/import card sits far down the section).
+                        return self.update(Message::Settings(
+                            crate::app::SettingsMessage::RevealSetting(
+                                crate::state::SettingsSection::Security,
+                                "import_vault",
+                            ),
+                        ));
                     }
                     Detected::SshConfig(text) => {
                         // The ssh_config flow keeps its alias-linking
@@ -526,7 +541,16 @@ impl Oryxis {
                                 .map(|(n, key)| format!("{n} {}", crate::i18n::t(key)))
                                 .collect::<Vec<_>>()
                                 .join(", ");
-                            let msg = format!("{} {}", crate::i18n::t("import_done"), body);
+                            // Every record skipped (re-import of a file
+                            // whose content already exists) would render
+                            // "Imported:" with an empty tail, which reads
+                            // as a silent failure; say what happened
+                            // instead.
+                            let msg = if body.is_empty() {
+                                crate::i18n::t("import_nothing_new").to_string()
+                            } else {
+                                format!("{} {}", crate::i18n::t("import_done"), body)
+                            };
                             self.vault_import.status = Some(Ok(msg));
                             self.panels.import_dialog = false;
                             self.vault_import.file_data = None;

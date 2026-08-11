@@ -883,6 +883,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "كلمة المرور مطلوبة",
         "import_wrong_password" => "كلمة مرور خاطئة",
         "import_done" => "تم الاستيراد:",
+        "import_nothing_new" => "لا يوجد جديد للاستيراد: الخزنة تحتوي بالفعل على كل ما في هذا الملف",
         "export_select_what" => "ما الذي تريد تصديره",
         "import_select_what" => "ما الذي تريد استيراده",
         "import_inspect" => "فحص",

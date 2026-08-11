@@ -702,6 +702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Требуется пароль",
         "import_wrong_password" => "Неверный пароль",
         "import_done" => "Импортировано:",
+        "import_nothing_new" => "Нечего импортировать: хранилище уже содержит всё из этого файла",
         "export_select_what" => "Что экспортировать",
         "import_select_what" => "Что импортировать",
         "import_inspect" => "Проверить",

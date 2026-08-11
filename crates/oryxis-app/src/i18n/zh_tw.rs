@@ -711,6 +711,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "需要密碼",
         "import_wrong_password" => "密碼錯誤",
         "import_done" => "已匯入：",
+        "import_nothing_new" => "沒有新內容可匯入：保險庫已包含此檔案中的全部內容",
         "export_select_what" => "匯出內容",
         "import_select_what" => "匯入內容",
         "import_inspect" => "檢視",

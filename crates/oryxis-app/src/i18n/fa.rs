@@ -867,6 +867,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "رمز عبور لازم است",
         "import_wrong_password" => "رمز عبور نادرست",
         "import_done" => "وارد شد:",
+        "import_nothing_new" => "چیز جدیدی برای وارد کردن نیست: صندوقچه از قبل همه محتوای این فایل را دارد",
         "export_select_what" => "چه چیزی صادر شود",
         "import_select_what" => "چه چیزی وارد شود",
         "import_inspect" => "بررسی",

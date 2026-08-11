@@ -871,6 +871,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Hasło jest wymagane",
         "import_wrong_password" => "Nieprawidłowe hasło",
         "import_done" => "Zaimportowano:",
+        "import_nothing_new" => "Brak nowych elementów do importu: sejf zawiera już wszystko z tego pliku",
         "export_select_what" => "Co wyeksportować",
         "import_select_what" => "Co zaimportować",
         "import_inspect" => "Sprawdź",

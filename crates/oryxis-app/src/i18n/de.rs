@@ -702,6 +702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Passwort erforderlich",
         "import_wrong_password" => "Falsches Passwort",
         "import_done" => "Importiert:",
+        "import_nothing_new" => "Nichts Neues zu importieren: Der Tresor enthält bereits alles aus dieser Datei",
         "export_select_what" => "Was exportieren",
         "import_select_what" => "Was importieren",
         "import_inspect" => "Prüfen",

@@ -865,6 +865,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Потрібен пароль",
         "import_wrong_password" => "Невірний пароль",
         "import_done" => "Імпортовано:",
+        "import_nothing_new" => "Немає нічого нового для імпорту: сховище вже містить усе з цього файлу",
         "export_select_what" => "Що експортувати",
         "import_select_what" => "Що імпортувати",
         "import_inspect" => "Перевірити",

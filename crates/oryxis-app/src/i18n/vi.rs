@@ -865,6 +865,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Cần mật khẩu",
         "import_wrong_password" => "Sai mật khẩu",
         "import_done" => "Đã nhập:",
+        "import_nothing_new" => "Không có gì mới để nhập: kho đã chứa toàn bộ nội dung của tệp này",
         "export_select_what" => "Xuất những gì",
         "import_select_what" => "Nhập những gì",
         "import_inspect" => "Kiểm tra",

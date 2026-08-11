@@ -865,6 +865,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "Parola gerekli",
         "import_wrong_password" => "Yanlış parola",
         "import_done" => "İçe aktarıldı:",
+        "import_nothing_new" => "İçe aktarılacak yeni bir şey yok: kasa bu dosyadaki her şeyi zaten içeriyor",
         "export_select_what" => "Ne dışa aktarılacak",
         "import_select_what" => "Ne içe aktarılacak",
         "import_inspect" => "İncele",

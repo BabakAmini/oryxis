@@ -871,6 +871,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_required" => "ต้องระบุรหัสผ่าน",
         "import_wrong_password" => "รหัสผ่านไม่ถูกต้อง",
         "import_done" => "นำเข้าแล้ว:",
+        "import_nothing_new" => "ไม่มีรายการใหม่ให้นำเข้า: Vault มีทุกอย่างในไฟล์นี้อยู่แล้ว",
         "export_select_what" => "สิ่งที่จะส่งออก",
         "import_select_what" => "สิ่งที่จะนำเข้า",
         "import_inspect" => "ตรวจดู",

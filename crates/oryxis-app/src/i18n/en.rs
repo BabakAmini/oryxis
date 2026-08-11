@@ -872,6 +872,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "password_required" => "Password is required",
         "import_wrong_password" => "Wrong password",
         "import_done" => "Imported:",
+        "import_nothing_new" => "Nothing new to import: the vault already contains everything in this file",
         "export_select_what" => "What to export",
         "import_select_what" => "What to import",
         "import_inspect" => "Inspect",
