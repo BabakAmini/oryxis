@@ -48,9 +48,12 @@ absent "Fade image"
 # same build order the keyboard walk records. The pickers' VALUES are
 # invisible to text selectors, so this pins the rows themselves; which
 # value each one resolves to is unit-tested (terminal_appearance::tests).
-click (19, 20)
-settle
-click "Hosts"
+# Back to the vault by hotkey, not by the hamburger's "Hosts" row: the
+# Terminal Settings page grew a "Sidebar tab locations" block (issue
+# #102) whose first dock row is also labelled "Hosts", far below the
+# fold, and the text selector resolves to that one instead of the menu
+# entry (a click on an off-screen target then fails).
+type ctrl+shift+1
 settle
 click "Continue"
 settle

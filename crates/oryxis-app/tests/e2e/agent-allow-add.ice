@@ -19,9 +19,12 @@ click (1175, 64)
 expect "Features & Plugins"
 click "Features & Plugins"
 expect "SSH Agent"
-# y moved 305 -> 350 when the Host monitoring feature row (#83)
-# joined the list above SSH Agent.
-click (1141, 350)
+# The SSH Agent toggle sits last in the Features list, so every new
+# feature row above it pushes this y down: 305 -> 350 with Host
+# monitoring (#83), 350 -> 395 with tmux sessions. Read the row's own
+# bounds with `texts` when it drifts again; the label sits ~16 px above
+# the toggle's centre.
+click (1141, 395)
 settle 300
 click "SSH Agent"
 expect "Confirm each use"
