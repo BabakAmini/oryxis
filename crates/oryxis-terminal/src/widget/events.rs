@@ -328,12 +328,19 @@ impl<Message> TerminalView<Message> {
     ///
     /// A conventional wheel is unaffected: `y` is already ±1, which
     /// accumulates to exactly one notch and leaves no remainder.
+    ///
+    /// A horizontal-only event (`y == 0.0`, what a tilt wheel sends)
+    /// means two different things to the two guards around the
+    /// residuals, and the asymmetry is deliberate. It carries no
+    /// DIRECTION, so the sign-flip test below skips it rather than
+    /// reading `+0.0` as "upward" and discarding the accumulated
+    /// fraction. It does still name a device KIND, which is why both
+    /// call sites clear the OTHER kind's residual unconditionally
+    /// before calling here: a tilt on a wheel proves the touchpad's
+    /// sub-cell pixel fraction is stale, and vice versa.
     pub(super) fn whole_notches(widget_state: &TerminalWidgetState, y: f32) -> i32 {
         let prev = widget_state.scroll_line_residual.get();
-        // `y == 0.0` is a horizontal-only event (a tilt wheel), not a
-        // reversal: signum() calls +0.0 positive, so testing it without
-        // this guard would throw away a vertical residual every time the
-        // wheel tilted.
+        // Direction only: see the doc comment on the `y == 0.0` split.
         let acc = if prev != 0.0 && y != 0.0 && prev.signum() != y.signum() {
             y
         } else {
@@ -702,8 +709,9 @@ where
                 mouse::ScrollDelta::Pixels { y, .. } => {
                     widget_state.scroll_line_residual.set(0.0);
                     let prev = widget_state.scroll_px_residual.get();
-                    // Same zero guard as `whole_notches`: a horizontal-only
-                    // event must not be read as a direction reversal.
+                    // Same zero guard as `whole_notches`, for the same
+                    // reason: a horizontal-only event names a device but
+                    // not a direction, so it must not read as a reversal.
                     let acc = if prev != 0.0 && *y != 0.0 && prev.signum() != y.signum() {
                         *y
                     } else {
