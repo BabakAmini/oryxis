@@ -220,6 +220,27 @@ pub(crate) fn card_accent_wash<'a>(card: Element<'a, Message>, color: Color) -> 
 /// behind every "nothing here yet" screen (hosts, keychain, snippets,
 /// port forwards, cloud, proxies, known hosts, history). Pass the icon
 /// pre-sized/coloured (e.g. `lucide::route().size(32).color(...).into()`).
+/// The tile an empty state opens with: a fixed square box with the glyph
+/// centered. Padding-only sizing tracked the glyph's own width/height
+/// (rarely equal), so the box came out slightly oblong; a fixed 64x64
+/// keeps it square on every empty state regardless of which icon it
+/// holds. Exposed for the states that lay out their own body (the
+/// keychain's action stack) so every hero stays identical.
+pub(crate) fn empty_state_icon<'a>(icon: Element<'a, Message>) -> Element<'a, Message> {
+    container(icon)
+        .center_x(Length::Fixed(64.0))
+        .center_y(Length::Fixed(64.0))
+        .style(|_| container::Style {
+            background: Some(Background::Color(OryxisColors::t().bg_surface)),
+            border: Border {
+                radius: Radius::from(12.0),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .into()
+}
+
 pub(crate) fn empty_state<'a>(
     icon: Element<'a, Message>,
     title: String,
@@ -227,22 +248,7 @@ pub(crate) fn empty_state<'a>(
     cta: Option<(String, Message)>,
 ) -> Element<'a, Message> {
     let mut items: Vec<Element<'a, Message>> = vec![
-        // Fixed square box with the glyph centered. Padding-only sizing
-        // tracked the glyph's own width/height (rarely equal), so the box
-        // came out slightly oblong; a fixed 64x64 keeps it square on every
-        // empty state regardless of which icon it holds.
-        container(icon)
-            .center_x(Length::Fixed(64.0))
-            .center_y(Length::Fixed(64.0))
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border {
-                    radius: Radius::from(12.0),
-                    ..Default::default()
-                },
-                ..Default::default()
-            })
-            .into(),
+        empty_state_icon(icon),
         Space::new().height(20).into(),
         text(title)
             .size(20)
@@ -263,49 +269,6 @@ pub(crate) fn empty_state<'a>(
         iced::widget::Column::with_children(items).align_x(iced::Alignment::Center),
     )
     .center(Length::Fill)
-    .into()
-}
-
-/// [`empty_state`] with a second, muted action under the primary CTA
-/// (the keychain offers Generate AND Import from its empty state).
-pub(crate) fn empty_state_two<'a>(
-    icon: Element<'a, Message>,
-    title: String,
-    desc: String,
-    primary: (String, Message),
-    secondary: (String, Message),
-) -> Element<'a, Message> {
-    let body = empty_state(icon, title, desc, Some(primary));
-    let (label, msg) = secondary;
-    let secondary_btn = button(
-        text(label)
-            .size(13)
-            .color(OryxisColors::t().text_secondary),
-    )
-    .on_press(msg)
-    .padding(Padding { top: 8.0, right: 18.0, bottom: 8.0, left: 18.0 })
-    .style(|_, status| {
-        let bg = match status {
-            iced::widget::button::Status::Hovered => OryxisColors::t().bg_hover,
-            iced::widget::button::Status::Pressed => OryxisColors::t().bg_selected,
-            _ => Color::TRANSPARENT,
-        };
-        iced::widget::button::Style {
-            background: Some(Background::Color(bg)),
-            border: Border {
-                radius: Radius::from(8.0),
-                color: OryxisColors::t().border,
-                width: 1.0,
-            },
-            ..Default::default()
-        }
-    });
-    iced::widget::column![
-        body,
-        container(secondary_btn)
-            .center_x(Length::Fill)
-            .padding(Padding { top: 0.0, right: 0.0, bottom: 48.0, left: 0.0 }),
-    ]
     .into()
 }
 

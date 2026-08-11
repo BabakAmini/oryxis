@@ -118,13 +118,13 @@ impl Oryxis {
         let actions = self.add_host_actions();
         if !actions.is_empty() {
             items.push(Space::new().height(24).into());
-            items.push(or_divider());
+            items.push(crate::views::add_actions::or_divider(BLOCK_WIDTH));
             items.push(Space::new().height(16).into());
             for action in actions {
                 items.push(self.content_action_slot(
                     crate::keynav::RowAction::activate(action.msg.clone()),
                     8.0,
-                    secondary_action_button(action),
+                    crate::views::add_actions::secondary_action_button(action, BLOCK_WIDTH),
                 ));
                 items.push(Space::new().height(8).into());
             }
@@ -140,65 +140,4 @@ impl Oryxis {
 /// keyboard row (`RowAction::input` focuses by id).
 const QUICK_HOST_INPUT_ID: &str = "empty-quick-host";
 
-/// A hairline rule with the "or" label centered in it, separating the
-/// primary create path from the secondary ones.
-fn or_divider<'a>() -> Element<'a, Message> {
-    let rule = || {
-        container(Space::new().width(Length::Fill).height(1))
-            .width(Length::Fill)
-            .style(|_| container::Style {
-                background: Some(Background::Color(OryxisColors::t().border)),
-                ..Default::default()
-            })
-    };
-    // Symmetric, so it needs no direction awareness.
-    container(
-        iced::widget::row![
-            rule(),
-            container(text(t("or_separator")).size(12).color(OryxisColors::t().text_muted))
-                .padding(Padding { top: 0.0, right: 10.0, bottom: 0.0, left: 10.0 }),
-            rule(),
-        ]
-        .align_y(iced::Alignment::Center),
-    )
-    .width(BLOCK_WIDTH)
-    .into()
-}
 
-/// One secondary action: outlined, muted, deliberately quieter than
-/// the success-filled Continue above it.
-fn secondary_action_button(action: crate::views::add_actions::AddHostAction<'_>) -> Element<'_, Message> {
-    let crate::views::add_actions::AddHostAction { icon, label, msg, color } = action;
-    button(
-        container(
-            dir_row(vec![
-                icon.view(14.0, color),
-                Space::new().width(8).into(),
-                text(label).size(13).color(OryxisColors::t().text_secondary).into(),
-            ])
-            .align_y(iced::Alignment::Center),
-        )
-        .width(BLOCK_WIDTH)
-        .center_x(BLOCK_WIDTH),
-    )
-    .on_press(msg)
-    .width(BLOCK_WIDTH)
-    .padding(Padding { top: 10.0, right: 12.0, bottom: 10.0, left: 12.0 })
-    .style(|_, status| {
-        let bg = match status {
-            BtnStatus::Hovered => OryxisColors::t().bg_hover,
-            BtnStatus::Pressed => OryxisColors::t().bg_selected,
-            _ => Color::TRANSPARENT,
-        };
-        button::Style {
-            background: Some(Background::Color(bg)),
-            border: Border {
-                radius: Radius::from(8.0),
-                width: 1.0,
-                color: OryxisColors::t().border,
-            },
-            ..Default::default()
-        }
-    })
-    .into()
-}

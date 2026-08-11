@@ -1,7 +1,13 @@
 //! Keys screen: toolbar, key + identity card grids. Split out of views/keys.rs.
 
 use super::*;
+use crate::widgets::empty_state_icon;
 use iced::widget::column;
+
+/// Width of the empty state's centered action block (hero CTA, the "or"
+/// divider and every secondary action), so the column reads as one
+/// object. Matches `cta_button`'s own width and the dashboard's block.
+const EMPTY_BLOCK_WIDTH: f32 = 380.0;
 
 impl Oryxis {
     pub(crate) fn view_keys(&self) -> Element<'_, Message> {
@@ -221,30 +227,62 @@ impl Oryxis {
         // render the identities section below (issue #70, credentials
         // looked "lost" because this early return hid them).
         if self.keys.is_empty() && self.identities.is_empty() {
-            let empty_state = crate::widgets::empty_state_two(
-                iced_fonts::lucide::key_round()
-                    .size(32)
-                    .color(OryxisColors::t().text_muted)
-                    .into(),
-                crate::i18n::t("add_key_title").to_string(),
-                crate::i18n::t("add_key_desc").to_string(),
-                (
-                    crate::i18n::t("generate_key").to_string(),
-                    Message::Keys(KeysMessage::ShowKeyGeneratePanel),
-                ),
-                (
-                    crate::i18n::t("import_key").to_string(),
-                    Message::Keys(KeysMessage::ShowKeyPanel),
-                ),
-            );
-
-            // No toolbar when empty: search is hidden and the "+ Add" lives
-            // in the empty-state CTA (avoids an orphaned action button).
+            // No toolbar when empty: search is hidden and the "+ ADD ▾"
+            // menu's own entries render as real buttons below instead
+            // (avoids an orphaned action button, and a dropdown on an
+            // otherwise blank screen hides every path but the hero
+            // behind a chevron: with only the two key CTAs here, a fresh
+            // vault could not reach the identity form at all).
             // Side panels are hoisted to `view_main` (active_side_panel).
             // Un-record the toolbar items registered above; none of
-            // them render on this path. Same for content rows.
+            // them render on this path. The content rows are cleared
+            // here and re-recorded below, in display order.
             self.keynav_toolbar_reset();
             self.keynav_clear_content();
+            let mut actions = self.add_key_actions();
+            // The catalog's first entry is the primary one; it becomes
+            // the filled hero CTA and the rest the secondary stack.
+            let primary = actions.remove(0);
+            let mut items: Vec<Element<'_, Message>> = vec![
+                empty_state_icon(
+                    iced_fonts::lucide::key_round()
+                        .size(32)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                ),
+                Space::new().height(20).into(),
+                text(crate::i18n::t("add_key_title"))
+                    .size(20)
+                    .color(OryxisColors::t().text_primary)
+                    .into(),
+                Space::new().height(8).into(),
+                text(crate::i18n::t("add_key_desc"))
+                    .size(13)
+                    .color(OryxisColors::t().text_muted)
+                    .align_x(iced::alignment::Horizontal::Center)
+                    .into(),
+                Space::new().height(24).into(),
+                self.content_action_slot(
+                    crate::keynav::RowAction::activate(primary.msg.clone()),
+                    8.0,
+                    crate::widgets::cta_button(primary.label.to_string(), primary.msg),
+                ),
+                Space::new().height(24).into(),
+                crate::views::add_actions::or_divider(EMPTY_BLOCK_WIDTH),
+                Space::new().height(16).into(),
+            ];
+            for action in actions {
+                items.push(self.content_action_slot(
+                    crate::keynav::RowAction::activate(action.msg.clone()),
+                    8.0,
+                    crate::views::add_actions::secondary_action_button(action, EMPTY_BLOCK_WIDTH),
+                ));
+                items.push(Space::new().height(8).into());
+            }
+            let empty_state = container(
+                iced::widget::Column::with_children(items).align_x(iced::Alignment::Center),
+            )
+            .center(Length::Fill);
             let main_content = column![search_bar, status, empty_state]
                 .width(Length::Fill)
                 .height(Length::Fill);

@@ -330,17 +330,14 @@ impl Oryxis {
     }
 
     pub(crate) fn build_menu_keychain_add(&self) -> Element<'_, Message> {
-        // "Certificate" is the same key entity (a cert lives on its key),
-        // offered explicitly so the intent is discoverable (B2.1, the
-        // Termius pattern); it opens the import panel with the
-        // certificate field focused.
-        column![
-            self.menu_item(iced_fonts::lucide::sparkles(), crate::i18n::t("generate_key"), Message::Keys(KeysMessage::ShowKeyGeneratePanel), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::key_round(), crate::i18n::t("import_key"), Message::Keys(KeysMessage::ShowKeyPanel), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::fingerprint(), crate::i18n::t("import_public_key"), Message::Keys(KeysMessage::ShowKeyPanelPublicFocus), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::badge_check(), crate::i18n::t("certificate"), Message::Keys(KeysMessage::ShowKeyPanelCertFocus), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::user(), crate::i18n::t("new_identity"), Message::Keys(KeysMessage::ShowIdentityPanel), OryxisColors::t().text_secondary),
-        ].into()
+        // The "+ ADD ▾" keychain menu: one row per entry of the shared
+        // add catalog (`views::add_actions`), which the empty keychain
+        // renders as buttons from the same list.
+        let mut items = column![];
+        for action in self.add_key_actions() {
+            items = items.push(self.menu_item(action.icon, action.label, action.msg, action.color));
+        }
+        items.into()
     }
 
     pub(crate) fn build_menu_folder_actions(&self, gid: uuid::Uuid) -> Element<'_, Message> {
