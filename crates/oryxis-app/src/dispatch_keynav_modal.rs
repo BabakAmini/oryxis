@@ -113,6 +113,10 @@ impl Oryxis {
                     // the default-ringed action, so a stray Enter can
                     // never take a remote service down.
                     | Modal::MonitorKill
+                    // Manual-lock confirm: Cancel is the default-ringed
+                    // action too, so a stray Enter can never sever every
+                    // live connection.
+                    | Modal::LockVaultConfirm
                     // "Let this rule run a snippet" (C6): Don't send is
                     // the default-ringed action, so a stray Enter can
                     // never hand the session to remote output.

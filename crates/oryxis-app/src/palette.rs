@@ -259,7 +259,9 @@ impl Oryxis {
             keywords: "lock_vault",
             hotkey: None,
             category: PaletteCategory::Session,
-            message: Message::Vault(VaultMessage::LockVault),
+            // Asks first: Lock Vault tears every live session down, so
+            // the row opens the confirm dialog, not the teardown.
+            message: Message::Vault(VaultMessage::LockVaultConfirm),
             enabled: self.vault_ui.has_user_password,
         });
         candidates.push(Candidate {

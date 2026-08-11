@@ -63,6 +63,7 @@ impl Oryxis {
             // predicate the render site uses, so the flag can never say
             // "open" over a screen that isn't showing it.
             Modal::HighlightRuleEditor => self.highlight_rule_editor_open(),
+            Modal::LockVaultConfirm => self.vault_ui.lock_confirm,
         }
     }
 
@@ -196,6 +197,8 @@ impl Oryxis {
             // reported as a toast instead (`KillFinished`). Nothing is
             // re-sent, so there is no window where Esc doubles a signal.
             Modal::MonitorKill => self.monitor.kill = None,
+            // Esc mirrors CancelLockVaultConfirm: don't lock.
+            Modal::LockVaultConfirm => self.vault_ui.lock_confirm = false,
         }
     }
 

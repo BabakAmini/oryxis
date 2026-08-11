@@ -26,6 +26,16 @@ pub enum VaultMessage {
     VaultShowPasswordFallback,
     /// Set-password forms: flip the "also enable biometric unlock" opt-in.
     ToggleSetupBiometric,
+    /// Arm the manual-lock confirmation dialog. `LockVault` tears every
+    /// live session and tab down, so the button asks first (an accidental
+    /// click would sever all open connections); the dialog's Lock button
+    /// then fires the real `LockVault`.
+    LockVaultConfirm,
+    /// Dismiss the manual-lock confirmation dialog without locking.
+    CancelLockVaultConfirm,
+    /// Commit the manual lock after the confirm dialog: full teardown of
+    /// sessions, tabs and secrets. Reached only from the dialog's Lock
+    /// button (the trigger sites arm `LockVaultConfirm` instead).
     LockVault,
     /// Idle-triggered soft lock: zeroize the vault key and show the lock
     /// screen but keep live SSH sessions and tabs (unlike the manual

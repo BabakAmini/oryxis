@@ -46,6 +46,12 @@ pub(crate) struct VaultUi {
     /// action only runs once the user confirms, so an accidental flip
     /// doesn't silently drop encryption.
     pub(crate) confirm_remove_password: bool,
+    /// Two-step confirm latch for the manual lock. Lock Vault tears down
+    /// every live SSH session and tab, so the button asks first; an
+    /// accidental click must not sever all open connections. Armed by
+    /// `LockVaultConfirm`, cleared by `CancelLockVaultConfirm` and by
+    /// either lock path.
+    pub(crate) lock_confirm: bool,
     /// Whether the "change master password" form is open (only meaningful
     /// once a password is set). Reuses `new_password` / `confirm_password`
     /// for the new value and adds `current_password` for verification.
