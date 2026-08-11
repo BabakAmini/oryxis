@@ -124,21 +124,30 @@ pub(crate) fn disable() {
     }
 }
 
-/// Wipe the log (live handle truncated in place, otherwise the file and
-/// any rotated leftover are deleted). Returns `false` when there was
-/// nothing to clear.
+/// Wipe the log (a live sink is wiped and re-armed, otherwise the file
+/// and any rotated leftover are deleted). Returns `false` when there
+/// was nothing to clear.
 pub(crate) fn clear() -> io::Result<bool> {
     let Some(path) = log_path() else {
         return Ok(false);
     };
     let removed_old = std::fs::remove_file(rotated_path(&path)).is_ok();
     let mut guard = sink();
-    if let Some(file) = guard.as_mut() {
-        // Append-mode writes land at the new end (offset 0), so a
-        // truncate through the live handle is enough. Re-stamp the
-        // header so the surviving file still says what produced it.
-        file.set_len(0)?;
-        write_session_header(file)?;
+    if let Some(file) = guard.take() {
+        // The sink handle is append-only, and Rust deliberately strips
+        // FILE_WRITE_DATA from append handles on Windows, so it cannot
+        // truncate itself ("Clear debug log" errored there for this).
+        // Close it, wipe the file through a fresh write handle and
+        // re-arm the sink so subsequent writes keep appending.
+        drop(file);
+        std::fs::remove_file(&path)?;
+        // `truncate(false)`: the delete above already wiped the file, a
+        // fresh create starts empty (explicit so `suspicious_open_options`
+        // stays quiet).
+        let mut fresh = OpenOptions::new().create(true).write(true).truncate(false).open(&path)?;
+        write_session_header(&mut fresh)?;
+        drop(fresh);
+        *guard = Some(OpenOptions::new().create(true).append(true).open(&path)?);
         return Ok(true);
     }
     drop(guard);
@@ -433,15 +442,24 @@ mod tests {
         assert!(body.contains("line-a"));
         assert!(body.contains("line-b"));
 
-        // Clear through the live handle truncates and re-stamps the header.
+        // Clear through the live handle wipes and re-stamps the header.
         // (clear() resolves the real home-dir path, so exercise the same
-        // truncate-and-restamp branch directly against the test file.)
+        // wipe-and-rearm branch directly against the test file.) On
+        // Windows the append sink cannot truncate itself (Rust strips
+        // FILE_WRITE_DATA from append handles), so the branch wipes the
+        // file through a fresh write handle and re-arms the sink.
         {
             let mut guard = sink();
-            let file = guard.as_mut().unwrap();
-            file.set_len(0).unwrap();
-            write_session_header(file).unwrap();
+            let file = guard.take().unwrap();
+            drop(file);
+            std::fs::remove_file(&path).unwrap();
+            let mut fresh =
+                OpenOptions::new().create(true).write(true).truncate(false).open(&path).unwrap();
+            write_session_header(&mut fresh).unwrap();
+            drop(fresh);
+            *guard = Some(OpenOptions::new().create(true).append(true).open(&path).unwrap());
         }
+        assert!(is_enabled()); // the sink stays armed across the wipe
         let cleared = std::fs::read_to_string(&path).unwrap();
         assert!(cleared.contains("Oryxis debug session started"));
         assert!(!cleared.contains("line-a"));
