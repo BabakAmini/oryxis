@@ -176,6 +176,18 @@ pub struct TerminalWidgetState {
     /// remainder. Reset when the sign flips so a direction change is
     /// responsive rather than fighting a stale opposite-sign residual.
     scroll_px_residual: std::cell::Cell<f32>,
+    /// Sub-notch remainder carried across wheel events that arrive as
+    /// `ScrollDelta::Lines` with a FRACTION of a notch. A high-resolution
+    /// wheel reports eighths or sixteenths of a detent, and the platform
+    /// hands them straight through: Wayland's `axis_value120` (a detent is
+    /// 120, so a fragment is 15 or 30) and Windows' `WM_MOUSEWHEEL` (same
+    /// 120 scale) both divide by 120 before winit sees them. Truncating
+    /// each event to whole notches floored every fragment to zero, so
+    /// scrollback never moved on those devices (issue #150). Same shape as
+    /// [`Self::scroll_px_residual`]: accumulate, emit the whole notches it
+    /// covers, keep the remainder, and drop a stale opposite-sign residual
+    /// so a reversal responds at once.
+    scroll_line_residual: std::cell::Cell<f32>,
     /// True while the cursor is somewhere over the terminal canvas. Drives
     /// the scrollbar's hover-to-reveal visibility.
     hover: bool,

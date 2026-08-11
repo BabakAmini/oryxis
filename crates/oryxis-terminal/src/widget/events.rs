@@ -240,9 +240,20 @@ impl<Message> TerminalView<Message> {
                 }
                 let pos = cursor.position_in(bounds)?;
                 let (col, row) = cell(pos);
+                // A fractional `Lines` delta is a high-resolution wheel
+                // reporting part of a detent (#150): accumulated into
+                // whole notches, or the remote app would get one report
+                // per fragment and scroll a multiple of what the user
+                // turned. `Pixels` keeps its own cell-based scale.
                 let dy = match delta {
-                    mouse::ScrollDelta::Lines { y, .. } => *y,
-                    mouse::ScrollDelta::Pixels { y, .. } => *y / self.cell_height,
+                    mouse::ScrollDelta::Lines { y, .. } => {
+                        widget_state.scroll_px_residual.set(0.0);
+                        Self::whole_notches(widget_state, *y) as f32
+                    }
+                    mouse::ScrollDelta::Pixels { y, .. } => {
+                        widget_state.scroll_line_residual.set(0.0);
+                        *y / self.cell_height
+                    }
                 };
                 if dy == 0.0 {
                     return None;
@@ -299,6 +310,38 @@ impl<Message> TerminalView<Message> {
             }
             _ => false,
         }
+    }
+
+    /// Whole wheel notches in a `ScrollDelta::Lines` value, carrying
+    /// the sub-notch remainder on the widget state.
+    ///
+    /// One detent is not one event on a high-resolution wheel: the
+    /// device reports fractions of a click (Wayland `axis_value120`,
+    /// Windows `WM_MOUSEWHEEL`, both on a 120-per-detent scale the
+    /// platform divides out before winit sees it), so `y` arrives as
+    /// 0.125 or 0.25 and a plain `as i32` truncated every one of them
+    /// to zero: the wheel did nothing at all (issue #150). Accumulate
+    /// instead, emit the notches the total now covers, and keep the
+    /// rest for the next event. A sign flip drops the stale residual so
+    /// a reversal responds on its first fragment rather than spending
+    /// it undoing the accumulated one.
+    ///
+    /// A conventional wheel is unaffected: `y` is already ±1, which
+    /// accumulates to exactly one notch and leaves no remainder.
+    pub(super) fn whole_notches(widget_state: &TerminalWidgetState, y: f32) -> i32 {
+        let prev = widget_state.scroll_line_residual.get();
+        // `y == 0.0` is a horizontal-only event (a tilt wheel), not a
+        // reversal: signum() calls +0.0 positive, so testing it without
+        // this guard would throw away a vertical residual every time the
+        // wheel tilted.
+        let acc = if prev != 0.0 && y != 0.0 && prev.signum() != y.signum() {
+            y
+        } else {
+            prev + y
+        };
+        let whole = acc.trunc();
+        widget_state.scroll_line_residual.set(acc - whole);
+        whole as i32
     }
 
     pub(super) fn is_in_selection(sel: &Selection, col: u16, line: i32) -> bool {
@@ -639,12 +682,14 @@ where
         delta: &mouse::ScrollDelta,
     ) -> Option<CanvasAction<Message>> {
             let lines = match delta {
+                // A notch wheel, but not necessarily a WHOLE notch: a
+                // high-resolution wheel reports fractions of a detent
+                // (#150), so this accumulates exactly like the pixel
+                // arm below. Reset the pixel remainder so a device
+                // switch can't leave a stale fraction behind.
                 mouse::ScrollDelta::Lines { y, .. } => {
-                    // A discrete-notch wheel: whole lines, no residual
-                    // to carry. Reset any pixel remainder so a device
-                    // switch can't leave a stale fraction behind.
                     widget_state.scroll_px_residual.set(0.0);
-                    *y as i32 * 3
+                    Self::whole_notches(widget_state, *y) * 3
                 }
                 // Pixel deltas (Windows precision touchpads / high-res
                 // wheels) arrive a few pixels at a time, below one cell
@@ -655,8 +700,11 @@ where
                 // next event; a sign flip drops the stale residual so a
                 // reversal responds at once.
                 mouse::ScrollDelta::Pixels { y, .. } => {
+                    widget_state.scroll_line_residual.set(0.0);
                     let prev = widget_state.scroll_px_residual.get();
-                    let acc = if prev != 0.0 && prev.signum() != y.signum() {
+                    // Same zero guard as `whole_notches`: a horizontal-only
+                    // event must not be read as a direction reversal.
+                    let acc = if prev != 0.0 && *y != 0.0 && prev.signum() != y.signum() {
                         *y
                     } else {
                         prev + *y
@@ -668,7 +716,7 @@ where
                     cells as i32
                 }
             };
-            // A pixel delta that only grew the residual (no whole cell
+            // A delta that only grew a residual (no whole cell / notch
             // yet) still belongs to this canvas: consume it so it can't
             // bleed into a sibling scrollable, but skip the lock and the
             // redraw since nothing moved.

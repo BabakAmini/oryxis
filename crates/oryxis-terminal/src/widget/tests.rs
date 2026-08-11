@@ -29,6 +29,30 @@
         assert!(action.is_none(), "sidebar release must stay local");
     }
 
+    /// The other half of issue #150: with the remote app holding mouse
+    /// tracking (tmux `mouse on`, htop), a high-resolution wheel's
+    /// fragments must accumulate into whole detents here too. Reporting
+    /// each fragment as a notch — what `ceil()` alone did — scrolled the
+    /// remote app eight times per click of the wheel.
+    #[test]
+    fn fractional_line_wheel_reports_one_notch_per_detent() {
+        use alacritty_terminal::term::TermMode;
+        let (view, mut ws) = view_and_state();
+        let mode = TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE;
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        let frag = iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Lines { x: 0.0, y: 0.125 },
+        });
+
+        for _ in 0..7 {
+            let action =
+                view.handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24);
+            assert!(action.is_none(), "a partial detent reports nothing");
+        }
+        let action = view.handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24);
+        assert!(action.is_some(), "the completed detent reports once");
+    }
+
     /// The canvas-originated press → drag off-canvas → release flow must
     /// still report the release (apps need the button-up to end a drag),
     /// falling back to the last reported cell.
@@ -199,6 +223,67 @@
         view.on_event(&mut ws, &ln, bounds(), cursor);
         assert_eq!(ws.scroll_offset.get(), 3, "one line notch scrolls 3 lines");
         assert_eq!(ws.scroll_px_residual.get(), 0.0, "line notch clears the residual");
+    }
+
+    /// A high-resolution wheel reports FRACTIONS of a detent, and the
+    /// platform hands them through as `ScrollDelta::Lines` on the same
+    /// 120-per-detent scale it already divided out: Wayland's
+    /// `axis_value120` (which winit only started honouring once the
+    /// toolkit began binding `wl_seat` v9, in the 0.31 bump that shipped
+    /// with 0.13.0) and Windows' `WM_MOUSEWHEEL`. `y as i32` truncated
+    /// every fragment to zero and then swallowed the event, so the wheel
+    /// did nothing at all on those devices (issue #150). The notch
+    /// residual accumulates them into whole detents instead.
+    #[test]
+    fn fractional_line_wheel_accumulates_into_scroll() {
+        let (view, mut ws) = scrolled_view(200);
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        assert_eq!(ws.scroll_offset.get(), 0);
+
+        // An eighth of a detent, the `value120 = 15` fragment.
+        let frag = iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Lines { x: 0.0, y: 0.125 },
+        });
+        for _ in 0..7 {
+            let action = view.on_event(&mut ws, &frag, bounds(), cursor);
+            assert!(action.is_some(), "the canvas consumes every fragment");
+        }
+        assert_eq!(ws.scroll_offset.get(), 0, "a partial detent must not move");
+
+        // The eighth fragment completes the detent: 3 lines, once.
+        view.on_event(&mut ws, &frag, bounds(), cursor);
+        assert_eq!(ws.scroll_offset.get(), 3, "a whole detent scrolls 3 lines");
+
+        // And it keeps going, which is what the truncation never did.
+        for _ in 0..8 {
+            view.on_event(&mut ws, &frag, bounds(), cursor);
+        }
+        assert_eq!(ws.scroll_offset.get(), 6, "the residual never stalls");
+    }
+
+    /// A direction reversal mid-detent responds on its first fragment
+    /// instead of spending it unwinding the accumulated one; a
+    /// horizontal-only event (a tilt wheel, `y == 0.0`) is NOT a
+    /// reversal and must leave the vertical residual alone.
+    #[test]
+    fn fractional_line_wheel_reversal_and_tilt() {
+        let (view, mut ws) = scrolled_view(200);
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        let wheel = |y: f32, x: f32| {
+            iced::Event::Mouse(mouse::Event::WheelScrolled {
+                delta: mouse::ScrollDelta::Lines { x, y },
+            })
+        };
+
+        // Half a detent up, then a tilt: the residual survives it.
+        view.on_event(&mut ws, &wheel(0.5, 0.0), bounds(), cursor);
+        view.on_event(&mut ws, &wheel(0.0, 1.0), bounds(), cursor);
+        assert_eq!(ws.scroll_line_residual.get(), 0.5, "a tilt is not a reversal");
+
+        // Reversing drops the stale residual, so the next half-detent
+        // down is a fresh 0.5 rather than cancelling back to zero.
+        view.on_event(&mut ws, &wheel(-0.5, 0.0), bounds(), cursor);
+        assert_eq!(ws.scroll_line_residual.get(), -0.5, "a reversal starts over");
     }
 
     /// `screen_as_ansi` must reproduce the visible screen when fed to a
