@@ -8,8 +8,8 @@
 //! races any concurrent `getenv`. A binary with exactly one test has
 //! no other thread to race, which is what makes the call sound here;
 //! the resolution logic itself (override wins, empty means unset) is
-//! unit-tested in the library (`oryxis_home_overrides_vault_home`)
-//! without touching the environment.
+//! unit-tested in `oryxis_core::paths` without touching the
+//! environment.
 
 use oryxis_vault::VaultStore;
 

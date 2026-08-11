@@ -2,7 +2,7 @@
 //!
 //! Layout, under the same `~/.oryxis` root the vault uses (the plan
 //! sketched `~/.local/share/oryxis`, but staying consistent with the
-//! vault's `dirs::home_dir().join(".oryxis")` keeps everything in one
+//! vault's `oryxis_core::paths::oryxis_dir()` keeps everything in one
 //! place and works identically across platforms):
 //!
 //! ```text
@@ -28,9 +28,9 @@ use super::PluginError;
 /// Root of the plugin cache: `~/.oryxis/plugins/`. Created on demand
 /// by the callers that write into it.
 pub fn cache_root() -> Result<PathBuf, PluginError> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| PluginError::Io(std::io::Error::other("no home directory")))?;
-    Ok(home.join(".oryxis").join("plugins"))
+    oryxis_core::paths::oryxis_dir()
+        .ok_or_else(|| PluginError::Io(std::io::Error::other("no home directory")))
+        .map(|dir| dir.join("plugins"))
 }
 
 /// Per-provider directory: `~/.oryxis/plugins/<provider>/`.

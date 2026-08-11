@@ -63,9 +63,8 @@ const PUSH_ATTEMPTS: usize = 3;
 /// the next round re-clones it; a corrupt clone is repaired the same
 /// way rather than reported.
 fn clone_root() -> PathBuf {
-    dirs::home_dir()
-        .unwrap_or_else(|| PathBuf::from("."))
-        .join(".oryxis")
+    oryxis_core::paths::oryxis_dir()
+        .unwrap_or_else(|| PathBuf::from(".").join(".oryxis"))
         .join("sync-git")
 }
 

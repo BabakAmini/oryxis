@@ -49,7 +49,7 @@ fn sink() -> MutexGuard<'static, Option<File>> {
 /// `~/.oryxis/oryxis-debug.log`, next to the vault. Self-describing
 /// name so the file still identifies itself when attached to an issue.
 pub(crate) fn log_path() -> Option<PathBuf> {
-    dirs::home_dir().map(|home| home.join(".oryxis").join("oryxis-debug.log"))
+    oryxis_core::paths::oryxis_dir().map(|dir| dir.join("oryxis-debug.log"))
 }
 
 /// Sibling the oversized log rotates aside to on enable.

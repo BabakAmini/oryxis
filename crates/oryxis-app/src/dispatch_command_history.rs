@@ -413,9 +413,8 @@ impl Oryxis {
     pub(crate) fn command_history_dir(&self) -> std::path::PathBuf {
         match &self.prefs.command_history_file_dir {
             Some(dir) => std::path::PathBuf::from(dir),
-            None => dirs::home_dir()
-                .unwrap_or_else(|| std::path::PathBuf::from("."))
-                .join(".oryxis")
+            None => oryxis_core::paths::oryxis_dir()
+                .unwrap_or_else(|| std::path::PathBuf::from(".").join(".oryxis"))
                 .join("command-history"),
         }
     }

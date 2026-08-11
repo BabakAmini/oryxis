@@ -41,32 +41,3 @@ mod portable_hardening;
 mod settings;
 mod snippets;
 mod sync;
-
-/// `ORYXIS_HOME` overrides the vault's home directory. The harness
-/// sandbox depends on this on Windows, where `dirs::home_dir()` is a
-/// WinAPI call that ignores `$HOME` / `%USERPROFILE%`: without the
-/// override a harness run would open (and migrate) the REAL profile's
-/// vault. Exercised through the pure resolver because this binary runs
-/// its tests on parallel threads, where `set_var` racing any `getenv`
-/// (`tempfile` reads `TMPDIR` on every tempdir) is undefined behavior;
-/// the end-to-end pin lives in `tests/oryxis_home.rs`, a binary with
-/// exactly one test and therefore no such race.
-#[test]
-fn oryxis_home_overrides_vault_home() {
-    use std::ffi::OsString;
-
-    let sandbox = || Some(OsString::from("/sandbox"));
-    let home = || Some(PathBuf::from("/real-home"));
-    // The override wins over the OS home.
-    assert_eq!(
-        super::vault_home(sandbox(), home()),
-        Some(PathBuf::from("/sandbox"))
-    );
-    // Unset: the OS home.
-    assert_eq!(super::vault_home(None, home()), home());
-    // An accidental `export ORYXIS_HOME=` falls through to the real
-    // home instead of landing the vault in the working directory.
-    assert_eq!(super::vault_home(Some(OsString::new()), home()), home());
-    // Nothing resolves at all: `open_default` surfaces an error.
-    assert_eq!(super::vault_home(Some(OsString::new()), None), None);
-}

@@ -25,9 +25,9 @@ use crate::plugins::{cache, PluginError};
 
 /// Stable launcher directory: `~/.oryxis/bin/`.
 pub(crate) fn launcher_dir() -> Result<PathBuf, PluginError> {
-    let home = dirs::home_dir()
-        .ok_or_else(|| PluginError::Io(std::io::Error::other("no home directory")))?;
-    Ok(home.join(".oryxis").join("bin"))
+    oryxis_core::paths::oryxis_dir()
+        .ok_or_else(|| PluginError::Io(std::io::Error::other("no home directory")))
+        .map(|dir| dir.join("bin"))
 }
 
 /// Stable launcher path: `~/.oryxis/bin/oryxis-mcp[.exe]`. External

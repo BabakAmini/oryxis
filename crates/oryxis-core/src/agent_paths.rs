@@ -16,5 +16,5 @@ pub const WINDOWS_AGENT_PIPE: &str = r"\\.\pipe\oryxis-ssh-agent";
 /// `SSH_AUTH_SOCK` at. `None` only when the home directory cannot be
 /// resolved.
 pub fn unix_agent_socket_path() -> Option<std::path::PathBuf> {
-    Some(dirs::home_dir()?.join(".oryxis").join("agent.sock"))
+    Some(crate::paths::oryxis_dir()?.join("agent.sock"))
 }

@@ -38,9 +38,8 @@ impl Oryxis {
         if let Some(dir) = dirs::download_dir() {
             return dir;
         }
-        dirs::home_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-            .join(".oryxis")
+        oryxis_core::paths::oryxis_dir()
+            .unwrap_or_else(|| std::path::PathBuf::from(".").join(".oryxis"))
             .join("downloads")
     }
 

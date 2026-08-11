@@ -79,8 +79,7 @@ pub enum Command {
 }
 
 fn runtime_root() -> Option<PathBuf> {
-    let mut p = dirs::home_dir()?;
-    p.push(".oryxis");
+    let mut p = oryxis_core::paths::oryxis_dir()?;
     p.push("runtime");
     Some(p)
 }

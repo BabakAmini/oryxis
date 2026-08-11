@@ -13,8 +13,12 @@ it, so it adds zero weight to shipped binaries.
 ## Isolation
 
 Both modes redirect `$HOME` (and `%USERPROFILE%` on Windows) to a
-sandbox directory **before anything reads the vault**, so a harness
-run can never touch your real `~/.oryxis`.
+sandbox directory **before anything reads the vault**, and point
+`ORYXIS_HOME` at it too: the app resolves its whole `.oryxis` tree
+through that override (`oryxis_core::paths`), which is what makes the
+sandbox hold on Windows as well, where the OS home comes from a WinAPI
+call that ignores env vars. A harness run can never touch your real
+`~/.oryxis`.
 
 - Default sandbox: `<system tmp>/oryxis-harness`. It persists across
   runs on purpose: a master password set in one session is still

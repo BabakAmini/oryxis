@@ -307,7 +307,7 @@ pub fn asset_code(lang: Language) -> Option<&'static str> {
 /// `~/.oryxis/fonts/`, the same `~/.oryxis` root the vault and plugin
 /// cache use. Not created here; `download` creates it on demand.
 fn cache_dir() -> Option<PathBuf> {
-    Some(dirs::home_dir()?.join(".oryxis").join("fonts"))
+    Some(oryxis_core::paths::oryxis_dir()?.join("fonts"))
 }
 
 fn cached_path(asset: &FontAsset) -> Option<PathBuf> {

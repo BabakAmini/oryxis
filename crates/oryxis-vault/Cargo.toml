@@ -31,7 +31,6 @@ flate2 = "1"
 # `rand_core` re-exported by `chacha20poly1305`, so it stays decoupled
 # from this version.
 rand = "0.10"
-dirs = "6"
 base64 = "0.23"
 # ssh-key 0.7 is the version russh 0.62 consumes; pinning the vault to it
 # collapses the duplicate 0.6 copy (and its rsa 0.9 / p256 0.13 tails)
