@@ -449,8 +449,21 @@ mod tests;
 
 impl VaultStore {
     /// Open or create the vault database at the default location (~/.oryxis/vault.db).
+    ///
+    /// `ORYXIS_HOME` overrides the home directory (the harness sandbox
+    /// relies on it on Windows, where `dirs::home_dir()` is a WinAPI call
+    /// that ignores `$HOME` / `%USERPROFILE%`); without the override the
+    /// harness would read and write the REAL profile vault. An empty value
+    /// is treated as unset, so an accidental `export ORYXIS_HOME=` can
+    /// never land the vault in the process working directory.
     pub fn open_default() -> Result<Self, VaultError> {
-        let dir = dirs::home_dir()
+        let dir = std::env::var_os("ORYXIS_HOME")
+            // An empty export must fall through to the real home, matching
+            // `dirs_sys`' own `HOME` handling; otherwise the vault would
+            // land in `./.oryxis` under the process working directory.
+            .filter(|h| !h.is_empty())
+            .map(PathBuf::from)
+            .or(dirs::home_dir())
             .ok_or_else(|| VaultError::Io(std::io::Error::other("No home directory")))?
             .join(".oryxis");
         std::fs::create_dir_all(&dir)?;

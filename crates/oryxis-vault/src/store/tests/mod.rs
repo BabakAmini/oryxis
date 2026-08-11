@@ -41,3 +41,24 @@ mod portable_hardening;
 mod settings;
 mod snippets;
 mod sync;
+
+/// `ORYXIS_HOME` overrides the vault location. The harness sandbox
+/// depends on this on Windows, where `dirs::home_dir()` is a WinAPI
+/// call that ignores `$HOME` / `%USERPROFILE%` — without the override
+/// a harness run would open (and migrate) the REAL profile's vault.
+/// (The empty-value fallthrough is documented on `open_default`; it is
+/// not testable without opening a real vault, which a unit test must
+/// never do.)
+#[test]
+fn open_default_honors_oryxis_home() {
+    let dir = tempfile::tempdir().unwrap();
+    let sandbox = dir.path().join(".oryxis");
+    // SAFETY: single-threaded test; no other test in this binary reads
+    // ORYXIS_HOME (grep), so the env mutation cannot race a real-home
+    // open. Edition 2024 makes set_var/remove_var unsafe.
+    unsafe { std::env::set_var("ORYXIS_HOME", dir.path()) };
+    let vault = VaultStore::open_default().unwrap();
+    drop(vault); // release the SQLite handle before asserting
+    assert!(sandbox.join("vault.db").exists());
+    unsafe { std::env::remove_var("ORYXIS_HOME") };
+}

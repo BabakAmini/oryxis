@@ -159,6 +159,13 @@ pub fn options_from_args() -> Option<Options> {
         std::env::set_var("HOME", &options.home);
         #[cfg(windows)]
         std::env::set_var("USERPROFILE", &options.home);
+        // `dirs::home_dir()` on Windows is `SHGetKnownFolderPath`
+        // (WinAPI) and ignores `$HOME` / `%USERPROFILE%`, so the
+        // vault would still resolve to the REAL profile. `ORYXIS_HOME`
+        // is the vault-level override `VaultStore::open_default`
+        // honors; point it at the sandbox on every platform so a
+        // harness run can never touch the real ~/.oryxis.
+        std::env::set_var("ORYXIS_HOME", &options.home);
     }
 
     Some(options)
