@@ -115,6 +115,11 @@ pub(crate) enum Modal {
     /// through to the PTY behind it) and Esc refuses, which is also
     /// remembered for the session.
     TriggerConfirm,
+    /// Manual-lock confirmation (`vault_ui.lock_confirm`). Lock Vault
+    /// tears down every live SSH session and tab, so the button asks
+    /// first; Esc / backdrop / the Cancel button all decline (the safe
+    /// default), and only the Lock button commits.
+    LockVaultConfirm,
 }
 
 impl Modal {
@@ -158,6 +163,7 @@ impl Modal {
         Modal::MonitorKill,
         Modal::HighlightRuleEditor,
         Modal::TriggerConfirm,
+        Modal::LockVaultConfirm,
     ];
 
     /// Modals Esc dismisses, in topmost-first priority order (the order
@@ -191,6 +197,11 @@ impl Modal {
         // Esc = don't signal anything (the safe default for a remote,
         // irreversible action); same lightweight-confirm group.
         Modal::MonitorKill,
+        // Esc = don't lock (the safe default for a teardown that severs
+        // every live connection). After MonitorKill to mirror the
+        // `main_layout` chain, where every dialog above renders on top
+        // of this one: Esc must answer the dialog the user can see.
+        Modal::LockVaultConfirm,
         // Esc = neither reopen nor discard the local copy. Ahead of the
         // save prompt because `layer_sftp_modals` renders it on top: Esc
         // must always answer the dialog the user can actually see.
@@ -262,7 +273,8 @@ impl Modal {
             | Modal::CertificateViewer
             | Modal::MonitorKill
             | Modal::HighlightRuleEditor
-            | Modal::TriggerConfirm => true,
+            | Modal::TriggerConfirm
+            | Modal::LockVaultConfirm => true,
         }
     }
 }
@@ -313,10 +325,11 @@ mod tests {
                 | Modal::CertificateViewer
                 | Modal::MonitorKill
                 | Modal::HighlightRuleEditor
-                | Modal::TriggerConfirm => {}
+                | Modal::TriggerConfirm
+                | Modal::LockVaultConfirm => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 37, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 38, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

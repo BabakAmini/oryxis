@@ -15,6 +15,23 @@ impl Oryxis {
     ) -> Task<Message> {
         match message {
 
+            // ── Manual lock confirmation ──
+            VaultMessage::LockVaultConfirm => {
+                // Lock Vault tears every live session and tab down, so the
+                // button asks first (an accidental click would sever all
+                // open connections). Close the surface that fired it (the
+                // burger menu; the palette already closes on activate) so
+                // the confirm layers over a plain view, mirroring
+                // RequestClearHistory's overlay close.
+                self.panels.burger_menu = false;
+                if self.vault_ui.has_user_password {
+                    self.vault_ui.lock_confirm = true;
+                }
+            }
+            VaultMessage::CancelLockVaultConfirm => {
+                self.vault_ui.lock_confirm = false;
+            }
+
             // ── Vault lock (manual + idle auto-lock) ──
             VaultMessage::AutoLockVault => {
                 // Soft lock: the user walked away, not "I'm done". Zeroize
@@ -36,6 +53,10 @@ impl Oryxis {
                     // The lock screen leads with biometrics when enrolled;
                     // a fallback choice from a previous lock must not stick.
                     self.vault_ui.password_fallback = false;
+                    // The confirm dialog cannot survive either lock path: it
+                    // is moot once the lock screen is up, and a stale latch
+                    // would re-open over the unlocked app.
+                    self.vault_ui.lock_confirm = false;
                     // Sweep UI that may hold typed or revealed secrets;
                     // everything else (tabs, terminals) stays.
                     self.revealed_secrets.clear();
@@ -175,6 +196,9 @@ impl Oryxis {
             VaultMessage::LockVault => {
                 if let Some(vault) = &mut self.vault {
                     vault.lock();
+                    // The dialog that armed this is committed; clear the
+                    // latch so it cannot re-open over the unlocked app.
+                    self.vault_ui.lock_confirm = false;
                     if self.vault_ui.has_user_password {
                         self.vault_ui.state = VaultState::Locked;
                         // The in-memory master password dies with the
@@ -203,6 +227,38 @@ impl Oryxis {
                         // Drop RDP/VNC tunnels too (each Arc drop cancels
                         // the -L forward); locking severs everything.
                         self.remote_desktop_forwards.clear();
+                        // Standalone SFTP tabs ride their own SSH channels:
+                        // close every mounted session and drop the tabs (plus
+                        // their tab-order entries and the hoisted buffer), mirroring
+                        // the terminal teardown above. Without this an SFTP tab's
+                        // session Arc would outlive the lock screen and reappear
+                        // mounted after unlock.
+                        for tab in &self.sftp_tabs {
+                            if let Some(session) = &tab.state.left.session {
+                                session.close();
+                            }
+                            if let Some(session) = &tab.state.right.session {
+                                session.close();
+                            }
+                        }
+                        // The ACTIVE standalone tab's live state rides the
+                        // swap-on-focus buffer (`self.sftp`), not its parked
+                        // `state` slot (a taken default), so its sessions must
+                        // be closed here too: replacing the buffer below only
+                        // drops the Arc, and a clone held by an in-flight
+                        // transfer would keep the connection alive behind the
+                        // lock screen. A hybrid owner's mounts sit on pane
+                        // sessions already closed above; close() is idempotent.
+                        if let Some(session) = &self.sftp.left.session {
+                            session.close();
+                        }
+                        if let Some(session) = &self.sftp.right.session {
+                            session.close();
+                        }
+                        self.sftp_tabs.clear();
+                        self.tab_order.retain(|r| !matches!(r, crate::state::TabRef::Sftp(_)));
+                        self.sftp = crate::state::SftpState::default();
+                        self.active_sftp = None;
                         self.tabs.clear();
                         self.active_tab = None;
                         self.clear_terminal_tab_memory();

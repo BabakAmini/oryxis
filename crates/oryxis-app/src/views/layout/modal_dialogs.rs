@@ -851,6 +851,175 @@ impl Oryxis {
         dialog.into()
     }
 
+    /// "Lock the vault?" confirmation. Manual Lock Vault tears down
+    /// every live SSH session and tab (plus RDP/VNC tunnels), so the
+    /// button asks first, with the actual impact: the session labels
+    /// that are open right now, capped with an overflow line.
+    ///
+    /// Layout follows `build_monitor_kill_dialog` (its destructive-remote
+    /// sibling): a warning badge, a centered header block, and a centered
+    /// action row, so the buttons never float at the physical left of a
+    /// wide dialog. Keyboard: Cancel is the default-ringed row, so a stray
+    /// Enter can never sever connections; arrows / Tab reach Lock; Esc
+    /// and the backdrop cancel via `close_topmost_modal` / the overlay
+    /// dismiss.
+    pub(crate) fn build_lock_confirm_dialog(&self) -> Element<'_, Message> {
+        use crate::keynav::RowAction;
+        let c = OryxisColors::t();
+        self.modal_nav_reset();
+
+        // What the lock severs, in the user's own labels: live terminal
+        // panes (SSH / Telnet / serial), standalone SFTP tabs, and the
+        // RDP/VNC forwards (each Arc drop cancels its -L). Rows are
+        // built eagerly (the icon glyph is not `Clone`), then capped
+        // below; the pre-cap count also picks between the list and the
+        // "nothing open" note.
+        let mut rows: Vec<Element<'_, Message>> = Vec::new();
+        for tab in &self.tabs {
+            for pane in tab.pane_grid.panes.values() {
+                if pane.session.as_ref().is_some_and(|s| s.is_alive()) {
+                    rows.push(lock_impact_row(iced_fonts::lucide::terminal(), pane.label.clone()));
+                }
+            }
+        }
+        for (idx, tab) in self.sftp_tabs.iter().enumerate() {
+            // A tab counts only while it has a mounted session: a
+            // disconnected SFTP tab has nothing to sever. The ACTIVE
+            // tab's live state rides the swap-on-focus buffer
+            // (`self.sftp`); its parked slot is a taken default, so
+            // resolve each tab against where its state actually lives.
+            let st: &crate::state::SftpState = if self.active_sftp == Some(idx) {
+                &self.sftp
+            } else {
+                &tab.state
+            };
+            if st.left.session.is_some() || st.right.session.is_some() {
+                rows.push(lock_impact_row(iced_fonts::lucide::folder(), tab.label.clone()));
+            }
+        }
+        let tunnels = self.remote_desktop_forwards.len();
+        if tunnels > 0 {
+            rows.push(lock_impact_row(
+                iced_fonts::lucide::monitor(),
+                format!(
+                    "{} ×{}",
+                    crate::i18n::t("lock_vault_confirm_tunnels"),
+                    tunnels
+                ),
+            ));
+        }
+        let total = rows.len();
+
+        // Tinted warning badge, the same anchor the destructive confirms
+        // (folder delete, kill-port) use.
+        let badge = container(iced_fonts::lucide::triangle_alert().size(22).color(c.error))
+            .width(Length::Fixed(48.0))
+            .height(Length::Fixed(48.0))
+            .center_x(Length::Fixed(48.0))
+            .center_y(Length::Fixed(48.0))
+            .style(|_| container::Style {
+                background: Some(Background::Color(Color { a: 0.12, ..c.error })),
+                border: Border { radius: Radius::from(24.0), ..Default::default() },
+                ..Default::default()
+            });
+
+        // Impact block: the actual session labels when anything is open
+        // (capped at four rows with an overflow line), else a quiet
+        // "nothing open" note. Rows are informational, not keyboard rows.
+        let impact: Element<'_, Message> = if total == 0 {
+            text(crate::i18n::t("lock_vault_confirm_count").replacen("{count}", "0", 1))
+                .size(12)
+                .color(c.text_muted)
+                .into()
+        } else {
+            const MAX_ROWS: usize = 4;
+            let extra = total.saturating_sub(MAX_ROWS);
+            rows.truncate(MAX_ROWS);
+            if extra > 0 {
+                rows.push(
+                    text(
+                        crate::i18n::t("lock_vault_confirm_more")
+                            .replacen("{count}", &extra.to_string(), 1),
+                    )
+                    .size(11)
+                    .color(c.text_muted)
+                    .into(),
+                );
+            }
+            container(column(rows).spacing(6))
+                .width(Length::Fill)
+                .padding(10)
+                .style(|_| container::Style {
+                    background: Some(Background::Color(Color { a: 0.05, ..c.text_primary })),
+                    border: Border { radius: Radius::from(10.0), color: c.border, width: 1.0 },
+                    ..Default::default()
+                })
+                .into()
+        };
+
+        // Keyboard rows, in visual order. Cancel first AND default (the
+        // `build_monitor_kill_dialog` precedent). Both buttons are the
+        // same widget (`styled_button` family: identical padding /
+        // radius / font), so the pair renders at exactly one height;
+        // widths follow the label, like every dialog in the app.
+        let cancel = self.modal_nav_slot_default(
+            RowAction::activate(Message::Vault(VaultMessage::CancelLockVaultConfirm)),
+            6.0,
+            false,
+            styled_button(
+                crate::i18n::t("cancel"),
+                Message::Vault(VaultMessage::CancelLockVaultConfirm),
+                c.text_muted,
+            ),
+        );
+        // The filled error style marks the destructive action, matching
+        // the clear-history "Clear all" button.
+        let lock = self.modal_nav_slot(
+            RowAction::activate(Message::Vault(VaultMessage::LockVault)),
+            6.0,
+            true,
+            styled_button(
+                crate::i18n::t("lock_vault"),
+                Message::Vault(VaultMessage::LockVault),
+                c.error,
+            ),
+        );
+
+        let dialog = container(
+            column![
+                badge,
+                Space::new().height(14),
+                text(crate::i18n::t("lock_vault_confirm_title"))
+                    .size(17)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Semibold,
+                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                    })
+                    .color(c.text_primary),
+                Space::new().height(8),
+                text(crate::i18n::t("lock_vault_confirm_body"))
+                    .size(13)
+                    .color(c.text_secondary)
+                    .width(Length::Fill)
+                    .align_x(iced::alignment::Horizontal::Center),
+                Space::new().height(if total == 0 { 4 } else { 12 }),
+                impact,
+                Space::new().height(20),
+                crate::widgets::dir_row(vec![cancel, Space::new().width(8).into(), lock]),
+            ]
+            .width(Length::Fill)
+            .align_x(iced::Alignment::Center)
+            .padding(24),
+        )
+        .width(Length::Fixed(420.0))
+        .style(|_| container::Style {
+            background: Some(Background::Color(c.bg_surface)),
+            border: Border { radius: Radius::from(14.0), color: c.border, width: 1.0 },
+            ..Default::default()
+        });
+        dialog.into()
+    }
+
     /// Content for the "kill the process on this port" confirmation
     /// (issue #96): the exact target, the signal, the irreversibility,
     /// and whatever the host said when a run came back unhappy.
@@ -1032,4 +1201,22 @@ impl Oryxis {
         });
         dialog.into()
     }
+}
+
+/// One row of the lock-confirm impact list: a small glyph + the label of
+/// a session the lock will sever. Labels are clipped on one line so a
+/// long hostname can't wrap the tight row.
+fn lock_impact_row(icon: iced::widget::Text<'static>, label: String) -> Element<'static, Message> {
+    dir_row(vec![
+        icon.size(12).color(OryxisColors::t().text_muted).into(),
+        Space::new().width(8).into(),
+        text(label)
+            .size(12)
+            .color(OryxisColors::t().text_secondary)
+            .width(Length::Fill)
+            .wrapping(iced::widget::text::Wrapping::None)
+            .into(),
+    ])
+    .align_y(iced::Alignment::Center)
+    .into()
 }

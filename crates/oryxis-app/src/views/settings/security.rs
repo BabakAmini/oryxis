@@ -362,9 +362,12 @@ impl Oryxis {
         // button when a password exists; otherwise replace with
         // a muted note telling the user how to enable locking.
         let lock_btn: Element<'_, Message> = if self.vault_ui.has_user_password {
+            // Asks first: Lock Vault tears every live session down, so
+            // the button opens the confirm dialog (`LockVaultConfirm`)
+            // rather than committing directly.
             self.settings_nav_slot_labeled(
                 t("lock_vault"),
-                crate::keynav::RowAction::activate(Message::Vault(VaultMessage::LockVault)),
+                crate::keynav::RowAction::activate(Message::Vault(VaultMessage::LockVaultConfirm)),
                 8.0,
                 button(
                     container(
@@ -376,7 +379,7 @@ impl Oryxis {
                     )
                     .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
                 )
-                .on_press(Message::Vault(VaultMessage::LockVault))
+                .on_press(Message::Vault(VaultMessage::LockVaultConfirm))
                 .style(|_, status| {
                     let bg = match status {
                         BtnStatus::Hovered => Color { a: 0.15, ..OryxisColors::t().warning },

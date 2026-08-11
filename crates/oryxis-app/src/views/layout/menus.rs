@@ -559,7 +559,10 @@ impl Oryxis {
         // locking has nothing to protect and the unlock screen has no
         // way to re-enter (mirrors the Settings -> Security gating).
         let lock_item: Element<'_, Message> = if self.vault_ui.has_user_password {
-            item("lock_vault", Message::Vault(VaultMessage::LockVault), None)
+            // Asks first: Lock Vault tears every live session down, so
+            // the item opens the confirm dialog (`LockVaultConfirm`)
+            // rather than committing directly.
+            item("lock_vault", Message::Vault(VaultMessage::LockVaultConfirm), None)
         } else {
             Space::new().into()
         };

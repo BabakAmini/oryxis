@@ -570,6 +570,22 @@ impl Oryxis {
             );
         }
 
+        // Manual-lock confirmation: Lock Vault tears down every live SSH
+        // session and tab, so the button asks first. Backdrop / Esc /
+        // Cancel all decline (the safe default); only the Lock button
+        // commits.
+        if self.vault_ui.lock_confirm {
+            return wrap_with_resize(
+                crate::widgets::modal_overlay(
+                    base,
+                    self.build_lock_confirm_dialog(),
+                    Some(Message::Vault(VaultMessage::CancelLockVaultConfirm)),
+                    0.0,
+                ),
+                resize_overlay,
+            );
+        }
+
         // New-tab picker (opens via the "+" button in the tab bar).
         if self.panels.new_tab_picker {
             return wrap_with_resize(
