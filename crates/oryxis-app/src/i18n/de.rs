@@ -708,6 +708,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Falsches Passwort",
         "import_done" => "Importiert:",
         "import_nothing_new" => "Nichts Neues zu importieren: Der Tresor enthält bereits alles aus dieser Datei",
+        "vault_locked_error" => "Der Tresor ist gesperrt. Entsperren Sie ihn und versuchen Sie es erneut.",
         "export_select_what" => "Was exportieren",
         "import_select_what" => "Was importieren",
         "import_inspect" => "Prüfen",

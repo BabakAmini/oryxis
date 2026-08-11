@@ -889,6 +889,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "كلمة مرور خاطئة",
         "import_done" => "تم الاستيراد:",
         "import_nothing_new" => "لا يوجد جديد للاستيراد: الخزنة تحتوي بالفعل على كل ما في هذا الملف",
+        "vault_locked_error" => "الخزنة مقفلة. افتحها وحاول مرة أخرى.",
         "export_select_what" => "ما الذي تريد تصديره",
         "import_select_what" => "ما الذي تريد استيراده",
         "import_inspect" => "فحص",

@@ -717,6 +717,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "密码错误",
         "import_done" => "已导入：",
         "import_nothing_new" => "没有新内容可导入：保险库已包含此文件中的全部内容",
+        "vault_locked_error" => "保险库已锁定。请解锁后重试。",
         "export_select_what" => "导出内容",
         "import_select_what" => "导入内容",
         "import_inspect" => "检查",

@@ -873,6 +873,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "رمز عبور نادرست",
         "import_done" => "وارد شد:",
         "import_nothing_new" => "چیز جدیدی برای وارد کردن نیست: صندوقچه از قبل همه محتوای این فایل را دارد",
+        "vault_locked_error" => "صندوقچه قفل است. آن را باز کنید و دوباره تلاش کنید.",
         "export_select_what" => "چه چیزی صادر شود",
         "import_select_what" => "چه چیزی وارد شود",
         "import_inspect" => "بررسی",

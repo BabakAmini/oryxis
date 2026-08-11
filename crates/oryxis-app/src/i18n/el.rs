@@ -877,6 +877,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Λάθος κωδικός",
         "import_done" => "Εισήχθησαν:",
         "import_nothing_new" => "Δεν υπάρχει κάτι νέο για εισαγωγή: το vault περιέχει ήδη όλα τα περιεχόμενα αυτού του αρχείου",
+        "vault_locked_error" => "Το vault είναι κλειδωμένο. Ξεκλειδώστε το και δοκιμάστε ξανά.",
         "export_select_what" => "Τι θα εξαχθεί",
         "import_select_what" => "Τι θα εισαχθεί",
         "import_inspect" => "Επιθεώρηση",

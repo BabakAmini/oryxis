@@ -877,6 +877,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Nesprávné heslo",
         "import_done" => "Importováno:",
         "import_nothing_new" => "Není co importovat: trezor už obsahuje vše z tohoto souboru",
+        "vault_locked_error" => "Trezor je zamčený. Odemkněte ho a zkuste to znovu.",
         "export_select_what" => "Co exportovat",
         "import_select_what" => "Co importovat",
         "import_inspect" => "Prozkoumat",

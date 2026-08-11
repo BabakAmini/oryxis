@@ -877,6 +877,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "סיסמה שגויה",
         "import_done" => "יובא:",
         "import_nothing_new" => "אין מה לייבא: הכספת כבר מכילה את כל תוכן הקובץ הזה",
+        "vault_locked_error" => "הכספת נעולה. בטלו את הנעילה ונסו שוב.",
         "export_select_what" => "מה לייצא",
         "import_select_what" => "מה לייבא",
         "import_inspect" => "בדיקה",

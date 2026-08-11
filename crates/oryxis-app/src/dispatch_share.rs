@@ -32,6 +32,29 @@ enum BackupConnectMsg {
 }
 
 impl Oryxis {
+    /// Whether the vault can actually decrypt right now: absent
+    /// (pre-creation) and soft-locked (`vault.lock()` zeroizes the
+    /// key, the store stays `Some`) both answer false. Every
+    /// export / import / share confirm gates on this rather than
+    /// `self.vault.is_some()`: a locked store still answers `list_*`
+    /// calls while every per-field decrypt inside `export_vault`
+    /// degrades to `None`, so an export run against it would quietly
+    /// write a file with every password missing. Reachable in
+    /// practice: `SharePathChosen` arrives from the native save
+    /// dialog's blocking task, and browsing that dialog feeds iced no
+    /// input events, so the idle auto-lock can fire mid-pick.
+    fn vault_usable(&self) -> bool {
+        self.vault.as_ref().is_some_and(|v| !v.is_locked())
+    }
+
+    /// The shared "can't act on the vault right now" status line for
+    /// the guards above; also traced so a declined confirm is never
+    /// invisible in the debug log (issue #151's complaint).
+    fn vault_locked_status(context: &str) -> Result<String, String> {
+        tracing::warn!("{context}: declined, vault absent or locked");
+        Err(crate::i18n::t("vault_locked_error").to_string())
+    }
+
     pub(crate) fn handle_share(
         &mut self,
         message: ShareMessage,
@@ -57,6 +80,10 @@ impl Oryxis {
             ShareMessage::ExportConfirm => {
                 if self.export_password.is_empty() {
                     self.export_status = Some(Err("Password is required".into()));
+                    return Task::none();
+                }
+                if !self.vault_usable() {
+                    self.export_status = Some(Self::vault_locked_status("vault export"));
                     return Task::none();
                 }
                 if let Some(vault) = &self.vault {
@@ -327,10 +354,13 @@ impl Oryxis {
                 self.ssh_import_existing.clear();
             }
             ShareMessage::SshImportConfirm => {
-                let Some(vault) = &self.vault else {
+                if !self.vault_usable() {
                     self.panels.ssh_import_dialog = false;
                     self.ssh_config_import_status =
-                        Some(Err("Vault not unlocked".into()));
+                        Some(Self::vault_locked_status("ssh config import"));
+                    return Task::none();
+                }
+                let Some(vault) = &self.vault else {
                     return Task::none();
                 };
                 // Third-party batch (PuTTY, ...): already Connections,
@@ -516,6 +546,10 @@ impl Oryxis {
                 if self.vault_import.summary.is_none() {
                     return Task::none();
                 }
+                if !self.vault_usable() {
+                    self.vault_import.status = Some(Self::vault_locked_status("vault import"));
+                    return Task::none();
+                }
                 if let (Some(vault), Some(data)) = (&self.vault, &self.vault_import.file_data) {
                     match oryxis_vault::import_vault(vault, data, &self.vault_import.password, &self.vault_import.selection) {
                         Ok(result) => {
@@ -564,6 +598,13 @@ impl Oryxis {
                             self.vault_import.status = Some(Err(e.to_string()));
                         }
                     }
+                } else {
+                    // Vault presence was guarded above, so the only way
+                    // here is a confirm with no file loaded, which the
+                    // dialog flag makes unreachable by construction. A
+                    // bare return is exactly how issue #151 stayed
+                    // invisible, so leave a trace.
+                    tracing::warn!("vault import: confirm with no file loaded");
                 }
             }
             ShareMessage::ImportCompleted(result) => {
@@ -729,7 +770,11 @@ impl Oryxis {
                     self.share.status = Some(Err("Password is required".into()));
                     return Task::none();
                 }
-                if self.vault.is_some() && self.share.filter.is_some() {
+                if !self.vault_usable() {
+                    self.share.status = Some(Self::vault_locked_status("share export"));
+                    return Task::none();
+                }
+                if self.share.filter.is_some() {
                     // Open the save dialog FIRST (off the event loop), then
                     // encrypt on the follow-up message. Argon2 takes tens of
                     // ms and the dialog can block for as long as the user
@@ -755,6 +800,17 @@ impl Oryxis {
                 }
             }
             ShareMessage::SharePathChosen(path) => {
+                // This message arrives from the blocking save-dialog
+                // task, so unlike the click-driven confirms the idle
+                // auto-lock can genuinely have fired in between (the
+                // native dialog feeds iced no input events): without
+                // the guard a soft-locked store would still list every
+                // record while decrypting nothing, and the share would
+                // be written with every password silently missing.
+                if !self.vault_usable() {
+                    self.share.status = Some(Self::vault_locked_status("share export"));
+                    return Task::none();
+                }
                 if let (Some(vault), Some(filter)) = (&self.vault, &self.share.filter) {
                     let options = oryxis_vault::ExportOptions {
                         include_private_keys: self.share.include_keys,
@@ -948,6 +1004,11 @@ impl Oryxis {
         let export_data: Option<Vec<u8>> = if is_import {
             None
         } else {
+            if !self.vault_usable() {
+                self.sftp_backup.status =
+                    Some(Self::vault_locked_status("sftp backup export"));
+                return Task::none();
+            }
             let Some(vault) = &self.vault else {
                 return Task::none();
             };
