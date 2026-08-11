@@ -910,3 +910,37 @@ fn export_import_login_script_round_trip() {
     assert_eq!(result.login_scripts_added, 0);
     assert!(vault3.list_login_scripts().unwrap().is_empty());
 }
+
+/// A locked store still answers every `list_*` call while the
+/// per-field decrypts degrade to `None` through their `unwrap_or`, so
+/// an export run against it would write a structurally valid file
+/// with every password silently missing; an import could land a
+/// partial write (plaintext families save fine without the key, the
+/// first encrypted field aborts the loop halfway). Both refuse up
+/// front instead.
+#[test]
+fn export_and_import_refuse_a_locked_vault() {
+    use crate::portable::{export_vault, import_vault, ExportOptions, ExportFilter, ExportSelection};
+
+    let mut vault = unlocked_vault();
+    let conn = Connection::new("prod-web", "192.168.1.10");
+    vault.save_connection(&conn, Some("secret123")).unwrap();
+
+    let options = || ExportOptions {
+        include_private_keys: false,
+        filter: ExportFilter::All,
+        selection: ExportSelection::all(),
+    };
+    let data = export_vault(&vault, "export-pw", options()).unwrap();
+
+    vault.lock();
+    assert!(matches!(
+        export_vault(&vault, "export-pw", options()),
+        Err(VaultError::Locked)
+    ));
+    assert!(matches!(
+        import_vault(&vault, &data, "export-pw", &ExportSelection::all()),
+        Err(VaultError::Locked)
+    ));
+    assert!(vault.list_connections().unwrap().len() == 1, "locked import must write nothing");
+}

@@ -487,6 +487,15 @@ pub fn export_vault(
     password: &str,
     options: ExportOptions,
 ) -> Result<Vec<u8>, VaultError> {
+    // A locked store still answers every list_* call below while the
+    // per-field decrypts degrade to None through their unwrap_or, so
+    // without this gate a caller racing the (auto-)lock would get a
+    // structurally valid export with every password silently missing.
+    // The UI guards its confirms too, but the invariant belongs to the
+    // function that writes the file, not to whoever calls it.
+    if store.is_locked() {
+        return Err(VaultError::Locked);
+    }
     // Collect all data from vault
     let all_groups = store.list_groups()?;
     let all_connections = store.list_connections()?;
@@ -832,6 +841,13 @@ pub fn import_vault(
     password: &str,
     selection: &ExportSelection,
 ) -> Result<ImportResult, VaultError> {
+    // Fail before touching the database: plaintext families (groups,
+    // snippets, known hosts, password-less connections) save fine on a
+    // locked store, and the first encrypted field would then abort the
+    // loop halfway, leaving a partial import behind.
+    if store.is_locked() {
+        return Err(VaultError::Locked);
+    }
     let mut payload = decrypt_payload(data, password)?;
 
     // Drop unchecked categories up front so the existing per-entity
