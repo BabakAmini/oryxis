@@ -75,8 +75,12 @@ impl Oryxis {
 
         // Each stat row navigates to its section (issue #38):
         // the count doubles as a shortcut into the data it
-        // describes. Logs combines connection events + session
-        // recordings, matching what the Logs view lists.
+        // describes. Two rows are composites, each summing exactly
+        // what its destination view lists: Logs combines connection
+        // events + session recordings, and Keychain combines SSH keys
+        // + identities (issue #148: counting keys alone reported 0 on
+        // a vault whose keychain held only identities). Proxy
+        // identities stay out; they are the Proxies view.
         let vault_section = panel_section(column![
             text(crate::i18n::t("vault_stats")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(8),
@@ -99,7 +103,7 @@ impl Oryxis {
                 8.0,
                 crate::widgets::settings_row_nav(
                     crate::i18n::t("keychain"),
-                    self.keys.len().to_string(),
+                    (self.keys.len() + self.identities.len()).to_string(),
                     Message::Navigation(NavigationMessage::ChangeView(crate::state::View::Keys)),
                 ),
             ),
