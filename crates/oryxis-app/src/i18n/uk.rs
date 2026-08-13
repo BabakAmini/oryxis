@@ -1520,6 +1520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Підключення...",
         "monitor_dash_pill" => "Моніторинг",
         "monitor_dash_open_terminal" => "Відкрити термінал",
+        "monitor_dash_sampled_via" => "Дані отримано через {host}",
         "monitor_status_bar" => "Показники хоста в рядку стану",
         "monitor_status_bar_desc" => "Показує ЦП, пам'ять, мережу та найзаповненіший диск хоста, за яким стежите. Потрібен увімкнений моніторинг на цьому хості.",
         "monitor_ports" => "Прослуховувані порти",

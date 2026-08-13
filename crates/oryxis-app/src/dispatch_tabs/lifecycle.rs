@@ -105,13 +105,10 @@ impl Oryxis {
             })
             .collect();
         for host in closing_hosts {
-            let still_open = self.tabs.iter().enumerate().any(|(i, t)| {
-                i != idx
-                    && t.pane_grid.panes.values().any(|p| {
-                        matches!(p.origin, crate::state::PaneOrigin::Host(id) if id == host)
-                    })
-            });
-            if !still_open {
+            // "Last pane" is asked about the MACHINE (issue #156): the
+            // window is shared by every row that points at it, so a
+            // sibling tab still sitting on that server keeps it.
+            if !self.monitor_machine_in_panes(&host, Some(idx)) {
                 self.monitor_reset_host(&host);
             }
         }

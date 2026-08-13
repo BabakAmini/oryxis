@@ -1505,6 +1505,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "در حال اتصال...",
         "monitor_dash_pill" => "پایش",
         "monitor_dash_open_terminal" => "باز کردن ترمینال",
+        "monitor_dash_sampled_via" => "نمونه‌برداری از طریق {host}",
         "monitor_status_bar" => "وضعیت میزبان در نوار وضعیت",
         "monitor_status_bar_desc" => "پردازنده، حافظه، شبکه و پرترین دیسک میزبان تحت پایش را نشان می‌دهد. نیازمند فعال بودن پایش روی آن میزبان است.",
         "monitor_ports" => "پورت‌های در حال شنود",

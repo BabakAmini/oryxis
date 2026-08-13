@@ -202,7 +202,7 @@ impl Oryxis {
             // but the series lingers, and painting its last sample would
             // present frozen numbers as live vitals.
             && self.monitor_host_opted_in(&conn_id)
-            && let Some(sample) = self.monitor.series.get(&conn_id).and_then(|s| s.latest())
+            && let Some(sample) = self.monitor_sample(&conn_id)
         {
             let c = OryxisColors::t();
             // Thresholds tint the value, not the label, so a pegged host

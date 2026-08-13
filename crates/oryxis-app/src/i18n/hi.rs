@@ -1526,6 +1526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "कनेक्ट हो रहा है...",
         "monitor_dash_pill" => "निगरानी",
         "monitor_dash_open_terminal" => "टर्मिनल खोलें",
+        "monitor_dash_sampled_via" => "{host} के माध्यम से नमूना लिया गया",
         "monitor_status_bar" => "स्टेटस बार में होस्ट की स्थिति",
         "monitor_status_bar_desc" => "मॉनिटर किए जा रहे होस्ट का CPU, मेमोरी, नेटवर्क और सबसे भरा डिस्क दिखाता है। उस होस्ट पर मॉनिटरिंग चालू होनी चाहिए।",
         "monitor_ports" => "सुन रहे पोर्ट",

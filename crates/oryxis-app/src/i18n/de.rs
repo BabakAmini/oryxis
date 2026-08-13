@@ -1424,6 +1424,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Verbinden...",
         "monitor_dash_pill" => "Überwachung",
         "monitor_dash_open_terminal" => "Terminal öffnen",
+        "monitor_dash_sampled_via" => "Erfasst über {host}",
         "monitor_status_bar" => "Host-Kennzahlen in der Statusleiste",
         "monitor_status_bar_desc" => "Zeigt CPU, Speicher, Netzwerk und den vollsten Datenträger des überwachten Hosts. Erfordert aktivierte Überwachung auf diesem Host.",
         "monitor_ports" => "Offene Ports",

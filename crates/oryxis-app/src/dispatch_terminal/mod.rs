@@ -320,17 +320,14 @@ impl Oryxis {
                     self.tmux_reset_pane(&pane_id);
                 }
                 // Same rule as CloseTab: drop the monitor series only
-                // when the closed pane was the host's last live one
-                // anywhere (the closed pane is already out of the grid).
-                if let Some(host) = closed_host {
-                    let still_open = self.tabs.iter().any(|t| {
-                        t.pane_grid.panes.values().any(|p| {
-                            matches!(p.origin, crate::state::PaneOrigin::Host(id) if id == host)
-                        })
-                    });
-                    if !still_open {
-                        self.monitor_reset_host(&host);
-                    }
+                // when the closed pane was the machine's last live one
+                // anywhere (the closed pane is already out of the grid,
+                // and the window is shared by every row that points at
+                // that server, issue #156).
+                if let Some(host) = closed_host
+                    && !self.monitor_machine_in_panes(&host, None)
+                {
+                    self.monitor_reset_host(&host);
                 }
                 // Drop quick-connect entries (and their in-memory
                 // credentials) that no pane references anymore.

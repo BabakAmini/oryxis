@@ -1527,6 +1527,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "monitor_dash_connecting" => "Connecting...",
         "monitor_dash_pill" => "Monitoring",
         "monitor_dash_open_terminal" => "Open terminal",
+        "monitor_dash_sampled_via" => "Sampled through {host}",
         "monitor_status_bar" => "Host vitals in the status bar",
         "monitor_status_bar_desc" => "Show CPU, memory, network and the busiest disk of the monitored host. Needs monitoring enabled on that host.",
         "monitor_ports" => "Listening ports",

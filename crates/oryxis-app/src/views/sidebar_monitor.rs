@@ -42,12 +42,9 @@ impl Oryxis {
         let Some(conn_id) = self.monitor_pane_connection() else {
             return placeholder(t("monitor_requires_host"));
         };
-        let enabled = self.prefs.monitor_all_hosts
-            || self
-                .connections
-                .iter()
-                .any(|c| c.id == conn_id && c.monitor_enabled);
-        if !enabled {
+        // One rule for the opt-in, shared with the probe target, the
+        // status bar and the dashboard's fleet.
+        if !self.monitor_host_opted_in(&conn_id) {
             return self.monitor_opt_in(conn_id);
         }
 
@@ -82,11 +79,12 @@ impl Oryxis {
         conn_id: uuid::Uuid,
         surface: MonitorVitalsSurface,
     ) -> Option<Element<'a, Message>> {
-        let sample = self.monitor.series.get(&conn_id).and_then(|s| s.latest())?;
+        // Keyed on the MACHINE, not the row (issue #156): a tab on
+        // `deploy@srv` and the dashboard card for `root@srv` read the
+        // same window, so they cannot report the same server twice.
+        let sample = self.monitor_sample(&conn_id)?;
         let spark = self
-            .monitor
-            .series
-            .get(&conn_id)
+            .monitor_series(&conn_id)
             .map(|s| s.cpu_series())
             .unwrap_or_default();
 

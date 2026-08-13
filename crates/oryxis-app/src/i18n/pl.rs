@@ -1526,6 +1526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Łączenie...",
         "monitor_dash_pill" => "Monitorowanie",
         "monitor_dash_open_terminal" => "Otwórz terminal",
+        "monitor_dash_sampled_via" => "Próbkowane przez {host}",
         "monitor_status_bar" => "Zasoby hosta na pasku stanu",
         "monitor_status_bar_desc" => "Pokazuje CPU, pamięć, sieć i najbardziej zapełniony dysk monitorowanego hosta. Wymaga włączonego monitorowania na tym hoście.",
         "monitor_ports" => "Nasłuchujące porty",

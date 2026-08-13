@@ -1,12 +1,15 @@
 //! In-memory sample ring for the host monitor (issue #83, plan J2).
 //!
-//! One `HostSeries` per monitored connection, holding a bounded window of
-//! recent samples (for the sparkline) plus the raw counters the next tick
-//! diffs against. Nothing is persisted: the whole thing is dropped on
-//! disconnect and on vault lock.
+//! One `HostSeries` per monitored MACHINE (issue #156: keyed by
+//! [`MonitorKey`], not by vault row, so the rows that point at one
+//! server share a window instead of each sampling it on its own slot),
+//! holding a bounded window of recent samples (for the sparkline) plus
+//! the raw counters the next tick diffs against. Nothing is persisted:
+//! the whole thing is dropped on disconnect and on vault lock.
 
 use std::collections::{HashMap, HashSet, VecDeque};
 
+use super::endpoint::MonitorKey;
 use super::model::{RawSnapshot, Sample};
 
 /// How many samples a host keeps. At the 5 s default interval this is
@@ -55,14 +58,16 @@ impl HostSeries {
     }
 }
 
-/// Monitor state hanging off the app: one series per monitored host plus
-/// the in-flight guard.
+/// Monitor state hanging off the app: one series per monitored machine
+/// plus the in-flight guard.
 #[derive(Debug, Default)]
 pub(crate) struct MonitorState {
-    pub series: HashMap<uuid::Uuid, HostSeries>,
-    /// Hosts with a probe already in flight. A slow host is skipped on
-    /// the next tick instead of queueing probes behind each other.
-    pub probing: HashSet<uuid::Uuid>,
+    pub series: HashMap<MonitorKey, HostSeries>,
+    /// Machines with a probe already in flight. A slow host is skipped
+    /// on the next tick instead of queueing probes behind each other,
+    /// and since the key is the machine, the sidebar and the dashboard
+    /// can't probe one server twice in the same interval either.
+    pub probing: HashSet<MonitorKey>,
     /// The open "kill the process on this port" confirmation (issue
     /// #96). Lives here so every monitor sweep drops it: a dialog about
     /// a host that just disconnected (or a vault that just locked) must
@@ -71,11 +76,14 @@ pub(crate) struct MonitorState {
 }
 
 impl MonitorState {
-    /// Drop a host's window entirely (disconnect, monitoring turned off).
-    pub fn forget(&mut self, id: &uuid::Uuid) {
-        self.series.remove(id);
-        self.probing.remove(id);
-        if self.kill.as_ref().is_some_and(|k| k.conn_id == *id) {
+    /// Drop a machine's window entirely (disconnect, monitoring turned
+    /// off, a disk selection edited). `conn_id` is the row the reset
+    /// came from: the window belongs to the machine, the kill dialog to
+    /// the row.
+    pub fn forget(&mut self, key: &MonitorKey, conn_id: &uuid::Uuid) {
+        self.series.remove(key);
+        self.probing.remove(key);
+        if self.kill.as_ref().is_some_and(|k| k.conn_id == *conn_id) {
             self.kill = None;
         }
     }
@@ -134,16 +142,36 @@ mod tests {
         assert!(series.raw_prev.is_some());
     }
 
+    fn key(host: &str) -> MonitorKey {
+        MonitorKey::new(&oryxis_core::models::Connection::new("label", host))
+    }
+
     #[test]
     fn forget_clears_both_the_window_and_the_in_flight_guard() {
         let mut state = MonitorState::default();
         let id = uuid::Uuid::new_v4();
+        let k = key("srv.example");
         let (s, snap) = sample_with(Some(1.0), Instant::now());
-        state.series.entry(id).or_default().push(s, snap);
-        state.probing.insert(id);
-        state.forget(&id);
+        state.series.entry(k.clone()).or_default().push(s, snap);
+        state.probing.insert(k.clone());
+        state.forget(&k, &id);
         assert!(state.series.is_empty());
         assert!(state.probing.is_empty());
+    }
+
+    /// The window is keyed on the machine, so a reset from one row
+    /// leaves another machine's window alone (issue #156).
+    #[test]
+    fn forget_drops_only_its_own_machines_window() {
+        let mut state = MonitorState::default();
+        let (mine, other) = (key("srv.example"), key("other.example"));
+        for k in [&mine, &other] {
+            let (s, snap) = sample_with(Some(1.0), Instant::now());
+            state.series.entry(k.clone()).or_default().push(s, snap);
+        }
+        state.forget(&mine, &uuid::Uuid::new_v4());
+        assert!(!state.series.contains_key(&mine));
+        assert!(state.series.contains_key(&other));
     }
 
     #[test]
@@ -168,11 +196,12 @@ mod tests {
                 crate::monitor::kill::KillSignal::Term,
             )
         };
+        let k = key("srv.example");
         state.kill = Some(pending(other));
-        state.forget(&mine);
+        state.forget(&k, &mine);
         assert!(state.kill.is_some());
         state.kill = Some(pending(mine));
-        state.forget(&mine);
+        state.forget(&k, &mine);
         assert!(state.kill.is_none());
     }
 

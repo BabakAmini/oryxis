@@ -1433,6 +1433,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "接続中...",
         "monitor_dash_pill" => "監視",
         "monitor_dash_open_terminal" => "ターミナルを開く",
+        "monitor_dash_sampled_via" => "{host} 経由で取得",
         "monitor_status_bar" => "ステータスバーにホストの状態を表示",
         "monitor_status_bar_desc" => "監視対象ホストの CPU・メモリ・ネットワークと最も使用率の高いディスクを表示します。そのホストで監視を有効にする必要があります。",
         "monitor_ports" => "待ち受けポート",

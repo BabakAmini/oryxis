@@ -175,20 +175,27 @@ impl Oryxis {
         let Some(conn) = self.connections.iter().find(|c| c.id == conn_id) else {
             return Space::new().into();
         };
-        let link = self.monitor_dash.links.get(&conn_id);
+        // Both the link and the window belong to the MACHINE (issue
+        // #156): the cards of rows that point at one server show the
+        // same reading, taken at the same instant, because there is
+        // only one of each.
+        let key = self.monitor_key(&conn_id);
+        let link = key.as_ref().and_then(|k| self.monitor_dash.links.get(k));
         let (dot, dot_color) = match link {
-            Some(DashLink::Live(_)) => ("●", OryxisColors::t().success),
-            Some(DashLink::Connecting) | None => ("●", OryxisColors::t().warning),
-            Some(DashLink::Failed(_)) => ("●", OryxisColors::t().error),
+            Some(DashLink::Live { .. }) => ("●", OryxisColors::t().success),
+            Some(DashLink::Connecting { .. }) | None => ("●", OryxisColors::t().warning),
+            Some(DashLink::Failed { .. }) => ("●", OryxisColors::t().error),
         };
 
-        let latest = self.monitor.series.get(&conn_id).and_then(|s| s.latest());
+        let latest = self.monitor_sample(&conn_id);
 
         let mut body = column![].spacing(8);
         match link {
-            Some(DashLink::Failed(e)) => {
+            Some(DashLink::Failed { via, error, .. }) => {
                 body = body.push(
-                    text(e.clone()).size(11).color(OryxisColors::t().error),
+                    text(self.dash_via_prefixed(*via, conn_id, error))
+                        .size(11)
+                        .color(OryxisColors::t().error),
                 );
             }
             _ => {
@@ -247,7 +254,7 @@ impl Oryxis {
                 } else {
                     body = body.push(
                         text(match link {
-                            Some(DashLink::Live(_)) => t("monitor_sampling"),
+                            Some(DashLink::Live { .. }) => t("monitor_sampling"),
                             _ => t("monitor_dash_connecting"),
                         })
                         .size(11)
@@ -314,6 +321,23 @@ impl Oryxis {
         )
     }
 
+    /// A message about a shared link, prefixed with the row it came
+    /// through when that is not the card's own.
+    ///
+    /// The vitals belong to the machine, but the credentials that
+    /// fetched them belong to one row, and an unlabelled error reads as
+    /// "this card's host refused me" when it was a sibling's login that
+    /// did (issue #156).
+    fn dash_via_prefixed(&self, via: uuid::Uuid, card: uuid::Uuid, message: &str) -> String {
+        if via == card {
+            return message.to_string();
+        }
+        match self.connections.iter().find(|c| c.id == via) {
+            Some(conn) => format!("{}: {message}", conn.label),
+            None => message.to_string(),
+        }
+    }
+
     /// The trailing-edge detail panel: full vitals of the selected
     /// host, plus the explicit actions (open terminal / retry).
     fn dash_detail_panel(&self, conn_id: uuid::Uuid) -> Element<'_, Message> {
@@ -323,7 +347,8 @@ impl Oryxis {
             .find(|c| c.id == conn_id)
             .map(|c| c.label.clone())
             .unwrap_or_default();
-        let link = self.monitor_dash.links.get(&conn_id);
+        let key = self.monitor_key(&conn_id);
+        let link = key.as_ref().and_then(|k| self.monitor_dash.links.get(k));
 
         let close_btn = button(
             container(
@@ -361,8 +386,10 @@ impl Oryxis {
         // must present a host identically, collapsible Disks / Ports
         // sections included).
         let body: Element<'_, Message> = match link {
-            Some(DashLink::Failed(e)) => column![
-                text(e.clone()).size(12).color(OryxisColors::t().error),
+            Some(DashLink::Failed { via, error, .. }) => column![
+                text(self.dash_via_prefixed(*via, conn_id, error))
+                    .size(12)
+                    .color(OryxisColors::t().error),
                 Space::new().height(12),
                 self.content_action_slot(
                     crate::keynav::RowAction::activate(Message::Monitor(
@@ -383,13 +410,37 @@ impl Oryxis {
             ) {
                 Some(body) => body,
                 None => text(match link {
-                    Some(DashLink::Live(_)) => t("monitor_sampling"),
+                    Some(DashLink::Live { .. }) => t("monitor_sampling"),
                     _ => t("monitor_dash_connecting"),
                 })
                 .size(12)
                 .color(OryxisColors::t().text_muted)
                 .into(),
             },
+        };
+
+        // A machine is read once, through one of its rows (issue #156).
+        // When that row is not this one, the panel says so: identical
+        // numbers on several cards are a shared reading, not a
+        // coincidence, and the user should know which login produced
+        // them before reading anything into the values.
+        let via_hint: Element<'_, Message> = match link.map(|l| l.via()) {
+            Some(via) if via != conn_id => {
+                let name = self
+                    .connections
+                    .iter()
+                    .find(|c| c.id == via)
+                    .map(|c| c.label.clone())
+                    .unwrap_or_default();
+                column![
+                    Space::new().height(10),
+                    text(t("monitor_dash_sampled_via").replacen("{host}", &name, 1))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                ]
+                .into()
+            }
+            _ => Space::new().into(),
         };
 
         // Explicit connect action: the one place the dashboard opens a
@@ -419,6 +470,7 @@ impl Oryxis {
                 .align_y(iced::Alignment::Center),
                 Space::new().height(14),
                 scrollable(body).height(Length::Fill),
+                via_hint,
                 Space::new().height(12),
                 open_btn,
             ]
@@ -449,7 +501,7 @@ impl Oryxis {
         // Latest-sample metrics per host, `None` sorting last so hosts
         // that haven't answered yet sink to the bottom either way.
         let metrics = |id: &uuid::Uuid| {
-            let latest = self.monitor.series.get(id).and_then(|s| s.latest());
+            let latest = self.monitor_sample(id);
             let cpu = latest.and_then(|s| s.cpu.map(|c| c.pct));
             let mem = latest.and_then(|s| s.mem.map(|m| m.pct()));
             let net = latest
@@ -556,14 +608,16 @@ impl Oryxis {
             let Some(conn) = self.connections.iter().find(|c| c.id == conn_id) else {
                 continue;
             };
-            let link = self.monitor_dash.links.get(&conn_id);
+            let link = self
+                .monitor_key(&conn_id)
+                .and_then(|k| self.monitor_dash.links.get(&k).cloned());
             let dot_color = match link {
-                Some(DashLink::Live(_)) => OryxisColors::t().success,
-                Some(DashLink::Connecting) | None => OryxisColors::t().warning,
-                Some(DashLink::Failed(_)) => OryxisColors::t().error,
+                Some(DashLink::Live { .. }) => OryxisColors::t().success,
+                Some(DashLink::Connecting { .. }) | None => OryxisColors::t().warning,
+                Some(DashLink::Failed { .. }) => OryxisColors::t().error,
             };
             let (cpu, _mem_pct, _net, disk, uptime) = metrics(&conn_id);
-            let latest = self.monitor.series.get(&conn_id).and_then(|s| s.latest());
+            let latest = self.monitor_sample(&conn_id);
             let cell = |value: String, width: f32| -> Element<'_, Message> {
                 text(value)
                     .size(11)

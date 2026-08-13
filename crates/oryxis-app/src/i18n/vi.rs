@@ -1520,6 +1520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Đang kết nối...",
         "monitor_dash_pill" => "Giám sát",
         "monitor_dash_open_terminal" => "Mở terminal",
+        "monitor_dash_sampled_via" => "Lấy mẫu qua {host}",
         "monitor_status_bar" => "Thông số máy chủ trên thanh trạng thái",
         "monitor_status_bar_desc" => "Hiển thị CPU, bộ nhớ, mạng và ổ đĩa đầy nhất của máy chủ đang giám sát. Cần bật giám sát trên máy chủ đó.",
         "monitor_ports" => "Cổng đang lắng nghe",

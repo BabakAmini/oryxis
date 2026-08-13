@@ -449,8 +449,19 @@ impl Oryxis {
         // Opting the host OUT drops its series right away: the status
         // bar / sidebar must not keep painting the last sample as if it
         // were live, and an in-flight probe must land dead (stamp bump).
-        if original.as_ref().is_some_and(|o| o.monitor_enabled) && !conn.monitor_enabled {
-            self.monitor_reset_host(&conn.id);
+        //
+        // The window is keyed on the MACHINE (issue #156) and this save
+        // can move the row to another one, so the key comes from the
+        // row as it was BEFORE the edit: that is the window this host
+        // has been filling until now.
+        let previous_key = original
+            .as_ref()
+            .map(crate::monitor::endpoint::MonitorKey::new);
+        if original.as_ref().is_some_and(|o| o.monitor_enabled)
+            && !conn.monitor_enabled
+            && let Some(key) = &previous_key
+        {
+            self.monitor_reset_key(key, &conn.id);
         }
         // Disk selection (issue #135). Auto is `None`; Custom keeps the
         // rows the user typed, blanks dropped (an unfinished row is not
@@ -469,8 +480,10 @@ impl Oryxis {
         // change would keep showing stale disks until the next probe
         // aged them out. Dropping the series makes the next tick rebuild
         // it under the new rules.
-        if original.as_ref().is_some_and(|o| o.monitor_disks != conn.monitor_disks) {
-            self.monitor_reset_host(&conn.id);
+        if original.as_ref().is_some_and(|o| o.monitor_disks != conn.monitor_disks)
+            && let Some(key) = &previous_key
+        {
+            self.monitor_reset_key(key, &conn.id);
         }
         conn.agent_forwarding = self.editor_form.agent_forwarding;
         // Same SSH clamp as `mcp_enabled` / `monitor_enabled`: `x11-req`

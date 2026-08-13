@@ -10,11 +10,13 @@
 //! global view needs the pooled ad-hoc transports from the connection-
 //! reuse work; see `plans/1.0/j2-host-monitoring.md`).
 //!
-//! Samples live in an in-memory ring per host and are never persisted,
-//! synced or exported.
+//! Samples live in an in-memory ring per MACHINE (`endpoint::MonitorKey`,
+//! issue #156: several vault rows routinely point at one server) and are
+//! never persisted, synced or exported.
 
 pub(crate) mod alert;
 pub(crate) mod disks;
+pub(crate) mod endpoint;
 pub(crate) mod kill;
 pub(crate) mod model;
 pub(crate) mod probe;

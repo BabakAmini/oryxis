@@ -1433,6 +1433,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Connexion...",
         "monitor_dash_pill" => "Surveillance",
         "monitor_dash_open_terminal" => "Ouvrir le terminal",
+        "monitor_dash_sampled_via" => "Échantillonné via {host}",
         "monitor_status_bar" => "Ressources de l'hôte dans la barre d'état",
         "monitor_status_bar_desc" => "Affiche processeur, mémoire, réseau et le disque le plus rempli de l'hôte surveillé. Nécessite la surveillance activée sur cet hôte.",
         "monitor_ports" => "Ports en écoute",

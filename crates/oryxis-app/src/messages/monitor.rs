@@ -8,12 +8,21 @@ pub enum MonitorMessage {
     /// and an open Monitor tab. Mounted only while such a tab is
     /// visible, so idle screens never touch the network.
     Tick,
-    /// A probe returned: the raw batched payload for that connection, or
-    /// an error to surface on the card. The `u64` is the request stamp
-    /// captured at dispatch; a mismatch means the pane reconnected (or
-    /// monitoring was turned off) while the probe was in flight and the
-    /// result is dropped.
-    Sampled(Uuid, u64, Result<String, String>),
+    /// A probe returned: the raw batched payload, or an error to
+    /// surface on the card. The `MonitorKey` is the MACHINE the sample
+    /// belongs to and is carried rather than re-derived, so an edit to
+    /// the row mid-probe can't land the answer in a different window
+    /// (or leak the in-flight guard); the `Uuid` is the row that ran
+    /// the probe, for the error text and the alert's label. The `u64`
+    /// is the request stamp captured at dispatch; a mismatch means the
+    /// pane reconnected (or monitoring was turned off) while the probe
+    /// was in flight and the result is dropped.
+    Sampled(
+        crate::monitor::endpoint::MonitorKey,
+        Uuid,
+        u64,
+        Result<String, String>,
+    ),
     /// Turn monitoring on for the host behind the focused pane, from the
     /// Monitor tab's own opt-in prompt (the same flag the host editor
     /// toggles).
@@ -55,13 +64,21 @@ pub enum MonitorMessage {
     /// per-host probe stagger, dials missing links and redials dead
     /// ones.
     DashTick,
-    /// A dashboard dial finished. The `u64` is `monitor_dash.stamp`
-    /// captured at dispatch: a mismatch means a sweep (lock, toggle
-    /// off, idle TTL) ran meanwhile, so a `Live` result is closed
-    /// instead of stored.
-    DashDialed(Uuid, u64, Result<std::sync::Arc<oryxis_ssh::MonitorConn>, String>),
+    /// A dashboard dial finished: the MACHINE it belongs to and the
+    /// row it authenticated as (issue #156, one link per machine). The
+    /// `u64` is `monitor_dash.stamp` captured at dispatch: a mismatch
+    /// means a sweep (lock, toggle off, idle TTL) ran meanwhile, so a
+    /// `Live` result is closed instead of stored.
+    DashDialed(
+        crate::monitor::endpoint::MonitorKey,
+        Uuid,
+        u64,
+        Result<std::sync::Arc<oryxis_ssh::MonitorConn>, String>,
+    ),
     /// Retry a failed card (the only retry path besides re-entering
     /// the view: the dashboard never hammers a down host on its own).
+    /// Dials the card's OWN row: the cards of one machine differ in
+    /// credentials, and retrying from a card means "try this one".
     DashRetry(Uuid),
     /// The idle TTL armed on leaving the Monitoring view expired. If
     /// the view is up again by then the pooled links survive (that is

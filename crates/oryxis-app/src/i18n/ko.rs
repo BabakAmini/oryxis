@@ -1520,6 +1520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "연결 중...",
         "monitor_dash_pill" => "모니터링",
         "monitor_dash_open_terminal" => "터미널 열기",
+        "monitor_dash_sampled_via" => "{host}을(를) 통해 수집됨",
         "monitor_status_bar" => "상태 표시줄에 호스트 상태 표시",
         "monitor_status_bar_desc" => "모니터링 중인 호스트의 CPU, 메모리, 네트워크와 사용률이 가장 높은 디스크를 표시합니다. 해당 호스트에서 모니터링을 켜야 합니다.",
         "monitor_ports" => "수신 대기 포트",

@@ -1521,6 +1521,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "جارٍ الاتصال...",
         "monitor_dash_pill" => "المراقبة",
         "monitor_dash_open_terminal" => "فتح الطرفية",
+        "monitor_dash_sampled_via" => "تم أخذ العينة عبر {host}",
         "monitor_status_bar" => "مؤشرات المضيف في شريط الحالة",
         "monitor_status_bar_desc" => "يعرض المعالج والذاكرة والشبكة والقرص الأكثر امتلاءً للمضيف المراقَب. يتطلب تفعيل المراقبة على ذلك المضيف.",
         "monitor_ports" => "المنافذ المستمعة",

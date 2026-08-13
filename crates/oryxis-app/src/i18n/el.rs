@@ -1526,6 +1526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Σύνδεση...",
         "monitor_dash_pill" => "Παρακολούθηση",
         "monitor_dash_open_terminal" => "Άνοιγμα τερματικού",
+        "monitor_dash_sampled_via" => "Δειγματοληψία μέσω {host}",
         "monitor_status_bar" => "Στοιχεία κόμβου στη γραμμή κατάστασης",
         "monitor_status_bar_desc" => "Εμφανίζει CPU, μνήμη, δίκτυο και τον πιο γεμάτο δίσκο του κόμβου που παρακολουθείται. Απαιτεί ενεργή παρακολούθηση σε αυτόν τον κόμβο.",
         "monitor_ports" => "Θύρες σε ακρόαση",

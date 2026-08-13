@@ -46,8 +46,8 @@ impl Oryxis {
     pub(crate) fn handle_monitor(&mut self, message: MonitorMessage) -> Task<Message> {
         match message {
             MonitorMessage::Tick => self.monitor_probe_active_pane(),
-            MonitorMessage::Sampled(conn_id, stamp, result) => {
-                self.monitor.probing.remove(&conn_id);
+            MonitorMessage::Sampled(key, conn_id, stamp, result) => {
+                self.monitor.probing.remove(&key);
                 // A reconnect (or monitoring turned off) while the probe
                 // was in flight bumps the stamp; that result belongs to a
                 // series that no longer exists.
@@ -56,18 +56,16 @@ impl Oryxis {
                 }
                 match result {
                     Ok(payload) => {
-                        // The host's disk selection (issue #135) is
-                        // applied HERE, before the sample enters the
-                        // ring, so every reader inherits it: sidebar,
-                        // dashboard, status bar, and the threshold
-                        // alerts below, which must never announce a
-                        // mount the user chose not to monitor.
-                        let patterns = self
-                            .connections
-                            .iter()
-                            .find(|c| c.id == conn_id)
-                            .and_then(|c| c.monitor_disks.clone());
-                        let series = self.monitor.series.entry(conn_id).or_default();
+                        // The disk selection (issue #135) is applied
+                        // HERE, before the sample enters the ring, so
+                        // every reader inherits it: sidebar, dashboard,
+                        // status bar, and the threshold alerts below,
+                        // which must never announce a mount the user
+                        // chose not to monitor. The window belongs to
+                        // the MACHINE (issue #156), so the selection is
+                        // the union over the rows that monitor it.
+                        let patterns = self.monitor_disk_patterns(&key);
+                        let series = self.monitor.series.entry(key).or_default();
                         let (mut sample, snapshot) = crate::monitor::probe::parse_linux(
                             &payload,
                             series.raw_prev,
@@ -87,6 +85,10 @@ impl Oryxis {
                             crate::monitor::alert::evaluate(&recent, series.breached);
                         series.breached = flags;
                         if !breaches.is_empty() {
+                            // One toast per crossing per MACHINE, named
+                            // after the row it was read through: three
+                            // rows on one server would otherwise raise
+                            // three toasts about the same disk.
                             let host = self
                                 .connections
                                 .iter()
@@ -332,9 +334,14 @@ impl Oryxis {
         let Some((conn_id, session)) = self.monitor_target() else {
             return Task::none();
         };
+        let Some(key) = self.monitor_key(&conn_id) else {
+            return Task::none();
+        };
         // A slow host is skipped rather than queueing probes behind each
-        // other: the previous one is still holding a channel.
-        if !self.monitor.probing.insert(conn_id) {
+        // other: the previous one is still holding a channel. Keyed by
+        // MACHINE, so this also stops the dashboard from probing the
+        // same server the sidebar is already reading (issue #156).
+        if !self.monitor.probing.insert(key.clone()) {
             return Task::none();
         }
         let stamp = self.monitor_stamp;
@@ -346,7 +353,9 @@ impl Oryxis {
                     None => Err(crate::i18n::t("monitor_probe_failed").to_string()),
                 }
             },
-            move |result| Message::Monitor(MonitorMessage::Sampled(conn_id, stamp, result)),
+            move |result| {
+                Message::Monitor(MonitorMessage::Sampled(key.clone(), conn_id, stamp, result))
+            },
         )
     }
 
@@ -373,11 +382,23 @@ impl Oryxis {
     /// RENDER as well as the probing (a lingering series must not keep
     /// painting frozen vitals as if they were live).
     pub(crate) fn monitor_host_opted_in(&self, conn_id: &Uuid) -> bool {
-        self.prefs.monitor_all_hosts
-            || self
-                .connections
-                .iter()
-                .any(|c| c.id == *conn_id && c.monitor_enabled)
+        self.connections
+            .iter()
+            .any(|c| c.id == *conn_id && self.monitor_conn_opted_in(c))
+    }
+
+    /// The same rule against a row already in hand.
+    ///
+    /// The protocol clamp is here rather than at each caller: probing
+    /// reads `/proc` over an SSH exec channel, so a Telnet, serial or
+    /// remote-desktop row can never be monitored, and the "all hosts"
+    /// toggle must not sweep one into the fleet (where the dashboard
+    /// would dial it as SSH). The host editor clamps `monitor_enabled`
+    /// the same way on save; this covers the rows that arrive by sync,
+    /// import or a protocol change made elsewhere.
+    pub(crate) fn monitor_conn_opted_in(&self, conn: &oryxis_core::models::Connection) -> bool {
+        conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Ssh
+            && (self.prefs.monitor_all_hosts || conn.monitor_enabled)
     }
 
     /// Connection id behind the focused pane, if it is a saved host.
@@ -410,10 +431,55 @@ impl Oryxis {
         self.sidebar_tab_shown(crate::state::TerminalSidebarTab::Monitor)
     }
 
-    /// Drop a host's window (disconnect, monitoring turned off, lock) and
-    /// invalidate any probe still in flight for it.
+    /// Does any pane still sit on the machine behind this host?
+    ///
+    /// The tab / pane close paths drop a host's window once its last
+    /// pane goes, and since the window is per machine (issue #156) the
+    /// question has to be asked about the machine: closing the
+    /// `deploy@srv` tab must not blank the vitals the `root@srv` tab
+    /// next to it is still filling. `skip_tab` excludes the tab that is
+    /// closing, whose panes are still in the grid at that point.
+    pub(crate) fn monitor_machine_in_panes(&self, conn_id: &Uuid, skip_tab: Option<usize>) -> bool {
+        let Some(key) = self.monitor_key(conn_id) else {
+            return false;
+        };
+        self.tabs.iter().enumerate().any(|(i, tab)| {
+            Some(i) != skip_tab
+                && tab.pane_grid.panes.values().any(|p| {
+                    matches!(p.origin, crate::state::PaneOrigin::Host(id)
+                        if self.monitor_key(&id).is_some_and(|k| k == key))
+                })
+        })
+    }
+
+    /// Drop the window of the MACHINE behind a host (disconnect,
+    /// monitoring turned off, a disk selection edited) and invalidate
+    /// any probe still in flight for it.
+    ///
+    /// The window is per machine since issue #156, so a reset reached
+    /// through one row drops what its siblings on the same server were
+    /// reading too. That is the right answer for every caller: the
+    /// resets exist because the window is no longer trustworthy (the
+    /// selection changed, the session died), which is a fact about the
+    /// machine, not about the row. Whoever still monitors it rebuilds
+    /// the window on the next tick.
     pub(crate) fn monitor_reset_host(&mut self, conn_id: &Uuid) {
-        self.monitor.forget(conn_id);
+        let Some(key) = self.monitor_key(conn_id) else {
+            return;
+        };
+        self.monitor_reset_key(&key, conn_id);
+    }
+
+    /// `monitor_reset_host` for a key resolved by the caller: the host
+    /// editor's, taken from the row BEFORE the save, since the edit can
+    /// move the row to another machine and the window to drop is the
+    /// one it was filling until now.
+    pub(crate) fn monitor_reset_key(
+        &mut self,
+        key: &crate::monitor::endpoint::MonitorKey,
+        conn_id: &Uuid,
+    ) {
+        self.monitor.forget(key, conn_id);
         self.monitor_stamp = self.monitor_stamp.wrapping_add(1);
         self.monitor_error = None;
     }

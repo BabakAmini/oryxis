@@ -1526,6 +1526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Připojování...",
         "monitor_dash_pill" => "Sledování",
         "monitor_dash_open_terminal" => "Otevřít terminál",
+        "monitor_dash_sampled_via" => "Vzorkováno přes {host}",
         "monitor_status_bar" => "Vytížení hostitele ve stavovém řádku",
         "monitor_status_bar_desc" => "Zobrazí CPU, paměť, síť a nejplnější disk monitorovaného hostitele. Vyžaduje zapnuté monitorování na daném hostiteli.",
         "monitor_ports" => "Naslouchající porty",

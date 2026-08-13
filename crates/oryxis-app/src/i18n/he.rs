@@ -1526,6 +1526,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "מתחבר...",
         "monitor_dash_pill" => "ניטור",
         "monitor_dash_open_terminal" => "פתח מסוף",
+        "monitor_dash_sampled_via" => "נדגם דרך {host}",
         "monitor_status_bar" => "נתוני המארח בשורת המצב",
         "monitor_status_bar_desc" => "מציג מעבד, זיכרון, רשת והדיסק המלא ביותר של המארח המנוטר. דורש ניטור מופעל באותו מארח.",
         "monitor_ports" => "פורטים מאזינים",

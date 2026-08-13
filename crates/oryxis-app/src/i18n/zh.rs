@@ -1433,6 +1433,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "连接中...",
         "monitor_dash_pill" => "监控",
         "monitor_dash_open_terminal" => "打开终端",
+        "monitor_dash_sampled_via" => "通过 {host} 采样",
         "monitor_status_bar" => "状态栏显示主机资源",
         "monitor_status_bar_desc" => "显示受监控主机的 CPU、内存、网络和最满的磁盘。需要在该主机上启用监控。",
         "monitor_ports" => "监听端口",

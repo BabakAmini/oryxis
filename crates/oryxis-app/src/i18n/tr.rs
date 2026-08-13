@@ -1520,6 +1520,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "monitor_dash_connecting" => "Bağlanıyor...",
         "monitor_dash_pill" => "İzleme",
         "monitor_dash_open_terminal" => "Terminali aç",
+        "monitor_dash_sampled_via" => "{host} üzerinden örneklendi",
         "monitor_status_bar" => "Durum çubuğunda sunucu verileri",
         "monitor_status_bar_desc" => "İzlenen sunucunun CPU, bellek, ağ ve en dolu diskini gösterir. O sunucuda izlemenin açık olması gerekir.",
         "monitor_ports" => "Dinlenen bağlantı noktaları",

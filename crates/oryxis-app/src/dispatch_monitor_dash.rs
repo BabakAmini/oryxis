@@ -1,21 +1,24 @@
 //! `Oryxis::handle_monitor_dash`: the multi-host monitor dashboard
 //! (issue #95).
 //!
-//! One link per opted-in host: a live terminal tab's session when one
-//! exists, otherwise a headless probe-only [`oryxis_ssh::MonitorConn`]
-//! dialed with the stored credentials (strict host key, TOTP autofill;
-//! auth that would need an interactive answer fails onto the card, and
-//! the card's open-terminal action is the interactive path out).
-//! Samples land through the same `MonitorMessage::Sampled` handler the
-//! sidebar uses, into the same rings, so the two surfaces can never
-//! disagree. Polling only runs while the view is up; leaving it arms
-//! an idle TTL that closes the dialed connections.
+//! One link per monitored MACHINE (issue #156, not per card: the rows
+//! that point at one server share its window): a live terminal tab's
+//! session when any of them has one, otherwise a headless probe-only
+//! [`oryxis_ssh::MonitorConn`] dialed with one row's stored credentials
+//! (strict host key, TOTP autofill; auth that would need an interactive
+//! answer fails onto the card, and the card's open-terminal action is
+//! the interactive path out). Samples land through the same
+//! `MonitorMessage::Sampled` handler the sidebar uses, into the same
+//! rings, so the two surfaces can never disagree. Polling only runs
+//! while the view is up; leaving it arms an idle TTL that closes the
+//! dialed connections.
 
 use iced::Task;
 use uuid::Uuid;
 
-use crate::app::{Message, MonitorMessage, Oryxis};
+use crate::monitor::endpoint::MonitorKey;
 use crate::state::{DashLink, DashTransport};
+use crate::app::{Message, MonitorMessage, Oryxis};
 
 /// Cap on a single dashboard probe, mirroring the sidebar's.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
@@ -32,7 +35,7 @@ impl Oryxis {
     ) -> Result<Task<Message>, MonitorMessage> {
         match message {
             MonitorMessage::DashTick => Ok(self.dash_tick()),
-            MonitorMessage::DashDialed(conn_id, stamp, result) => {
+            MonitorMessage::DashDialed(key, via, stamp, result) => {
                 // A sweep while the dial was in flight: the link map it
                 // would land in no longer exists, so a successful dial
                 // is closed instead of leaked.
@@ -42,18 +45,48 @@ impl Oryxis {
                     }
                     return Ok(Task::none());
                 }
+                // The slot has to still be waiting for THIS row. A card
+                // retry (or the machine leaving the fleet) can restart
+                // the round while the dial is on the wire, and landing
+                // on the round that replaced it would bury a fresh
+                // `Connecting` under a stale answer.
+                let tried: Vec<Uuid> = match self.monitor_dash.links.get(&key) {
+                    Some(DashLink::Connecting { via: waiting, tried }) if *waiting == via => {
+                        tried.clone()
+                    }
+                    _ => {
+                        if let Ok(conn) = &result {
+                            conn.close();
+                        }
+                        return Ok(Task::none());
+                    }
+                };
                 match result {
                     Ok(conn) => {
                         let transport = DashTransport::Pool(conn);
-                        self.monitor_dash
-                            .links
-                            .insert(conn_id, DashLink::Live(transport.clone()));
+                        self.monitor_dash.links.insert(
+                            key.clone(),
+                            DashLink::Live {
+                                via,
+                                transport: transport.clone(),
+                            },
+                        );
                         // First sample now, so the card fills in instead
                         // of waiting out the stagger.
-                        Ok(self.dash_probe(conn_id, transport))
+                        Ok(self.dash_probe(key, via, transport))
                     }
                     Err(e) => {
-                        self.monitor_dash.links.insert(conn_id, DashLink::Failed(e));
+                        self.monitor_dash.links.insert(
+                            key,
+                            DashLink::Failed {
+                                via,
+                                error: e,
+                                tried,
+                            },
+                        );
+                        // The next tick tries the machine's remaining
+                        // rows, if it has any: one row's credentials
+                        // failing is not the server being down.
                         Ok(Task::none())
                     }
                 }
@@ -61,12 +94,18 @@ impl Oryxis {
             MonitorMessage::DashRetry(conn_id) => {
                 // Only a failed card offers the retry; a live one has
                 // nothing to retry and a connecting one is already busy.
+                // The retry dials THIS card's row and starts a fresh
+                // round, so retrying from the card whose credentials
+                // the user just fixed uses them.
+                let Some(key) = self.monitor_key(&conn_id) else {
+                    return Ok(Task::none());
+                };
                 if matches!(
-                    self.monitor_dash.links.get(&conn_id),
-                    Some(DashLink::Failed(_))
+                    self.monitor_dash.links.get(&key),
+                    Some(DashLink::Failed { .. })
                 ) {
-                    self.monitor_dash.links.remove(&conn_id);
-                    return Ok(self.dash_link(conn_id));
+                    self.monitor_dash.links.remove(&key);
+                    return Ok(self.dash_dial(&key, conn_id, Vec::new()));
                 }
                 Ok(Task::none())
             }
@@ -140,60 +179,83 @@ impl Oryxis {
         let mut hosts: Vec<(String, Uuid)> = self
             .connections
             .iter()
-            .filter(|c| {
-                self.prefs.monitor_all_hosts || c.monitor_enabled
-            })
+            .filter(|c| self.monitor_conn_opted_in(c))
             .map(|c| (c.label.to_lowercase(), c.id))
             .collect();
         hosts.sort();
         hosts.into_iter().map(|(_, id)| id).collect()
     }
 
-    /// One-second heartbeat while the view is up: prune hosts that
-    /// opted out, establish missing links, redial dead ones, and probe
-    /// each live link on its staggered slot.
+    /// The fleet folded into MACHINES (issue #156): one entry per
+    /// monitored server with the rows that reach it, in the cards' own
+    /// order, so the entry's position (and the probe stagger derived
+    /// from it) is as stable as the grid.
+    pub(crate) fn dash_groups(&self) -> Vec<(MonitorKey, Vec<Uuid>)> {
+        crate::monitor::endpoint::group_by_machine(
+            self.dash_hosts()
+                .into_iter()
+                .filter_map(|id| Some((self.monitor_key(&id)?, id)))
+                .collect(),
+        )
+    }
+
+    /// One-second heartbeat while the view is up: prune machines whose
+    /// last row opted out, establish missing links, redial dead ones,
+    /// try a failed machine's untried rows, and probe each live link on
+    /// its staggered slot.
     fn dash_tick(&mut self) -> Task<Message> {
         self.monitor_dash.tick = self.monitor_dash.tick.wrapping_add(1);
         let interval = self.monitor_interval_secs();
-        let hosts = self.dash_hosts();
+        let groups = self.dash_groups();
 
-        // A host edited out of the fleet mid-session: close its dialed
-        // connection and drop the card.
-        let stale: Vec<Uuid> = self
+        // A host edited out of the fleet mid-session: close the dialed
+        // connection of any machine nothing points at any more.
+        let stale: Vec<MonitorKey> = self
             .monitor_dash
             .links
             .keys()
-            .filter(|id| !hosts.contains(id))
-            .copied()
+            .filter(|key| !groups.iter().any(|(k, _)| k == *key))
+            .cloned()
             .collect();
-        for id in stale {
-            if let Some(DashLink::Live(t)) = self.monitor_dash.links.remove(&id) {
-                t.close_pooled();
+        for key in stale {
+            if let Some(DashLink::Live { transport, .. }) = self.monitor_dash.links.remove(&key) {
+                transport.close_pooled();
             }
-            // The detail panel dies with its host's fleet membership.
-            if self.monitor_dash.selected == Some(id) {
-                self.monitor_dash.selected = None;
-            }
+        }
+        // The detail panel dies with its host's fleet membership.
+        if let Some(sel) = self.monitor_dash.selected
+            && !groups.iter().any(|(_, members)| members.contains(&sel))
+        {
+            self.monitor_dash.selected = None;
         }
 
         let mut tasks: Vec<Task<Message>> = Vec::new();
-        for (i, conn_id) in hosts.into_iter().enumerate() {
-            match self.monitor_dash.links.get(&conn_id) {
-                None => tasks.push(self.dash_link(conn_id)),
-                Some(DashLink::Live(t)) if !t.is_alive() => {
+        for (i, (key, members)) in groups.into_iter().enumerate() {
+            match self.monitor_dash.links.get(&key) {
+                None => tasks.push(self.dash_link(&key, &members)),
+                Some(DashLink::Live { transport, .. }) if !transport.is_alive() => {
                     // The link died (tab closed, network drop): one
                     // automatic re-establish. If the redial fails the
                     // card goes Failed and stays there (no hammering a
                     // down host every second).
-                    t.close_pooled();
-                    self.monitor_dash.links.remove(&conn_id);
-                    tasks.push(self.dash_link(conn_id));
+                    transport.close_pooled();
+                    self.monitor_dash.links.remove(&key);
+                    tasks.push(self.dash_link(&key, &members));
                 }
-                Some(DashLink::Live(t))
+                Some(DashLink::Live { via, transport })
                     if (self.monitor_dash.tick + i as u64).is_multiple_of(interval) =>
                 {
-                    let t = t.clone();
-                    tasks.push(self.dash_probe(conn_id, t));
+                    let (via, transport) = (*via, transport.clone());
+                    tasks.push(self.dash_probe(key, via, transport));
+                }
+                Some(DashLink::Failed { tried, .. }) => {
+                    // One row's credentials failing is not the machine
+                    // being down: try the next row that reaches it,
+                    // once each, before the slot settles as failed.
+                    let tried = tried.clone();
+                    if let Some(next) = members.iter().find(|m| !tried.contains(m)) {
+                        tasks.push(self.dash_dial(&key, *next, tried));
+                    }
                 }
                 _ => {}
             }
@@ -201,22 +263,33 @@ impl Oryxis {
         Task::batch(tasks)
     }
 
-    /// Establish a host's link: borrow a live tab session when one
-    /// exists (plus an immediate first sample), otherwise dial.
-    fn dash_link(&mut self, conn_id: Uuid) -> Task<Message> {
-        if let Some(session) = self.live_session_for_host(conn_id) {
+    /// Establish a machine's link: borrow a live tab session when any
+    /// of its rows has one (plus an immediate first sample), otherwise
+    /// dial the first row.
+    fn dash_link(&mut self, key: &MonitorKey, members: &[Uuid]) -> Task<Message> {
+        if let Some((via, session)) = self.live_session_for_machine(key) {
             let transport = DashTransport::Tab(session);
-            self.monitor_dash
-                .links
-                .insert(conn_id, DashLink::Live(transport.clone()));
-            return self.dash_probe(conn_id, transport);
+            self.monitor_dash.links.insert(
+                key.clone(),
+                DashLink::Live {
+                    via,
+                    transport: transport.clone(),
+                },
+            );
+            return self.dash_probe(key.clone(), via, transport);
         }
-        self.dash_dial(conn_id)
+        match members.first() {
+            Some(via) => self.dash_dial(key, *via, Vec::new()),
+            None => Task::none(),
+        }
     }
 
-    /// Headless dial, mirroring the port-forward auto-start path: the
-    /// stored credentials and pinned settings apply, nothing prompts.
-    fn dash_dial(&mut self, conn_id: Uuid) -> Task<Message> {
+    /// Headless dial for a machine, through one of its rows, mirroring
+    /// the port-forward auto-start path: the stored credentials and
+    /// pinned settings apply, nothing prompts. `tried` carries the rows
+    /// already attempted for this machine, so a failure can move on to
+    /// the next one instead of retrying the same credentials forever.
+    fn dash_dial(&mut self, key: &MonitorKey, conn_id: Uuid, tried: Vec<Uuid>) -> Task<Message> {
         let Some(mut conn) = self
             .connections
             .iter()
@@ -239,7 +312,18 @@ impl Oryxis {
         let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
 
-        self.monitor_dash.links.insert(conn_id, DashLink::Connecting);
+        let mut tried = tried;
+        if !tried.contains(&conn_id) {
+            tried.push(conn_id);
+        }
+        self.monitor_dash.links.insert(
+            key.clone(),
+            DashLink::Connecting {
+                via: conn_id,
+                tried,
+            },
+        );
+        let key = key.clone();
         let stamp = self.monitor_dash.stamp;
         Task::perform(
             async move {
@@ -270,24 +354,38 @@ impl Oryxis {
                     .map(std::sync::Arc::new)
                     .map_err(|e| e.to_string())
             },
-            move |res| Message::Monitor(MonitorMessage::DashDialed(conn_id, stamp, res)),
+            move |res| {
+                Message::Monitor(MonitorMessage::DashDialed(key.clone(), conn_id, stamp, res))
+            },
         )
     }
 
-    /// Probe one link. The in-flight guard, the stamp and the landing
-    /// handler are the sidebar's own (`MonitorMessage::Sampled`), which
-    /// is what keeps the two surfaces on identical data.
-    fn dash_probe(&mut self, conn_id: Uuid, transport: DashTransport) -> Task<Message> {
-        if !self.monitor.probing.insert(conn_id) {
+    /// Probe one machine's link. The in-flight guard, the stamp and the
+    /// landing handler are the sidebar's own (`MonitorMessage::Sampled`),
+    /// which is what keeps every surface on identical data. `via` is
+    /// the row the link runs as, and only rides along for the error
+    /// text and the alert label: the sample belongs to the machine.
+    fn dash_probe(
+        &mut self,
+        key: MonitorKey,
+        via: Uuid,
+        transport: DashTransport,
+    ) -> Task<Message> {
+        if !self.monitor.probing.insert(key.clone()) {
             return Task::none();
         }
         let stamp = self.monitor_stamp;
-        // Vitals only (owner call), EXCEPT the host whose detail panel
-        // is open: its panel shows the sidebar's full presentation,
-        // ports section included, so that one host pays for the full
-        // probe. The unused slot stays in place either way (the parser
-        // splits by position).
-        let command = if self.monitor_dash.selected == Some(conn_id) {
+        // Vitals only (owner call), EXCEPT the machine whose detail
+        // panel is open: its panel shows the sidebar's full
+        // presentation, ports section included, so that one pays for
+        // the full probe. The unused slot stays in place either way
+        // (the parser splits by position).
+        let selected_here = self
+            .monitor_dash
+            .selected
+            .and_then(|id| self.monitor_key(&id))
+            .is_some_and(|k| k == key);
+        let command = if selected_here {
             crate::monitor::probe::linux_probe_command()
         } else {
             crate::monitor::probe::linux_probe_command_vitals()
@@ -303,23 +401,32 @@ impl Oryxis {
                     None => Err(crate::i18n::t("monitor_probe_failed").to_string()),
                 }
             },
-            move |result| Message::Monitor(MonitorMessage::Sampled(conn_id, stamp, result)),
+            move |result| {
+                Message::Monitor(MonitorMessage::Sampled(key.clone(), via, stamp, result))
+            },
         )
     }
 
     /// Entering the Monitoring view: establish every link right away so
-    /// the grid fills without waiting out the stagger.
+    /// the grid fills without waiting out the stagger, and give the
+    /// machines that failed a fresh round (entering the view is the
+    /// deliberate act the sticky failure waits for, same as the card's
+    /// retry; the rows tried in the last round are forgotten with it).
     pub(crate) fn dash_enter(&mut self) -> Task<Message> {
-        let hosts = self.dash_hosts();
+        let groups = self.dash_groups();
         let mut tasks: Vec<Task<Message>> = Vec::new();
-        for conn_id in hosts {
-            match self.monitor_dash.links.get(&conn_id) {
-                None => tasks.push(self.dash_link(conn_id)),
+        for (key, members) in groups {
+            match self.monitor_dash.links.get(&key) {
+                None => tasks.push(self.dash_link(&key, &members)),
                 // A quick round-trip elsewhere kept the links warm
                 // (that is the idle TTL's point); refresh them now.
-                Some(DashLink::Live(t)) if t.is_alive() => {
-                    let t = t.clone();
-                    tasks.push(self.dash_probe(conn_id, t));
+                Some(DashLink::Live { via, transport }) if transport.is_alive() => {
+                    let (via, transport) = (*via, transport.clone());
+                    tasks.push(self.dash_probe(key, via, transport));
+                }
+                Some(DashLink::Failed { .. }) => {
+                    self.monitor_dash.links.remove(&key);
+                    tasks.push(self.dash_link(&key, &members));
                 }
                 _ => {}
             }
@@ -342,20 +449,28 @@ impl Oryxis {
         )
     }
 
-    /// A live SSH session already connected to this host, from any tab
-    /// and pane (not just the focused one, unlike the sidebar's
-    /// `monitor_target`).
-    fn live_session_for_host(
+    /// A live SSH session already connected to this MACHINE, from any
+    /// tab and pane (not just the focused one, unlike the sidebar's
+    /// `monitor_target`), with the row it belongs to.
+    ///
+    /// Any row that reaches the machine will do: the probe reads the
+    /// same `/proc` whoever it logged in as, and riding an open session
+    /// is what keeps the dashboard from dialing at all (issue #156:
+    /// three rows on one server used to mean three logins).
+    fn live_session_for_machine(
         &self,
-        conn_id: Uuid,
-    ) -> Option<std::sync::Arc<oryxis_ssh::SshSession>> {
+        key: &MonitorKey,
+    ) -> Option<(Uuid, std::sync::Arc<oryxis_ssh::SshSession>)> {
         for tab in &self.tabs {
             for pane in tab.pane_grid.panes.values() {
-                if matches!(pane.origin, crate::state::PaneOrigin::Host(id) if id == conn_id)
+                let crate::state::PaneOrigin::Host(id) = pane.origin else {
+                    continue;
+                };
+                if self.monitor_key(&id).is_some_and(|k| k == *key)
                     && let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
                     && ssh.is_alive()
                 {
-                    return Some(ssh.clone());
+                    return Some((id, ssh.clone()));
                 }
             }
         }
