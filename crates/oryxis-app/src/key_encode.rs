@@ -27,8 +27,8 @@
 //! the numpad always sends what it types (digits, operators, and CR for
 //! its Enter). xterm's SS3 keypad forms (`ESC O q` for 1, `ESC O M` for
 //! Enter) are what stops a numpad from typing digits inside anything
-//! that enables `smkx`, and the emulator we embed (alacritty) doesn't
-//! send them either.
+//! that enables `smkx`, and alacritty's own input layer doesn't send
+//! them either.
 
 use iced::keyboard;
 use oryxis_core::models::terminal_quirks::{FunctionKeyMode, HomeEndMode, TerminalQuirks};
