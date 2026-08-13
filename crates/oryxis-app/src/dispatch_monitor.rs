@@ -224,7 +224,9 @@ impl Oryxis {
             | MonitorMessage::DashCloseDetail
             | MonitorMessage::DashSearchChanged(..)
             | MonitorMessage::DashToggleListView
-            | MonitorMessage::DashSortBy(..)) => self
+            | MonitorMessage::DashSortBy(..)
+            | MonitorMessage::DashTogglePause
+            | MonitorMessage::DashRefreshNow) => self
                 .handle_monitor_dash(m)
                 .unwrap_or_else(crate::dispatch::unrouted),
             MonitorMessage::KillFinished(stamp, outcome) => {

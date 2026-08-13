@@ -103,4 +103,12 @@ pub enum MonitorMessage {
     /// Table-mode header click: sort by this column, toggling the
     /// direction when it is already the active one.
     DashSortBy(crate::state::DashSortKey),
+    /// Pause / resume the fleet's polling (issue #156 follow-up).
+    /// Session-scoped and fleet-scoped: the sidebar Monitor tab reads
+    /// over the session its own tab already holds and keeps going.
+    DashTogglePause,
+    /// "Refresh now": one sample from every machine on the board. The
+    /// single-shot monitor while paused, since the connections it
+    /// opens are closed again as soon as the sample lands.
+    DashRefreshNow,
 }

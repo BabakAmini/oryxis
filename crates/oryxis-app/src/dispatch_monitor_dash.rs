@@ -143,6 +143,25 @@ impl Oryxis {
                 }
                 Ok(Task::none())
             }
+            MonitorMessage::DashTogglePause => {
+                self.monitor_dash.paused = !self.monitor_dash.paused;
+                // Resuming re-links and samples right away, so the
+                // board is live again on the click rather than at the
+                // end of the next interval. Pausing leaves the closing
+                // to the tick, which knows what is still in flight.
+                if self.monitor_dash.paused {
+                    Ok(Task::none())
+                } else {
+                    Ok(self.dash_enter())
+                }
+            }
+            MonitorMessage::DashRefreshNow => {
+                // One round for every machine on the board, links
+                // included. While paused this is the single-shot
+                // monitor: the tick closes what this opened as soon as
+                // the sample lands, so nothing is held between clicks.
+                Ok(self.dash_round())
+            }
             MonitorMessage::DashToggleListView => {
                 self.prefs.monitor_dash_list_view = !self.prefs.monitor_dash_list_view;
                 self.persist_setting(
@@ -207,6 +226,24 @@ impl Oryxis {
         self.monitor_dash.tick = self.monitor_dash.tick.wrapping_add(1);
         let interval = self.monitor_interval_secs();
         let groups = self.dash_groups();
+
+        // Paused: no probes, no dials, and nothing held open. The
+        // links a one-shot refresh opened are closed here, on the tick
+        // after its sample lands, which is why the parking asks what is
+        // still busy instead of closing blind.
+        if self.monitor_dash.paused {
+            let probing = self.monitor.probing.clone();
+            let connecting = self
+                .monitor_dash
+                .links
+                .values()
+                .any(|l| matches!(l, DashLink::Connecting { .. }));
+            if !connecting {
+                self.monitor_dash
+                    .park_idle_links(|key| probing.contains(key));
+            }
+            return Task::none();
+        }
 
         // A host edited out of the fleet mid-session: close the dialed
         // connection of any machine nothing points at any more.
@@ -407,12 +444,24 @@ impl Oryxis {
         )
     }
 
-    /// Entering the Monitoring view: establish every link right away so
-    /// the grid fills without waiting out the stagger, and give the
-    /// machines that failed a fresh round (entering the view is the
-    /// deliberate act the sticky failure waits for, same as the card's
-    /// retry; the rows tried in the last round are forgotten with it).
+    /// Entering the Monitoring view: one round right away so the grid
+    /// fills without waiting out the stagger. A pause survives leaving
+    /// and re-entering the view, so this does nothing while it is on;
+    /// the board keeps the last sample and the Refresh action is the
+    /// way to take another.
     pub(crate) fn dash_enter(&mut self) -> Task<Message> {
+        if self.monitor_dash.paused {
+            return Task::none();
+        }
+        self.dash_round()
+    }
+
+    /// One round over the whole board: link what has no link, probe
+    /// what has one, and give the machines that failed a fresh try
+    /// (entering the view and the Refresh action are the deliberate
+    /// acts the sticky failure waits for, same as the card's retry; the
+    /// rows tried in the last round are forgotten with it).
+    fn dash_round(&mut self) -> Task<Message> {
         let groups = self.dash_groups();
         let mut tasks: Vec<Task<Message>> = Vec::new();
         for (key, members) in groups {

@@ -782,6 +782,8 @@ impl Oryxis {
             // its own grid/list toggle.
             (View::Monitoring, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
             (View::Monitoring, ToolbarItem::ViewToggle) => Message::Monitor(crate::app::MonitorMessage::DashToggleListView),
+            (View::Monitoring, ToolbarItem::MonitorPause) => Message::Monitor(crate::app::MonitorMessage::DashTogglePause),
+            (View::Monitoring, ToolbarItem::MonitorRefresh) => Message::Monitor(crate::app::MonitorMessage::DashRefreshNow),
             (View::Dashboard, ToolbarItem::TagFilter) => Message::Navigation(NavigationMessage::ShowHostTagFilterMenu),
             (View::Snippets, ToolbarItem::TagFilter) => Message::Snippet(SnippetMessage::ShowSnippetTagFilterMenu),
             (View::History, ToolbarItem::TagFilter) => Message::History(HistoryMessage::ShowHistoryTagFilterMenu),

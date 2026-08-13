@@ -100,6 +100,22 @@ pub(crate) struct MonitorDash {
     /// a working posture, not a preference worth a vault row.
     pub sort_key: DashSortKey,
     pub sort_asc: bool,
+    /// "Stop reading my servers for now" (issue #156 follow-up).
+    ///
+    /// Session-only on purpose: the persistent answers already exist
+    /// one level up (the master monitoring toggle and the per-host
+    /// opt-in), and this one is the posture you take for the next few
+    /// minutes, not a setting you maintain.
+    ///
+    /// Scope is the FLEET, not monitoring as a whole: this view is the
+    /// only surface that opens connections by itself, while the
+    /// sidebar tab reads over the session its own tab already holds.
+    /// While paused the heartbeat does no work and the dialed
+    /// connections are closed as soon as nothing is reading them, so a
+    /// pause really is nothing on the wire; the cards keep showing the
+    /// last sample, greyed, because a blank card would read as "this
+    /// host went away".
+    pub paused: bool,
 }
 
 impl Default for MonitorDash {
@@ -114,6 +130,7 @@ impl Default for MonitorDash {
             // A-z out of the box; `derive(Default)` would boot the
             // table sorted Z-a.
             sort_asc: true,
+            paused: false,
         }
     }
 }
@@ -143,5 +160,27 @@ impl MonitorDash {
         self.links.clear();
         self.selected = None;
         self.stamp = self.stamp.wrapping_add(1);
+    }
+
+    /// Close and drop the links of machines nothing is reading right
+    /// now, keeping the windows and the open detail panel.
+    ///
+    /// This is what makes a pause (and a one-shot refresh taken during
+    /// one) hold no connection: the probe in flight is left alone, and
+    /// what it was reading is closed on the tick after it lands. Unlike
+    /// [`Self::sweep`] it does NOT bump the stamp, because nothing here
+    /// invalidates a result that is still on its way.
+    pub(crate) fn park_idle_links(&mut self, busy: impl Fn(&MonitorKey) -> bool) {
+        let idle: Vec<MonitorKey> = self
+            .links
+            .iter()
+            .filter(|(key, link)| matches!(link, DashLink::Live { .. }) && !busy(key))
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in idle {
+            if let Some(DashLink::Live { transport, .. }) = self.links.remove(&key) {
+                transport.close_pooled();
+            }
+        }
     }
 }

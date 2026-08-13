@@ -60,6 +60,10 @@ pub(crate) enum DashNavItem {
 pub(crate) enum ToolbarItem {
     /// Grid/list layout toggle (dashboard only).
     ViewToggle,
+    /// Pause / resume the fleet polling (Monitoring only).
+    MonitorPause,
+    /// One sample from every machine on the board (Monitoring only).
+    MonitorRefresh,
     /// Host tag-filter dropdown trigger (dashboard only).
     TagFilter,
     /// Sort-menu trigger.
