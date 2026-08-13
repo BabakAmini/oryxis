@@ -2021,6 +2021,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "กึ่งหนา",
         "font_weight_bold" => "หนา",
         "font_weight_unavailable" => "ฟอนต์นี้ไม่มีน้ำหนักที่เลือก เทอร์มินัลจึงใช้น้ำหนักที่ใกล้เคียงที่สุดที่มี",
+        "terminal_text_thickness" => "ความหนาของตัวอักษร",
+        "text_thickness_off" => "ปิด",
+        "text_thickness_light" => "เบา",
+        "text_thickness_medium" => "ปานกลาง",
+        "text_thickness_strong" => "หนัก",
+        "setting_text_thickness_desc" => "ขยายทุกเส้นออกเศษหนึ่งของพิกเซล แบบเดียวกับที่ macOS และ Windows ทำก่อนวาดข้อความ Oryxis วาดกลิฟดิบ ๆ จึงดูบางกว่าฟอนต์เดียวกันในแอปอื่น",
 
         // SSH certificate auth (B2)
         "certificate" => "ใบรับรอง",

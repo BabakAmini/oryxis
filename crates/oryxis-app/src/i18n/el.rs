@@ -2020,6 +2020,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Ημίεντονο",
         "font_weight_bold" => "Έντονο",
         "font_weight_unavailable" => "Αυτή η γραμματοσειρά δεν έχει τομή σε αυτό το πάχος, οπότε το τερματικό χρησιμοποιεί την πλησιέστερη διαθέσιμη.",
+        "terminal_text_thickness" => "Πάχος κειμένου",
+        "text_thickness_off" => "Απενεργοποιημένο",
+        "text_thickness_light" => "Ελαφρύ",
+        "text_thickness_medium" => "Μεσαίο",
+        "text_thickness_strong" => "Έντονο",
+        "setting_text_thickness_desc" => "Πλαταίνει κάθε πινελιά κατά κλάσμα του pixel, όπως κάνουν το macOS και τα Windows πριν σχεδιάσουν το κείμενο. Το Oryxis σχεδιάζει το ακατέργαστο glyph, που δείχνει πιο ελαφρύ από την ίδια γραμματοσειρά σε άλλες εφαρμογές.",
 
         // SSH certificate auth (B2)
         "certificate" => "Πιστοποιητικό",

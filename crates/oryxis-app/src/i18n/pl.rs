@@ -1980,6 +1980,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Półgruba",
         "font_weight_bold" => "Pogrubiona",
         "font_weight_unavailable" => "Ta czcionka nie ma odmiany o tej grubości, więc terminal użyje najbliższej dostępnej.",
+        "terminal_text_thickness" => "Grubość tekstu",
+        "text_thickness_off" => "Wyłączona",
+        "text_thickness_light" => "Lekka",
+        "text_thickness_medium" => "Średnia",
+        "text_thickness_strong" => "Mocna",
+        "setting_text_thickness_desc" => "Pogrubia każdą kreskę o ułamek piksela, tak jak robią to macOS i Windows przed narysowaniem tekstu. Oryxis rysuje surowy glif, który wygląda lżej niż ta sama czcionka w innych aplikacjach.",
 
                 "ecs_exec_group_missing" => "Grupa chmurowa tej sesji już nie istnieje. Odepnij kartę i połącz się ponownie z poziomu pulpitu.",
         "cloud_session_ended" => "sesja zakończona",

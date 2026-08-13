@@ -39,4 +39,9 @@ settle 300
 click (300, 1170)
 settle 300
 expect "This font has no face at the selected weight, so the terminal uses the closest one it has."
+# The stroke-widening row lives in the same block, right under the
+# weight. Its effect is canvas-only (a second stamp per glyph, which no
+# text selector can see), so this pins the row and its i18n key; the
+# pixels are measured by hand against the 41-stem sample in the commit.
+expect "Text Thickness"
 screenshot font-weight-semibold

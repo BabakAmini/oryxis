@@ -153,6 +153,30 @@ impl Oryxis {
             .into(),
         );
 
+        let thicknesses = crate::fonts::TextThickness::ALL;
+        let (thick_prev, thick_next) = crate::keynav::slots::cycle_pair(
+            &thicknesses,
+            &self.terminal_text_thickness,
+            |v| Message::Settings(SettingsMessage::TerminalTextThicknessChanged(v)),
+        );
+        let thickness_pick = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::picker(thick_prev, thick_next),
+            stab,
+            crate::widgets::INPUT_RADIUS,
+            iced::widget::pick_list(
+                Some(self.terminal_text_thickness),
+                thicknesses.to_vec(),
+                |v: &crate::fonts::TextThickness| v.to_string(),
+            )
+            .on_select(|v| Message::Settings(SettingsMessage::TerminalTextThicknessChanged(v)))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+            .width(Length::Fill)
+            .padding(8)
+            .style(crate::widgets::rounded_pick_list_style)
+            .into(),
+        );
+
         let toggle = |label: &'static str, value: bool, msg: Message| {
             self.sidebar_nav_slot(
                 crate::keynav::SidebarRow::button(msg.clone()),
@@ -176,6 +200,10 @@ impl Oryxis {
             text(t("terminal_font_weight")).size(12).color(c.text_secondary),
             Space::new().height(4),
             weight_pick,
+            Space::new().height(10),
+            text(t("terminal_text_thickness")).size(12).color(c.text_secondary),
+            Space::new().height(4),
+            thickness_pick,
             Space::new().height(12),
             toggle("bold_bright", self.prefs.bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(8),

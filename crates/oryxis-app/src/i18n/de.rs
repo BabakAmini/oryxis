@@ -1889,6 +1889,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Halbfett",
         "font_weight_bold" => "Fett",
         "font_weight_unavailable" => "Diese Schrift hat keinen Schnitt in dieser Stärke, daher verwendet das Terminal den nächstgelegenen.",
+        "terminal_text_thickness" => "Textstärke",
+        "text_thickness_off" => "Aus",
+        "text_thickness_light" => "Leicht",
+        "text_thickness_medium" => "Mittel",
+        "text_thickness_strong" => "Stark",
+        "setting_text_thickness_desc" => "Verbreitert jeden Strich um Bruchteile eines Pixels, so wie macOS und Windows Text vor dem Zeichnen verbreitern. Oryxis zeichnet die rohe Glyphe, die leichter wirkt als dieselbe Schrift in anderen Apps.",
 
         "logs" => "Verlauf",
         "vault" => "Tresor",

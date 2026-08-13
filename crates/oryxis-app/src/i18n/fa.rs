@@ -1910,6 +1910,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "نیمه‌ضخیم",
         "font_weight_bold" => "ضخیم",
         "font_weight_unavailable" => "این فونت چهره‌ای با این ضخامت ندارد، بنابراین ترمینال از نزدیک‌ترین مورد موجود استفاده می‌کند.",
+        "terminal_text_thickness" => "ضخامت متن",
+        "text_thickness_off" => "خاموش",
+        "text_thickness_light" => "کم",
+        "text_thickness_medium" => "متوسط",
+        "text_thickness_strong" => "زیاد",
+        "setting_text_thickness_desc" => "هر خط را کسری از پیکسل ضخیم‌تر می‌کند، همان کاری که macOS و ویندوز پیش از رسم متن انجام می‌دهند. اوریکسیس گلیف خام را رسم می‌کند و به همین دلیل از همان فونت در برنامه‌های دیگر نازک‌تر دیده می‌شود.",
 
         "logs" => "تاریخچه",
         "vault" => "صندوقچه",

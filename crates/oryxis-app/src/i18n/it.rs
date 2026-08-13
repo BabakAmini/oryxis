@@ -1888,6 +1888,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Semigrassetto",
         "font_weight_bold" => "Grassetto",
         "font_weight_unavailable" => "Questo carattere non ha uno stile con quello spessore, quindi il terminale usa il più vicino che ha.",
+        "terminal_text_thickness" => "Spessore del testo",
+        "text_thickness_off" => "Disattivato",
+        "text_thickness_light" => "Leggero",
+        "text_thickness_medium" => "Medio",
+        "text_thickness_strong" => "Forte",
+        "setting_text_thickness_desc" => "Ispessisce ogni tratto di una frazione di pixel, come fanno macOS e Windows prima di disegnare il testo. Oryxis disegna il glifo grezzo, che risulta più leggero dello stesso carattere in altre app.",
 
         "logs" => "Cronologia",
         "vault" => "Vault",

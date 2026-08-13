@@ -1037,6 +1037,10 @@ impl Oryxis {
                     v
                 };
             }
+            if let Ok(Some(v)) = vault.get_setting("terminal_text_thickness") {
+                self.terminal_text_thickness =
+                    crate::fonts::TextThickness::from_setting(&v);
+            }
             if let Ok(Some(v)) = vault.get_setting("terminal_font_weight") {
                 // Unknown values read as Regular, so a row written by a
                 // newer build (or a hand edit) can only cost the weight,

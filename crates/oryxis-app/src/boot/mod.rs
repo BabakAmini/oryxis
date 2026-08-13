@@ -513,6 +513,7 @@ impl Oryxis {
                 terminal_font_size: 14.0,
                 terminal_font_name: "SauceCodePro Nerd Font".to_string(),
                 terminal_font_weight: crate::fonts::TerminalFontWeight::default(),
+                terminal_text_thickness: crate::fonts::TextThickness::default(),
                 settings_section: SettingsSection::Interface,
                 settings_tab_open: false,
                 settings_scroll: std::collections::HashMap::new(),

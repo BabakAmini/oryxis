@@ -2020,6 +2020,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Polotučné",
         "font_weight_bold" => "Tučné",
         "font_weight_unavailable" => "Toto písmo nemá řez v této tloušťce, terminál proto použije nejbližší dostupný.",
+        "terminal_text_thickness" => "Tloušťka textu",
+        "text_thickness_off" => "Vypnuto",
+        "text_thickness_light" => "Lehká",
+        "text_thickness_medium" => "Střední",
+        "text_thickness_strong" => "Silná",
+        "setting_text_thickness_desc" => "Rozšíří každý tah o zlomek pixelu, stejně jako to dělá macOS a Windows před vykreslením textu. Oryxis kreslí surový glyf, který působí lehčeji než stejné písmo v jiných aplikacích.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certifikát",

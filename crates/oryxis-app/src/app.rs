@@ -1055,6 +1055,10 @@ pub struct Oryxis {
     /// over a global family would let a host ask for a weight the
     /// family it can't choose has no face for.
     pub(crate) terminal_font_weight: crate::fonts::TerminalFontWeight,
+    /// Stroke widening applied to every terminal glyph. Global for the
+    /// same reason the weight is: it compensates for the rasterizer,
+    /// not for a host.
+    pub(crate) terminal_text_thickness: crate::fonts::TextThickness,
 
     // Settings
     pub(crate) settings_section: SettingsSection,

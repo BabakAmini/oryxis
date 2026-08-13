@@ -2021,6 +2021,12 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "font_weight_semibold" => "SemiBold",
         "font_weight_bold" => "Bold",
         "font_weight_unavailable" => "This font has no face at the selected weight, so the terminal uses the closest one it has.",
+        "terminal_text_thickness" => "Text Thickness",
+        "text_thickness_off" => "Off",
+        "text_thickness_light" => "Light",
+        "text_thickness_medium" => "Medium",
+        "text_thickness_strong" => "Strong",
+        "setting_text_thickness_desc" => "Widens every stroke a fraction of a pixel, the way macOS and Windows widen text before drawing it. Oryxis draws the raw glyph, which reads lighter than the same font in other apps.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certificate",

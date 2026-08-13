@@ -1921,6 +1921,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "세미볼드",
         "font_weight_bold" => "볼드",
         "font_weight_unavailable" => "이 글꼴에는 선택한 두께의 서체가 없어 터미널이 가장 가까운 것을 사용합니다.",
+        "terminal_text_thickness" => "글자 두께 보정",
+        "text_thickness_off" => "끔",
+        "text_thickness_light" => "약하게",
+        "text_thickness_medium" => "보통",
+        "text_thickness_strong" => "강하게",
+        "setting_text_thickness_desc" => "각 획을 픽셀의 일부만큼 두껍게 그립니다. macOS와 Windows가 텍스트를 그리기 전에 하는 것과 같은 처리입니다. Oryxis는 글리프를 그대로 그리기 때문에 다른 앱의 같은 글꼴보다 가늘어 보입니다.",
 
         "logs" => "기록",
         "vault" => "볼트",

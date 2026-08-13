@@ -112,6 +112,7 @@ where
             smart_contrast: self.smart_contrast,
             bold_is_bright: self.bold_is_bright,
             transparent_bg: self.transparent_bg,
+            text_dilation: self.text_dilation,
             privacy_terms_hash: if self.privacy { hash_terms(&self.privacy_terms) } else { 0 },
             privacy_classes: if self.privacy {
                 self.privacy_classes
@@ -557,20 +558,52 @@ where
         let mut run: Option<GlyphRun> = None;
         let font_size = self.font_size;
         let base_font = self.font;
-        let flush_run = |frame: &mut Frame, run: GlyphRun| {
+        // Stroke widening: the glyph is stamped a second time shifted
+        // `text_dilation` px right, so the union of two subpixel phases
+        // covers what one leaves partial. Every glyph on the grid goes
+        // through here, runs and singles alike, which is what keeps the
+        // widening uniform; see `with_text_dilation` for why the raw
+        // coverage needs it at all.
+        let dilation = self.text_dilation;
+        let stamp = move |frame: &mut Frame,
+                          content: String,
+                          position: Point,
+                          color: Color,
+                          font: Font| {
+            if dilation > 0.0 {
+                frame.fill_text(CanvasText {
+                    content: content.clone(),
+                    position: Point::new(position.x + dilation, position.y),
+                    color,
+                    size: Pixels(font_size),
+                    font,
+                    align_x: alignment::Horizontal::Left.into(),
+                    align_y: alignment::Vertical::Top,
+                    ..Default::default()
+                });
+            }
             frame.fill_text(CanvasText {
-                content: run.content,
-                position: Point::new(
-                    run.start_col as f32 * cell_w + TERM_PAD,
-                    run.row as f32 * cell_h + TERM_PAD_TOP,
-                ),
-                color: run.fg,
+                content,
+                position,
+                color,
                 size: Pixels(font_size),
-                font: base_font,
+                font,
                 align_x: alignment::Horizontal::Left.into(),
                 align_y: alignment::Vertical::Top,
                 ..Default::default()
             });
+        };
+        let flush_run = |frame: &mut Frame, run: GlyphRun| {
+            stamp(
+                frame,
+                run.content,
+                Point::new(
+                    run.start_col as f32 * cell_w + TERM_PAD,
+                    run.row as f32 * cell_h + TERM_PAD_TOP,
+                ),
+                run.fg,
+                base_font,
+            );
         };
         for cd in &cells {
             let x = cd.col as f32 * cell_w + TERM_PAD;
@@ -783,16 +816,7 @@ where
                         flush_run(frame, r);
                     }
                     let font = if is_pua { NERD_FONT } else { self.font };
-                    frame.fill_text(CanvasText {
-                        content: glyph.to_string(),
-                        position: Point::new(x, y),
-                        color: fg,
-                        size: Pixels(self.font_size),
-                        font,
-                        align_x: alignment::Horizontal::Left.into(),
-                        align_y: alignment::Vertical::Top,
-                        ..Default::default()
-                    });
+                    stamp(frame, glyph.to_string(), Point::new(x, y), fg, font);
                 }
             }
 

@@ -183,6 +183,84 @@ impl std::fmt::Display for TerminalFontWeight {
     }
 }
 
+/// How much extra stroke width the terminal paints on every glyph.
+///
+/// Our glyphs are rasterized to raw coverage (swash, 8-bit alpha) and
+/// composited as-is. Every platform text stack widens strokes before
+/// compositing and ours does not: on macOS the default
+/// `AppleFontSmoothing` runs glyphs through Core Graphics smoothing,
+/// which in the words of crossfont (the font crate alacritty uses)
+/// "increases the stroke width". That is why the same font file at the
+/// same size reads lighter here than in a terminal that rasterizes
+/// through the OS, which is what issue #155 reported before it became
+/// a request for heavier weights.
+///
+/// The values are logical pixels, not device pixels, so the widening
+/// stays proportional to the glyph on a HiDPI display instead of
+/// vanishing as the pixels get smaller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TextThickness {
+    /// Raw coverage, what every build before this one drew.
+    None,
+    Light,
+    #[default]
+    Medium,
+    Strong,
+}
+
+impl TextThickness {
+    /// Picker order, lightest first.
+    pub const ALL: [Self; 4] = [Self::None, Self::Light, Self::Medium, Self::Strong];
+
+    /// Stroke widening in logical pixels.
+    pub fn px(self) -> f32 {
+        match self {
+            Self::None => 0.0,
+            Self::Light => 0.2,
+            Self::Medium => 0.3,
+            Self::Strong => 0.45,
+        }
+    }
+
+    /// The value written to the `terminal_text_thickness` setting. A
+    /// token rather than the number so the pixel amounts stay tunable
+    /// without migrating anybody's vault.
+    pub fn setting_value(self) -> &'static str {
+        match self {
+            Self::None => "off",
+            Self::Light => "light",
+            Self::Medium => "medium",
+            Self::Strong => "strong",
+        }
+    }
+
+    /// Parse a stored setting value; anything unrecognized reads as the
+    /// default, the same forward-compatible posture as the font weight.
+    pub fn from_setting(value: &str) -> Self {
+        match value.trim() {
+            "off" => Self::None,
+            "light" => Self::Light,
+            "strong" => Self::Strong,
+            _ => Self::Medium,
+        }
+    }
+
+    fn label_key(self) -> &'static str {
+        match self {
+            Self::None => "text_thickness_off",
+            Self::Light => "text_thickness_light",
+            Self::Medium => "text_thickness_medium",
+            Self::Strong => "text_thickness_strong",
+        }
+    }
+}
+
+impl std::fmt::Display for TextThickness {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(crate::i18n::t(self.label_key()))
+    }
+}
+
 /// One downloadable font file: pinned to an immutable commit URL
 /// *and* to its SHA-256. To re-pin or move to a self-hosted mirror,
 /// change `url` and `sha256` together. Shared by the CJK assets and

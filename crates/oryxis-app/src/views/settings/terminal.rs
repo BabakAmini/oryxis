@@ -1040,7 +1040,7 @@ impl Oryxis {
             &self.terminal_font_weight,
             |w| Message::Settings(SettingsMessage::TerminalFontWeightChanged(w)),
         );
-        let mut font_picker_block = font_picker_block
+        let font_picker_block = font_picker_block
             .push(Space::new().height(14))
             .push(
                 text(t("terminal_font_weight"))
@@ -1065,16 +1065,62 @@ impl Oryxis {
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
                 .into(),
             ));
-        if !crate::app::terminal_font_serves_weight(
+        // The weight's honesty line, right under the picker it is about.
+        let font_picker_block = if crate::app::terminal_font_serves_weight(
             &self.terminal_font_name,
             self.terminal_font_weight.css(),
         ) {
-            font_picker_block = font_picker_block.push(Space::new().height(6)).push(
+            font_picker_block
+        } else {
+            font_picker_block.push(Space::new().height(6)).push(
                 text(t("font_weight_unavailable"))
                     .size(11)
                     .color(OryxisColors::t().text_muted),
-            );
-        }
+            )
+        };
+
+        // Stroke widening. Sits under the weight because the two are
+        // the same question asked twice: the weight picks a face the
+        // font shipped, this thickens whatever face resolved. It is
+        // what compensates for us rasterizing raw coverage while the
+        // platform text stacks widen strokes before compositing.
+        let thicknesses = crate::fonts::TextThickness::ALL;
+        let (thick_prev, thick_next) = crate::keynav::slots::cycle_pair(
+            &thicknesses,
+            &self.terminal_text_thickness,
+            |t| Message::Settings(SettingsMessage::TerminalTextThicknessChanged(t)),
+        );
+        let font_picker_block = font_picker_block
+            .push(Space::new().height(14))
+            .push(
+                text(t("terminal_text_thickness"))
+                    .size(13)
+                    .color(OryxisColors::t().text_primary),
+            )
+            .push(Space::new().height(4))
+            .push(
+                text(t("setting_text_thickness_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            )
+            .push(Space::new().height(8))
+            .push(self.settings_nav_slot_labeled(
+                t("terminal_text_thickness"),
+                crate::keynav::RowAction::picker(thick_prev, thick_next),
+                8.0,
+                pick_list(
+                    Some(self.terminal_text_thickness),
+                    thicknesses.to_vec(),
+                    |v: &crate::fonts::TextThickness| v.to_string(),
+                )
+                .on_select(|v| {
+                    Message::Settings(SettingsMessage::TerminalTextThicknessChanged(v))
+                })
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+                .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            ));
         let font_picker_block = font_picker_block
             .push(Space::new().height(12))
             .push(font_preview);

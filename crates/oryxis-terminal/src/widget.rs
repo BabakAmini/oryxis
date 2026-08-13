@@ -337,6 +337,9 @@ struct RenderKey {
     smart_contrast: bool,
     bold_is_bright: bool,
     transparent_bg: bool,
+    /// Stroke dilation in logical pixels: it changes every glyph on the
+    /// grid, so a cached image drawn at another value is stale.
+    text_dilation: f32,
     /// Order-independent digest of `privacy_terms` (0 when privacy is off).
     privacy_terms_hash: u64,
     /// Per-class privacy gates (issue #78): flipping a class in
@@ -470,6 +473,10 @@ pub struct TerminalView<Message = ()> {
     cell_width: f32,
     cell_height: f32,
     font: Font,
+    /// Extra stroke width, in logical pixels, applied by re-stamping
+    /// every glyph shifted horizontally by this much (0 = off). See
+    /// [`TerminalView::with_text_dilation`].
+    text_dilation: f32,
     /// When true, completing a mouse selection auto-copies it to the
     /// system clipboard, same UX as XTerm / iTerm "copy on select".
     copy_on_select: bool,

@@ -1920,6 +1920,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Напівжирний",
         "font_weight_bold" => "Жирний",
         "font_weight_unavailable" => "Цей шрифт не має накреслення такої насиченості, тому термінал використає найближче доступне.",
+        "terminal_text_thickness" => "Товщина тексту",
+        "text_thickness_off" => "Вимкнено",
+        "text_thickness_light" => "Слабка",
+        "text_thickness_medium" => "Середня",
+        "text_thickness_strong" => "Сильна",
+        "setting_text_thickness_desc" => "Розширює кожен штрих на частку пікселя, як це роблять macOS і Windows перед малюванням тексту. Oryxis малює гліф як є, тому він виглядає легшим за той самий шрифт в інших програмах.",
 
         "logs" => "Історія",
         "vault" => "Сховище",

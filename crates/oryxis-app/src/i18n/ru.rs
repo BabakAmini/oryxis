@@ -1888,6 +1888,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Полужирный",
         "font_weight_bold" => "Жирный",
         "font_weight_unavailable" => "У этого шрифта нет начертания такой насыщенности, поэтому терминал использует ближайшее доступное.",
+        "terminal_text_thickness" => "Утолщение текста",
+        "text_thickness_off" => "Выключено",
+        "text_thickness_light" => "Слабое",
+        "text_thickness_medium" => "Среднее",
+        "text_thickness_strong" => "Сильное",
+        "setting_text_thickness_desc" => "Расширяет каждый штрих на долю пикселя, как это делают macOS и Windows перед отрисовкой текста. Oryxis рисует глиф как есть, поэтому он выглядит легче, чем тот же шрифт в других приложениях.",
 
         "logs" => "История",
         "vault" => "Хранилище",

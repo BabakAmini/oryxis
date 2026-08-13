@@ -138,6 +138,8 @@ pub enum SettingsMessage {
     /// Settings / Host config: terminal font weight picked (issue
     /// #155). Global, like the family and size it sits with.
     TerminalFontWeightChanged(crate::fonts::TerminalFontWeight),
+    /// Settings / Host config: terminal stroke widening picked.
+    TerminalTextThicknessChanged(crate::fonts::TextThickness),
     /// The user ctrl-clicked a link in the terminal: the gesture landed,
     /// so under `HintMode::Once` retire the link toast for the focused pane.
     TerminalLinkOpened,

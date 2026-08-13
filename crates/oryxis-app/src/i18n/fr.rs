@@ -1938,6 +1938,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Demi-gras",
         "font_weight_bold" => "Gras",
         "font_weight_unavailable" => "Cette police n'a pas de fonte à cette graisse, le terminal utilise donc la plus proche dont il dispose.",
+        "terminal_text_thickness" => "Épaisseur du texte",
+        "text_thickness_off" => "Désactivée",
+        "text_thickness_light" => "Légère",
+        "text_thickness_medium" => "Moyenne",
+        "text_thickness_strong" => "Forte",
+        "setting_text_thickness_desc" => "Épaissit chaque trait d'une fraction de pixel, comme le font macOS et Windows avant de dessiner le texte. Oryxis dessine le glyphe brut, qui paraît plus léger que la même police ailleurs.",
 
         "terminal_link_hint" => "Maintenez Ctrl et cliquez pour ouvrir le lien.",
         "mouse_capture_hint" => "Mode souris actif. Maintenez Maj pour sélectionner le texte.",

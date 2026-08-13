@@ -1966,6 +1966,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "نصف عريض",
         "font_weight_bold" => "عريض",
         "font_weight_unavailable" => "لا يحتوي هذا الخط على وجه بهذه السماكة، لذا تستخدم الطرفية أقرب وجه متاح.",
+        "terminal_text_thickness" => "سماكة النص",
+        "text_thickness_off" => "إيقاف",
+        "text_thickness_light" => "خفيفة",
+        "text_thickness_medium" => "متوسطة",
+        "text_thickness_strong" => "قوية",
+        "setting_text_thickness_desc" => "يوسّع كل خط بجزء من البكسل، مثلما يفعل macOS وويندوز قبل رسم النص. يرسم Oryxis المحرف كما هو، فيبدو أخف من الخط نفسه في التطبيقات الأخرى.",
 
                 "ecs_exec_group_missing" => "مجموعة السحابة وراء هذه الجلسة لم تعد موجودة. ألغ تثبيت التبويب وأعد الاتصال من لوحة التحكم.",
         "cloud_session_ended" => "انتهت الجلسة",

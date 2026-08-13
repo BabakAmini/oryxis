@@ -2020,6 +2020,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "חצי־מודגש",
         "font_weight_bold" => "מודגש",
         "font_weight_unavailable" => "לגופן הזה אין גרסה בעובי שנבחר, ולכן הטרמינל משתמש בקרוב ביותר שיש לו.",
+        "terminal_text_thickness" => "עובי הטקסט",
+        "text_thickness_off" => "כבוי",
+        "text_thickness_light" => "קל",
+        "text_thickness_medium" => "בינוני",
+        "text_thickness_strong" => "חזק",
+        "setting_text_thickness_desc" => "מעבה כל קו בשבריר פיקסל, כפי ש-macOS ו-Windows מעבים טקסט לפני הציור. Oryxis מצייר את הגליף הגולמי, ולכן הוא נראה דק יותר מאותו גופן ביישומים אחרים.",
 
         // SSH certificate auth (B2)
         "certificate" => "תעודה",

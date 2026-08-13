@@ -1920,6 +1920,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Semi tebal",
         "font_weight_bold" => "Tebal",
         "font_weight_unavailable" => "Font ini tidak punya varian dengan ketebalan itu, jadi terminal memakai yang paling dekat.",
+        "terminal_text_thickness" => "Ketebalan teks",
+        "text_thickness_off" => "Mati",
+        "text_thickness_light" => "Ringan",
+        "text_thickness_medium" => "Sedang",
+        "text_thickness_strong" => "Kuat",
+        "setting_text_thickness_desc" => "Menebalkan tiap goresan sepersekian piksel, seperti yang dilakukan macOS dan Windows sebelum menggambar teks. Oryxis menggambar glif apa adanya, sehingga terlihat lebih tipis daripada font yang sama di aplikasi lain.",
 
         "logs" => "Riwayat",
         "vault" => "Vault",

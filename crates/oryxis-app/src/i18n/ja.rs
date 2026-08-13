@@ -1900,6 +1900,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "セミボールド",
         "font_weight_bold" => "ボールド",
         "font_weight_unavailable" => "このフォントには選択した太さのウェイトがないため、ターミナルは最も近いものを使います。",
+        "terminal_text_thickness" => "文字の太さ補正",
+        "text_thickness_off" => "オフ",
+        "text_thickness_light" => "弱",
+        "text_thickness_medium" => "中",
+        "text_thickness_strong" => "強",
+        "setting_text_thickness_desc" => "各ストロークを1ピクセル未満だけ太らせます。macOS や Windows が描画前に行っている処理と同じです。Oryxis は素のグリフを描くため、他のアプリの同じフォントより細く見えます。",
 
         "terminal_link_hint" => "Ctrl を押しながらクリックするとリンクを開きます。",
         "mouse_capture_hint" => "マウスモードが有効です。Shift を押しながらテキストを選択。",

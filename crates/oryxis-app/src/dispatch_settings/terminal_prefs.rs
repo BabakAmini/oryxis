@@ -109,6 +109,13 @@ impl Oryxis {
                     return Ok(task);
                 }
             }
+            SettingsMessage::TerminalTextThicknessChanged(thickness) => {
+                self.terminal_text_thickness = thickness;
+                self.persist_setting(
+                    "terminal_text_thickness",
+                    thickness.setting_value(),
+                );
+            }
             SettingsMessage::PackFontReady(key, result) => match result {
                 Ok(bytes) => {
                     // Clear the "downloading" hint and register the

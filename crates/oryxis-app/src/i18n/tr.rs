@@ -1920,6 +1920,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Yarı kalın",
         "font_weight_bold" => "Kalın",
         "font_weight_unavailable" => "Bu yazı tipinin seçilen kalınlıkta bir kesimi yok, bu yüzden terminal en yakın olanı kullanır.",
+        "terminal_text_thickness" => "Metin kalınlığı",
+        "text_thickness_off" => "Kapalı",
+        "text_thickness_light" => "Hafif",
+        "text_thickness_medium" => "Orta",
+        "text_thickness_strong" => "Güçlü",
+        "setting_text_thickness_desc" => "Her çizgiyi pikselin bir kesri kadar kalınlaştırır; macOS ve Windows metni çizmeden önce aynısını yapar. Oryxis glifi olduğu gibi çizdiği için aynı yazı tipi diğer uygulamalara göre daha ince görünür.",
 
         "logs" => "Geçmiş",
         "vault" => "Kasa",

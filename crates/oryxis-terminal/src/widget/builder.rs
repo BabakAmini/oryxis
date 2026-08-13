@@ -11,6 +11,7 @@ impl<Message> TerminalView<Message> {
             cell_width: cell_advance(Font::MONOSPACE, font_size),
             cell_height: font_size * 1.15,
             font: Font::MONOSPACE,
+            text_dilation: 0.0,
             copy_on_select: true,
             right_click_copy: false,
             mouse_bindings: None,
@@ -327,6 +328,31 @@ impl<Message> TerminalView<Message> {
         // the family changed (the width comes from the real metric, not a
         // fixed ratio, so a different font means a different cell width).
         self.cell_width = cell_advance(self.font, self.font_size);
+        self
+    }
+
+    /// Widen every stroke by re-stamping each glyph shifted `px`
+    /// logical pixels to the right (0 disables it).
+    ///
+    /// This is the stroke widening the platform text stacks apply and
+    /// ours does not: macOS runs its glyphs through Core Graphics with
+    /// font smoothing on by default, which (in crossfont's own words,
+    /// the font crate alacritty uses) "increases the stroke width".
+    /// swash rasterizes raw coverage, so the same file at the same size
+    /// lands thinner here than in a terminal that renders through the
+    /// OS. Stamping the glyph twice a fraction of a pixel apart is the
+    /// same operation: the union of two subpixel phases fills what one
+    /// leaves at partial coverage.
+    ///
+    /// It also hides an unevenness of our own. A merged run is laid out
+    /// by the shaper at the font's fractional advance, so the same
+    /// character lands on a different subpixel phase per column: a
+    /// vertical stem measured 0.61 to 1.00 of full coverage depending
+    /// on where in the row it fell. The second stamp lifts the low
+    /// phases without touching the ones already crisp (measured 0.85 ->
+    /// 0.97 mean peak at 0.3 px).
+    pub fn with_text_dilation(mut self, px: f32) -> Self {
+        self.text_dilation = px.max(0.0);
         self
     }
 

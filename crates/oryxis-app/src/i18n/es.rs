@@ -1895,6 +1895,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Seminegrita",
         "font_weight_bold" => "Negrita",
         "font_weight_unavailable" => "Esta fuente no tiene un estilo con ese grosor, así que el terminal usa el más cercano que tiene.",
+        "terminal_text_thickness" => "Grosor del texto",
+        "text_thickness_off" => "Desactivado",
+        "text_thickness_light" => "Ligero",
+        "text_thickness_medium" => "Medio",
+        "text_thickness_strong" => "Fuerte",
+        "setting_text_thickness_desc" => "Engrosa cada trazo una fracción de píxel, como hacen macOS y Windows antes de dibujar el texto. Oryxis dibuja el glifo tal cual, que se ve más ligero que la misma fuente en otras apps.",
 
         "terminal_link_hint" => "Mantén Ctrl y haz clic para abrir el enlace.",
         "mouse_capture_hint" => "Modo ratón activo. Mantén Mayús para seleccionar texto.",

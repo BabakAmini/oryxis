@@ -1920,6 +1920,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "Bán đậm",
         "font_weight_bold" => "Đậm",
         "font_weight_unavailable" => "Phông chữ này không có kiểu ở độ đậm đó, nên terminal dùng kiểu gần nhất mà nó có.",
+        "terminal_text_thickness" => "Độ dày nét chữ",
+        "text_thickness_off" => "Tắt",
+        "text_thickness_light" => "Nhẹ",
+        "text_thickness_medium" => "Vừa",
+        "text_thickness_strong" => "Mạnh",
+        "setting_text_thickness_desc" => "Làm dày mỗi nét thêm một phần pixel, giống cách macOS và Windows làm trước khi vẽ chữ. Oryxis vẽ glyph thô nên trông mảnh hơn cùng phông chữ ở ứng dụng khác.",
 
         "logs" => "Lịch sử",
         "vault" => "Kho",

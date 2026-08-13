@@ -1898,6 +1898,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "半粗",
         "font_weight_bold" => "粗体",
         "font_weight_unavailable" => "该字体没有所选粗细的字重，终端会使用最接近的一个。",
+        "terminal_text_thickness" => "文字粗细补偿",
+        "text_thickness_off" => "关闭",
+        "text_thickness_light" => "轻",
+        "text_thickness_medium" => "中",
+        "text_thickness_strong" => "强",
+        "setting_text_thickness_desc" => "把每一笔画加粗零点几个像素，就像 macOS 和 Windows 在绘制文字前所做的那样。Oryxis 直接绘制原始字形，因此比其他应用中的同一字体显得更细。",
 
         "terminal_link_hint" => "按住 Ctrl 并点击以打开链接。",
         "mouse_capture_hint" => "鼠标模式已启用。按住 Shift 选择文本。",

@@ -2020,6 +2020,12 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_weight_semibold" => "अर्ध-बोल्ड",
         "font_weight_bold" => "बोल्ड",
         "font_weight_unavailable" => "इस फ़ॉन्ट में चुनी गई मोटाई का रूप नहीं है, इसलिए टर्मिनल सबसे नज़दीकी उपलब्ध रूप का उपयोग करता है।",
+        "terminal_text_thickness" => "टेक्स्ट की मोटाई",
+        "text_thickness_off" => "बंद",
+        "text_thickness_light" => "हल्की",
+        "text_thickness_medium" => "मध्यम",
+        "text_thickness_strong" => "तेज़",
+        "setting_text_thickness_desc" => "हर स्ट्रोक को पिक्सेल के एक अंश जितना मोटा करता है, जैसा macOS और Windows टेक्स्ट बनाने से पहले करते हैं। Oryxis कच्चा ग्लिफ़ बनाता है, इसलिए वही फ़ॉन्ट दूसरे ऐप्स की तुलना में हल्का दिखता है।",
 
         // SSH certificate auth (B2)
         "certificate" => "प्रमाणपत्र",

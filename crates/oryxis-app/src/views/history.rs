@@ -533,6 +533,7 @@ impl Oryxis {
                 .with_font_size(self.terminal_font_size)
                 .with_font_name(&self.terminal_font_name)
                 .with_font_weight(self.terminal_font_weight.font_weight())
+                .with_text_dilation(self.terminal_text_thickness.px())
                 .with_copy_on_select(self.prefs.copy_on_select)
                 .with_right_click_copy(self.prefs.right_click_copy)
                 .with_right_click_action(self.prefs.terminal_right_click.to_widget())
