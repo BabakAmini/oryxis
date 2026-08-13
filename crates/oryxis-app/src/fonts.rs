@@ -88,6 +88,101 @@ pub static BUNDLED_FONTS: &[&[u8]] = &[
     include_bytes!("../../../resources/fonts/SymbolsNerdFont-Regular.ttf"),
 ];
 
+/// The monospace families that ship inside the binary, with the CSS
+/// weight of every face bundled for each. The terminal font picker
+/// reads this to know which weights a bundled family can serve
+/// without touching the system font database (which never sees the
+/// bundled faces: they are loaded straight into the iced font
+/// system). Bundling another weight file in `BUNDLED_FONTS` means
+/// adding it here too, or the picker will keep calling it missing.
+pub static BUNDLED_MONO_WEIGHTS: &[(&str, &[u16])] =
+    &[("SauceCodePro Nerd Font", &[400, 500])];
+
+/// The terminal font weights the picker offers (issue #155).
+///
+/// Four values rather than the full CSS ladder: these are the ones
+/// monospace families actually ship, and offering Thin / Black would
+/// mostly be offering faces nobody has. The stored setting is the CSS
+/// number as a string ("400".."700") so it reads the same way the
+/// issue, the font files (`usWeightClass`) and every other terminal's
+/// config do; an unknown value degrades to Regular, the same
+/// forward-compatible posture as `TerminalAppearance::fit`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum TerminalFontWeight {
+    #[default]
+    Regular,
+    Medium,
+    SemiBold,
+    Bold,
+}
+
+impl TerminalFontWeight {
+    /// Picker order, lightest first.
+    pub const ALL: [Self; 4] = [Self::Regular, Self::Medium, Self::SemiBold, Self::Bold];
+
+    /// CSS numeric weight; what the settings row stores and what the
+    /// pinned faces declare.
+    pub fn css(self) -> u16 {
+        match self {
+            Self::Regular => 400,
+            Self::Medium => 500,
+            Self::SemiBold => 600,
+            Self::Bold => 700,
+        }
+    }
+
+    /// Parse a stored setting value. Anything unrecognized (an older
+    /// build's value, a hand-edited row, a newer weight synced from a
+    /// future version) reads as Regular rather than failing the boot.
+    pub fn from_setting(value: &str) -> Self {
+        match value.trim() {
+            "500" => Self::Medium,
+            "600" => Self::SemiBold,
+            "700" => Self::Bold,
+            _ => Self::Regular,
+        }
+    }
+
+    /// The value written to the `terminal_font_weight` setting.
+    pub fn setting_value(self) -> &'static str {
+        match self {
+            Self::Regular => "400",
+            Self::Medium => "500",
+            Self::SemiBold => "600",
+            Self::Bold => "700",
+        }
+    }
+
+    /// What the terminal widget asks cosmic-text for.
+    pub fn font_weight(self) -> iced::font::Weight {
+        match self {
+            Self::Regular => iced::font::Weight::Normal,
+            Self::Medium => iced::font::Weight::Medium,
+            Self::SemiBold => iced::font::Weight::Semibold,
+            Self::Bold => iced::font::Weight::Bold,
+        }
+    }
+
+    /// i18n key of the weight's name.
+    fn label_key(self) -> &'static str {
+        match self {
+            Self::Regular => "font_weight_regular",
+            Self::Medium => "font_weight_medium",
+            Self::SemiBold => "font_weight_semibold",
+            Self::Bold => "font_weight_bold",
+        }
+    }
+}
+
+impl std::fmt::Display for TerminalFontWeight {
+    /// Picker label: the translated name plus the CSS number, because
+    /// the number is what font files, other terminals and the issue
+    /// itself use, and it is the same in every language.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} ({})", crate::i18n::t(self.label_key()), self.css())
+    }
+}
+
 /// One downloadable font file: pinned to an immutable commit URL
 /// *and* to its SHA-256. To re-pin or move to a self-hosted mirror,
 /// change `url` and `sha256` together. Shared by the CJK assets and
@@ -169,6 +264,27 @@ static ASSETS: &[CjkAsset] = &[
 // assets, which a sha256 pin can't ride). Same content-addressed
 // contract as the CJK pins above.
 
+/// One pinned face of a pack family: the file that carries a single
+/// weight. Kept separate from the family so a weight the user never
+/// picks is never downloaded (issue #155).
+pub struct PackFace {
+    /// CSS weight this face declares (`usWeightClass`): 400 Regular,
+    /// 500 Medium, 600 SemiBold, 700 Bold. Must match the file's own
+    /// value, that is what cosmic-text matches the request against.
+    pub weight: u16,
+    asset: FontAsset,
+}
+
+impl PackFace {
+    /// Stable per-face key for the app's "already requested" guard.
+    /// The cache file name is unique across the whole catalog (the
+    /// `download_pins_are_well_formed` test enforces it), so it keys
+    /// a face without a second identifier to keep in sync.
+    pub fn key(&self) -> &'static str {
+        self.asset.file
+    }
+}
+
 /// The terminal font pack (issue #109): a curated list of popular
 /// Nerd Font builds, offered in the terminal font picker and
 /// downloaded individually on first selection (a catalog, not a
@@ -179,53 +295,177 @@ static ASSETS: &[CjkAsset] = &[
 /// stores in `terminal_font_name` and what cosmic-text resolves, so
 /// the three must always agree per entry.
 ///
-/// Only the Regular face is pinned per family: the terminal renderer
-/// draws every cell with a single face (`widget/draw.rs` maps the
-/// BOLD flag to a color promotion, not a weight change), so extra
-/// weights would be dead download weight. The non-Mono variant
-/// matches the bundled SauceCodePro Nerd Font build.
+/// The three "NF" families are named after a name record every one of
+/// their faces carries: the patched builds put the long form
+/// ("JetBrainsMono Nerd Font") in the en-US typographic family and
+/// the short form in the en-GB one, and fontdb keeps BOTH in
+/// `FaceInfo::families` and matches a query against any of them. So
+/// the family string below groups the whole weight set, whichever
+/// spelling it uses. The non-Mono variant matches the bundled
+/// SauceCodePro Nerd Font build.
+///
+/// `faces` is Regular first, then whatever heavier weights the pinned
+/// commit actually ships for that family (three of them stop at Bold,
+/// nothing invents a face upstream doesn't have): a weight with no
+/// face is a request cosmic-text answers with the closest one it has,
+/// and the picker says so rather than pretending the pick landed.
 pub struct PackFont {
     /// Typographic family name (name ID 1/16) inside the TTF.
     pub family: &'static str,
-    asset: FontAsset,
+    /// Every pinned face of the family, lightest first.
+    pub faces: &'static [PackFace],
+}
+
+impl PackFont {
+    /// The pinned face for exactly `weight`, if the family has one.
+    /// Deliberately exact: a near miss is what cosmic-text's own
+    /// matching is for, and downloading a 700 for a 500 request would
+    /// spend the user's bandwidth on a face they did not ask for.
+    pub fn face(&self, weight: u16) -> Option<&'static PackFace> {
+        self.faces.iter().find(|f| f.weight == weight)
+    }
 }
 
 pub static PACK_FONTS: &[PackFont] = &[
     PackFont {
         family: "JetBrainsMono NF",
-        asset: FontAsset {
-            file: "JetBrainsMonoNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf",
-            sha256: "0ec29a68b539ece7078fc714cebff0c0accb2f4948f8f7963d9f5e86633b12d9",
-            len: 2_469_104,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "JetBrainsMonoNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf",
+                    sha256: "0ec29a68b539ece7078fc714cebff0c0accb2f4948f8f7963d9f5e86633b12d9",
+                    len: 2_469_104,
+                },
+            },
+            PackFace {
+                weight: 500,
+                asset: FontAsset {
+                    file: "JetBrainsMonoNerdFont-Medium.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Medium/JetBrainsMonoNerdFont-Medium.ttf",
+                    sha256: "04a099702e3e808a922c28c4a4da656e9ea783d6fa6bed33ae67f6f4e0afb937",
+                    len: 2_468_976,
+                },
+            },
+            PackFace {
+                weight: 600,
+                asset: FontAsset {
+                    file: "JetBrainsMonoNerdFont-SemiBold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/SemiBold/JetBrainsMonoNerdFont-SemiBold.ttf",
+                    sha256: "1d28a687259870de46378bf83e511d9c85136c597db678e6c4953b2731e55c72",
+                    len: 2_472_212,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "JetBrainsMonoNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Bold/JetBrainsMonoNerdFont-Bold.ttf",
+                    sha256: "e82e27a7f37c9a0a13cc4e417503a149c6a0280586930772d2ebed803159c864",
+                    len: 2_472_872,
+                },
+            },
+        ],
     },
+    // Cascadia ships SemiLight / Light / ExtraLight below Regular and
+    // stops at Bold above it: no Medium exists upstream, so 500 is the
+    // one weight this family answers with a neighbour.
     PackFont {
         family: "CaskaydiaCove NF",
-        asset: FontAsset {
-            file: "CaskaydiaCoveNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFont-Regular.ttf",
-            sha256: "701d7ec08f58f07251c1758361c5d1ab57ba0a867dd378cbb0fa52e1d2beccad",
-            len: 2_892_532,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "CaskaydiaCoveNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFont-Regular.ttf",
+                    sha256: "701d7ec08f58f07251c1758361c5d1ab57ba0a867dd378cbb0fa52e1d2beccad",
+                    len: 2_892_532,
+                },
+            },
+            PackFace {
+                weight: 600,
+                asset: FontAsset {
+                    file: "CaskaydiaCoveNerdFont-SemiBold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFont-SemiBold.ttf",
+                    sha256: "66522b4e54ab36e71e9b15817d74b9cb593e0b06a064adc876d4994f881d134e",
+                    len: 2_893_648,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "CaskaydiaCoveNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/CascadiaCode/CaskaydiaCoveNerdFont-Bold.ttf",
+                    sha256: "d38b2e9461f52c70ef9f18c5c79f869d8b084432416ea6e850855c5222fbdc38",
+                    len: 2_894_232,
+                },
+            },
+        ],
     },
     PackFont {
         family: "FiraCode Nerd Font",
-        asset: FontAsset {
-            file: "FiraCodeNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/FiraCode/Regular/FiraCodeNerdFont-Regular.ttf",
-            sha256: "29b619655612cb273e034737408b9508a04beb63c1ddbdfaa9a6846c409c7a2e",
-            len: 2_642_616,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "FiraCodeNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/FiraCode/Regular/FiraCodeNerdFont-Regular.ttf",
+                    sha256: "29b619655612cb273e034737408b9508a04beb63c1ddbdfaa9a6846c409c7a2e",
+                    len: 2_642_616,
+                },
+            },
+            PackFace {
+                weight: 500,
+                asset: FontAsset {
+                    file: "FiraCodeNerdFont-Medium.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/FiraCode/Medium/FiraCodeNerdFont-Medium.ttf",
+                    sha256: "1c8bd9c2949d924e138d3fe867680ec7a9009c741697260365e2de53f4b38b2d",
+                    len: 2_636_736,
+                },
+            },
+            PackFace {
+                weight: 600,
+                asset: FontAsset {
+                    file: "FiraCodeNerdFont-SemiBold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/FiraCode/SemiBold/FiraCodeNerdFont-SemiBold.ttf",
+                    sha256: "2f27a15f24ebc756b7800b09cbdedf65065e3a1036bbbaa97ac3fb75eebd6ffb",
+                    len: 2_657_272,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "FiraCodeNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/FiraCode/Bold/FiraCodeNerdFont-Bold.ttf",
+                    sha256: "594a51c86afb58c1160df286e45dc551eeeba4d5f0e6edb1c304fc43ab8a0a09",
+                    len: 2_672_432,
+                },
+            },
+        ],
     },
     PackFont {
         family: "Hack Nerd Font",
-        asset: FontAsset {
-            file: "HackNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Hack/Regular/HackNerdFont-Regular.ttf",
-            sha256: "7e6b5d86baee613984b10cef14c8d6aee86c976a3d1cbd87abffd424d6ec4c64",
-            len: 2_685_912,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "HackNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Hack/Regular/HackNerdFont-Regular.ttf",
+                    sha256: "7e6b5d86baee613984b10cef14c8d6aee86c976a3d1cbd87abffd424d6ec4c64",
+                    len: 2_685_912,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "HackNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Hack/Bold/HackNerdFont-Bold.ttf",
+                    sha256: "7fb835cbd3273d509868dcd4e03eab3dc98679ac0bdffd52ef23411244396082",
+                    len: 2_694_312,
+                },
+            },
+        ],
     },
     // The nerd-fonts build of Meslo LG S, the face powerlevel10k made
     // the de-facto prompt standard (p10k's own "MesloLGS NF" is a
@@ -233,42 +473,135 @@ pub static PACK_FONTS: &[PackFont] = &[
     // "MesloLGS Nerd Font").
     PackFont {
         family: "MesloLGS Nerd Font",
-        asset: FontAsset {
-            file: "MesloLGSNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf",
-            sha256: "44ae9b687639c1529ecd01e5d0ae8d98f3b30cb20b02bbe4e6d9fb474c8dee36",
-            len: 2_853_324,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "MesloLGSNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Meslo/S/Regular/MesloLGSNerdFont-Regular.ttf",
+                    sha256: "44ae9b687639c1529ecd01e5d0ae8d98f3b30cb20b02bbe4e6d9fb474c8dee36",
+                    len: 2_853_324,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "MesloLGSNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Meslo/S/Bold/MesloLGSNerdFont-Bold.ttf",
+                    sha256: "9799788a96066045c3f53f2e5bcbe376c6b9adb9514e3276cc84ac42d8b176d0",
+                    len: 2_870_436,
+                },
+            },
+        ],
     },
     PackFont {
         family: "RobotoMono Nerd Font",
-        asset: FontAsset {
-            file: "RobotoMonoNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/RobotoMono/Regular/RobotoMonoNerdFont-Regular.ttf",
-            sha256: "09605f6c29dcb12c007cbddc22170ce771d746fde4ed05b4b5d4dfc251e595fb",
-            len: 2_454_524,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "RobotoMonoNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/RobotoMono/Regular/RobotoMonoNerdFont-Regular.ttf",
+                    sha256: "09605f6c29dcb12c007cbddc22170ce771d746fde4ed05b4b5d4dfc251e595fb",
+                    len: 2_454_524,
+                },
+            },
+            PackFace {
+                weight: 500,
+                asset: FontAsset {
+                    file: "RobotoMonoNerdFont-Medium.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/RobotoMono/Medium/RobotoMonoNerdFont-Medium.ttf",
+                    sha256: "d34887e9f09dcdea84efcc305f52632b27b86f9764318e9ebf265fee93d876f2",
+                    len: 2_454_572,
+                },
+            },
+            PackFace {
+                weight: 600,
+                asset: FontAsset {
+                    file: "RobotoMonoNerdFont-SemiBold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/RobotoMono/SemiBold/RobotoMonoNerdFont-SemiBold.ttf",
+                    sha256: "c0503aea5692fbf67b348976e53538a18a8dfe75b9ce50aef26603e76bd3b820",
+                    len: 2_454_884,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "RobotoMonoNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/RobotoMono/Bold/RobotoMonoNerdFont-Bold.ttf",
+                    sha256: "af99096cade7f4f84e201341b79f569ae730f6e78562526e2f160b6285ab7fe6",
+                    len: 2_454_668,
+                },
+            },
+        ],
     },
     PackFont {
         family: "UbuntuMono Nerd Font",
-        asset: FontAsset {
-            file: "UbuntuMonoNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/UbuntuMono/Regular/UbuntuMonoNerdFont-Regular.ttf",
-            sha256: "06492cae7c6b268ac5dccacfb0677e40f0f1377852b4d22689d4105ec862d7a4",
-            len: 2_367_832,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "UbuntuMonoNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/UbuntuMono/Regular/UbuntuMonoNerdFont-Regular.ttf",
+                    sha256: "06492cae7c6b268ac5dccacfb0677e40f0f1377852b4d22689d4105ec862d7a4",
+                    len: 2_367_832,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "UbuntuMonoNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/UbuntuMono/Bold/UbuntuMonoNerdFont-Bold.ttf",
+                    sha256: "99108aad07b983283b9acbdd8b41bf840a6bebe569b0fcbd0553045b21b33c54",
+                    len: 2_351_976,
+                },
+            },
+        ],
     },
-    // 13 MB: Iosevka is a superfamily with very wide coverage. Fine
-    // for an opt-in download (the CJK fonts run 9-18 MB), would never
-    // fly bundled.
+    // 13 MB per face: Iosevka is a superfamily with very wide
+    // coverage. Fine for an opt-in download (the CJK fonts run
+    // 9-18 MB), would never fly bundled. Only the weight actually
+    // picked is ever fetched.
     PackFont {
         family: "Iosevka NF",
-        asset: FontAsset {
-            file: "IosevkaNerdFont-Regular.ttf",
-            url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Iosevka/IosevkaNerdFont-Regular.ttf",
-            sha256: "48dad582909322164f40892e4e27eaa497346ab046b450b5c23c754ac35b53d2",
-            len: 13_233_516,
-        },
+        faces: &[
+            PackFace {
+                weight: 400,
+                asset: FontAsset {
+                    file: "IosevkaNerdFont-Regular.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Iosevka/IosevkaNerdFont-Regular.ttf",
+                    sha256: "48dad582909322164f40892e4e27eaa497346ab046b450b5c23c754ac35b53d2",
+                    len: 13_233_516,
+                },
+            },
+            PackFace {
+                weight: 500,
+                asset: FontAsset {
+                    file: "IosevkaNerdFont-Medium.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Iosevka/IosevkaNerdFont-Medium.ttf",
+                    sha256: "49acc2d2644de43a4663949487f89d91069c5c31e3e340775da8aacd58fcf2c7",
+                    len: 13_276_024,
+                },
+            },
+            PackFace {
+                weight: 600,
+                asset: FontAsset {
+                    file: "IosevkaNerdFont-SemiBold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Iosevka/IosevkaNerdFont-SemiBold.ttf",
+                    sha256: "666f54dcadfa2545e1a1cc54a35ff0bce668cfbb24f693c42de8aaf12d1fef82",
+                    len: 13_265_424,
+                },
+            },
+            PackFace {
+                weight: 700,
+                asset: FontAsset {
+                    file: "IosevkaNerdFont-Bold.ttf",
+                    url: "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/Iosevka/IosevkaNerdFont-Bold.ttf",
+                    sha256: "d13814ca9b4d51909ab151a47b2087915ceb91c244901b7d3497e27826ba090c",
+                    len: 13_281_980,
+                },
+            },
+        ],
     },
 ];
 
@@ -277,12 +610,30 @@ pub fn pack_font(family: &str) -> Option<&'static PackFont> {
     PACK_FONTS.iter().find(|p| p.family == family)
 }
 
-/// True when the pack font's file is already on disk at the expected
-/// size (same cheap validity test as [`is_language_cached`]).
-pub fn is_pack_cached(font: &PackFont) -> bool {
-    cached_path(&font.asset)
+/// The face to fetch so a pack family renders at `weight`: the one
+/// pinned at exactly that weight, or the family's Regular when it has
+/// none there.
+///
+/// The fallback is the whole point of returning something: without a
+/// single face loaded, the family the user picked is not in the font
+/// system at all and the terminal falls back to a system font, which
+/// is a worse answer than the same family at a nearby weight. Every
+/// caller resolves through here so the boot path and the picker can't
+/// disagree about which file a setting needs.
+pub fn pack_face_for(
+    family: &str,
+    weight: TerminalFontWeight,
+) -> Option<&'static PackFace> {
+    let font = pack_font(family)?;
+    font.face(weight.css()).or_else(|| font.faces.first())
+}
+
+/// True when the face's file is already on disk at the expected size
+/// (same cheap validity test as [`is_language_cached`]).
+pub fn is_face_cached(face: &PackFace) -> bool {
+    cached_path(&face.asset)
         .and_then(|p| std::fs::metadata(p).ok())
-        .map(|m| m.len() == font.asset.len)
+        .map(|m| m.len() == face.asset.len)
         .unwrap_or(false)
 }
 
@@ -437,28 +788,37 @@ pub fn ensure_task(lang: Language) -> iced::Task<Message> {
     })
 }
 
-/// A task that ensures one pack font is available (cache read or
+/// A task that ensures one pack face is available (cache read or
 /// download) and reports back as `PackFontReady`, which registers the
 /// bytes with the iced font system. The terminal widget resolves the
 /// family by name per frame, so a load that lands mid-session applies
 /// to live panes with no restart.
-pub fn ensure_pack_task(font: &'static PackFont) -> iced::Task<Message> {
-    let family = font.family.to_string();
-    iced::Task::perform(ensure_and_read(&font.asset), move |res| {
-        Message::Settings(SettingsMessage::PackFontReady(family.clone(), res))
+pub fn ensure_pack_task(face: &'static PackFace) -> iced::Task<Message> {
+    let key = face.key().to_string();
+    iced::Task::perform(ensure_and_read(&face.asset), move |res| {
+        Message::Settings(SettingsMessage::PackFontReady(key.clone(), res))
     })
 }
 
-/// Boot-time pack loading: one ensure task per pack font that is
+/// Boot-time pack loading: one ensure task per pack face that is
 /// either already cached (pure disk read, loads before the first
-/// terminal renders) or is the picked terminal font on a machine that
-/// doesn't have it yet (settings arrived via sync / portable import;
-/// the silent download heals the tofu without the user re-picking).
-pub fn boot_pack_tasks(selected_family: &str) -> Vec<(&'static str, iced::Task<Message>)> {
+/// terminal renders) or is the face the picked terminal font +
+/// weight needs on a machine that doesn't have it yet (settings
+/// arrived via sync / portable import; the silent download heals the
+/// tofu without the user re-picking).
+pub fn boot_pack_tasks(
+    selected_family: &str,
+    selected_weight: TerminalFontWeight,
+) -> Vec<(&'static str, iced::Task<Message>)> {
+    let wanted = pack_face_for(selected_family, selected_weight);
     PACK_FONTS
         .iter()
-        .filter(|f| is_pack_cached(f) || f.family == selected_family)
-        .map(|f| (f.family, ensure_pack_task(f)))
+        .flat_map(|f| f.faces.iter())
+        .filter(|face| {
+            is_face_cached(face)
+                || wanted.is_some_and(|w| std::ptr::eq(w, *face))
+        })
+        .map(|face| (face.key(), ensure_pack_task(face)))
         .collect()
 }
 
@@ -521,7 +881,11 @@ mod tests {
         let all: Vec<(&str, &super::FontAsset)> = super::ASSETS
             .iter()
             .map(|a| (a.code, &a.asset))
-            .chain(super::PACK_FONTS.iter().map(|p| (p.family, &p.asset)))
+            .chain(
+                super::PACK_FONTS
+                    .iter()
+                    .flat_map(|p| p.faces.iter().map(|f| (p.family, &f.asset))),
+            )
             .collect();
         for (key, asset) in &all {
             assert_eq!(asset.sha256.len(), 64, "{key}: sha256 length");
@@ -562,6 +926,117 @@ mod tests {
         fams.sort_unstable();
         fams.dedup();
         assert_eq!(fams.len(), super::PACK_FONTS.len());
+    }
+
+    /// Every pack family must start at Regular and climb, with no
+    /// weight pinned twice and nothing outside the four the picker
+    /// offers. A duplicate would make `PackFont::face` pick by table
+    /// order (silently downloading one file while the other is what
+    /// the user sees named), and a weight the picker can't request
+    /// would be a file nothing ever fetches.
+    #[test]
+    fn pack_faces_are_ordered_and_offerable() {
+        use super::TerminalFontWeight as W;
+        let offered: Vec<u16> = W::ALL.iter().map(|w| w.css()).collect();
+        for font in super::PACK_FONTS {
+            let weights: Vec<u16> = font.faces.iter().map(|f| f.weight).collect();
+            assert_eq!(
+                weights.first(),
+                Some(&400),
+                "{}: the Regular face is what an un-weighted request lands on",
+                font.family
+            );
+            let mut sorted = weights.clone();
+            sorted.sort_unstable();
+            sorted.dedup();
+            assert_eq!(sorted, weights, "{}: faces must be unique, lightest first", font.family);
+            for w in &weights {
+                assert!(
+                    offered.contains(w),
+                    "{}: weight {w} is pinned but the picker never asks for it",
+                    font.family
+                );
+            }
+        }
+    }
+
+    /// A weight the family does not pin resolves to its Regular, not
+    /// to nothing. Both the boot loader and the picker fetch through
+    /// this, and a `None` there would leave the picked family absent
+    /// from the font system entirely: the terminal would quietly
+    /// render in a system font instead of at a nearby weight of the
+    /// font that was actually chosen.
+    #[test]
+    fn a_weight_the_family_lacks_falls_back_to_its_regular() {
+        use super::TerminalFontWeight as W;
+        let weight_of = |family, w| super::pack_face_for(family, w).map(|f| f.weight);
+        // Hack pins Regular and Bold; upstream has no Medium.
+        assert_eq!(weight_of("Hack Nerd Font", W::Medium), Some(400));
+        assert_eq!(weight_of("Hack Nerd Font", W::Bold), Some(700));
+        // JetBrainsMono pins all four, so each is served exactly.
+        assert_eq!(weight_of("JetBrainsMono NF", W::SemiBold), Some(600));
+        assert_eq!(weight_of("JetBrainsMono NF", W::Regular), Some(400));
+        // The bundled family is not downloadable, so nothing to fetch.
+        assert!(super::pack_face_for("SauceCodePro Nerd Font", W::Medium).is_none());
+    }
+
+    /// The stored setting round-trips, and an unknown value degrades
+    /// to Regular instead of poisoning the boot: the row travels
+    /// through sync and portable import, so a newer build's weight can
+    /// legitimately arrive at an older one.
+    #[test]
+    fn font_weight_settings_round_trip() {
+        use super::TerminalFontWeight as W;
+        for w in W::ALL {
+            assert_eq!(W::from_setting(w.setting_value()), w);
+            assert_eq!(w.setting_value().parse::<u16>().unwrap(), w.css());
+        }
+        assert_eq!(W::from_setting("800"), W::Regular);
+        assert_eq!(W::from_setting(""), W::Regular);
+        assert_eq!(W::from_setting("bold"), W::Regular);
+    }
+
+    /// The bundled terminal family ships Regular AND Medium under one
+    /// typographic family, which is what lets the weight picker mean
+    /// something out of the box, with no download and no system font.
+    /// The two files spell their name-1 family differently
+    /// ("SauceCodePro NF" vs "SauceCodePro NF Medium"), so the
+    /// grouping rests entirely on fontdb reading the typographic
+    /// family (name ID 16); if a re-pin breaks that, weight 500 would
+    /// silently collapse back onto 400 and the setting would look
+    /// broken for every user who never installed a font.
+    #[test]
+    fn bundled_terminal_family_serves_regular_and_medium() {
+        let mut db = Database::new();
+        db.load_font_data(
+            include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Regular.ttf")
+                .to_vec(),
+        );
+        db.load_font_data(
+            include_bytes!("../../../resources/fonts/SauceCodeProNerdFont-Medium.ttf")
+                .to_vec(),
+        );
+        let resolve = |weight: Weight| {
+            let id = db
+                .query(&Query {
+                    families: &[Family::Name("SauceCodePro Nerd Font")],
+                    weight,
+                    stretch: Stretch::Normal,
+                    style: Style::Normal,
+                })
+                .expect("the bundled terminal family must resolve");
+            db.face(id).expect("face for id").weight
+        };
+        assert_eq!(resolve(Weight::NORMAL), Weight::NORMAL);
+        assert_eq!(resolve(Weight::MEDIUM), Weight::MEDIUM);
+        // And the table the picker reads must agree with the files.
+        assert_eq!(
+            super::BUNDLED_MONO_WEIGHTS
+                .iter()
+                .find(|(f, _)| *f == "SauceCodePro Nerd Font")
+                .map(|(_, w)| *w),
+            Some([400u16, 500].as_slice()),
+        );
     }
 
     /// The bundled MenuCJK subset must cover every glyph of the CJK

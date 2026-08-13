@@ -2012,6 +2012,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "डाउनलोड के लिए उपलब्ध (चुनने पर प्राप्त):",
         "font_pack_downloading" => "टर्मिनल फ़ॉन्ट डाउनलोड हो रहा है...",
         "font_pack_failed" => "टर्मिनल फ़ॉन्ट डाउनलोड नहीं हो सका, वर्तमान फ़ॉन्ट ही रहेगा।",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "टर्मिनल फ़ॉन्ट की मोटाई",
+        "font_weight_regular" => "सामान्य",
+        "font_weight_medium" => "मध्यम",
+        "font_weight_semibold" => "अर्ध-बोल्ड",
+        "font_weight_bold" => "बोल्ड",
+        "font_weight_unavailable" => "इस फ़ॉन्ट में चुनी गई मोटाई का रूप नहीं है, इसलिए टर्मिनल सबसे नज़दीकी उपलब्ध रूप का उपयोग करता है।",
 
         // SSH certificate auth (B2)
         "certificate" => "प्रमाणपत्र",

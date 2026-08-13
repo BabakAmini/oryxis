@@ -1913,6 +1913,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "다운로드 가능 (선택 시 받아옴):",
         "font_pack_downloading" => "터미널 글꼴 다운로드 중...",
         "font_pack_failed" => "터미널 글꼴을 다운로드하지 못해 현재 글꼴을 유지합니다.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "터미널 글꼴 두께",
+        "font_weight_regular" => "보통",
+        "font_weight_medium" => "미디엄",
+        "font_weight_semibold" => "세미볼드",
+        "font_weight_bold" => "볼드",
+        "font_weight_unavailable" => "이 글꼴에는 선택한 두께의 서체가 없어 터미널이 가장 가까운 것을 사용합니다.",
 
         "logs" => "기록",
         "vault" => "볼트",

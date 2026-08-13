@@ -171,6 +171,7 @@ impl Oryxis {
             // frame just centers with margins at the same font.
             let font_size = fitted_font_size(
                 &self.terminal_font_name,
+                self.terminal_font_weight.font_weight(),
                 self.terminal_font_size,
                 p.fit_cols,
                 p.fit_rows,
@@ -181,6 +182,7 @@ impl Oryxis {
             );
             let (px_w, px_h) = oryxis_terminal::widget::grid_pixel_size(
                 &self.terminal_font_name,
+                self.terminal_font_weight.font_weight(),
                 font_size,
                 p.cols,
                 p.rows,
@@ -207,6 +209,7 @@ impl Oryxis {
                 .with_mouse_reporting(false)
                 .with_font_size(font_size)
                 .with_font_name(&self.terminal_font_name)
+                .with_font_weight(self.terminal_font_weight.font_weight())
                 .with_copy_on_select(self.prefs.copy_on_select)
                 .with_right_click_copy(self.prefs.right_click_copy)
                 // Same right-click scheme as a live pane. Without it the
@@ -368,14 +371,20 @@ const FIT_STEP: f32 = 0.5;
 /// one lookup per step. Bottoms out at [`MIN_REPLAY_FONT`].
 fn fitted_font_size(
     font_name: &str,
+    font_weight: iced::font::Weight,
     base: f32,
     cols: u16,
     rows: u16,
     avail: iced::Size,
 ) -> f32 {
     let fits = |size: f32| {
-        let (w, h) =
-            oryxis_terminal::widget::grid_pixel_size(font_name, size, cols, rows);
+        let (w, h) = oryxis_terminal::widget::grid_pixel_size(
+            font_name,
+            font_weight,
+            size,
+            cols,
+            rows,
+        );
         w <= avail.width && h <= avail.height
     };
     let mut size = base.max(MIN_REPLAY_FONT);
@@ -437,6 +446,7 @@ fn format_clock(ms: i64) -> String {
 #[cfg(test)]
 mod tests {
     use super::{fitted_font_size, format_clock, MIN_REPLAY_FONT};
+    use iced::font::Weight;
 
     // Without a live renderer `cell_advance` uses its deterministic
     // `font_size * 0.6` fallback, so grid sizes here are exact:
@@ -445,8 +455,14 @@ mod tests {
     #[test]
     fn fit_keeps_the_configured_size_when_the_grid_fits() {
         // 80x24 at 14 px ≈ 688x403: comfortably inside 1000x600.
-        let size =
-            fitted_font_size("Test Mono", 14.0, 80, 24, iced::Size::new(1000.0, 600.0));
+        let size = fitted_font_size(
+            "Test Mono",
+            Weight::Normal,
+            14.0,
+            80,
+            24,
+            iced::Size::new(1000.0, 600.0),
+        );
         assert_eq!(size, 14.0);
     }
 
@@ -454,10 +470,16 @@ mod tests {
     fn fit_shrinks_an_oversized_grid_to_the_stage() {
         // 200x50 at 14 px ≈ 1696x821: must shrink for an 800x500 stage.
         let avail = iced::Size::new(800.0, 500.0);
-        let size = fitted_font_size("Test Mono", 14.0, 200, 50, avail);
+        let size = fitted_font_size("Test Mono", Weight::Normal, 14.0, 200, 50, avail);
         assert!(size < 14.0, "oversized grid must shrink, got {size}");
         assert!(size >= MIN_REPLAY_FONT);
-        let (w, h) = oryxis_terminal::widget::grid_pixel_size("Test Mono", size, 200, 50);
+        let (w, h) = oryxis_terminal::widget::grid_pixel_size(
+            "Test Mono",
+            Weight::Normal,
+            size,
+            200,
+            50,
+        );
         assert!(w <= avail.width && h <= avail.height, "fitted grid overflows: {w}x{h}");
     }
 
@@ -465,8 +487,14 @@ mod tests {
     fn fit_bottoms_out_at_the_floor_for_degenerate_stages() {
         // Nothing readable fits a 100x80 stage; the floor wins and the
         // scrollbars take over.
-        let size =
-            fitted_font_size("Test Mono", 14.0, 200, 50, iced::Size::new(100.0, 80.0));
+        let size = fitted_font_size(
+            "Test Mono",
+            Weight::Normal,
+            14.0,
+            200,
+            50,
+            iced::Size::new(100.0, 80.0),
+        );
         assert_eq!(size, MIN_REPLAY_FONT);
     }
 

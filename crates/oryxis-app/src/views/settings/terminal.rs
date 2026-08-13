@@ -914,14 +914,21 @@ impl Oryxis {
         // on their machine and preview the theme at a glance. The
         // font name comes straight from the (`'static`) enumerated
         // list, so `Family::Name` needs no leak.
+        // The sample carries the picked weight too, so "does this font
+        // have a Medium" is answered by looking at it.
+        let preview_weight = self.terminal_font_weight.font_weight();
         let preview_font = fonts
             .iter()
             .find(|f| f.as_str() == self.terminal_font_name)
             .map(|f| iced::Font {
                 family: iced::font::Family::Name(f.as_str()),
+                weight: preview_weight,
                 ..iced::Font::MONOSPACE
             })
-            .unwrap_or(iced::Font::MONOSPACE);
+            .unwrap_or(iced::Font {
+                weight: preview_weight,
+                ..iced::Font::MONOSPACE
+            });
         let active_term_theme = self
             .terminal_theme_override
             .clone()
@@ -1004,8 +1011,12 @@ impl Oryxis {
         // entries from then on).
         let pack_missing: Vec<&str> = crate::fonts::PACK_FONTS
             .iter()
+            .filter(|p| {
+                !p.faces
+                    .iter()
+                    .any(|f| self.loaded_pack_fonts.contains(f.key()))
+            })
             .map(|p| p.family)
-            .filter(|f| !self.loaded_pack_fonts.contains(*f))
             .collect();
         if !pack_missing.is_empty() {
             font_picker_block = font_picker_block.push(Space::new().height(6)).push(
@@ -1016,6 +1027,52 @@ impl Oryxis {
                 ))
                 .size(11)
                 .color(OryxisColors::t().text_muted),
+            );
+        }
+        // Font weight (issue #155). Sits under the family because it
+        // is a property OF the family: the picker always offers the
+        // four, and the line below says when the picked family has no
+        // face for the one selected (cosmic-text has no synthetic
+        // emboldening, so that pick would change nothing on screen).
+        let weights = crate::fonts::TerminalFontWeight::ALL;
+        let (weight_prev, weight_next) = crate::keynav::slots::cycle_pair(
+            &weights,
+            &self.terminal_font_weight,
+            |w| Message::Settings(SettingsMessage::TerminalFontWeightChanged(w)),
+        );
+        let mut font_picker_block = font_picker_block
+            .push(Space::new().height(14))
+            .push(
+                text(t("terminal_font_weight"))
+                    .size(13)
+                    .color(OryxisColors::t().text_primary),
+            )
+            .push(Space::new().height(8))
+            .push(self.settings_nav_slot_labeled(
+                t("terminal_font_weight"),
+                crate::keynav::RowAction::picker(weight_prev, weight_next),
+                8.0,
+                pick_list(
+                    Some(self.terminal_font_weight),
+                    weights.to_vec(),
+                    |w: &crate::fonts::TerminalFontWeight| w.to_string(),
+                )
+                .on_select(|w| {
+                    Message::Settings(SettingsMessage::TerminalFontWeightChanged(w))
+                })
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+                .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            ));
+        if !crate::app::terminal_font_serves_weight(
+            &self.terminal_font_name,
+            self.terminal_font_weight.css(),
+        ) {
+            font_picker_block = font_picker_block.push(Space::new().height(6)).push(
+                text(t("font_weight_unavailable"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
             );
         }
         let font_picker_block = font_picker_block

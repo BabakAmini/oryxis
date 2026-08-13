@@ -1880,6 +1880,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Доступны для загрузки (загружаются при выборе):",
         "font_pack_downloading" => "Загрузка шрифта терминала...",
         "font_pack_failed" => "Не удалось загрузить шрифт терминала, используется текущий.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Насыщенность шрифта терминала",
+        "font_weight_regular" => "Обычный",
+        "font_weight_medium" => "Средний",
+        "font_weight_semibold" => "Полужирный",
+        "font_weight_bold" => "Жирный",
+        "font_weight_unavailable" => "У этого шрифта нет начертания такой насыщенности, поэтому терминал использует ближайшее доступное.",
 
         "logs" => "История",
         "vault" => "Хранилище",

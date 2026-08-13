@@ -226,6 +226,7 @@ impl Oryxis {
             bounds,
             self.terminal_font_size,
             Some(self.terminal_font_name.as_str()),
+            self.terminal_font_weight.font_weight(),
             cell,
         );
         Some((caret.x, caret.y + caret.height + 2.0))

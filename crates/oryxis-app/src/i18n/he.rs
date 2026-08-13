@@ -2012,6 +2012,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "זמינים להורדה (נטענים בעת הבחירה):",
         "font_pack_downloading" => "מוריד גופן מסוף...",
         "font_pack_failed" => "לא ניתן להוריד את גופן המסוף, הגופן הנוכחי נשמר.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "עובי הגופן של הטרמינל",
+        "font_weight_regular" => "רגיל",
+        "font_weight_medium" => "בינוני",
+        "font_weight_semibold" => "חצי־מודגש",
+        "font_weight_bold" => "מודגש",
+        "font_weight_unavailable" => "לגופן הזה אין גרסה בעובי שנבחר, ולכן הטרמינל משתמש בקרוב ביותר שיש לו.",
 
         // SSH certificate auth (B2)
         "certificate" => "תעודה",

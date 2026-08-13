@@ -1887,6 +1887,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Disponibles para descargar (se obtienen al seleccionar):",
         "font_pack_downloading" => "Descargando la fuente del terminal...",
         "font_pack_failed" => "No se pudo descargar la fuente del terminal, se mantiene la actual.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Grosor de la fuente del terminal",
+        "font_weight_regular" => "Regular",
+        "font_weight_medium" => "Medio",
+        "font_weight_semibold" => "Seminegrita",
+        "font_weight_bold" => "Negrita",
+        "font_weight_unavailable" => "Esta fuente no tiene un estilo con ese grosor, así que el terminal usa el más cercano que tiene.",
 
         "terminal_link_hint" => "Mantén Ctrl y haz clic para abrir el enlace.",
         "mouse_capture_hint" => "Modo ratón activo. Mantén Mayús para seleccionar texto.",

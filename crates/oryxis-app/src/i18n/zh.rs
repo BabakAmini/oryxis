@@ -1890,6 +1890,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "可下载（选择时获取）：",
         "font_pack_downloading" => "正在下载终端字体...",
         "font_pack_failed" => "无法下载终端字体，继续使用当前字体。",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "终端字体粗细",
+        "font_weight_regular" => "常规",
+        "font_weight_medium" => "中等",
+        "font_weight_semibold" => "半粗",
+        "font_weight_bold" => "粗体",
+        "font_weight_unavailable" => "该字体没有所选粗细的字重，终端会使用最接近的一个。",
 
         "terminal_link_hint" => "按住 Ctrl 并点击以打开链接。",
         "mouse_capture_hint" => "鼠标模式已启用。按住 Shift 选择文本。",

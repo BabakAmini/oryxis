@@ -27,6 +27,11 @@ use tokio::sync::mpsc;
 /// builds) would render as tofu instead of falling through. Symbols
 /// Nerd Font is the official NF "symbols-only" drop-in built for
 /// universal PUA coverage, so we route every PUA codepoint to it.
+///
+/// Stays at Regular whatever weight the text is set to (issue #155):
+/// the bundled drop-in has exactly one face, so asking it for a
+/// heavier one would resolve back here anyway, and icons are line art
+/// rather than letterforms, they read the same beside Medium text.
 const NERD_FONT: Font = Font::new("Symbols Nerd Font");
 
 mod backdrop;
@@ -651,11 +656,15 @@ pub fn ime_caret_rect(
     bounds: Rectangle,
     font_size: f32,
     font_name: Option<&str>,
+    font_weight: iced::font::Weight,
     cell: (u16, u16),
 ) -> Rectangle {
-    let font = match font_name {
-        Some(name) => Font::new(intern_font_name(name)),
-        None => Font::MONOSPACE,
+    let font = Font {
+        weight: font_weight,
+        ..match font_name {
+            Some(name) => Font::new(intern_font_name(name)),
+            None => Font::MONOSPACE,
+        }
     };
     let cell_w = cell_advance(font, font_size);
     let cell_h = font_size * 1.15;
@@ -729,6 +738,24 @@ fn intern_font_name(name: &str) -> &'static str {
     leaked
 }
 
+/// Stable cache key for a font weight. `iced::font::Weight` is a plain
+/// enum with no numeric accessor, so the CSS number is spelled out
+/// here; it is only ever a key, never a value handed to a renderer.
+fn font_weight_key(weight: iced::font::Weight) -> u16 {
+    use iced::font::Weight;
+    match weight {
+        Weight::Thin => 100,
+        Weight::ExtraLight => 200,
+        Weight::Light => 300,
+        Weight::Normal => 400,
+        Weight::Medium => 500,
+        Weight::Semibold => 600,
+        Weight::Bold => 700,
+        Weight::ExtraBold => 800,
+        Weight::Black => 900,
+    }
+}
+
 /// Stable cache key for a font family: the family name, or a sentinel for
 /// the generic families (the `\0` prefix can't collide with a real name).
 fn font_family_key(font: Font) -> String {
@@ -743,7 +770,7 @@ fn font_family_key(font: Font) -> String {
 }
 
 /// Measured per-glyph advance (cell width in px) for `font` at `font_size`,
-/// cached per `(family, size)`.
+/// cached per `(family, weight, size)`.
 ///
 /// The terminal positions every glyph at `col * cell_width`, so this value
 /// must equal the font's real monospace advance, the old hard-coded
@@ -761,8 +788,16 @@ fn cell_advance(font: Font, font_size: f32) -> f32 {
     use iced::advanced::text::Paragraph as _;
     use std::collections::HashMap;
     use std::sync::OnceLock;
-    static CACHE: OnceLock<Mutex<HashMap<(String, u32), f32>>> = OnceLock::new();
-    let key = (font_family_key(font), font_size.to_bits());
+    // The weight is part of the key: a family's faces need not share an
+    // advance, and a hit measured at one weight would silently lay out
+    // the grid for another.
+    type AdvanceKey = (String, u16, u32);
+    static CACHE: OnceLock<Mutex<HashMap<AdvanceKey, f32>>> = OnceLock::new();
+    let key = (
+        font_family_key(font),
+        font_weight_key(font.weight),
+        font_size.to_bits(),
+    );
     let mut map = CACHE
         .get_or_init(|| Mutex::new(HashMap::new()))
         .lock()
@@ -817,11 +852,15 @@ fn cell_advance(font: Font, font_size: f32) -> f32 {
 /// so the result matches the rendered glyphs exactly.
 pub fn grid_pixel_size(
     font_name: &str,
+    font_weight: iced::font::Weight,
     font_size: f32,
     cols: u16,
     rows: u16,
 ) -> (f32, f32) {
-    let font = Font::new(intern_font_name(font_name));
+    let font = Font {
+        weight: font_weight,
+        ..Font::new(intern_font_name(font_name))
+    };
     let cell_w = cell_advance(font, font_size);
     let cell_h = font_size * 1.15;
     (

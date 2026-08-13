@@ -261,6 +261,7 @@ impl Oryxis {
             | SettingsMessage::TerminalFontSizeIncrease
             | SettingsMessage::TerminalFontSizeDecrease
             | SettingsMessage::TerminalFontChanged(..)
+            | SettingsMessage::TerminalFontWeightChanged(..)
             | SettingsMessage::PackFontReady(..)
             | SettingsMessage::TerminalLinkOpened
             | SettingsMessage::HintModeChanged(..)

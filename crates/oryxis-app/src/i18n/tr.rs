@@ -1912,6 +1912,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "İndirilebilir (seçildiğinde indirilir):",
         "font_pack_downloading" => "Terminal yazı tipi indiriliyor...",
         "font_pack_failed" => "Terminal yazı tipi indirilemedi, mevcut olan korunuyor.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Terminal yazı tipi kalınlığı",
+        "font_weight_regular" => "Normal",
+        "font_weight_medium" => "Orta",
+        "font_weight_semibold" => "Yarı kalın",
+        "font_weight_bold" => "Kalın",
+        "font_weight_unavailable" => "Bu yazı tipinin seçilen kalınlıkta bir kesimi yok, bu yüzden terminal en yakın olanı kullanır.",
 
         "logs" => "Geçmiş",
         "vault" => "Kasa",

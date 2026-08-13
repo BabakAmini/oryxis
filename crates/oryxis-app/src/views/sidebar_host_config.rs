@@ -127,6 +127,32 @@ impl Oryxis {
             .into(),
         );
 
+        // Font weight (issue #155): a picker row, so Left/Right cycle
+        // the four weights against the live terminal behind the panel.
+        let weights = crate::fonts::TerminalFontWeight::ALL;
+        let (weight_prev, weight_next) = crate::keynav::slots::cycle_pair(
+            &weights,
+            &self.terminal_font_weight,
+            |w| Message::Settings(SettingsMessage::TerminalFontWeightChanged(w)),
+        );
+        let weight_pick = self.sidebar_nav_slot(
+            crate::keynav::SidebarRow::picker(weight_prev, weight_next),
+            stab,
+            crate::widgets::INPUT_RADIUS,
+            iced::widget::pick_list(
+                Some(self.terminal_font_weight),
+                weights.to_vec(),
+                |w: &crate::fonts::TerminalFontWeight| w.to_string(),
+            )
+            .on_select(|w| Message::Settings(SettingsMessage::TerminalFontWeightChanged(w)))
+            .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+            .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+            .width(Length::Fill)
+            .padding(8)
+            .style(crate::widgets::rounded_pick_list_style)
+            .into(),
+        );
+
         let toggle = |label: &'static str, value: bool, msg: Message| {
             self.sidebar_nav_slot(
                 crate::keynav::SidebarRow::button(msg.clone()),
@@ -146,6 +172,10 @@ impl Oryxis {
             text(t("terminal_font")).size(12).color(c.text_secondary),
             Space::new().height(4),
             font_pick,
+            Space::new().height(10),
+            text(t("terminal_font_weight")).size(12).color(c.text_secondary),
+            Space::new().height(4),
+            weight_pick,
             Space::new().height(12),
             toggle("bold_bright", self.prefs.bold_is_bright, Message::Settings(SettingsMessage::ToggleBoldIsBright)),
             Space::new().height(8),

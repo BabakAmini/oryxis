@@ -1912,6 +1912,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Có thể tải xuống (tải khi chọn):",
         "font_pack_downloading" => "Đang tải phông chữ terminal...",
         "font_pack_failed" => "Không thể tải phông chữ terminal, giữ phông chữ hiện tại.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Độ đậm phông chữ terminal",
+        "font_weight_regular" => "Thường",
+        "font_weight_medium" => "Vừa",
+        "font_weight_semibold" => "Bán đậm",
+        "font_weight_bold" => "Đậm",
+        "font_weight_unavailable" => "Phông chữ này không có kiểu ở độ đậm đó, nên terminal dùng kiểu gần nhất mà nó có.",
 
         "logs" => "Lịch sử",
         "vault" => "Kho",

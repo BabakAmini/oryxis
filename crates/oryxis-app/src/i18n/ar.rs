@@ -1958,6 +1958,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "متاحة للتنزيل (يتم جلبها عند الاختيار):",
         "font_pack_downloading" => "جارٍ تنزيل خط الطرفية...",
         "font_pack_failed" => "تعذر تنزيل خط الطرفية، سيتم الإبقاء على الخط الحالي.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "سماكة خط الطرفية",
+        "font_weight_regular" => "عادي",
+        "font_weight_medium" => "متوسط",
+        "font_weight_semibold" => "نصف عريض",
+        "font_weight_bold" => "عريض",
+        "font_weight_unavailable" => "لا يحتوي هذا الخط على وجه بهذه السماكة، لذا تستخدم الطرفية أقرب وجه متاح.",
 
                 "ecs_exec_group_missing" => "مجموعة السحابة وراء هذه الجلسة لم تعد موجودة. ألغ تثبيت التبويب وأعد الاتصال من لوحة التحكم.",
         "cloud_session_ended" => "انتهت الجلسة",

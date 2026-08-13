@@ -2012,6 +2012,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Διαθέσιμες για λήψη (λαμβάνονται κατά την επιλογή):",
         "font_pack_downloading" => "Λήψη γραμματοσειράς τερματικού...",
         "font_pack_failed" => "Αδυναμία λήψης της γραμματοσειράς τερματικού, διατηρείται η τρέχουσα.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Πάχος γραμματοσειράς τερματικού",
+        "font_weight_regular" => "Κανονικό",
+        "font_weight_medium" => "Μεσαίο",
+        "font_weight_semibold" => "Ημίεντονο",
+        "font_weight_bold" => "Έντονο",
+        "font_weight_unavailable" => "Αυτή η γραμματοσειρά δεν έχει τομή σε αυτό το πάχος, οπότε το τερματικό χρησιμοποιεί την πλησιέστερη διαθέσιμη.",
 
         // SSH certificate auth (B2)
         "certificate" => "Πιστοποιητικό",

@@ -1892,6 +1892,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "ダウンロード可能（選択時に取得）:",
         "font_pack_downloading" => "ターミナルフォントをダウンロード中...",
         "font_pack_failed" => "ターミナルフォントをダウンロードできませんでした。現在のフォントを維持します。",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "ターミナルのフォントの太さ",
+        "font_weight_regular" => "レギュラー",
+        "font_weight_medium" => "ミディアム",
+        "font_weight_semibold" => "セミボールド",
+        "font_weight_bold" => "ボールド",
+        "font_weight_unavailable" => "このフォントには選択した太さのウェイトがないため、ターミナルは最も近いものを使います。",
 
         "terminal_link_hint" => "Ctrl を押しながらクリックするとリンクを開きます。",
         "mouse_capture_hint" => "マウスモードが有効です。Shift を押しながらテキストを選択。",

@@ -1881,6 +1881,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Zum Herunterladen verfügbar (wird bei Auswahl geladen):",
         "font_pack_downloading" => "Terminal-Schriftart wird heruntergeladen...",
         "font_pack_failed" => "Terminal-Schriftart konnte nicht heruntergeladen werden, die aktuelle bleibt erhalten.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Schriftstärke des Terminals",
+        "font_weight_regular" => "Regulär",
+        "font_weight_medium" => "Mittel",
+        "font_weight_semibold" => "Halbfett",
+        "font_weight_bold" => "Fett",
+        "font_weight_unavailable" => "Diese Schrift hat keinen Schnitt in dieser Stärke, daher verwendet das Terminal den nächstgelegenen.",
 
         "logs" => "Verlauf",
         "vault" => "Tresor",

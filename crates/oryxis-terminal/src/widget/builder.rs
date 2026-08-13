@@ -317,10 +317,30 @@ impl<Message> TerminalView<Message> {
     /// Override the font used for cell rendering. If the font can't be resolved
     /// by cosmic-text, it falls back to the system default monospace.
     pub fn with_font_name(mut self, name: &str) -> Self {
-        self.font = Font::new(intern_font_name(name));
+        // Keep whatever weight was already set: the two setters are
+        // independent and either order must end up at the same font.
+        self.font = Font {
+            weight: self.font.weight,
+            ..Font::new(intern_font_name(name))
+        };
         // The cell width depends on the font's advance; recompute it now that
         // the family changed (the width comes from the real metric, not a
         // fixed ratio, so a different font means a different cell width).
+        self.cell_width = cell_advance(self.font, self.font_size);
+        self
+    }
+
+    /// Override the weight cells are rendered at (issue #155).
+    ///
+    /// Only a weight the resolved family actually ships changes
+    /// anything: cosmic-text has no synthetic emboldening, so a
+    /// request a family can't serve resolves to its nearest face. The
+    /// app's font picker is what tells the user when that happens; the
+    /// widget just asks.
+    pub fn with_font_weight(mut self, weight: iced::font::Weight) -> Self {
+        self.font.weight = weight;
+        // Same reason as the family: a heavier face may advance
+        // differently, and the grid is laid out from the measurement.
         self.cell_width = cell_advance(self.font, self.font_size);
         self
     }

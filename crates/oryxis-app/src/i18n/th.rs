@@ -2013,6 +2013,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "พร้อมดาวน์โหลด (ดึงเมื่อเลือก):",
         "font_pack_downloading" => "กำลังดาวน์โหลดฟอนต์เทอร์มินัล...",
         "font_pack_failed" => "ไม่สามารถดาวน์โหลดฟอนต์เทอร์มินัลได้ จะใช้ฟอนต์ปัจจุบันต่อไป",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "น้ำหนักฟอนต์เทอร์มินัล",
+        "font_weight_regular" => "ปกติ",
+        "font_weight_medium" => "ปานกลาง",
+        "font_weight_semibold" => "กึ่งหนา",
+        "font_weight_bold" => "หนา",
+        "font_weight_unavailable" => "ฟอนต์นี้ไม่มีน้ำหนักที่เลือก เทอร์มินัลจึงใช้น้ำหนักที่ใกล้เคียงที่สุดที่มี",
 
         // SSH certificate auth (B2)
         "certificate" => "ใบรับรอง",

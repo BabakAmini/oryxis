@@ -1930,6 +1930,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Disponibles au téléchargement (récupérées à la sélection) :",
         "font_pack_downloading" => "Téléchargement de la police du terminal...",
         "font_pack_failed" => "Impossible de télécharger la police du terminal, la police actuelle est conservée.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Graisse de la police du terminal",
+        "font_weight_regular" => "Normal",
+        "font_weight_medium" => "Moyen",
+        "font_weight_semibold" => "Demi-gras",
+        "font_weight_bold" => "Gras",
+        "font_weight_unavailable" => "Cette police n'a pas de fonte à cette graisse, le terminal utilise donc la plus proche dont il dispose.",
 
         "terminal_link_hint" => "Maintenez Ctrl et cliquez pour ouvrir le lien.",
         "mouse_capture_hint" => "Mode souris actif. Maintenez Maj pour sélectionner le texte.",

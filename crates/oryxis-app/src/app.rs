@@ -116,13 +116,32 @@ const TERMINAL_FONT_FALLBACK: &[&str] = &[
 /// once and cached for the process lifetime. Fonts installed while
 /// the app is running show up after a restart.
 pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
-    static FONTS: std::sync::OnceLock<Vec<String>> = std::sync::OnceLock::new();
+    &font_scan().names
+}
+
+/// The one-time system font scan: the picker's family list plus the
+/// weights each family can actually serve.
+struct FontScan {
+    names: Vec<String>,
+    /// Weights (CSS numbers) keyed by family name. Every name a face
+    /// reports is a key, not just the one the picker lists: the same
+    /// family is spelled differently per language inside patched Nerd
+    /// Font builds ("JetBrainsMono Nerd Font" en-US, "JetBrainsMono
+    /// NF" en-GB), and fontdb resolves a request against any of them,
+    /// so the weights must be findable under any of them too.
+    weights: std::collections::HashMap<String, Vec<u16>>,
+}
+
+fn font_scan() -> &'static FontScan {
+    static FONTS: std::sync::OnceLock<FontScan> = std::sync::OnceLock::new();
     FONTS.get_or_init(|| {
         let mut db = fontdb::Database::new();
         db.load_system_fonts();
 
         let mut names: std::collections::BTreeSet<String> =
             std::collections::BTreeSet::new();
+        let mut weights: std::collections::HashMap<String, Vec<u16>> =
+            std::collections::HashMap::new();
         for face in db.faces() {
             if !face.monospaced {
                 continue;
@@ -133,6 +152,35 @@ pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
                 let trimmed = family.trim();
                 if !trimmed.is_empty() {
                     names.insert(trimmed.to_string());
+                }
+            }
+            for (alias, _lang) in &face.families {
+                let alias = alias.trim();
+                if alias.is_empty() {
+                    continue;
+                }
+                let entry = weights.entry(alias.to_string()).or_default();
+                if !entry.contains(&face.weight.0) {
+                    entry.push(face.weight.0);
+                }
+            }
+        }
+        // The bundled and downloadable families never reach the system
+        // database (they are loaded straight into the iced font
+        // system), so their faces are declared rather than scanned.
+        for (family, ws) in crate::fonts::BUNDLED_MONO_WEIGHTS {
+            let entry = weights.entry((*family).to_string()).or_default();
+            for w in *ws {
+                if !entry.contains(w) {
+                    entry.push(*w);
+                }
+            }
+        }
+        for pack in crate::fonts::PACK_FONTS {
+            let entry = weights.entry(pack.family.to_string()).or_default();
+            for face in pack.faces {
+                if !entry.contains(&face.weight) {
+                    entry.push(face.weight);
                 }
             }
         }
@@ -150,11 +198,14 @@ pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
         head.extend(crate::fonts::PACK_FONTS.iter().map(|p| p.family));
 
         if names.is_empty() {
-            return head
-                .iter()
-                .map(|s| s.to_string())
-                .chain(TERMINAL_FONT_FALLBACK.iter().map(|s| s.to_string()))
-                .collect();
+            return FontScan {
+                names: head
+                    .iter()
+                    .map(|s| s.to_string())
+                    .chain(TERMINAL_FONT_FALLBACK.iter().map(|s| s.to_string()))
+                    .collect(),
+                weights,
+            };
         }
 
         let mut out: Vec<String> = Vec::with_capacity(names.len() + head.len());
@@ -166,8 +217,24 @@ pub(crate) fn enumerate_terminal_fonts() -> &'static [String] {
                 out.push(n);
             }
         }
-        out
+        FontScan { names: out, weights }
     })
+}
+
+/// Whether `family` can render at `weight` (a CSS number).
+///
+/// False only when the family's faces are actually known AND none of
+/// them is at least as heavy as the request: cosmic-text has no
+/// synthetic emboldening, so that is precisely the case where picking
+/// a heavier weight changes nothing on screen. A family nothing knows
+/// about (a system fontdb that failed to read, a name typed into the
+/// settings row by hand) is given the benefit of the doubt rather
+/// than warned about.
+pub(crate) fn terminal_font_serves_weight(family: &str, weight: u16) -> bool {
+    match font_scan().weights.get(family) {
+        Some(ws) => ws.iter().any(|w| *w >= weight),
+        None => true,
+    }
 }
 
 // ---------------------------------------------------------------------------
@@ -974,6 +1041,11 @@ pub struct Oryxis {
     pub(crate) local_terminal_theme: Option<String>,
     pub(crate) terminal_font_size: f32,
     pub(crate) terminal_font_name: String,
+    /// Weight every terminal cell is drawn at (issue #155). Global,
+    /// like the family and the size next to it: a per-host weight
+    /// over a global family would let a host ask for a weight the
+    /// family it can't choose has no face for.
+    pub(crate) terminal_font_weight: crate::fonts::TerminalFontWeight,
 
     // Settings
     pub(crate) settings_section: SettingsSection,

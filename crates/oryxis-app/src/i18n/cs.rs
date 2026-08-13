@@ -2012,6 +2012,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "K dispozici ke stažení (stáhne se při výběru):",
         "font_pack_downloading" => "Stahování písma terminálu...",
         "font_pack_failed" => "Písmo terminálu se nepodařilo stáhnout, zůstává současné.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Tloušťka písma terminálu",
+        "font_weight_regular" => "Obyčejné",
+        "font_weight_medium" => "Střední",
+        "font_weight_semibold" => "Polotučné",
+        "font_weight_bold" => "Tučné",
+        "font_weight_unavailable" => "Toto písmo nemá řez v této tloušťce, terminál proto použije nejbližší dostupný.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certifikát",

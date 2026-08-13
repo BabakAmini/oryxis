@@ -135,6 +135,9 @@ pub enum SettingsMessage {
     TerminalFontSizeIncrease,
     TerminalFontSizeDecrease,
     TerminalFontChanged(String),
+    /// Settings / Host config: terminal font weight picked (issue
+    /// #155). Global, like the family and size it sits with.
+    TerminalFontWeightChanged(crate::fonts::TerminalFontWeight),
     /// The user ctrl-clicked a link in the terminal: the gesture landed,
     /// so under `HintMode::Once` retire the link toast for the focused pane.
     TerminalLinkOpened,
@@ -472,10 +475,11 @@ pub enum SettingsMessage {
     /// `iced::font::load`. Carries the language code so the in-memory
     /// "already loaded" guard can be cleared on failure for a retry.
     CjkFontReady(String, Result<Vec<u8>, String>),
-    /// A terminal-pack font (issue #109) finished downloading or was
+    /// A terminal-pack face (issue #109) finished downloading or was
     /// read from cache; `Ok` carries the font bytes to hand to
-    /// `iced::font::load`. Carries the family name so the in-memory
-    /// "already loaded" guard can be cleared on failure for a retry.
+    /// `iced::font::load`. Carries the face key (`PackFace::key`) so
+    /// the in-memory "already loaded" guard can be cleared on failure
+    /// for a retry.
     PackFontReady(String, Result<Vec<u8>, String>),
     /// Retention code picked in Settings ("off" / "1d" / ... / "90d");
     /// persists and prunes immediately.

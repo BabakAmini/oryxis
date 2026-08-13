@@ -1972,6 +1972,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Dostępne do pobrania (pobierane przy wyborze):",
         "font_pack_downloading" => "Pobieranie czcionki terminala...",
         "font_pack_failed" => "Nie udało się pobrać czcionki terminala, zachowano obecną.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Grubość czcionki terminala",
+        "font_weight_regular" => "Zwykła",
+        "font_weight_medium" => "Średnia",
+        "font_weight_semibold" => "Półgruba",
+        "font_weight_bold" => "Pogrubiona",
+        "font_weight_unavailable" => "Ta czcionka nie ma odmiany o tej grubości, więc terminal użyje najbliższej dostępnej.",
 
                 "ecs_exec_group_missing" => "Grupa chmurowa tej sesji już nie istnieje. Odepnij kartę i połącz się ponownie z poziomu pulpitu.",
         "cloud_session_ended" => "sesja zakończona",

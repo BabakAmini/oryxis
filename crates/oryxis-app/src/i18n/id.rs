@@ -1912,6 +1912,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Tersedia untuk diunduh (diambil saat dipilih):",
         "font_pack_downloading" => "Mengunduh font terminal...",
         "font_pack_failed" => "Gagal mengunduh font terminal, font saat ini dipertahankan.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Ketebalan font terminal",
+        "font_weight_regular" => "Normal",
+        "font_weight_medium" => "Sedang",
+        "font_weight_semibold" => "Semi tebal",
+        "font_weight_bold" => "Tebal",
+        "font_weight_unavailable" => "Font ini tidak punya varian dengan ketebalan itu, jadi terminal memakai yang paling dekat.",
 
         "logs" => "Riwayat",
         "vault" => "Vault",

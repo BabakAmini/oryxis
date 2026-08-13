@@ -1912,6 +1912,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Доступні для завантаження (завантажуються при виборі):",
         "font_pack_downloading" => "Завантаження шрифту термінала...",
         "font_pack_failed" => "Не вдалося завантажити шрифт термінала, використовується поточний.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Насиченість шрифту термінала",
+        "font_weight_regular" => "Звичайний",
+        "font_weight_medium" => "Середній",
+        "font_weight_semibold" => "Напівжирний",
+        "font_weight_bold" => "Жирний",
+        "font_weight_unavailable" => "Цей шрифт не має накреслення такої насиченості, тому термінал використає найближче доступне.",
 
         "logs" => "Історія",
         "vault" => "Сховище",

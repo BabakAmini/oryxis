@@ -530,6 +530,7 @@ impl Oryxis {
             .with_bell_flash(pane.bell_flash)
             .with_font_size(self.terminal_font_size)
             .with_font_name(&self.terminal_font_name)
+            .with_font_weight(self.terminal_font_weight.font_weight())
             .with_copy_on_select(self.prefs.copy_on_select)
             .with_right_click_copy(self.prefs.right_click_copy)
             .with_terminal_chords(self.terminal_chord_resolver())
@@ -645,6 +646,7 @@ impl Oryxis {
             Arc::clone(&pane.terminal),
             self.terminal_font_size,
             self.terminal_font_name.clone(),
+            self.terminal_font_weight.font_weight(),
         );
         // Report this pane's drawn rect so the OS-drop router can find
         // the pane under the cursor (a split tab can host different

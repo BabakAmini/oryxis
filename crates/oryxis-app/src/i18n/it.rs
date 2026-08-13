@@ -1880,6 +1880,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "Disponibili per il download (scaricati alla selezione):",
         "font_pack_downloading" => "Download del font del terminale...",
         "font_pack_failed" => "Impossibile scaricare il font del terminale, viene mantenuto quello attuale.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Spessore del carattere del terminale",
+        "font_weight_regular" => "Regolare",
+        "font_weight_medium" => "Medio",
+        "font_weight_semibold" => "Semigrassetto",
+        "font_weight_bold" => "Grassetto",
+        "font_weight_unavailable" => "Questo carattere non ha uno stile con quello spessore, quindi il terminale usa il più vicino che ha.",
 
         "logs" => "Cronologia",
         "vault" => "Vault",

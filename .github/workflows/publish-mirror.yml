@@ -113,6 +113,27 @@ jobs:
             ["RobotoMonoNerdFont-Regular.ttf"]="$nf/RobotoMono/Regular/RobotoMonoNerdFont-Regular.ttf"
             ["UbuntuMonoNerdFont-Regular.ttf"]="$nf/UbuntuMono/Regular/UbuntuMonoNerdFont-Regular.ttf"
             ["IosevkaNerdFont-Regular.ttf"]="$nf/Iosevka/IosevkaNerdFont-Regular.ttf"
+            # The heavier faces (issue #155): one file per weight, and
+            # only the weight the user picks is ever fetched. Three
+            # families stop at Bold upstream, which is why their Medium
+            # and SemiBold rows are missing rather than forgotten.
+            ["JetBrainsMonoNerdFont-Medium.ttf"]="$nf/JetBrainsMono/Ligatures/Medium/JetBrainsMonoNerdFont-Medium.ttf"
+            ["JetBrainsMonoNerdFont-SemiBold.ttf"]="$nf/JetBrainsMono/Ligatures/SemiBold/JetBrainsMonoNerdFont-SemiBold.ttf"
+            ["JetBrainsMonoNerdFont-Bold.ttf"]="$nf/JetBrainsMono/Ligatures/Bold/JetBrainsMonoNerdFont-Bold.ttf"
+            ["CaskaydiaCoveNerdFont-SemiBold.ttf"]="$nf/CascadiaCode/CaskaydiaCoveNerdFont-SemiBold.ttf"
+            ["CaskaydiaCoveNerdFont-Bold.ttf"]="$nf/CascadiaCode/CaskaydiaCoveNerdFont-Bold.ttf"
+            ["FiraCodeNerdFont-Medium.ttf"]="$nf/FiraCode/Medium/FiraCodeNerdFont-Medium.ttf"
+            ["FiraCodeNerdFont-SemiBold.ttf"]="$nf/FiraCode/SemiBold/FiraCodeNerdFont-SemiBold.ttf"
+            ["FiraCodeNerdFont-Bold.ttf"]="$nf/FiraCode/Bold/FiraCodeNerdFont-Bold.ttf"
+            ["HackNerdFont-Bold.ttf"]="$nf/Hack/Bold/HackNerdFont-Bold.ttf"
+            ["MesloLGSNerdFont-Bold.ttf"]="$nf/Meslo/S/Bold/MesloLGSNerdFont-Bold.ttf"
+            ["RobotoMonoNerdFont-Medium.ttf"]="$nf/RobotoMono/Medium/RobotoMonoNerdFont-Medium.ttf"
+            ["RobotoMonoNerdFont-SemiBold.ttf"]="$nf/RobotoMono/SemiBold/RobotoMonoNerdFont-SemiBold.ttf"
+            ["RobotoMonoNerdFont-Bold.ttf"]="$nf/RobotoMono/Bold/RobotoMonoNerdFont-Bold.ttf"
+            ["UbuntuMonoNerdFont-Bold.ttf"]="$nf/UbuntuMono/Bold/UbuntuMonoNerdFont-Bold.ttf"
+            ["IosevkaNerdFont-Medium.ttf"]="$nf/Iosevka/IosevkaNerdFont-Medium.ttf"
+            ["IosevkaNerdFont-SemiBold.ttf"]="$nf/Iosevka/IosevkaNerdFont-SemiBold.ttf"
+            ["IosevkaNerdFont-Bold.ttf"]="$nf/Iosevka/IosevkaNerdFont-Bold.ttf"
           )
           for key in "${!fonts[@]}"; do
             # Immutable, commit-pinned content: skip when already there.

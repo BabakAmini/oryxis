@@ -1902,6 +1902,13 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "font_pack_available" => "قابل دانلود (هنگام انتخاب دریافت می‌شود):",
         "font_pack_downloading" => "در حال دانلود فونت ترمینال...",
         "font_pack_failed" => "دانلود فونت ترمینال ممکن نشد، فونت فعلی حفظ می‌شود.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "ضخامت فونت ترمینال",
+        "font_weight_regular" => "معمولی",
+        "font_weight_medium" => "متوسط",
+        "font_weight_semibold" => "نیمه‌ضخیم",
+        "font_weight_bold" => "ضخیم",
+        "font_weight_unavailable" => "این فونت چهره‌ای با این ضخامت ندارد، بنابراین ترمینال از نزدیک‌ترین مورد موجود استفاده می‌کند.",
 
         "logs" => "تاریخچه",
         "vault" => "صندوقچه",

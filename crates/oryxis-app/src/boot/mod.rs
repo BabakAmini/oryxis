@@ -512,6 +512,7 @@ impl Oryxis {
                 local_terminal_theme: None,
                 terminal_font_size: 14.0,
                 terminal_font_name: "SauceCodePro Nerd Font".to_string(),
+                terminal_font_weight: crate::fonts::TerminalFontWeight::default(),
                 settings_section: SettingsSection::Interface,
                 settings_tab_open: false,
                 settings_scroll: std::collections::HashMap::new(),
@@ -701,13 +702,17 @@ impl Oryxis {
         }
 
         // Terminal font pack (issue #109): load every already-cached
-        // pack font now so a terminal picked to one of them renders
-        // right from its first frame, and silently fetch the picked
-        // family when it isn't cached yet (settings that arrived via
-        // sync / import land on a machine without the file). Guard
-        // semantics mirror the CJK block above.
-        for (family, task) in crate::fonts::boot_pack_tasks(&app.terminal_font_name) {
-            app.loaded_pack_fonts.insert(family.to_string());
+        // pack face now so a terminal picked to one of them renders
+        // right from its first frame, and silently fetch the face the
+        // picked family + weight needs when it isn't cached yet
+        // (settings that arrived via sync / import land on a machine
+        // without the file). Guard semantics mirror the CJK block
+        // above.
+        for (key, task) in crate::fonts::boot_pack_tasks(
+            &app.terminal_font_name,
+            app.terminal_font_weight,
+        ) {
+            app.loaded_pack_fonts.insert(key.to_string());
             tasks.push(task);
         }
 

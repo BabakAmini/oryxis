@@ -96,19 +96,20 @@ impl Oryxis {
                 // a download shows a hint toast. Either way the font
                 // registers via `PackFontReady`, live panes re-render
                 // with it, no restart.
-                if let Some(font) = crate::fonts::pack_font(&self.terminal_font_name)
-                    && !self.loaded_pack_fonts.contains(font.family)
-                {
-                    self.loaded_pack_fonts.insert(font.family.to_string());
-                    if !crate::fonts::is_pack_cached(font) {
-                        self.set_toast(
-                            crate::i18n::t("font_pack_downloading").to_string(),
-                        );
-                    }
-                    return Ok(crate::fonts::ensure_pack_task(font));
+                if let Some(task) = self.ensure_pack_face() {
+                    return Ok(task);
                 }
             }
-            SettingsMessage::PackFontReady(family, result) => match result {
+            SettingsMessage::TerminalFontWeightChanged(weight) => {
+                self.terminal_font_weight = weight;
+                self.persist_setting("terminal_font_weight", weight.setting_value());
+                // A pack family keeps one file per weight, so the new
+                // weight may be a face this machine has never fetched.
+                if let Some(task) = self.ensure_pack_face() {
+                    return Ok(task);
+                }
+            }
+            SettingsMessage::PackFontReady(key, result) => match result {
                 Ok(bytes) => {
                     // Clear the "downloading" hint and register the
                     // font with the iced font system; the terminal
@@ -122,12 +123,12 @@ impl Oryxis {
                 Err(e) => {
                     tracing::warn!(
                         target = "oryxis::fonts",
-                        family = %family,
+                        face = %key,
                         error = %e,
                         "pack font download failed; keeping the fallback rendering"
                     );
                     // Drop the guard so re-picking the font retries.
-                    self.loaded_pack_fonts.remove(&family);
+                    self.loaded_pack_fonts.remove(&key);
                     self.set_toast(crate::i18n::t("font_pack_failed").to_string());
                     return Ok(Task::perform(
                         async {
@@ -470,5 +471,28 @@ impl Oryxis {
             m => return Err(m),
         }
         Ok(Task::none())
+    }
+
+    /// Make sure the pack face the picked family + weight needs is on
+    /// its way into the font system, returning the task that gets it
+    /// there (`None` for a system / bundled family, or one already
+    /// requested this session).
+    ///
+    /// A family with no face at the picked weight resolves to its
+    /// Regular (`pack_face_for`); which face cosmic-text then draws
+    /// from is its own matching decision, and the picker is what tells
+    /// the user the weight could not be served exactly.
+    fn ensure_pack_face(&mut self) -> Option<Task<Message>> {
+        let face = crate::fonts::pack_face_for(
+            &self.terminal_font_name,
+            self.terminal_font_weight,
+        )?;
+        if !self.loaded_pack_fonts.insert(face.key().to_string()) {
+            return None;
+        }
+        if !crate::fonts::is_face_cached(face) {
+            self.set_toast(crate::i18n::t("font_pack_downloading").to_string());
+        }
+        Some(crate::fonts::ensure_pack_task(face))
     }
 }

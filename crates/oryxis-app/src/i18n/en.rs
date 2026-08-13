@@ -2013,6 +2013,13 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "font_pack_available" => "Available to download (fetched when selected):",
         "font_pack_downloading" => "Downloading terminal font...",
         "font_pack_failed" => "Couldn't download the terminal font, keeping the current one.",
+        // Terminal font weight picker (issue #155).
+        "terminal_font_weight" => "Terminal Font Weight",
+        "font_weight_regular" => "Regular",
+        "font_weight_medium" => "Medium",
+        "font_weight_semibold" => "SemiBold",
+        "font_weight_bold" => "Bold",
+        "font_weight_unavailable" => "This font has no face at the selected weight, so the terminal uses the closest one it has.",
 
         // SSH certificate auth (B2)
         "certificate" => "Certificate",
