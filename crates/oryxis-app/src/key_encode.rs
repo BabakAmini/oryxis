@@ -22,6 +22,13 @@
 //!   (`ESC <char>`) or composes is the per-host
 //!   [`OptionAsMeta`](oryxis_core::models::terminal_quirks::OptionAsMeta)
 //!   quirk; the default composes, matching every macOS terminal.
+//!
+//! Application-keypad mode (DECPAM, `ESC =`) is a deliberate non-goal:
+//! the numpad always sends what it types (digits, operators, and CR for
+//! its Enter). xterm's SS3 keypad forms (`ESC O q` for 1, `ESC O M` for
+//! Enter) are what stops a numpad from typing digits inside anything
+//! that enables `smkx`, and the emulator we embed (alacritty) doesn't
+//! send them either.
 
 use iced::keyboard;
 use oryxis_core::models::terminal_quirks::{FunctionKeyMode, HomeEndMode, TerminalQuirks};
@@ -205,8 +212,20 @@ pub(crate) fn pty_bytes(
     // with NumLock on still shows up as Named::Home / ArrowUp / etc.
     // while the OS-produced `text` is "7" / "8". Prefer the text on
     // numpad so NumLock-on sends digits.
+    //
+    // Control characters are NOT typing and never win over the named
+    // encoding (issue #162): macOS reports the keypad Enter's text as
+    // the Cocoa `NSEnterCharacter` (U+0003), so the preference handed
+    // the PTY an ETX (^C, "interrupt") instead of the CR the same key
+    // sends on every other platform, discarding the line the user had
+    // just typed. Rejecting control text makes numpad Enter resolve
+    // through `key_to_named_bytes` like the main Enter, on every
+    // platform, whatever the OS put in `text`.
     let numpad_text = if press.location == keyboard::Location::Numpad {
-        press.text.filter(|t| !t.is_empty()).map(|t| t.as_bytes().to_vec())
+        press
+            .text
+            .filter(|t| !t.is_empty() && !t.chars().any(char::is_control))
+            .map(|t| t.as_bytes().to_vec())
     } else {
         None
     };
@@ -712,6 +731,37 @@ mod tests {
         // NumLock-on numpad 7 arrives as Named::Home with text "7".
         let p = Press::named(Named::Home).text(Some("7")).numpad();
         assert_eq!(p.on(Platform::Linux).unwrap(), b"7");
+    }
+
+    #[test]
+    fn numpad_enter_matches_the_main_enter_on_every_platform() {
+        // Issue #162: the numpad's Enter must send what the main Enter
+        // sends, whatever the OS wrote into `text`. macOS reports it as
+        // the Cocoa NSEnterCharacter (U+0003, ETX = ^C); Windows / Linux
+        // report the CR the key means. Both resolve to the main Enter's
+        // encoding, so the pair is asserted against each other rather
+        // than against a literal.
+        for platform in [Platform::MacOs, Platform::Windows, Platform::Linux] {
+            let main = Press::named(Named::Enter).on(platform);
+            assert_eq!(main.as_deref(), Some(b"\r".as_slice()));
+            for text in [Some("\u{3}"), Some("\r"), Some("\n"), None] {
+                let numpad = Press::named(Named::Enter).text(text).numpad();
+                assert_eq!(
+                    numpad.on(platform),
+                    main,
+                    "numpad Enter with text {text:?} on {platform:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn numpad_control_text_never_outranks_the_named_key() {
+        // Same rule one step up: control text on the numpad is never
+        // typing, so the named key keeps its own encoding (a numpad
+        // Delete reporting DEL still sends the CSI form).
+        let p = Press::named(Named::Delete).text(Some("\u{7f}")).numpad();
+        assert_eq!(p.on(Platform::MacOs).unwrap(), b"\x1b[3~");
     }
 
     // ── named-key vectors (pre-C5 goldens + C5 quirk modes) ────────────
