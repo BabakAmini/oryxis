@@ -160,7 +160,7 @@ impl Oryxis {
                 // included. While paused this is the single-shot
                 // monitor: the tick closes what this opened as soon as
                 // the sample lands, so nothing is held between clicks.
-                Ok(self.dash_round())
+                Ok(self.dash_round(false))
             }
             MonitorMessage::DashToggleListView => {
                 self.prefs.monitor_dash_list_view = !self.prefs.monitor_dash_list_view;
@@ -453,15 +453,21 @@ impl Oryxis {
         if self.monitor_dash.paused {
             return Task::none();
         }
-        self.dash_round()
+        self.dash_round(true)
     }
 
     /// One round over the whole board: link what has no link, probe
-    /// what has one, and give the machines that failed a fresh try
+    /// what has one, and give the machines that failed another try
     /// (entering the view and the Refresh action are the deliberate
-    /// acts the sticky failure waits for, same as the card's retry; the
-    /// rows tried in the last round are forgotten with it).
-    fn dash_round(&mut self) -> Task<Message> {
+    /// acts the sticky failure waits for, same as the card's retry).
+    ///
+    /// `fresh` decides what "another try" means for a failed machine.
+    /// Entering the view starts a new round from its first row, since
+    /// whatever was wrong last time may well be fixed by now. Refresh
+    /// CONTINUES the round instead, moving to a row that has not been
+    /// tried: clicking it twice must not dial the same broken login
+    /// twice, which is exactly what a fresh round would do.
+    fn dash_round(&mut self, fresh: bool) -> Task<Message> {
         let groups = self.dash_groups();
         let mut tasks: Vec<Task<Message>> = Vec::new();
         for (key, members) in groups {
@@ -473,9 +479,20 @@ impl Oryxis {
                     let (via, transport) = (*via, transport.clone());
                     tasks.push(self.dash_probe(key, via, transport));
                 }
-                Some(DashLink::Failed { .. }) => {
+                Some(DashLink::Failed { tried, .. }) => {
+                    // Once every row has been tried the list is spent,
+                    // so the next ask starts over rather than doing
+                    // nothing.
+                    let mut tried = if fresh { Vec::new() } else { tried.clone() };
+                    if members.iter().all(|m| tried.contains(m)) {
+                        tried.clear();
+                    }
+                    let next = members.iter().find(|m| !tried.contains(m)).copied();
                     self.monitor_dash.links.remove(&key);
-                    tasks.push(self.dash_link(&key, &members));
+                    match next {
+                        Some(next) => tasks.push(self.dash_dial(&key, next, tried)),
+                        None => tasks.push(self.dash_link(&key, &members)),
+                    }
                 }
                 _ => {}
             }
