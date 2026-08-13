@@ -170,10 +170,12 @@ impl Oryxis {
                     v.chars().filter(|c| *c != '\n' && *c != '\r').collect();
             }
             EditorMessage::EditorStartupComboOpened => {
-                // Focus clears the typed value so the dropdown opens on
-                // the full snippet list, not pre-filtered by the current
-                // selection (the committed choice is preserved untouched).
-                self.reset_editor_startup_combo();
+                // Same rule as the key combo: the widget clears its own
+                // input on focus, so this only picks up a snippet added
+                // while the editor was open, and only when the list
+                // really changed (see `refresh_combo`).
+                let options = self.editor_startup_options();
+                Self::refresh_combo(&mut self.editor_startup_combo, options);
             }
             EditorMessage::EditorStartupChoiceChanged(label) => {
                 use crate::state::StartupChoice;

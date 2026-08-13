@@ -120,6 +120,13 @@ impl Oryxis {
                     |v| Message::Editor(EditorMessage::EditorKeyChanged(v)),
                 )
                 .on_open(Message::Editor(EditorMessage::EditorKeyComboOpened))
+                // Blur has to put the COMMITTED pick back in the box.
+                // The fork restores it inside the `on_close` arm only
+                // (`combo_box::update`), so a combo without one keeps
+                // showing text that was typed and never selected, and
+                // the host then saves with the key the form still
+                // holds. Nothing to handle, the restore is the point.
+                .on_close(Message::NoOp)
                 .padding(10)
                 .input_style(crate::widgets::rounded_input_style)
                 .menu_style(crate::widgets::combo_menu_style)

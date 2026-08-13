@@ -120,7 +120,12 @@ impl Oryxis {
                 self.rebuild_editor_combos();
             }
             EditorMessage::EditorLoginScriptComboOpened => {
-                self.rebuild_editor_combos();
+                // Same rule as the key and startup combos: refresh only
+                // when the script list really changed, or the menu
+                // opens filtered down to the current pick and the other
+                // scripts look gone (see `refresh_combo`).
+                let options = self.login_script_options();
+                Self::refresh_combo(&mut self.editor_login_script_combo, options);
             }
             EditorMessage::EditorLoginScriptVarChanged(name, value) => {
                 match self

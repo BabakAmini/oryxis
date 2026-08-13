@@ -39,6 +39,8 @@ impl Oryxis {
                 |v| Message::Editor(EditorMessage::EditorLoginScriptChanged(v)),
             )
             .on_open(Message::Editor(EditorMessage::EditorLoginScriptComboOpened))
+            // Restores the committed pick on blur; see auth.rs.
+            .on_close(Message::NoOp)
             .padding(10)
             .input_style(crate::widgets::rounded_input_style)
             .menu_style(crate::widgets::combo_menu_style)

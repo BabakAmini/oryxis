@@ -290,6 +290,29 @@ impl Oryxis {
             iced::widget::combo_box::State::new(self.editor_key_options());
     }
 
+    /// Refresh a forced-selection combo's options ONLY when they
+    /// actually changed.
+    ///
+    /// The three combos that clear on focus (`key`, `startup`,
+    /// `login_script`) used to rebuild their `State` unconditionally
+    /// from their `on_open` handler. That is now the opposite of what
+    /// it reads like: the fork's `combo_box` already empties its own
+    /// input when it takes focus, and a rebuilt `State` carries a fresh
+    /// version, which makes the next `diff` overwrite the input with
+    /// the current selection AND filter the menu by it. The user then
+    /// sees a menu holding exactly the option they already had, i.e.
+    /// their other keys look like they vanished (found in the #156 QA:
+    /// an imported key could not be picked at all).
+    ///
+    /// Comparing first keeps the reason the rebuild existed, picking up
+    /// a key or snippet created while the editor is open, without
+    /// paying the re-filter on every focus.
+    fn refresh_combo(state: &mut iced::widget::combo_box::State<String>, options: Vec<String>) {
+        if state.options() != options {
+            *state = iced::widget::combo_box::State::new(options);
+        }
+    }
+
     /// Display label for the current startup-command choice (the
     /// `None` / `Custom` sentinels or the referenced snippet's label).
     /// Shared by the combo's selection prop and its rebuild seed; a

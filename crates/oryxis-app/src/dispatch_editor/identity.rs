@@ -56,9 +56,14 @@ impl Oryxis {
                 self.editor_form.selected_key = if v == "(none)" { None } else { Some(v) };
             }
             EditorMessage::EditorKeyComboOpened => {
-                // Focus clears the typed value so the dropdown opens on
-                // the full key list, not pre-filtered by the current pick.
-                self.reset_editor_key_combo();
+                // The widget empties its own input on focus, so the
+                // dropdown already opens on the full key list. All this
+                // has to do is pick up a key added while the editor was
+                // open, and ONLY when there is one: an unconditional
+                // rebuild re-filters the menu down to the current pick
+                // (see `refresh_combo`).
+                let options = self.editor_key_options();
+                Self::refresh_combo(&mut self.editor_key_combo, options);
             }
             EditorMessage::EditorIdentityChanged(v) => {
                 self.editor_form.username_focused = false;
