@@ -143,6 +143,25 @@ fn font_scan() -> &'static FontScan {
         let mut weights: std::collections::HashMap<String, Vec<u16>> =
             std::collections::HashMap::new();
         for face in db.faces() {
+            // Weights are collected BEFORE the monospace filter, and
+            // under every alias. Font matching consults neither: it
+            // resolves a family by any of its names and then picks the
+            // nearest weight, so a face this filter drops is still a
+            // face the renderer will draw. Skipping it here would make
+            // the picker claim a weight is missing while the terminal
+            // renders at it.
+            for (alias, _lang) in &face.families {
+                let alias = alias.trim();
+                if alias.is_empty() {
+                    continue;
+                }
+                let entry = weights.entry(alias.to_string()).or_default();
+                if !entry.contains(&face.weight.0) {
+                    entry.push(face.weight.0);
+                }
+            }
+            // The picker list itself IS monospace-only: it is what the
+            // user chooses a terminal font from.
             if !face.monospaced {
                 continue;
             }
@@ -152,16 +171,6 @@ fn font_scan() -> &'static FontScan {
                 let trimmed = family.trim();
                 if !trimmed.is_empty() {
                     names.insert(trimmed.to_string());
-                }
-            }
-            for (alias, _lang) in &face.families {
-                let alias = alias.trim();
-                if alias.is_empty() {
-                    continue;
-                }
-                let entry = weights.entry(alias.to_string()).or_default();
-                if !entry.contains(&face.weight.0) {
-                    entry.push(face.weight.0);
                 }
             }
         }

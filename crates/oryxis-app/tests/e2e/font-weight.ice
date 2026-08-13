@@ -14,6 +14,11 @@ mode: Zen
 #
 # Nothing here downloads: a pack family would, so the flow never leaves
 # the bundled font.
+#
+# The assertion reads the machine as well as the code: a runner with
+# its own "SauceCodePro Nerd Font" installed, carrying a face at 600 or
+# heavier, would legitimately have nothing to warn about and this line
+# would fail. CI runners ship no such font.
 click "Skip"
 click "Continue without password"
 settle
