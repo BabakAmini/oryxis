@@ -1589,6 +1589,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Her indirmede hedefi sor",
         "files_mounting" => "SFTP açılıyor…",
         "files_empty" => "Boş klasör",
+        "files_drop_hint" => "Bu klas\u{f6}re y\u{fc}klemek i\u{e7}in b\u{131}rak\u{131}n",
         "files_no_session" => "SSH oturumu yok",
         "open" => "Aç",
         "copy_name" => "Adı kopyala",

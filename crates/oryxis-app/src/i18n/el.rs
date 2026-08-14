@@ -1595,6 +1595,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Ερώτηση για τον προορισμό σε κάθε λήψη",
         "files_mounting" => "Άνοιγμα SFTP…",
         "files_empty" => "Κενός φάκελος",
+        "files_drop_hint" => "\u{391}\u{3c6}\u{3ae}\u{3c3}\u{3c4}\u{3b5} \u{3b3}\u{3b9}\u{3b1} \u{3bc}\u{3b5}\u{3c4}\u{3b1}\u{3c6}\u{3cc}\u{3c1}\u{3c4}\u{3c9}\u{3c3}\u{3b7} \u{3c3}\u{3b5} \u{3b1}\u{3c5}\u{3c4}\u{3cc}\u{3bd} \u{3c4}\u{3bf}\u{3bd} \u{3c6}\u{3ac}\u{3ba}\u{3b5}\u{3bb}\u{3bf}",
         "files_no_session" => "Καμία συνεδρία SSH",
         "open" => "Άνοιγμα",
         "copy_name" => "Αντιγραφή ονόματος",

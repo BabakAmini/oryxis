@@ -1506,6 +1506,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Demander la destination à chaque téléchargement",
         "files_mounting" => "Ouverture du SFTP…",
         "files_empty" => "Dossier vide",
+        "files_drop_hint" => "D\u{e9}posez pour envoyer dans ce dossier",
         "files_no_session" => "Pas de session SSH",
         "open" => "Ouvrir",
         "copy_name" => "Copier le nom",

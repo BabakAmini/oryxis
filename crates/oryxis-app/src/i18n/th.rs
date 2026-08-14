@@ -1596,6 +1596,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "ถามปลายทางทุกครั้งที่ดาวน์โหลด",
         "files_mounting" => "กำลังเปิด SFTP…",
         "files_empty" => "โฟลเดอร์ว่าง",
+        "files_drop_hint" => "\u{e1b}\u{e25}\u{e48}\u{e2d}\u{e22}\u{e40}\u{e1e}\u{e37}\u{e48}\u{e2d}\u{e2d}\u{e31}\u{e1b}\u{e42}\u{e2b}\u{e25}\u{e14}\u{e44}\u{e1b}\u{e22}\u{e31}\u{e07}\u{e42}\u{e1f}\u{e25}\u{e40}\u{e14}\u{e2d}\u{e23}\u{e4c}\u{e19}\u{e35}\u{e49}",
         "files_no_session" => "ไม่มีเซสชัน SSH",
         "open" => "เปิด",
         "copy_name" => "คัดลอกชื่อ",

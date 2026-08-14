@@ -1589,6 +1589,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Hỏi đích đến ở mỗi lần tải xuống",
         "files_mounting" => "Đang mở SFTP…",
         "files_empty" => "Thư mục trống",
+        "files_drop_hint" => "Th\u{1ea3} \u{111}\u{1ec3} t\u{1ea3}i l\u{ea}n th\u{1b0} m\u{1ee5}c n\u{e0}y",
         "files_no_session" => "Không có phiên SSH",
         "open" => "Mở",
         "copy_name" => "Sao chép tên",

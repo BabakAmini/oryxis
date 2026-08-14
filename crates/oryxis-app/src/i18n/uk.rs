@@ -1589,6 +1589,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Запитувати місце при кожному завантаженні",
         "files_mounting" => "Відкриття SFTP…",
         "files_empty" => "Порожня папка",
+        "files_drop_hint" => "\u{412}\u{456}\u{434}\u{43f}\u{443}\u{441}\u{442}\u{456}\u{442}\u{44c}, \u{449}\u{43e}\u{431} \u{437}\u{430}\u{432}\u{430}\u{43d}\u{442}\u{430}\u{436}\u{438}\u{442}\u{438} \u{432} \u{446}\u{44e} \u{442}\u{435}\u{43a}\u{443}",
         "files_no_session" => "Немає SSH-сесії",
         "open" => "Відкрити",
         "copy_name" => "Копіювати назву",

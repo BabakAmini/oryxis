@@ -364,46 +364,81 @@ impl Oryxis {
                 .into()
         };
 
+        // Drop-to-upload hint (issue #167): shown while the OS drags
+        // files anywhere over the window. The drop router already sends
+        // the payload to this browser's directory whenever the tab is
+        // on screen with a mounted client (`sidebar_dir` in
+        // `dispatch_terminal/drop.rs`), so the hint states exactly what
+        // a release will do; without it the gesture looked unsupported
+        // (the report behind #167). Display only, never a gate.
+        let drop_hint = (self.os_drop_hover
+            && files.client.is_some()
+            && !files.path.is_empty())
+        .then(|| {
+            let accent = OryxisColors::t().accent;
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::upload().size(12).color(accent).into(),
+                    Space::new().width(6).into(),
+                    text(t("files_drop_hint")).size(11).color(accent).into(),
+                ])
+                .align_y(iced::Alignment::Center),
+            )
+            .padding(Padding { top: 6.0, right: 8.0, bottom: 6.0, left: 8.0 })
+            .width(Length::Fill)
+            .style(move |_| container::Style {
+                background: Some(Background::Color(Color { a: 0.08, ..accent })),
+                border: Border {
+                    radius: Radius::from(6.0),
+                    color: accent,
+                    width: 1.0,
+                },
+                ..Default::default()
+            })
+        });
+
         // A running transfer, pinned under the list so it is visible
         // without scrolling. The strip is the SAME one the dual-pane
         // surface draws, in its narrow form: two surfaces rendering one
         // transfer differently is how they start disagreeing about it.
         // Cancel is owner-routed, so it cancels THIS pane's transfer even
         // when another SFTP surface is the focused one.
-        let stack: Element<'_, Message> = match files.transfer.state.as_ref() {
-            Some(transfer) => {
-                let cancel = Message::SftpFor(
-                    pane_id,
-                    Box::new(SftpMessage::SftpCancelTransfer),
-                );
-                // Recorded LAST, which is where it is drawn: the sidebar
-                // ring walks in build order, so a slot registered out of
-                // place lands the cursor somewhere the eye is not.
-                let strip = self.sidebar_nav_slot(
-                    crate::keynav::SidebarRow::button(cancel.clone()),
-                    stab,
-                    0.0,
-                    crate::views::sftp::transfer_progress_strip(
-                        transfer,
-                        files
-                            .transfer
-                            .bytes_done
-                            .load(std::sync::atomic::Ordering::Relaxed),
-                        files.transfer.bytes_total,
-                        cancel,
-                        true,
-                    ),
-                );
-                column![header, body, strip]
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .into()
-            }
-            None => column![header, body]
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .into(),
-        };
+        let mut col = column![header].width(Length::Fill).height(Length::Fill);
+        if let Some(hint) = drop_hint {
+            col = col.push(container(hint).padding(Padding {
+                top: 0.0,
+                right: 8.0,
+                bottom: 4.0,
+                left: 8.0,
+            }));
+        }
+        col = col.push(body);
+        if let Some(transfer) = files.transfer.state.as_ref() {
+            let cancel = Message::SftpFor(
+                pane_id,
+                Box::new(SftpMessage::SftpCancelTransfer),
+            );
+            // Recorded LAST, which is where it is drawn: the sidebar
+            // ring walks in build order, so a slot registered out of
+            // place lands the cursor somewhere the eye is not.
+            let strip = self.sidebar_nav_slot(
+                crate::keynav::SidebarRow::button(cancel.clone()),
+                stab,
+                0.0,
+                crate::views::sftp::transfer_progress_strip(
+                    transfer,
+                    files
+                        .transfer
+                        .bytes_done
+                        .load(std::sync::atomic::Ordering::Relaxed),
+                    files.transfer.bytes_total,
+                    cancel,
+                    true,
+                ),
+            );
+            col = col.push(strip);
+        }
+        let stack: Element<'_, Message> = col.into();
         // Clicks on dead space blur the inline edits (owner ask: "blur
         // should exit the path input"). MouseArea only fires when no
         // child captured the press, so the inputs, rows and buttons all

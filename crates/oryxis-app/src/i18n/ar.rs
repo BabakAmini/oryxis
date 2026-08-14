@@ -1594,6 +1594,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "السؤال عن الوجهة في كل تنزيل",
         "files_mounting" => "جارٍ فتح SFTP…",
         "files_empty" => "مجلد فارغ",
+        "files_drop_hint" => "\u{623}\u{641}\u{644}\u{62a} \u{644}\u{644}\u{631}\u{641}\u{639} \u{625}\u{644}\u{649} \u{647}\u{630}\u{627} \u{627}\u{644}\u{645}\u{62c}\u{644}\u{62f}",
         "files_no_session" => "لا توجد جلسة SSH",
         "open" => "فتح",
         "copy_name" => "نسخ الاسم",

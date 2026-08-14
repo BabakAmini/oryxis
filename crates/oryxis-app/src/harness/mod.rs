@@ -359,6 +359,7 @@ fn parse(args: &[String]) -> Result<Parsed, String> {
 pub fn run<P>(program: P, options: Options) -> iced::Result
 where
     P: Program + 'static,
+    P::Message: OsEventMessages,
 {
     load_bundled_fonts();
 
@@ -412,6 +413,31 @@ enum RunOutcome {
     Closed,
     /// The line is not a valid `.ice` instruction.
     Parse(String),
+}
+
+/// App hook for harness commands that synthesize the messages the
+/// windowed shell would produce from OS events the emulator cannot
+/// receive. The emulator has no OS to drag files from, so the `drop`
+/// command enters the pipeline one step downstream, at the exact
+/// messages `subscription.rs` maps `window::Event::FileHovered` /
+/// `FilesHoveredLeft` / `FileDropped` to; everything from the dispatch
+/// on (routing, debounce, upload, the drop hint) runs for real.
+pub trait OsEventMessages: Sized {
+    fn file_hovered() -> Self;
+    fn files_hovered_left() -> Self;
+    fn file_dropped(path: PathBuf) -> Self;
+}
+
+impl OsEventMessages for crate::app::Message {
+    fn file_hovered() -> Self {
+        Self::Sftp(crate::app::SftpMessage::SftpFileHovered)
+    }
+    fn files_hovered_left() -> Self {
+        Self::Sftp(crate::app::SftpMessage::SftpFilesHoveredLeft)
+    }
+    fn file_dropped(path: PathBuf) -> Self {
+        Self::Sftp(crate::app::SftpMessage::SftpFileDropped(path))
+    }
 }
 
 /// One interactive session over a booted emulator, shared by the
@@ -553,6 +579,33 @@ where
             Pump::Failed(instruction) => RunOutcome::Failed(instruction),
             Pump::Closed => RunOutcome::Closed,
         }
+    }
+
+    /// Delivers a synthesized OS drag-and-drop message (issue #167):
+    /// `hover` / `leave` for the drag feedback, or a quoted path for
+    /// the drop itself (repeat for a multi-file gesture; the app's own
+    /// debounce coalesces them exactly as it does real drops). See
+    /// [`OsEventMessages`] for why this exists.
+    fn os_drop(&mut self, program: &P, rest: &str) -> Result<(), String>
+    where
+        P::Message: OsEventMessages,
+    {
+        let message = match rest.trim() {
+            "hover" => P::Message::file_hovered(),
+            "leave" => P::Message::files_hovered_left(),
+            raw => {
+                let path = parse_quoted(raw).ok_or_else(|| {
+                    "drop wants hover, leave or a quoted path: drop \"/tmp/x\"".to_string()
+                })?;
+                P::Message::file_dropped(PathBuf::from(path))
+            }
+        };
+        self.emulator.update(program, message);
+        // `update` emits no Ready; sweep whatever tasks it queued (the
+        // drop debounce, the upload stream) so they run before the
+        // driver's next command reads the outcome.
+        self.drain(program);
+        Ok(())
     }
 
     /// Records a harness line (`settle`, `wait`, `timeout`,

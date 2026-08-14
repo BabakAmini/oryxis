@@ -326,6 +326,7 @@ impl Oryxis {
                 tab_rename: None,
                 pending_paste: None,
                 pending_terminal_drops: Vec::new(),
+                os_drop_hover: false,
                 group_edit: crate::state::GroupEditForm::default(),
                 folder_delete: None,
                 pending_auto_connect,

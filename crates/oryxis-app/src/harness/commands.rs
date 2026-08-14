@@ -21,6 +21,7 @@ instructions: click [right] \"Text\"|#id|(x, y) / press / release / move <target
               press enter / release tab / expect \"Text\"
 harness:      screenshot [name] / texts / find \"Text\" / absent \"Text\" (assert)
               clipboard [primary] [\"text\"] / clipboard [primary] is \"text\" (assert)
+              drop hover|leave / drop \"/local/path\" (synthesized OS drag-and-drop)
               wait <ms> / settle [idle_ms] / timeout <ms> / save <path.ice>
               reset [wipe] / status / help / quit
 responses:    == ok | == fail <instr> | == timeout | == shot <path> | == error <..>";
@@ -44,6 +45,7 @@ pub(super) fn dispatch<P>(
 ) -> Control
 where
     P: Program + 'static,
+    P::Message: super::OsEventMessages,
 {
     let (head, rest) = match command.split_once(char::is_whitespace) {
         Some((head, rest)) => (head, rest.trim()),
@@ -149,6 +151,15 @@ where
                 out("ok".into());
             }
             Err(_) => out("error timeout wants milliseconds: timeout 30000".into()),
+        },
+        "drop" => match session.os_drop(program, rest) {
+            Ok(()) => {
+                // Part of a recorded flow like a clipboard seed: a drop
+                // test is meaningless without its gesture.
+                session.record(command);
+                out("ok".into());
+            }
+            Err(reason) => out(format!("error {reason}")),
         },
         "clipboard" => match session.clipboard_command(rest) {
             Ok(line) => {

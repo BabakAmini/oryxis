@@ -1506,6 +1506,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "ダウンロードのたびに保存先を確認する",
         "files_mounting" => "SFTP を開いています…",
         "files_empty" => "空のフォルダー",
+        "files_drop_hint" => "\u{30c9}\u{30ed}\u{30c3}\u{30d7}\u{3057}\u{3066}\u{3053}\u{306e}\u{30d5}\u{30a9}\u{30eb}\u{30c0}\u{30fc}\u{306b}\u{30a2}\u{30c3}\u{30d7}\u{30ed}\u{30fc}\u{30c9}",
         "files_no_session" => "SSH セッションなし",
         "open" => "開く",
         "copy_name" => "名前をコピー",

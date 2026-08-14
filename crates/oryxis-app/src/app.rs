@@ -506,6 +506,13 @@ pub struct Oryxis {
     /// batch. Flushed by `TerminalDropFlush` after a short debounce; the
     /// target pane is resolved once, at flush.
     pub(crate) pending_terminal_drops: Vec<std::path::PathBuf>,
+    /// True while the OS is dragging files over the window (issue #167).
+    /// Mirrors `sftp.drop_active` for the surfaces the SFTP flag does
+    /// not reach: the sidebar Files browser reads it to show its
+    /// drop-to-upload hint. Display only, exactly like `drop_active`;
+    /// the drop itself is never gated on it (a missed HoveredLeft would
+    /// kill real gestures).
+    pub(crate) os_drop_hover: bool,
     /// Manual host-group editor side panel (label + icon + color). Open
     /// when `group_edit_visible`; `group_edit_id` is the group being
     /// edited. `group_edit_icon` / `group_edit_color` are empty strings

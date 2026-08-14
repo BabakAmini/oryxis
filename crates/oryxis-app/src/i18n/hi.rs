@@ -1595,6 +1595,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "हर डाउनलोड पर गंतव्य पूछें",
         "files_mounting" => "SFTP खुल रहा है…",
         "files_empty" => "खाली फ़ोल्डर",
+        "files_drop_hint" => "\u{907}\u{938} \u{92b}\u{93c}\u{94b}\u{932}\u{94d}\u{921}\u{930} \u{92e}\u{947}\u{902} \u{905}\u{92a}\u{932}\u{94b}\u{921} \u{915}\u{930}\u{928}\u{947} \u{915}\u{947} \u{932}\u{93f}\u{90f} \u{91b}\u{94b}\u{921}\u{93c}\u{947}\u{902}",
         "files_no_session" => "कोई SSH सेशन नहीं",
         "open" => "खोलें",
         "copy_name" => "नाम कॉपी करें",

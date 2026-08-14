@@ -1595,6 +1595,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "לשאול על היעד בכל הורדה",
         "files_mounting" => "פותח SFTP…",
         "files_empty" => "תיקייה ריקה",
+        "files_drop_hint" => "\u{5e9}\u{5d7}\u{5e8}\u{5e8}\u{5d5} \u{5db}\u{5d3}\u{5d9} \u{5dc}\u{5d4}\u{5e2}\u{5dc}\u{5d5}\u{5ea} \u{5dc}\u{5ea}\u{5d9}\u{5e7}\u{5d9}\u{5d9}\u{5d4} \u{5d6}\u{5d5}",
         "files_no_session" => "אין סשן SSH",
         "open" => "פתיחה",
         "copy_name" => "העתקת שם",

@@ -173,12 +173,25 @@ impl Oryxis {
                 .handle_sftp_transfers(m)
                 // Transfers legitimately decline the whole group when no
                 // SFTP tab owns the continuation: quiet drop, EXCEPT the
-                // OS file drop, which then belongs to the terminal (#106).
+                // OS file drop, which then belongs to the terminal (#106),
+                // and its hover pair, which keeps the sidebar Files
+                // drop hint honest with no SFTP tab open (issue #167).
                 // With no SFTP tab open at all, the owner gate declines
                 // before the FileDropped arm can route it, so the
                 // fallback has to happen here.
                 .unwrap_or_else(|m| match m {
-                    SftpMessage::SftpFileDropped(path) => self.buffer_terminal_drop(path),
+                    SftpMessage::SftpFileDropped(path) => {
+                        self.os_drop_hover = false;
+                        self.buffer_terminal_drop(path)
+                    }
+                    SftpMessage::SftpFileHovered => {
+                        self.os_drop_hover = true;
+                        Task::none()
+                    }
+                    SftpMessage::SftpFilesHoveredLeft => {
+                        self.os_drop_hover = false;
+                        Task::none()
+                    }
                     _ => Task::none(),
                 }),
             m @ (SftpMessage::SftpStartEdit(..)

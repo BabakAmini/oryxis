@@ -1589,6 +1589,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "다운로드할 때마다 대상 묻기",
         "files_mounting" => "SFTP 여는 중…",
         "files_empty" => "빈 폴더",
+        "files_drop_hint" => "\u{b193}\u{c73c}\u{ba74} \u{c774} \u{d3f4}\u{b354}\u{c5d0} \u{c5c5}\u{b85c}\u{b4dc}\u{b429}\u{b2c8}\u{b2e4}",
         "files_no_session" => "SSH 세션 없음",
         "open" => "열기",
         "copy_name" => "이름 복사",

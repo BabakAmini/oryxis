@@ -1595,6 +1595,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Ptát se na cíl u každého stahování",
         "files_mounting" => "Otevírání SFTP…",
         "files_empty" => "Prázdná složka",
+        "files_drop_hint" => "Pus\u{165}te pro nahr\u{e1}n\u{ed} do t\u{e9}to slo\u{17e}ky",
         "files_no_session" => "Žádná SSH relace",
         "open" => "Otevřít",
         "copy_name" => "Kopírovat název",

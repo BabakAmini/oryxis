@@ -21,11 +21,17 @@ impl Oryxis {
         match message {
             SftpMessage::SftpFileHovered => {
                 self.sftp.drop_active = true;
+                // The window-wide mirror the sidebar Files hint reads
+                // (issue #167); `drop_active` only reaches the SFTP
+                // surface's own outline.
+                self.os_drop_hover = true;
             }
             SftpMessage::SftpFilesHoveredLeft => {
                 self.sftp.drop_active = false;
+                self.os_drop_hover = false;
             }
             SftpMessage::SftpFileDropped(path) => {
+                self.os_drop_hover = false;
                 // OS drops only land in a remote folder when the
                 // hovered row is on the remote pane AND a folder.
                 let target_folder = self

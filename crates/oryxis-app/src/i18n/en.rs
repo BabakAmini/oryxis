@@ -1596,6 +1596,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "setting_sftp_ask_download_dir_toggle" => "Ask for the destination on every download",
         "files_mounting" => "Opening SFTP…",
         "files_empty" => "Empty folder",
+        "files_drop_hint" => "Drop to upload to this folder",
         "files_no_session" => "No SSH session",
         "open" => "Open",
         "copy_name" => "Copy name",

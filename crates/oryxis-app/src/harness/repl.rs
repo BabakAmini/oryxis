@@ -16,6 +16,7 @@ use super::{Options, Pump, Session};
 pub(super) fn serve<P>(program: P, options: Options) -> iced::Result
 where
     P: Program + 'static,
+    P::Message: super::OsEventMessages,
 {
     let (mut session, boot) = Session::new(&program, &options);
     match boot {

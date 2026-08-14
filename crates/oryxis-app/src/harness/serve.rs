@@ -40,6 +40,7 @@ const CLIENT_READ_TIMEOUT: Duration = Duration::from_secs(30);
 pub(super) fn serve<P>(program: P, options: Options, port: u16) -> iced::Result
 where
     P: Program + 'static,
+    P::Message: super::OsEventMessages,
 {
     let addr = SocketAddr::from((Ipv4Addr::LOCALHOST, port));
     let listener = match TcpListener::bind(addr) {
@@ -95,6 +96,7 @@ fn handle_connection<P>(
 ) -> Control
 where
     P: Program + 'static,
+    P::Message: super::OsEventMessages,
 {
     let mut writer = match stream.try_clone() {
         Ok(writer) => writer,

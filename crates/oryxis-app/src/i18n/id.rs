@@ -1589,6 +1589,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "setting_sftp_ask_download_dir_toggle" => "Tanyakan tujuan pada setiap unduhan",
         "files_mounting" => "Membuka SFTP…",
         "files_empty" => "Folder kosong",
+        "files_drop_hint" => "Lepaskan untuk mengunggah ke folder ini",
         "files_no_session" => "Tidak ada sesi SSH",
         "open" => "Buka",
         "copy_name" => "Salin nama",
