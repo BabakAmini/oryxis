@@ -76,16 +76,14 @@ impl Oryxis {
             self.sync.folder.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
             return Task::none();
         }
-        let secret = match oryxis_vault::derive_sync_secret(&self.sync.folder.passphrase) {
-            Ok(s) => s,
-            Err(e) => {
-                self.sync.folder.status = Some(Err(e.to_string()));
-                return Task::none();
-            }
-        };
+        // Argon2id derivation (~0.4 s) runs inside the blocking task,
+        // not on the UI thread (same reason as the Git transport).
+        let passphrase = self.sync.folder.passphrase.clone();
         let Some(vault) = &self.vault else {
             return Task::none();
         };
+        // Argon2id derivation (~0.4 s) runs inside the blocking task,
+        // not on the UI thread (same reason as the Git transport).
         let db_path = vault.db_path().to_path_buf();
         let master_password = self.master_password.clone();
 
@@ -116,6 +114,8 @@ impl Oryxis {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    let secret = oryxis_vault::derive_sync_secret(&passphrase)
+                        .map_err(|e| e.to_string())?;
                     folder_round(&input, &db_path, master_password, &secret, &device_tag)
                 })
                 .await

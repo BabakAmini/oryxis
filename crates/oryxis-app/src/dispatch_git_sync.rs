@@ -98,6 +98,15 @@ fn git(dir: Option<&Path>, args: &[&str]) -> Result<String, String> {
             "GIT_SSH_COMMAND",
             "ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new",
         );
+    // CREATE_NO_WINDOW (0x0800_0000): this binary is GUI-subsystem, so
+    // every `git` spawn would otherwise pop a visible console window
+    // over the app (same guard wsl.exe / the plugin hosts / the
+    // updater use). One flag keeps a whole round from flashing.
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt as _;
+        cmd.creation_flags(0x0800_0000);
+    }
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
@@ -117,6 +126,19 @@ fn git(dir: Option<&Path>, args: &[&str]) -> Result<String, String> {
 /// user is still looking at the setting.
 pub(crate) fn git_available() -> bool {
     git(None, &["--version"]).is_ok()
+}
+
+/// Re-check `git_available` on a worker thread and cache the answer in
+/// `GitSyncForm::git_available`.
+///
+/// The probe must never run inside `view()`: it spawns a subprocess,
+/// so a per-render call blocks the UI thread and (on Windows) flashes
+/// a console window every frame. Boot, a transport switch and each
+/// finished round refresh the cache instead.
+pub(crate) fn git_availability_task() -> Task<Message> {
+    Task::perform(async move { git_available() }, |available| {
+        Message::Sync(SyncMessage::GitAvailabilityChecked(available))
+    })
 }
 
 impl Oryxis {
@@ -139,13 +161,11 @@ impl Oryxis {
             self.sync.git.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
             return Task::none();
         }
-        let secret = match oryxis_vault::derive_sync_secret(&self.sync.git.passphrase) {
-            Ok(s) => s,
-            Err(e) => {
-                self.sync.git.status = Some(Err(e.to_string()));
-                return Task::none();
-            }
-        };
+        // The Argon2id derivation (~0.4 s) runs inside the blocking
+        // task, not on the UI thread: it used to freeze the app for
+        // every "Sync now" click (the stall watchdog logged GitSyncNow
+        // at ~370 ms per round).
+        let passphrase = self.sync.git.passphrase.clone();
         let Some(vault) = &self.vault else {
             return Task::none();
         };
@@ -158,6 +178,8 @@ impl Oryxis {
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
+                    let secret =
+                        oryxis_vault::derive_sync_secret(&passphrase).map_err(|e| e.to_string())?;
                     git_round(&remote, &db_path, master_password, &secret, &device)
                 })
                 .await
@@ -239,6 +261,17 @@ fn git_round(
     let branch = current_branch(&dir)?;
     let snapshot_path = dir.join(SNAPSHOT_NAME);
 
+    // Unlocked ONCE, outside the retry loop, like the WebDAV round: the
+    // unlock is an Argon2id derivation tuned to take about a second, and
+    // a rejected push is a reason to re-merge, never a reason to
+    // re-derive the key.
+    let mut vault = VaultStore::open(db_path).map_err(|e| e.to_string())?;
+    match master_password.as_deref() {
+        Some(pw) => vault.unlock(pw).map_err(|e| e.to_string())?,
+        None => vault.open_without_password().map_err(|e| e.to_string())?,
+    }
+    let vault = Arc::new(Mutex::new(vault));
+
     let mut last_err = String::new();
     for attempt in 0..PUSH_ATTEMPTS {
         // Start from whatever the remote has. `reset --hard` is safe
@@ -252,13 +285,6 @@ fn git_round(
         }
         // An empty repository (no commits yet) simply has nothing to
         // merge; the first push creates the branch.
-
-        let mut vault = VaultStore::open(db_path).map_err(|e| e.to_string())?;
-        match master_password.as_deref() {
-            Some(pw) => vault.unlock(pw).map_err(|e| e.to_string())?,
-            None => vault.open_without_password().map_err(|e| e.to_string())?,
-        }
-        let vault = Arc::new(Mutex::new(vault));
 
         let mut pulled = 0usize;
         if snapshot_path.is_file() {

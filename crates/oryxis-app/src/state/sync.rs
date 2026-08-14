@@ -43,6 +43,14 @@ pub(crate) struct SyncState {
     /// Live P2P sync engine, present only while sync is enabled. Holds a
     /// dedicated vault handle plus the QUIC / mDNS background tasks.
     pub(crate) runtime: Option<SyncRuntime>,
+    /// One-shot receiver for an in-flight off-thread engine spawn.
+    /// `Some` only between `start_sync_engine()` firing the task and
+    /// the `SyncMessage::EngineSpawned` landing. `stop_sync_engine`
+    /// drops it to abandon a spawn whose engine is still coming up
+    /// (the task's `send` then fails and the fresh runtime drops,
+    /// stopping the engine's background tasks).
+    pub(crate) pending_engine:
+        Option<oneshot::Receiver<crate::sync_runtime::EngineSpawnResult>>,
     /// Mirrors `runtime.is_some()` for cheap UI checks.
     pub(crate) engine_running: bool,
     /// Transient device-pairing UI (hosted code / link, join inputs, and which
@@ -185,6 +193,7 @@ impl Default for SyncState {
             peers: Vec::new(),
             status: None,
             runtime: None,
+            pending_engine: None,
             engine_running: false,
             pairing: SyncPairingForm::default(),
             discovered: Vec::new(),

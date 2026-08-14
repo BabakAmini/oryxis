@@ -108,16 +108,14 @@ impl Oryxis {
             self.sync.webdav.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
             return Task::none();
         }
-        let secret = match oryxis_vault::derive_sync_secret(&self.sync.webdav.passphrase) {
-            Ok(s) => s,
-            Err(e) => {
-                self.sync.webdav.status = Some(Err(e.to_string()));
-                return Task::none();
-            }
-        };
+        // Argon2id derivation (~0.4 s) runs on a worker thread, not on
+        // the UI thread (same reason as the Git transport).
+        let passphrase = self.sync.webdav.passphrase.clone();
         let Some(vault) = &self.vault else {
             return Task::none();
         };
+        // Argon2id derivation (~0.4 s) runs on a worker thread, not on
+        // the UI thread (same reason as the Git transport).
         let db_path = vault.db_path().to_path_buf();
         let master_password = self.master_password.clone();
         let auth = Auth {
@@ -128,7 +126,14 @@ impl Oryxis {
         self.sync.webdav.in_progress = true;
         self.sync.webdav.status = None;
         Task::perform(
-            async move { webdav_round(&url, &auth, &db_path, master_password, &secret).await },
+            async move {
+                let secret = tokio::task::spawn_blocking(move || {
+                    oryxis_vault::derive_sync_secret(&passphrase).map_err(|e| e.to_string())
+                })
+                .await
+                .unwrap_or_else(|e| Err(format!("join: {e}")))?;
+                webdav_round(&url, &auth, &db_path, master_password, &secret).await
+            },
             |result| Message::Sync(SyncMessage::WebdavRoundFinished(result)),
         )
     }

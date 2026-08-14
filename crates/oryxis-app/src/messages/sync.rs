@@ -48,6 +48,11 @@ pub enum SyncMessage {
     GitPassphraseChanged(super::Redacted),
     /// "Sync now" for the Git transport.
     GitSyncNow,
+    /// Result of the off-thread `git --version` probe, cached in
+    /// `GitSyncForm::git_available` for the card. The probe used to run
+    /// inside `view()`, which froze the UI and flashed a console window
+    /// per render on Windows.
+    GitAvailabilityChecked(bool),
     ToggleEnabled,
     TogglePasswords,
     ModeChanged(String),
@@ -78,6 +83,11 @@ pub enum SyncMessage {
     /// sync completed, pairing progress, ...), pumped in from the
     /// engine's event channel via `Task::stream`.
     EngineEvent(oryxis_sync::SyncEvent),
+    /// The off-thread engine spawn (`start_sync_engine`) finished; its
+    /// outcome is waiting in `SyncState::pending_engine`. The runtime
+    /// and its event receiver aren't Clone, so they cross the task
+    /// boundary through a oneshot instead of a message payload.
+    EngineSpawned,
     /// Stop hosting the pairing code and return to the idle pairing view.
     CancelHostingPairing,
     /// Switch the pairing panel into "join with a code" mode.
@@ -104,9 +114,11 @@ pub enum SyncMessage {
     /// task is racing against; the task lands back as
     /// `SyncNowFinished(Err("Cancelled"))` and clears the flags.
     CancelInProgress,
-    /// Switch the sync transport between `"p2p"` and `"sftp"`. Persists
-    /// the setting, stops the P2P engine when leaving `p2p`, and starts
-    /// it when returning.
+    /// Switch the sync transport ("p2p", "sftp", "folder", "git",
+    /// "webdav"). Persists the setting, stops the P2P engine when
+    /// leaving `p2p`, and starts it when returning. Entering `git` also
+    /// re-probes `git` availability off the UI thread (see
+    /// `dispatch_git_sync::git_availability_task`).
     TransportChanged(String),
     /// Pick the host the SFTP-sync snapshot file lives on (also closes
     /// the picker modal).

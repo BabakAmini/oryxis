@@ -433,12 +433,18 @@ impl Oryxis {
     /// Git-transport config: the remote, the group passphrase, and the
     /// one requirement this transport has that no other does.
     ///
-    /// The `git` check runs here rather than at the first sync, so a
-    /// machine without it says so while the user is still choosing,
-    /// instead of after they have typed a URL and pressed a button.
+    /// The `git` check used to run here (in `view()`) so a machine
+    /// without it said so while the user was still choosing. That froze
+    /// the UI and flashed a console window per render on Windows (a
+    /// subprocess spawn on the UI thread). It now runs as a task
+    /// (`GitAvailabilityChecked`) at boot, on transport switch and after
+    /// each round; this card only reads the cached result.
     fn sync_git_card(&self) -> Element<'_, Message> {
         let busy = self.sync.git.in_progress;
-        let has_git = crate::dispatch_git_sync::git_available();
+        // `None` = probe in flight: the button waits a moment rather
+        // than guessing, and no warning is shown until the probe
+        // answers.
+        let has_git = self.sync.git.git_available.unwrap_or(false);
         let mut col = column![
             text(t("git_sync_desc"))
                 .size(11)
@@ -446,7 +452,7 @@ impl Oryxis {
             Space::new().height(10),
         ];
 
-        if !has_git {
+        if self.sync.git.git_available == Some(false) {
             col = col
                 .push(
                     text(t("git_sync_no_git"))

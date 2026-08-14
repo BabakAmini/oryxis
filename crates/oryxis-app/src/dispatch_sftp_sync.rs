@@ -80,21 +80,18 @@ impl Oryxis {
             self.sync.sftp.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
             return Task::none();
         }
-        let secret = match oryxis_vault::derive_sync_secret(&self.sync.sftp.passphrase) {
-            Ok(s) => s,
-            Err(e) => {
-                self.sync.sftp.status = Some(Err(e.to_string()));
-                return Task::none();
-            }
+        // Argon2id derivation (~0.4 s) runs on a worker thread inside
+        // the task, not on the UI thread (same reason as the Git
+        // transport).
+        let passphrase = self.sync.sftp.passphrase.clone();
+        let Some(vault) = &self.vault else {
+            return Task::none();
         };
 
         // Round-scoped dedicated vault handle: the snapshot fns need an
         // `Arc<Mutex<VaultStore>>` but the app holds a plain handle. Same
         // pattern as `sync_runtime`; opened inside the task on the same
         // SQLite file (WAL makes concurrent handles safe).
-        let Some(vault) = &self.vault else {
-            return Task::none();
-        };
         let db_path = vault.db_path().to_path_buf();
         let master_password = self.master_password.clone();
 
@@ -156,6 +153,14 @@ impl Oryxis {
 
         Task::perform(
             async move {
+                // The group-secret derivation first: Argon2id, off the
+                // UI thread (it used to run synchronously in the
+                // handler, freezing the app for every round).
+                let secret = tokio::task::spawn_blocking(move || {
+                    oryxis_vault::derive_sync_secret(&passphrase).map_err(|e| e.to_string())
+                })
+                .await
+                .unwrap_or_else(|e| Err(format!("join: {e}")))?;
                 // 1. Obtain an SFTP client: reuse an open session, else a
                 //    fresh SFTP-only connect with a STRICT host-key check
                 //    (no ask channel -> the engine rejects unknown/changed

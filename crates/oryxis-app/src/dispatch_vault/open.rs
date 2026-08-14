@@ -131,6 +131,14 @@ impl Oryxis {
                             // vault (and its credentials) is open.
                             let mut unlock_tasks = vec![sync_task];
                             unlock_tasks.extend(self.auto_start_port_forwards());
+                            // The git card's availability probe spawns a
+                            // subprocess, so it runs as a task (never in
+                            // `view()`). Same probe the boot path and
+                            // `TransportChanged` fire.
+                            if self.sync.transport == "git" {
+                                unlock_tasks
+                                    .push(crate::dispatch_git_sync::git_availability_task());
+                            }
                             // Plugin migrate-install + auto-update: for a
                             // password vault these are deferred from boot
                             // to here, now that the plugin rows are loaded

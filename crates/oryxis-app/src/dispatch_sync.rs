@@ -396,7 +396,40 @@ impl Oryxis {
                 // clears it there, so the Cancel button stays visible
                 // until the cancellation actually settles.
             }
+            SyncMessage::EngineSpawned => {
+                let Some(mut rx) = self.sync.pending_engine.take() else {
+                    // `stop_sync_engine` abandoned the spawn: its oneshot
+                    // receiver disappeared, the task's `send` failed and
+                    // the fresh runtime dropped (stopping the engine's
+                    // background tasks). Nothing to adopt.
+                    return Task::none();
+                };
+                match rx.try_recv() {
+                    Ok(Ok((runtime, event_rx))) => {
+                        self.sync.runtime = Some(runtime);
+                        self.sync.engine_running = true;
+                        self.sync.status = Some(crate::i18n::t("sync_status_running").to_string());
+                        let stream = tokio_stream::wrappers::UnboundedReceiverStream::new(event_rx);
+                        return Task::stream(stream)
+                            .map(|v| Message::Sync(SyncMessage::EngineEvent(v)));
+                    }
+                    Ok(Err(e)) => {
+                        self.sync.engine_running = false;
+                        self.sync.status =
+                            Some(format!("{}: {e}", crate::i18n::t("sync_status_failed"),));
+                        tracing::warn!("sync engine failed to start: {e}");
+                        return Task::none();
+                    }
+                    Err(_) => {
+                        // The spawn task panicked before sending; there
+                        // is nothing to adopt and `engine_running` was
+                        // never set.
+                        return Task::none();
+                    }
+                }
+            }
             SyncMessage::TransportChanged(v) => {
+                let mut tasks = Vec::new();
                 if v != self.sync.transport {
                     // Leaving P2P: tear the engine down so QUIC/mDNS stop.
                     // Entering P2P (and enabled): bring it up.
@@ -417,9 +450,24 @@ impl Oryxis {
                     if !self.sync_uses_p2p() {
                         self.stop_sync_engine();
                     } else if self.sync.enabled {
-                        return self.start_sync_engine();
+                        tasks.push(self.start_sync_engine());
                     }
                 }
+                // The git card's availability probe is a subprocess
+                // spawn: run it off the UI thread (see
+                // `dispatch_git_sync::git_availability_task`), whenever
+                // the git card can be on screen.
+                if self.sync.transport == "git" {
+                    tasks.push(crate::dispatch_git_sync::git_availability_task());
+                }
+                return if tasks.is_empty() {
+                    Task::none()
+                } else {
+                    Task::batch(tasks)
+                };
+            }
+            SyncMessage::GitAvailabilityChecked(available) => {
+                self.sync.git.git_available = Some(available);
             }
             SyncMessage::SftpHostChanged(id) => {
                 self.sync.sftp.host_id = Some(id);
@@ -502,6 +550,10 @@ impl Oryxis {
             SyncMessage::GitRoundFinished(result) => {
                 self.sync.git.in_progress = false;
                 if result.is_ok() {
+                    // A completed round proves `git` is on PATH; keep
+                    // the card's cached probe current without re-spawning
+                    // on every frame.
+                    self.sync.git.git_available = Some(true);
                     // The round merged on its OWN `VaultStore` handle,
                     // so every in-memory list is stale: whatever it
                     // pulled is on disk and invisible until this

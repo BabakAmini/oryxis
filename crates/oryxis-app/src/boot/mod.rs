@@ -663,6 +663,13 @@ impl Oryxis {
         {
             tasks.push(app.start_sync_engine());
         }
+        // The git card's availability probe spawns a subprocess, so it
+        // runs as a task rather than inside `view()`. Fire it whenever
+        // the git transport can be on screen (also done on `VaultUnlock`
+        // and on `TransportChanged`).
+        if app.vault_ui.state == VaultState::Unlocked && app.sync.transport == "git" {
+            tasks.push(crate::dispatch_git_sync::git_availability_task());
+        }
 
         // Auto-start port forward rules marked `auto_start`. Deferred to
         // `VaultUnlock` when the vault is locked, same as sync / --connect.
