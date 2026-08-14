@@ -1,4 +1,4 @@
-viewport: 1400x2200
+viewport: 1400x2600
 mode: Zen
 -----
 # The shell-integration key (Settings > Terminal). Command history's
@@ -47,13 +47,15 @@ settle
 # label is a label). The coordinate is deterministic because this file
 # declares its own viewport, and if a row is ever inserted above this
 # one the failure is the explicit `absent` below rather than a silent
-# pass. It has caught that five times already: 1784 -> 1830 when the
+# pass. It has caught that six times already: 1784 -> 1830 when the
 # #117 password-autofill row joined the section above, 1830 -> 1858 when
 # the #109 font-pack hint line landed under the font picker, 1858 ->
 # 1927 when the background-opacity row joined Appearance, 1927 -> 1991
 # when the background-image row joined it, 1991 -> 2091 when the
-# highlight-rules block landed after Appearance.
-click (1340, 2091)
+# highlight-rules block landed after Appearance, 2091 -> 2276 when the
+# font-weight and text-thickness rows joined the font block (which also
+# pushed the copy row past the old 2200 viewport).
+click (1340, 2276)
 settle
 absent "Copy shell integration snippet"
 absent "Rotate key"
