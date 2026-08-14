@@ -49,3 +49,25 @@ type enter
 settle
 absent "Set Password"
 expect "Export Vault"
+# Tab must land ON an input row with the ring IDLE (the search-zone
+# invariant): from the Port field, Tab walks to the adjacent Keepalive
+# input with real iced focus and no ring. If the row were ringed on top
+# of the focus, the arrows below would walk the ring up to the "New
+# connection defaults" header row and Enter would collapse the card,
+# hiding the row the final expect needs. Sidebar click by coordinates:
+# the Security section still on screen shows "Connection history",
+# which a substring text selector for "Connection" could hit.
+click (59, 201)
+settle
+expect "Keepalive (override)"
+click #set-connection-default-port
+settle
+type tab
+settle
+type up
+type up
+type up
+settle
+type enter
+settle
+expect "Keepalive (override)"

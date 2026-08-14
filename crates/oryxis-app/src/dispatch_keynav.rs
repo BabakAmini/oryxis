@@ -984,10 +984,22 @@ impl Oryxis {
         let Some(action) = action else {
             return Task::none();
         };
-        self.keynav.focus = Some((FocusZone::Content, NavItem::SettingsRow(next)));
+        // The search-zone invariant (`keynav_activate_content`): a
+        // focused input row means ring IDLE, so the field owns every
+        // non-Tab key and the next Tab re-enters through the
+        // `find_focused` resolution. Ringing the row on top of the
+        // focus would hand arrows back to `keynav_move` (the ring
+        // walks away and scrolls mid-typing, the exact symptom this
+        // fix removes) and Space / Enter to `keynav_activate`.
         let step = match action.focus {
-            Some(id) => crate::widgets::focus_input(id),
-            None => blur_task(),
+            Some(id) => {
+                self.keynav.focus = None;
+                crate::widgets::focus_input(id)
+            }
+            None => {
+                self.keynav.focus = Some((FocusZone::Content, NavItem::SettingsRow(next)));
+                blur_task()
+            }
         };
         Task::batch([step, self.keynav_scroll_content_to(NavItem::SettingsRow(next))])
     }
