@@ -761,11 +761,17 @@ impl Oryxis {
                         // the stock Debian/Ubuntu/Fedora PS1 titles the
                         // window `\u@\h: \w`, so the title carries the cwd
                         // (possibly `~`-relative; the sidebar Files browser
-                        // expands it against the session home). Only for
-                        // remote panes, and only until a real OSC 7 shows
-                        // up, which is exact and takes over for good.
+                        // expands it against the session home). For remote
+                        // panes and local shells alike (the local browser
+                        // follows it too, issue #145), and only until a
+                        // real OSC 7 shows up, which is exact and takes
+                        // over for good.
                         if !pane.cwd_from_osc7
-                            && pane.session.as_ref().and_then(|s| s.ssh()).is_some()
+                            && (pane.session.as_ref().and_then(|s| s.ssh()).is_some()
+                                || matches!(
+                                    pane.origin,
+                                    crate::state::PaneOrigin::Local(_)
+                                ))
                             && let Some(dir) = crate::dispatch_sidebar_files::title_cwd(trimmed)
                             && pane.cwd.as_deref() != Some(dir)
                         {

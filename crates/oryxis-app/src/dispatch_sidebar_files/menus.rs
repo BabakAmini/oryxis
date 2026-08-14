@@ -42,7 +42,11 @@ impl Oryxis {
                 let Some(pane) = self.active_pane_mut() else {
                     return Task::none();
                 };
-                let Some(client) = pane.files.client.clone() else {
+                // Properties applies chmod through the raw SFTP
+                // channel; the local browser's menu never offers it
+                // (issue #145).
+                let Some(client) = pane.files.client.as_ref().and_then(|c| c.sftp().cloned())
+                else {
                     return Task::none();
                 };
                 let stat_client = client.clone();

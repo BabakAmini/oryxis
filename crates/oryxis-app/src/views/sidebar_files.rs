@@ -31,9 +31,13 @@ impl Oryxis {
         // pane id: another SFTP surface may be the focused owner.
         let pane_id = pane.id;
 
-        // Disconnected mid-view (the tab button hides on the next
-        // frame; this covers the one where it hasn't yet).
-        if pane.session.as_ref().and_then(|s| s.ssh()).is_none() {
+        // A local shell browses the app's own filesystem (issue #145);
+        // everything else needs the SSH transport. Disconnected
+        // mid-view (the tab button hides on the next frame; this
+        // covers the one where it hasn't yet).
+        let is_local_pane = pane.session.is_none()
+            && matches!(pane.origin, crate::state::PaneOrigin::Local(_));
+        if !is_local_pane && pane.session.as_ref().and_then(|s| s.ssh()).is_none() {
             return sidebar_placeholder(t("files_no_session"));
         }
 
@@ -169,21 +173,28 @@ impl Oryxis {
                     t("refresh"),
                 ),
             );
-            let expand_btn = self.sidebar_nav_slot(
-                crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand)),
-                stab,
-                6.0,
-                action_btn(
-                    iced_fonts::lucide::folder_tree(),
-                    Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand),
-                    t("open_sftp_session_here"),
-                ),
-            );
+            // No dual-pane SFTP surface exists for a local shell, so
+            // the promote affordance hides there (issue #145).
+            let expand_btn = (!is_local_pane).then(|| {
+                self.sidebar_nav_slot(
+                    crate::keynav::SidebarRow::button(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand)),
+                    stab,
+                    6.0,
+                    action_btn(
+                        iced_fonts::lucide::folder_tree(),
+                        Message::SidebarFiles(SidebarFilesMessage::SidebarFilesExpand),
+                        t("open_sftp_session_here"),
+                    ),
+                )
+            });
             let mut cells = vec![path_el, Space::new().width(4).into()];
             if let Some(arrow) = history_arrow {
                 cells.push(arrow);
             }
-            cells.extend([pin_btn, hidden_btn, refresh_btn, expand_btn]);
+            cells.extend([pin_btn, hidden_btn, refresh_btn]);
+            if let Some(btn) = expand_btn {
+                cells.push(btn);
+            }
             cells
         };
         let header = container(

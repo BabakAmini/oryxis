@@ -41,6 +41,25 @@ fn sort_entries(entries: &mut [oryxis_ssh::SftpEntry]) {
 
 /// Parent of an absolute POSIX path, `None` at the root.
 pub(crate) fn files_parent_dir(path: &str) -> Option<String> {
+    // Windows-style local path (issue #145): `C:\Users\x` parents to
+    // `C:\Users`, and a drive root has no parent. Detected per path,
+    // because the browser only ever sees a `\` path when it is showing
+    // a Windows filesystem.
+    if is_windows_path(path) {
+        let trimmed = path.trim_end_matches(['\\', '/']);
+        // "C:" (a bare drive) has nothing above it.
+        if trimmed.len() <= 2 {
+            return None;
+        }
+        let idx = trimmed.rfind(['\\', '/'])?;
+        return Some(if idx <= 2 {
+            // Direct child of the drive root: keep the trailing
+            // separator (`C:\`), which is what listing expects.
+            format!("{}\\", &trimmed[..2])
+        } else {
+            trimmed[..idx].to_string()
+        });
+    }
     let trimmed = path.trim_end_matches('/');
     if trimmed.is_empty() {
         return None;
@@ -51,11 +70,30 @@ pub(crate) fn files_parent_dir(path: &str) -> Option<String> {
 
 /// Join an entry name onto the browser's current directory.
 pub(crate) fn files_join(path: &str, name: &str) -> String {
+    if is_windows_path(path) {
+        return format!("{}\\{name}", path.trim_end_matches(['\\', '/']));
+    }
     if path == "/" {
         format!("/{name}")
     } else {
         format!("{}/{name}", path.trim_end_matches('/'))
     }
+}
+
+/// The final path component, whichever separator family the path uses.
+pub(crate) fn files_basename(path: &str) -> String {
+    path.rsplit(['/', '\\'])
+        .find(|s| !s.is_empty())
+        .unwrap_or(path)
+        .to_string()
+}
+
+/// A `C:\...` / `\\server\share` shape, i.e. a Windows filesystem path
+/// the local browser can show. Remote SFTP paths are always POSIX, so
+/// this never misfires on them.
+fn is_windows_path(path: &str) -> bool {
+    let b = path.as_bytes();
+    (b.len() >= 2 && b[1] == b':' && b[0].is_ascii_alphabetic()) || path.starts_with("\\\\")
 }
 
 /// Working-directory fallback for shells without OSC 7 integration:
@@ -222,6 +260,21 @@ impl Oryxis {
 
     /// The active tab's focused pane, mutably. `None` outside a
     /// terminal tab.
+    /// Whether the ACTIVE pane's Files browser shows the local
+    /// filesystem (issue #145): its mounted backend says so, or (pre-
+    /// mount) the pane is a local shell. Read by the menu builders to
+    /// swap the transfer-shaped items for OS ones.
+    pub(crate) fn sidebar_files_is_local(&self) -> bool {
+        self.active_tab
+            .and_then(|i| self.tabs.get(i))
+            .map(|t| t.active())
+            .is_some_and(|p| {
+                p.files.client.as_ref().is_some_and(|c| c.is_local())
+                    || (p.session.is_none()
+                        && matches!(p.origin, crate::state::PaneOrigin::Local(_)))
+            })
+    }
+
     pub(crate) fn active_pane_mut(&mut self) -> Option<&mut crate::state::Pane> {
         let idx = self.active_tab?;
         Some(self.tabs.get_mut(idx)?.active_mut())
@@ -250,16 +303,24 @@ impl Oryxis {
         let Some(pane) = self.active_pane_mut() else {
             return Task::none();
         };
-        let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh()).cloned() else {
-            return Task::none();
-        };
-        if !ssh.is_alive() {
-            return Task::none();
+        // A local shell browses the app's own filesystem (issue #145);
+        // everything else needs the live SSH transport.
+        let is_local = pane.session.is_none()
+            && matches!(pane.origin, crate::state::PaneOrigin::Local(_));
+        let ssh = pane.session.as_ref().and_then(|s| s.ssh()).cloned();
+        if !is_local {
+            let Some(ssh) = ssh.as_ref() else {
+                return Task::none();
+            };
+            if !ssh.is_alive() {
+                return Task::none();
+            }
         }
         let pane_id = pane.id;
 
-        // Not mounted yet: open the channel and land on the shell's cwd
-        // (when following) or the home directory.
+        // Not mounted yet: open the channel (or, locally, resolve the
+        // home) and land on the shell's cwd (when following) or the
+        // home directory.
         if pane.files.client.is_none() {
             if pane.files.mounting {
                 return Task::none();
@@ -269,13 +330,62 @@ impl Oryxis {
             // The pre-mount hint can only use an absolute cwd (a
             // `~`-relative title fallback has no home to expand against
             // yet; the mount lands on the home anyway and the post-mount
-            // chase in SidebarFilesMounted finishes the job).
+            // chase in SidebarFilesMounted finishes the job). A local
+            // shell's cwd is a native path, absolute as reported.
             let hint = if pane.files.follow() {
-                pane.cwd.as_deref().and_then(|c| expand_cwd(c, None))
+                if is_local {
+                    pane.cwd
+                        .clone()
+                        .filter(|c| std::path::Path::new(c).is_absolute())
+                } else {
+                    pane.cwd.as_deref().and_then(|c| expand_cwd(c, None))
+                }
             } else {
                 None
             };
             let seq = pane.files.next_req();
+            if is_local {
+                return Task::perform(
+                    async move {
+                        let fs = crate::local_files::LocalFs;
+                        let home = dirs::home_dir()
+                            .map(|h| h.to_string_lossy().into_owned());
+                        // Land on the hinted cwd when it lists, home
+                        // otherwise; a machine with neither answers
+                        // with the real error.
+                        let mut start = hint
+                            .or_else(|| home.clone())
+                            .unwrap_or_else(|| "/".to_string());
+                        start = fs.canonicalize(&start).await.unwrap_or(start);
+                        let entries = match fs.list_dir(&start).await {
+                            Ok(e) => e,
+                            Err(first_err) => match home
+                                .as_deref()
+                                .filter(|h| **h != *start)
+                            {
+                                Some(h) => {
+                                    start = h.to_string();
+                                    fs.list_dir(h).await.map_err(|e| e.to_string())?
+                                }
+                                None => return Err(first_err.to_string()),
+                            },
+                        };
+                        Ok::<_, String>((
+                            crate::local_files::FilesClient::Local(fs),
+                            home,
+                            start,
+                            entries,
+                        ))
+                    },
+                    move |result| match result {
+                        Ok((client, home, path, entries)) => {
+                            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesMounted(pane_id, seq, client, home, path, entries))
+                        }
+                        Err(e) => Message::SidebarFiles(SidebarFilesMessage::SidebarFilesError(pane_id, seq, e)),
+                    },
+                );
+            }
+            let ssh = ssh.expect("checked above");
             return Task::perform(
                 async move {
                     let client = ssh.open_sftp().await.map_err(|e| e.to_string())?;
@@ -284,7 +394,12 @@ impl Oryxis {
                     let home = client.canonicalize(".").await.ok();
                     let (path, entries) =
                         crate::dispatch_sftp::initial_remote_listing(&client, hint).await?;
-                    Ok::<_, String>((client, home, path, entries))
+                    Ok::<_, String>((
+                        crate::local_files::FilesClient::Sftp(client),
+                        home,
+                        path,
+                        entries,
+                    ))
                 },
                 move |result| match result {
                     Ok((client, home, path, entries)) => {
@@ -295,13 +410,21 @@ impl Oryxis {
             );
         }
 
-        // Mounted: follow the shell if it moved.
+        // Mounted: follow the shell if it moved. A local shell's cwd is
+        // a native absolute path (`expand_cwd` only speaks POSIX, which
+        // would refuse a `C:\` path on a Windows local shell).
         if pane.files.follow()
             && !pane.files.loading
-            && let Some(cwd) = pane
-                .cwd
-                .as_deref()
-                .and_then(|c| expand_cwd(c, pane.files.home.as_deref()))
+            && let Some(cwd) = pane.cwd.as_deref().and_then(|c| {
+                if is_local {
+                    std::path::Path::new(c)
+                        .is_absolute()
+                        .then(|| c.to_string())
+                        .or_else(|| expand_cwd(c, pane.files.home.as_deref()))
+                } else {
+                    expand_cwd(c, pane.files.home.as_deref())
+                }
+            })
             && cwd != pane.files.path
         {
             let client = pane.files.client.clone().expect("checked above");
@@ -317,7 +440,7 @@ impl Oryxis {
 /// directory, all on the sidebar browser's channel; the completion
 /// carries the request stamp like any listing.
 fn op_then_list(
-    client: oryxis_ssh::SftpClient,
+    client: crate::local_files::FilesClient,
     list_path: String,
     pane_id: Uuid,
     seq: u64,
@@ -346,7 +469,7 @@ fn op_then_list(
 /// than riding `SidebarFilesRefresh`, whose "active pane" can have
 /// changed during a long upload.
 pub(crate) fn list_dir_task(
-    client: oryxis_ssh::SftpClient,
+    client: crate::local_files::FilesClient,
     path: String,
     pane_id: Uuid,
     seq: u64,
@@ -415,5 +538,27 @@ mod tests {
         assert_eq!(files_parent_dir("/etc").as_deref(), Some("/"));
         assert_eq!(files_parent_dir("/var/www/html").as_deref(), Some("/var/www"));
         assert_eq!(files_parent_dir("/"), None);
+    }
+
+    #[test]
+    fn files_helpers_speak_windows_for_the_local_browser() {
+        // Issue #145: a local shell on Windows browses `C:\` paths with
+        // the same helpers the POSIX paths use.
+        assert_eq!(files_join(r"C:\Users", "wilson"), r"C:\Users\wilson");
+        assert_eq!(files_join(r"C:\", "Users"), r"C:\Users");
+        assert_eq!(
+            files_parent_dir(r"C:\Users\wilson").as_deref(),
+            Some(r"C:\Users")
+        );
+        // A drive root's child parents to `C:\` (separator kept, which
+        // is what a listing call expects), and the root itself to
+        // nothing.
+        assert_eq!(files_parent_dir(r"C:\Users").as_deref(), Some(r"C:\"));
+        assert_eq!(files_parent_dir(r"C:\"), None);
+        assert_eq!(files_basename(r"C:\Users\wilson"), "wilson");
+        assert_eq!(files_basename("/var/www/html"), "html");
+        // Remote POSIX paths never trip the detection.
+        assert!(!is_windows_path("/var/c:d"));
+        assert!(is_windows_path(r"C:\Users"));
     }
 }

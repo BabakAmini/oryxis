@@ -25,7 +25,11 @@ impl Oryxis {
                 if pane.files.req_seq != seq {
                     return Task::none();
                 }
-                if pane.session.as_ref().and_then(|s| s.ssh()).is_none() {
+                // A local backend (issue #145) rides no transport, so
+                // only an SFTP mount demands the live session.
+                if !client.is_local()
+                    && pane.session.as_ref().and_then(|s| s.ssh()).is_none()
+                {
                     return Task::none();
                 }
                 sort_entries(&mut entries);

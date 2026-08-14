@@ -156,10 +156,11 @@ impl TerminalTransport {
 /// whole struct (keeping only the user's follow / hidden preferences).
 #[derive(Default)]
 pub(crate) struct PaneFiles {
-    /// The SFTP channel on this pane's live `client::Handle`. `None`
-    /// until the Files tab is first opened (mounted lazily so panes
-    /// that never browse pay nothing).
-    pub client: Option<SftpClient>,
+    /// The browser's backend: the SFTP channel on this pane's live
+    /// `client::Handle`, or the app's own filesystem for a local shell
+    /// (issue #145). `None` until the Files tab is first opened
+    /// (mounted lazily so panes that never browse pay nothing).
+    pub client: Option<crate::local_files::FilesClient>,
     /// True while the initial mount (open channel + first listing) is
     /// in flight, the guard against double-mounting on rapid clicks.
     pub mounting: bool,

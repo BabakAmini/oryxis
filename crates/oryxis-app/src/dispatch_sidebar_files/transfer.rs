@@ -17,7 +17,10 @@ impl Oryxis {
                 let Some(pane) = self.active_pane_mut() else {
                     return Task::none();
                 };
-                let Some(client) = pane.files.client.clone() else {
+                // Transfers only mean something over a session; a local
+                // browser's row menu never offers them (issue #145).
+                let Some(client) = pane.files.client.as_ref().and_then(|c| c.sftp().cloned())
+                else {
                     return Task::none();
                 };
                 let pane_id = pane.id;
@@ -118,7 +121,8 @@ impl Oryxis {
                 let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
                     return Task::none();
                 };
-                let Some(client) = pane.files.client.clone() else {
+                let Some(client) = pane.files.client.as_ref().and_then(|c| c.sftp().cloned())
+                else {
                     return Task::none();
                 };
                 // Same reversal as the download side: the serial
@@ -171,7 +175,9 @@ impl Oryxis {
             }
             SidebarFilesMessage::SidebarFilesEdit(path) => {
                 self.overlay = None;
-                let Some(client) = self.active_pane_mut().and_then(|p| p.files.client.clone())
+                let Some(client) = self
+                    .active_pane_mut()
+                    .and_then(|p| p.files.client.as_ref().and_then(|c| c.sftp().cloned()))
                 else {
                     return Task::none();
                 };

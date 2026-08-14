@@ -29,6 +29,18 @@ impl Oryxis {
             .is_some()
     }
 
+    /// Whether the ACTIVE terminal tab's focused pane is a local shell,
+    /// which the Files tab serves with the local backend (issue #145).
+    fn active_pane_is_local(&self) -> bool {
+        self.active_tab
+            .and_then(|i| self.tabs.get(i))
+            .map(|t| t.active())
+            .is_some_and(|p| {
+                p.session.is_none()
+                    && matches!(p.origin, crate::state::PaneOrigin::Local(_))
+            })
+    }
+
     /// Whether a sidebar tab can show at all under the current feature
     /// toggles, ignoring the focused pane's MOMENTARY transport. The
     /// auto-open decision runs while a session is still dialing (nothing
@@ -57,9 +69,14 @@ impl Oryxis {
     pub(crate) fn sidebar_tab_available(&self, tab: TerminalSidebarTab) -> bool {
         self.sidebar_tab_possible(tab)
             && match tab {
-                TerminalSidebarTab::Files
-                | TerminalSidebarTab::Monitor
-                | TerminalSidebarTab::Tmux => self.active_pane_has_ssh(),
+                // Files also serves local shells (issue #145); Monitor
+                // and Tmux stay strictly transport-bound.
+                TerminalSidebarTab::Files => {
+                    self.active_pane_has_ssh() || self.active_pane_is_local()
+                }
+                TerminalSidebarTab::Monitor | TerminalSidebarTab::Tmux => {
+                    self.active_pane_has_ssh()
+                }
                 _ => true,
             }
     }

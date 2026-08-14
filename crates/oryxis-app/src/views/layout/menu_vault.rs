@@ -22,14 +22,25 @@ impl Oryxis {
             crate::dispatch_sidebar_files::files_parent_dir(&path)
                 .unwrap_or_else(|| "/".to_string())
         };
-        let name = path.rsplit('/').next().unwrap_or(&path).to_string();
+        let name = crate::dispatch_sidebar_files::files_basename(&path);
         let secondary = OryxisColors::t().text_secondary;
+        // A local browser (issue #145): transfers, edit-in-place, the
+        // dual-pane promote and chmod-properties have no local meaning;
+        // files open with the OS instead.
+        let local = self.sidebar_files_is_local();
         let mut items = column![];
         if is_dir {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::folder_open(),
                 crate::i18n::t("open"),
                 Message::SidebarFiles(SidebarFilesMessage::SidebarFilesNavigate(path.clone())),
+                secondary,
+            ));
+        } else if local {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::external_link(),
+                crate::i18n::t("open"),
+                Message::Sftp(SftpMessage::SftpOpenLocal(std::path::PathBuf::from(&path))),
                 secondary,
             ));
         } else {
@@ -49,13 +60,25 @@ impl Oryxis {
                 OryxisColors::t().accent,
             ));
         }
-        items = items.push(self.menu_item(
-            iced_fonts::lucide::folder_tree(),
-            crate::i18n::t("open_sftp_session_here"),
-            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpenSftpAt(sftp_dir)),
-            OryxisColors::t().accent,
-        ));
-        if is_dir {
+        if local {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::folder_search(),
+                crate::i18n::open_in_file_manager_label(),
+                Message::Sftp(SftpMessage::SftpRevealInExplorer(
+                    std::path::PathBuf::from(&path),
+                    is_dir,
+                )),
+                secondary,
+            ));
+        } else {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::folder_tree(),
+                crate::i18n::t("open_sftp_session_here"),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesOpenSftpAt(sftp_dir)),
+                OryxisColors::t().accent,
+            ));
+        }
+        if is_dir && !local {
             items = items.push(self.menu_item(
                 iced_fonts::lucide::upload(),
                 crate::i18n::t("upload_here"),
@@ -69,12 +92,14 @@ impl Oryxis {
             Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartRename(path.clone())),
             secondary,
         ));
-        items = items.push(self.menu_item(
-            iced_fonts::lucide::cog(),
-            crate::i18n::t("properties"),
-            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesShowProperties(path.clone(), is_dir)),
-            secondary,
-        ));
+        if !local {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::cog(),
+                crate::i18n::t("properties"),
+                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesShowProperties(path.clone(), is_dir)),
+                secondary,
+            ));
+        }
         items = items.push(self.menu_item(
             iced_fonts::lucide::clipboard_copy(),
             crate::i18n::t("copy_path"),
@@ -102,7 +127,7 @@ impl Oryxis {
 
     pub(crate) fn build_menu_sidebar_files_background(&self, dir: String) -> Element<'_, Message> {
         let secondary = OryxisColors::t().text_secondary;
-        let items = column![
+        let mut items = column![
             self.menu_item(
                 iced_fonts::lucide::folder_plus(),
                 crate::i18n::t("new_folder"),
@@ -115,25 +140,29 @@ impl Oryxis {
                 Message::SidebarFiles(SidebarFilesMessage::SidebarFilesStartNewEntry(crate::state::SftpEntryKind::File)),
                 secondary,
             ),
-            self.menu_item(
+        ];
+        // Uploading into a local folder has no meaning (issue #145);
+        // dropping/copying files there is the OS's own job.
+        if !self.sidebar_files_is_local() {
+            items = items.push(self.menu_item(
                 iced_fonts::lucide::upload(),
                 crate::i18n::t("upload_here"),
                 Message::SidebarFiles(SidebarFilesMessage::SidebarFilesUploadInto(dir.clone())),
                 OryxisColors::t().accent,
-            ),
-            self.menu_item(
-                iced_fonts::lucide::rotate_cw(),
-                crate::i18n::t("refresh"),
-                Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
-                secondary,
-            ),
-            self.menu_item(
-                iced_fonts::lucide::clipboard_copy(),
-                crate::i18n::t("copy_path"),
-                Message::Sftp(SftpMessage::SftpCopyPath(dir)),
-                secondary,
-            ),
-        ];
+            ));
+        }
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::rotate_cw(),
+            crate::i18n::t("refresh"),
+            Message::SidebarFiles(SidebarFilesMessage::SidebarFilesRefresh),
+            secondary,
+        ));
+        items = items.push(self.menu_item(
+            iced_fonts::lucide::clipboard_copy(),
+            crate::i18n::t("copy_path"),
+            Message::Sftp(SftpMessage::SftpCopyPath(dir)),
+            secondary,
+        ));
         items.into()
     }
 

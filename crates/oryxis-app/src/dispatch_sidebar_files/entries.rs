@@ -18,11 +18,7 @@ impl Oryxis {
                 let Some(pane) = self.active_pane_mut() else {
                     return Task::none();
                 };
-                let basename = path
-                    .rsplit('/')
-                    .find(|s| !s.is_empty())
-                    .unwrap_or(&path)
-                    .to_string();
+                let basename = files_basename(&path);
                 pane.files.new_entry = None;
                 pane.files.rename = Some((path, basename));
                 return crate::widgets::focus_input(iced::widget::Id::new(
@@ -50,6 +46,8 @@ impl Oryxis {
                     return Task::none();
                 }
                 let parent = files_parent_dir(&original).unwrap_or_else(|| "/".to_string());
+                // (windows-aware: `files_parent_dir` / `files_join`
+                // detect the local browser's `C:\` paths, issue #145)
                 let target = files_join(&parent, name);
                 if target == original {
                     return Task::none();
@@ -135,11 +133,7 @@ impl Oryxis {
             }
             SidebarFilesMessage::SidebarFilesDelete(path, is_dir) => {
                 self.overlay = None;
-                let name = path
-                    .rsplit('/')
-                    .find(|s| !s.is_empty())
-                    .unwrap_or(&path)
-                    .to_string();
+                let name = files_basename(&path);
                 // Shared destructive-confirm dialog (Enter confirms via
                 // the modal keynav router).
                 self.confirm_remove(

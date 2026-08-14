@@ -85,9 +85,19 @@ impl Oryxis {
             OverlayContent::SessionLogViewerActions(_) => 4.0,
             OverlayContent::SftpTabActions(_) => 6.0,
             OverlayContent::SidebarFilesRow { is_dir, .. } => {
-                if *is_dir { 7.0 } else { 8.0 }
+                // The local browser's menu (issue #145) swaps the
+                // transfer-shaped items for OS ones; counted next to
+                // the builder (`build_menu_sidebar_files_row`).
+                match (self.sidebar_files_is_local(), *is_dir) {
+                    (true, true) => 5.0,
+                    (true, false) => 6.0,
+                    (false, true) => 7.0,
+                    (false, false) => 8.0,
+                }
             }
-            OverlayContent::SidebarFilesBackground { .. } => 5.0,
+            OverlayContent::SidebarFilesBackground { .. } => {
+                if self.sidebar_files_is_local() { 4.0 } else { 5.0 }
+            }
             // Kill + Force kill, plus Forward on a TCP row.
             OverlayContent::MonitorPortActions(p) => {
                 if p.proto == "tcp" { 3.0 } else { 2.0 }

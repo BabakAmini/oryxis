@@ -114,6 +114,7 @@ mod session_redact;
 mod sftp_helpers;
 mod sftp_methods;
 mod install_presets;
+mod local_files;
 mod shell_integration;
 mod shortcuts;
 mod sidebar_regions;

@@ -11,7 +11,8 @@ pub enum SidebarFilesMessage {
     /// Promote the sidebar browser to a full SFTP tab at its current
     /// directory.
     SidebarFilesExpand,
-    /// Initial mount finished: the SFTP channel, the session home (for
+    /// Initial mount finished: the backend (SFTP channel, or the local
+    /// filesystem for a local shell), the session home (for
     /// `~`-relative cwd expansion) plus the first listing. The `u64` is
     /// the request stamp (`PaneFiles::req_seq`) captured at dispatch; a
     /// mismatch on arrival means a newer request (or a disconnect
@@ -19,7 +20,7 @@ pub enum SidebarFilesMessage {
     SidebarFilesMounted(
         Uuid,
         u64,
-        oryxis_ssh::SftpClient,
+        crate::local_files::FilesClient,
         Option<String>,
         String,
         Vec<oryxis_ssh::SftpEntry>,
