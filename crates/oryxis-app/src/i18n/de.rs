@@ -1684,6 +1684,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Noch keine Sitzungen. Legen Sie unten eine an.",
         "tmux_windows" => "Fenster: {n}",
         "tmux_attached" => "verbunden",
+        "tmux_attached_here" => "hier verbunden",
         "tmux_kill" => "Beenden",
         "tmux_kill_confirm" => "\u{201e}{name}\u{201c} beenden? Alles, was darin l\u{e4}uft, wird gestoppt.",
         "tmux_new_placeholder" => "Name der neuen Sitzung (optional)",

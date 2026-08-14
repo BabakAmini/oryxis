@@ -337,6 +337,12 @@ impl Oryxis {
             {
                 let _ = vault.end_session_log(&log_id);
             }
+            // The re-key above orphans the old id's tmux listing: the
+            // view reads the NEW id (no entry, so the tab sat on the
+            // "reading" hint forever, issue #157) while the old entry
+            // leaked in the map. Drop it like every other teardown
+            // does; `SshConnected` re-lists a visible tab.
+            self.tmux_reset_pane(&pane_id);
             // Toast "Reconnecting..." so the user sees feedback the
             // moment the attempt starts (a silent auto-reconnect can fire
             // up to 30s after the disconnect was first detected). Focus is

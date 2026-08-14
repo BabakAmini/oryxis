@@ -1683,6 +1683,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Nessuna sessione. Creane una qui sotto.",
         "tmux_windows" => "Finestre: {n}",
         "tmux_attached" => "collegata",
+        "tmux_attached_here" => "collegata qui",
         "tmux_kill" => "Termina",
         "tmux_kill_confirm" => "Terminare \u{201c}{name}\u{201d}? Tutto ci\u{f2} che vi \u{e8} in esecuzione si ferma.",
         "tmux_new_placeholder" => "Nome della nuova sessione (facoltativo)",

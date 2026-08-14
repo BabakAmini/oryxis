@@ -40,12 +40,49 @@ impl Oryxis {
                     },
                     Err(e) => TmuxStatus::Failed(e),
                 };
+                // The listing corrects the "attached here" hint: a
+                // session that is gone, or that tmux reports with zero
+                // clients, cannot be the one this pane is showing.
+                if let Some(name) = entry.attached_to.clone() {
+                    let still_attached = match &entry.status {
+                        TmuxStatus::Ready(sessions) => sessions
+                            .iter()
+                            .any(|s| s.name == name && s.is_attached()),
+                        // A failed probe proves nothing either way;
+                        // keep the hint for the next good listing.
+                        TmuxStatus::Failed(_) => true,
+                        _ => false,
+                    };
+                    if !still_attached {
+                        entry.attached_to = None;
+                    }
+                }
                 Task::none()
             }
             TmuxMessage::Attach(tab_idx, pane_id, name) => self.tmux_attach(tab_idx, pane_id, name),
             TmuxMessage::NewNameChanged(pane_id, value) => {
                 self.tmux.entry(pane_id).new_name = value;
                 Task::none()
+            }
+            // The name field's Enter (issue #160). The fork's
+            // `text_input` fires `on_submit` on ANY Enter, focused or
+            // not, so every Enter typed into the terminal lands here
+            // while the tab is open; acting directly ran
+            // `tmux new-session -d` on the host once per command the
+            // user executed. Resolve which widget iced actually has
+            // focused first, and only the name field's own Enter
+            // creates.
+            TmuxMessage::Submitted(pane_id) => {
+                iced::widget::operation::find_focused().map(move |focused| {
+                    Message::Tmux(TmuxMessage::SubmittedFocus(pane_id, focused))
+                })
+            }
+            TmuxMessage::SubmittedFocus(pane_id, focused) => {
+                if focused == Some(crate::tmux::new_name_input_id()) {
+                    self.tmux_create(pane_id)
+                } else {
+                    Task::none()
+                }
             }
             TmuxMessage::Create(pane_id) => self.tmux_create(pane_id),
             TmuxMessage::AskKill(pane_id, name) => {
@@ -132,6 +169,18 @@ impl Oryxis {
         if self.any_modal_blocks_input() {
             return Task::none();
         }
+        // The session this pane already shows is inert (issue #159):
+        // its row renders unclickable, and this guard covers the
+        // remaining paths (a stale frame, the keynav ring), because the
+        // typed line would land INSIDE that very session, i.e. in
+        // whatever program runs there.
+        if self
+            .tmux
+            .get(&pane_id)
+            .is_some_and(|e| e.attached_to.as_deref() == Some(name.as_str()))
+        {
+            return Task::none();
+        }
         let command = match probe::attach_command(&name) {
             Ok(cmd) => cmd,
             Err(e) => {
@@ -139,9 +188,22 @@ impl Oryxis {
                 return Task::none();
             }
         };
-        self.tmux.entry(pane_id).error = None;
+        let entry = self.tmux.entry(pane_id);
+        entry.error = None;
+        // Believed, not proven: the listing and the alternate-screen
+        // edge correct it if the command lands somewhere unexpected.
+        entry.attached_to = Some(name);
         self.write_ring_injection_to_tab(tab_idx, format!("{command}\n").as_bytes());
-        Task::none()
+        // Re-read after the shell has had a moment to run the line: a
+        // switch between two sessions never leaves the alternate
+        // screen, so the flip-edge refresh cannot see it, and the
+        // attached counts on screen would go stale (issue #158).
+        Task::perform(
+            async {
+                tokio::time::sleep(Duration::from_millis(1200)).await;
+            },
+            move |()| Message::Tmux(TmuxMessage::Refresh(pane_id)),
+        )
     }
 
     /// Create a DETACHED session over the exec channel. Detached so it
@@ -244,8 +306,12 @@ impl Oryxis {
 
     /// Idempotent "the tmux tab is on screen for this pane" sync, called
     /// from every entry point that can reveal it (tab selected, pane
-    /// focused, sidebar opened). Lists once per pane; a refresh after
-    /// that is the user's own action.
+    /// focused, sidebar opened, session (re)connected). Every reveal
+    /// re-reads the host (issue #158: the list changes behind the tab's
+    /// back, so a cached listing shown as current was a lie); the rows
+    /// already on screen stay put while the probe runs, only a first
+    /// load shows the spinner, and the in-flight guard collapses
+    /// repeated reveals into one probe.
     pub(crate) fn tmux_sync(&mut self) -> Task<Message> {
         if !self.tmux_tab_visible() {
             return Task::none();
@@ -256,19 +322,42 @@ impl Oryxis {
         if self.tmux_session_for_pane(pane_id).is_none() {
             return Task::none();
         }
-        // Only a pane that has never been listed triggers a probe:
-        // re-entering the tab must not re-hit the host every time.
-        if matches!(
-            self.tmux.get(&pane_id).map(|e| &e.status),
-            None | Some(TmuxStatus::Idle)
-        ) {
-            // Materialize the entry first: `Listed` drops results for
-            // panes it cannot find, and `tmux_list` only creates one
-            // when it gets past the session check.
-            self.tmux.entry(pane_id);
-            return self.tmux_list(pane_id);
+        // Materialize the entry first: `Listed` drops results for
+        // panes it cannot find, and `tmux_list` only creates one
+        // when it gets past the session check.
+        self.tmux.entry(pane_id);
+        self.tmux_list(pane_id)
+    }
+
+    /// Alternate-screen edge for a pane, reported by the `PtyOutput`
+    /// funnel. The flip is the attach/detach signal a tmux client
+    /// leaves in the byte stream (attaching draws the alternate screen,
+    /// detaching restores the primary), so it drives the auto-refresh
+    /// the tab cannot get any other way (issue #158). vim and htop flip
+    /// the same switch; the extra listing they cause is bounded by the
+    /// tab having to be on screen and the in-flight guard.
+    pub(crate) fn tmux_alt_screen_edge(&mut self, pane_id: Uuid, entered: bool) -> Task<Message> {
+        // Leaving the alternate screen means whatever the pane was
+        // showing full-screen is gone, the believed attach included
+        // (issue #159). The hint is retired even with the tab hidden;
+        // a wrong "attached here" must not survive until the next
+        // reveal.
+        if !entered
+            && let Some(entry) = self.tmux.get(&pane_id)
+            && entry.attached_to.is_some()
+        {
+            self.tmux.entry(pane_id).attached_to = None;
         }
-        Task::none()
+        if !self.tmux_tab_visible() {
+            return Task::none();
+        }
+        // Only the pane the tab is reading (the active tab's focused
+        // pane): a background pane's vim session is not this tab's
+        // business.
+        if self.active_pane_mut().map(|p| p.id) != Some(pane_id) {
+            return Task::none();
+        }
+        self.tmux_list(pane_id)
     }
 
     /// Drop a pane's listing on disconnect / close. A list that outlived

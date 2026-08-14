@@ -1775,6 +1775,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Ch\u{1b0}a c\u{f3} phi\u{ea}n n\u{e0}o. T\u{1ea1}o m\u{1ed9}t phi\u{ea}n b\u{ea}n d\u{1b0}\u{1edb}i.",
         "tmux_windows" => "C\u{1eed}a s\u{1ed5}: {n}",
         "tmux_attached" => "\u{111}\u{e3} k\u{1ebf}t n\u{1ed1}i",
+        "tmux_attached_here" => "\u{111}\u{e3} k\u{1ebf}t n\u{1ed1}i \u{1edf} \u{111}\u{e2}y",
         "tmux_kill" => "K\u{1ebf}t th\u{fa}c",
         "tmux_kill_confirm" => "K\u{1ebf}t th\u{fa}c \u{201c}{name}\u{201d}? M\u{1ecd}i th\u{1ee9} \u{111}ang ch\u{1ea1}y b\u{ea}n trong s\u{1ebd} d\u{1eeb}ng.",
         "tmux_new_placeholder" => "T\u{ea}n phi\u{ea}n m\u{1edb}i (t\u{f9}y ch\u{1ecd}n)",

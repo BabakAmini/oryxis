@@ -22,3 +22,13 @@ pub(crate) mod model;
 pub(crate) mod probe;
 
 pub(crate) use model::TmuxState;
+
+/// Widget id of the sidebar's "new session" name field. One authority
+/// for the view (which builds the input) and the submit handler (which
+/// checks it is the widget iced actually has focused before creating,
+/// issue #160): the fork's `text_input` fires `on_submit` on any Enter,
+/// focused or not, and an Enter typed into the terminal must not mint a
+/// session on the host.
+pub(crate) fn new_name_input_id() -> iced::widget::Id {
+    iced::widget::Id::new("sidebar-tmux-new-name")
+}

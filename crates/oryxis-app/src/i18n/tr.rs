@@ -1775,6 +1775,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Hen\u{fc}z oturum yok. A\u{15f}a\u{11f}\u{131}dan bir tane olu\u{15f}turun.",
         "tmux_windows" => "Pencereler: {n}",
         "tmux_attached" => "ba\u{11f}l\u{131}",
+        "tmux_attached_here" => "burada ba\u{11f}l\u{131}",
         "tmux_kill" => "Sonland\u{131}r",
         "tmux_kill_confirm" => "\u{201c}{name}\u{201d} sonland\u{131}r\u{131}ls\u{131}n m\u{131}? \u{130}\u{e7}inde \u{e7}al\u{131}\u{15f}an her \u{15f}ey durur.",
         "tmux_new_placeholder" => "Yeni oturum ad\u{131} (iste\u{11f}e ba\u{11f}l\u{131})",

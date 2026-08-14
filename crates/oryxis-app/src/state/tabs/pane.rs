@@ -576,6 +576,15 @@ pub(crate) struct Pane {
     /// by the widget (mouse / title / OSC 52 gates), so the vault is never
     /// consulted per keystroke. Local shells keep `DEFAULT_QUIRKS`.
     pub quirks: oryxis_core::models::terminal_quirks::TerminalQuirks,
+    /// Whether the emulator sat on the alternate screen after the last
+    /// output batch. The `PtyOutput` funnel compares it against the
+    /// fresh value to edge-detect the flip, which is the closest thing
+    /// to an attach/detach signal a tmux client gives: attaching draws
+    /// the alternate screen, detaching leaves it. The tmux tab refreshes
+    /// on that edge (issue #158) and the falling edge also retires the
+    /// pane's "attached here" hint (issue #159). vim/htop flip it too;
+    /// a spare listing on a visible tmux tab is the accepted cost.
+    pub alt_screen: bool,
 }
 
 /// Process-wide auto-title gate (OSC 0/2). Mirrors the `LayoutDirection`
@@ -672,6 +681,7 @@ impl Pane {
             broadcast_opt_out: false,
             // Xterm defaults until resolved for a real host at connect.
             quirks: oryxis_core::models::terminal_quirks::DEFAULT_QUIRKS,
+            alt_screen: false,
         }
     }
 

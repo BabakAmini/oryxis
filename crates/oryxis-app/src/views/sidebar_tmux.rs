@@ -135,6 +135,14 @@ impl Oryxis {
         idx: usize,
         session: &'a TmuxSession,
     ) -> Element<'a, Message> {
+        // The session this pane is believed to be showing (issue #159):
+        // its row is highlighted and inert, because the attach line is
+        // typed INTO the pane, i.e. into this very session, and would
+        // land in whatever program runs there.
+        let current = self
+            .tmux
+            .get(&pane_id)
+            .is_some_and(|e| e.attached_to.as_deref() == Some(session.name.as_str()));
         let attach = Message::Tmux(TmuxMessage::Attach(
             tab_idx,
             pane_id,
@@ -144,14 +152,18 @@ impl Oryxis {
         let muted = OryxisColors::t().text_muted;
 
         // "3 windows" plus the attached marker, which is what tells the
-        // user this session already has a client somewhere.
+        // user this session already has a client somewhere; the pane's
+        // own session says so in its own words.
         let mut meta: Vec<Element<'a, Message>> = vec![
             text(t("tmux_windows").replace("{n}", &session.windows.to_string()))
                 .size(10)
                 .color(muted)
                 .into(),
         ];
-        if session.is_attached() {
+        if current {
+            meta.push(Space::new().width(6).into());
+            meta.push(text(t("tmux_attached_here")).size(10).color(accent).into());
+        } else if session.is_attached() {
             meta.push(Space::new().width(6).into());
             meta.push(text(t("tmux_attached")).size(10).color(accent).into());
         }
@@ -170,10 +182,10 @@ impl Oryxis {
             .spacing(2)
             .width(Length::Fill),
         )
-        .on_press(attach.clone())
+        .on_press_maybe((!current).then(|| attach.clone()))
         .padding(Padding { top: 6.0, right: 30.0, bottom: 6.0, left: 8.0 })
         .width(Length::Fill)
-        .style(row_btn_style);
+        .style(if current { current_row_style } else { row_btn_style });
 
         // Floating kill, revealed on hover so it reserves no inline
         // width (card-action convention).
@@ -209,11 +221,15 @@ impl Oryxis {
 
         // The row joins the keyboard walk with Enter = attach and the
         // menu binding = kill, so the destructive action is reachable
-        // without the mouse but never the default.
+        // without the mouse but never the default. The current row's
+        // Enter is a no-op like its click (the handler guards too);
+        // kill stays reachable.
         let navigable = self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::button(attach).with_menu(Message::Tmux(
-                TmuxMessage::AskKill(pane_id, session.name.clone()),
-            )),
+            crate::keynav::SidebarRow::button(if current { Message::NoOp } else { attach })
+                .with_menu(Message::Tmux(TmuxMessage::AskKill(
+                    pane_id,
+                    session.name.clone(),
+                ))),
             TerminalSidebarTab::Tmux,
             6.0,
             stack.into(),
@@ -291,11 +307,16 @@ impl Oryxis {
             .get(&pane_id)
             .map(|e| e.new_name.as_str())
             .unwrap_or("");
-        let input_id = iced::widget::Id::new("sidebar-tmux-new-name");
+        let input_id = crate::tmux::new_name_input_id();
+        // `Submitted`, not `Create`: the fork's `text_input` fires
+        // `on_submit` on ANY Enter, focused or not, so an Enter typed
+        // into the terminal reaches this binding too. The handler
+        // resolves real focus before creating (issue #160: every
+        // command run with the tab open minted a session on the host).
         let field = iced::widget::text_input(t("tmux_new_placeholder"), value)
             .id(input_id.clone())
             .on_input(move |v| Message::Tmux(TmuxMessage::NewNameChanged(pane_id, v)))
-            .on_submit(Message::Tmux(TmuxMessage::Create(pane_id)))
+            .on_submit(Message::Tmux(TmuxMessage::Submitted(pane_id)))
             .size(12)
             .padding(Padding { top: 5.0, right: 8.0, bottom: 5.0, left: 8.0 });
         let create = Message::Tmux(TmuxMessage::Create(pane_id));
@@ -328,6 +349,17 @@ impl Oryxis {
         .align_y(iced::Alignment::Center)
         .width(Length::Fill)
         .into()
+    }
+}
+
+/// The row of the session this pane is showing (issue #159): a steady
+/// selected tint, no hover feedback, because the row is inert. The
+/// background is the "you are here" marker BabakAmini asked for.
+fn current_row_style(_: &iced::Theme, _: BtnStatus) -> button::Style {
+    button::Style {
+        background: Some(Background::Color(OryxisColors::t().bg_selected)),
+        border: Border { radius: Radius::from(6.0), ..Default::default() },
+        ..Default::default()
     }
 }
 

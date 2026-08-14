@@ -142,20 +142,31 @@ pub(crate) fn new_session_command(name: &str) -> Result<String, oryxis_archive::
 /// one reaches the user's own shell rather than an exec channel, so the
 /// quoting matters just as much: the name came off the host.
 ///
-/// `switch-client` first, `attach` as the fallback, because the pane is
-/// as likely to be INSIDE tmux as outside it: the second attach in a
-/// pane is the whole point of a session manager, and a bare `tmux
-/// attach` there answers "sessions should be nested with care, unset
-/// $TMUX to force" and does nothing. Asking the shell to try both is
-/// better than tracking which state the pane is in, because the app is
-/// not the only thing that changes it: the user can attach by hand, or
-/// detach with the prefix key, and any remembered flag would be a
-/// guess by then. `switch-client` fails harmlessly outside tmux (no
-/// current client), so the `||` picks the right one every time.
+/// `attach` first, `switch-client` as the fallback, and the ORDER is
+/// load-bearing (issue #157). The pane is as likely to be INSIDE tmux
+/// as outside it: the second attach in a pane is the whole point of a
+/// session manager, and a bare `tmux attach` there answers "sessions
+/// should be nested with care" and does nothing, so the chain tries
+/// both. It used to run `switch-client` first, which is WRONG outside
+/// tmux whenever any other client exists: with no current client tmux
+/// resolves the target client to the most recently used one, so the
+/// command exits 0 having MOVED SOMEONE ELSE'S CLIENT to the picked
+/// session, and the `||` never attaches this pane. The "someone else"
+/// is routinely the dead client a hard disconnect leaves behind (the
+/// reconnect repro of #157), but a second live terminal gets hijacked
+/// just the same. `attach` has no such fallback: outside tmux it
+/// attaches (and flushes any dead client on the first write to its
+/// tty), inside it refuses (suppressed) and hands over to
+/// `switch-client`, which from inside tmux resolves the current client
+/// correctly. Asking the shell to try both remains better than
+/// tracking which state the pane is in, because the app is not the
+/// only thing that changes it: the user can attach by hand, or detach
+/// with the prefix key, and any remembered flag would be a guess by
+/// then.
 pub(crate) fn attach_command(name: &str) -> Result<String, oryxis_archive::ArchiveError> {
     let name = oryxis_archive::quote::sh_quote(name)?;
     Ok(format!(
-        "tmux switch-client -t {name} 2>/dev/null || tmux attach -t {name}"
+        "tmux attach -t {name} 2>/dev/null || tmux switch-client -t {name}"
     ))
 }
 
@@ -297,11 +308,31 @@ mod tests {
         // `tmux attach` from inside a session refuses ("sessions should
         // be nested with care") and does nothing, which is the second
         // attach in any pane, i.e. the whole point of the tab. The line
-        // asks the shell to try the switch first and fall back.
+        // asks the shell to try the attach first and fall back to the
+        // switch, which from inside tmux targets the current client.
         let built = attach_command("work").unwrap();
         assert_eq!(
             built,
-            "tmux switch-client -t 'work' 2>/dev/null || tmux attach -t 'work'"
+            "tmux attach -t 'work' 2>/dev/null || tmux switch-client -t 'work'"
+        );
+    }
+
+    #[test]
+    fn attach_runs_before_switch_client() {
+        // Issue #157. Outside tmux, `switch-client` does NOT fail when
+        // some other client exists: tmux falls back to the most
+        // recently used client, exits 0 having moved THAT client, and
+        // the `||` never runs. The lingering dead client of a hard
+        // disconnect makes this the state every reconnect lands in, so
+        // the attach must come first (verified against tmux 3.4).
+        let built = attach_command("work").unwrap();
+        let attach = built.find("tmux attach").expect("attach present");
+        let switch = built
+            .find("tmux switch-client")
+            .expect("switch-client present");
+        assert!(
+            attach < switch,
+            "switch-client first hijacks another live client: {built}"
         );
     }
 

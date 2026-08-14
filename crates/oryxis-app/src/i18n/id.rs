@@ -1775,6 +1775,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Belum ada sesi. Buat satu di bawah.",
         "tmux_windows" => "Jendela: {n}",
         "tmux_attached" => "tersambung",
+        "tmux_attached_here" => "tersambung di sini",
         "tmux_kill" => "Hentikan",
         "tmux_kill_confirm" => "Hentikan \u{201c}{name}\u{201d}? Semua yang berjalan di dalamnya akan berhenti.",
         "tmux_new_placeholder" => "Nama sesi baru (opsional)",

@@ -1695,6 +1695,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "\u{30bb}\u{30c3}\u{30b7}\u{30e7}\u{30f3}\u{306f}\u{307e}\u{3060}\u{3042}\u{308a}\u{307e}\u{305b}\u{3093}\u{3002}\u{4e0b}\u{3067}\u{4f5c}\u{6210}\u{3067}\u{304d}\u{307e}\u{3059}\u{3002}",
         "tmux_windows" => "\u{30a6}\u{30a3}\u{30f3}\u{30c9}\u{30a6}: {n}",
         "tmux_attached" => "\u{63a5}\u{7d9a}\u{4e2d}",
+        "tmux_attached_here" => "\u{3053}\u{3053}\u{306b}\u{63a5}\u{7d9a}\u{4e2d}",
         "tmux_kill" => "\u{7d42}\u{4e86}",
         "tmux_kill_confirm" => "\u{300c}{name}\u{300d}\u{3092}\u{7d42}\u{4e86}\u{3057}\u{307e}\u{3059}\u{304b}\u{ff1f}\u{4e2d}\u{3067}\u{5b9f}\u{884c}\u{4e2d}\u{306e}\u{3082}\u{306e}\u{306f}\u{3059}\u{3079}\u{3066}\u{505c}\u{6b62}\u{3057}\u{307e}\u{3059}\u{3002}",
         "tmux_new_placeholder" => "\u{65b0}\u{3057}\u{3044}\u{30bb}\u{30c3}\u{30b7}\u{30e7}\u{30f3}\u{540d}\u{ff08}\u{4efb}\u{610f}\u{ff09}",

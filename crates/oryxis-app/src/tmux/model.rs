@@ -61,6 +61,16 @@ pub(crate) struct PaneTmux {
     /// Inline error from the last action (a refused name, a failed
     /// kill), cleared by the next successful one.
     pub error: Option<String>,
+    /// The session this pane is believed to be attached to (issue
+    /// #159): set when the tab's own attach is typed, retired when the
+    /// pane leaves the alternate screen (the detach signal), and
+    /// validated against every listing (a session that is gone or shows
+    /// zero clients cannot be this pane's). A hint, not a promise: the
+    /// user can switch sessions by hand, and the next listing corrects
+    /// it. While set, that session's row renders highlighted and inert
+    /// so a click cannot type a command into the session it is already
+    /// showing.
+    pub attached_to: Option<String>,
 }
 
 /// Every pane's tmux state, plus the in-flight guard.

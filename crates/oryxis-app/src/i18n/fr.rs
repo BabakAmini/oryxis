@@ -1733,6 +1733,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Aucune session pour l\u{2019}instant. Cr\u{e9}ez-en une ci-dessous.",
         "tmux_windows" => "Fen\u{ea}tres : {n}",
         "tmux_attached" => "attach\u{e9}e",
+        "tmux_attached_here" => "attach\u{e9}e ici",
         "tmux_kill" => "Arr\u{ea}ter",
         "tmux_kill_confirm" => "Arr\u{ea}ter \u{ab}\u{a0}{name}\u{a0}\u{bb} ? Tout ce qui s\u{2019}y ex\u{e9}cute s\u{2019}arr\u{ea}te.",
         "tmux_new_placeholder" => "Nom de la nouvelle session (facultatif)",

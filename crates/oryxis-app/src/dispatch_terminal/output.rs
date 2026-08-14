@@ -495,6 +495,13 @@ impl Oryxis {
                 // Set when this batch carried an OSC 7 cwd; feeds the
                 // sidebar Files follow after the pane borrow ends.
                 let mut cwd_changed = false;
+                // Alternate-screen edge this batch produced, if any:
+                // `Some(entered)`. Attaching a tmux session draws the
+                // alternate screen and detaching restores the primary,
+                // so this is the tmux tab's auto-refresh signal (#158)
+                // and the detach retire for the "attached here" hint
+                // (#159). Handled after the pane borrow ends.
+                let mut alt_edge: Option<bool> = None;
                 // Password autofill (issue #117). The pane a popup may
                 // open on is resolved BEFORE the borrow (it needs the
                 // whole app: the visible view, the active tab, the
@@ -664,6 +671,16 @@ impl Oryxis {
                         if autofill_read {
                             prompt_now = state.password_prompt_at_cursor();
                         }
+                        // Alternate-screen edge detection, against the
+                        // pane's remembered side (updated below, the
+                        // pane borrow outlives this lock).
+                        let alt_now = state.is_alt_screen();
+                        if alt_now != pane.alt_screen {
+                            alt_edge = Some(alt_now);
+                        }
+                    }
+                    if let Some(entered) = alt_edge {
+                        pane.alt_screen = entered;
                     }
                     // Edge-trigger, and only when the read actually
                     // ran: a gated batch knows nothing about the screen,
@@ -1025,6 +1042,12 @@ impl Oryxis {
                     // no-ops unless the browser is visible, following,
                     // and this pane is the focused one.
                     tasks.push(self.sidebar_files_sync());
+                }
+                if let Some(entered) = alt_edge {
+                    // tmux attach/detach signal: refresh a visible tmux
+                    // tab, retire the pane's "attached here" hint on
+                    // the falling edge. No-ops for everyone else.
+                    tasks.push(self.tmux_alt_screen_edge(pane_id, entered));
                 }
                 if !tasks.is_empty() {
                     return Ok(Task::batch(tasks));

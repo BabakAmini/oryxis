@@ -1872,6 +1872,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "\u{5d0}\u{5d9}\u{5df} \u{5e2}\u{5d3}\u{5d9}\u{5d9}\u{5df} \u{5e1}\u{5e9}\u{5d5}\u{5ea}. \u{5e6}\u{5d5}\u{5e8} \u{5d0}\u{5d7}\u{5ea} \u{5dc}\u{5de}\u{5d8}\u{5d4}.",
         "tmux_windows" => "\u{5d7}\u{5dc}\u{5d5}\u{5e0}\u{5d5}\u{5ea}: {n}",
         "tmux_attached" => "\u{5de}\u{5d7}\u{5d5}\u{5d1}\u{5e8}\u{5ea}",
+        "tmux_attached_here" => "\u{5de}\u{5d7}\u{5d5}\u{5d1}\u{5e8}\u{5ea} \u{5db}\u{5d0}\u{5df}",
         "tmux_kill" => "\u{5e1}\u{5d2}\u{5d5}\u{5e8}",
         "tmux_kill_confirm" => "\u{5dc}\u{5e1}\u{5d2}\u{5d5}\u{5e8} \u{5d0}\u{5ea} \u{201c}{name}\u{201d}? \u{5db}\u{5dc} \u{5de}\u{5d4} \u{5e9}\u{5e8}\u{5e5} \u{5d1}\u{5ea}\u{5d5}\u{5db}\u{5d4} \u{5d9}\u{5d9}\u{5e2}\u{5e6}\u{5e8}.",
         "tmux_new_placeholder" => "\u{5e9}\u{5dd} \u{5dc}\u{5e1}\u{5e9}\u{5df} \u{5d4}\u{5d7}\u{5d3}\u{5e9} (\u{5d0}\u{5d5}\u{5e4}\u{5e6}\u{5d9}\u{5d5}\u{5e0}\u{5dc}\u{5d9})",

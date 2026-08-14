@@ -1690,6 +1690,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "A\u{fa}n no hay sesiones. Crea una abajo.",
         "tmux_windows" => "Ventanas: {n}",
         "tmux_attached" => "conectada",
+        "tmux_attached_here" => "conectada aqu\u{ed}",
         "tmux_kill" => "Cerrar",
         "tmux_kill_confirm" => "\u{bf}Cerrar \u{201c}{name}\u{201d}? Todo lo que se ejecute dentro se detiene.",
         "tmux_new_placeholder" => "Nombre de la nueva sesi\u{f3}n (opcional)",

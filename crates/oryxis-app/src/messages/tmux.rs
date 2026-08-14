@@ -22,8 +22,19 @@ pub enum TmuxMessage {
     Attach(usize, Uuid, String),
     /// "New session" name field.
     NewNameChanged(Uuid, String),
+    /// The name field's `on_submit` fired. The fork's `text_input` runs
+    /// that binding on ANY Enter, focused or not, so an Enter typed into
+    /// the TERMINAL lands here too (issue #160: every command run with
+    /// the tab open minted a session on the host). The handler resolves
+    /// which widget iced actually has focused before acting.
+    Submitted(Uuid),
+    /// Continuation of [`Self::Submitted`] once `find_focused` answered:
+    /// only an Enter pressed in the name field itself creates a session.
+    SubmittedFocus(Uuid, Option<iced::widget::Id>),
     /// Create a detached session with the typed name (empty = let tmux
-    /// name it). Detached so it never fights the pane's own PTY.
+    /// name it). Detached so it never fights the pane's own PTY. Sent by
+    /// the + button and the keynav ring, which both take a deliberate
+    /// activation; the Enter path goes through [`Self::Submitted`].
     Create(Uuid),
     /// Ask to kill a session. Parks the confirmation; nothing reaches
     /// the host until it is confirmed.

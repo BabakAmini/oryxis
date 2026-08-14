@@ -166,6 +166,11 @@ impl Oryxis {
                     crate::state::TerminalTransport::Serial(_) => Task::none(),
                     _ => self.pf_kick_pending_retries(),
                 };
+                // A visible tmux tab is reading THIS pane's host: list
+                // it on the fresh transport (issue #157, the in-place
+                // reconnect re-keys the pane and drops the old
+                // listing). No-op with the tab hidden.
+                let tmux_sync = self.tmux_sync();
                 if let Some((conn_id, sess)) = detect_for {
                     return Task::batch([
                         files_sync,
@@ -173,6 +178,7 @@ impl Oryxis {
                         pending_files,
                         login_script_task,
                         pf_kick,
+                        tmux_sync,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
                             |(id, os)| Message::Ssh(SshMessage::OsDetected(id, os)),
@@ -185,6 +191,7 @@ impl Oryxis {
                     pending_files,
                     login_script_task,
                     pf_kick,
+                    tmux_sync,
                 ]);
             }
             SshMessage::OsDetected(conn_id, os) => {

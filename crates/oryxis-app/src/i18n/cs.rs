@@ -1872,6 +1872,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Zat\u{ed}m \u{17e}\u{e1}dn\u{e9} relace. Vytvo\u{159}te ji n\u{ed}\u{17e}e.",
         "tmux_windows" => "Okna: {n}",
         "tmux_attached" => "p\u{159}ipojeno",
+        "tmux_attached_here" => "p\u{159}ipojeno zde",
         "tmux_kill" => "Ukon\u{10d}it",
         "tmux_kill_confirm" => "Ukon\u{10d}it \u{201e}{name}\u{201c}? V\u{161}e, co v n\u{ed} b\u{11b}\u{17e}\u{ed}, se zastav\u{ed}.",
         "tmux_new_placeholder" => "N\u{e1}zev nov\u{e9} relace (voliteln\u{e9})",

@@ -1782,6 +1782,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Brak sesji. Utw\u{f3}rz jedn\u{105} poni\u{17c}ej.",
         "tmux_windows" => "Okna: {n}",
         "tmux_attached" => "pod\u{142}\u{105}czona",
+        "tmux_attached_here" => "pod\u{142}\u{105}czona tutaj",
         "tmux_kill" => "Zako\u{144}cz",
         "tmux_kill_confirm" => "Zako\u{144}czy\u{107} \u{201e}{name}\u{201d}? Wszystko, co w niej dzia\u{142}a, zostanie zatrzymane.",
         "tmux_new_placeholder" => "Nazwa nowej sesji (opcjonalnie)",

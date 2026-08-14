@@ -1776,6 +1776,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "\u{c544}\u{c9c1} \u{c138}\u{c158}\u{c774} \u{c5c6}\u{c2b5}\u{b2c8}\u{b2e4}. \u{c544}\u{b798}\u{c5d0}\u{c11c} \u{b9cc}\u{b4dc}\u{c138}\u{c694}.",
         "tmux_windows" => "\u{cc3d}: {n}",
         "tmux_attached" => "\u{c5f0}\u{acb0}\u{b428}",
+        "tmux_attached_here" => "\u{c5ec}\u{ae30}\u{c5d0} \u{c5f0}\u{acb0}\u{b428}",
         "tmux_kill" => "\u{c885}\u{b8cc}",
         "tmux_kill_confirm" => "\u{201c}{name}\u{201d}\u{c744}(\u{b97c}) \u{c885}\u{b8cc}\u{d560}\u{ae4c}\u{c694}? \u{adf8} \u{c548}\u{c5d0}\u{c11c} \u{c2e4}\u{d589} \u{c911}\u{c778} \u{baa8}\u{b4e0} \u{ac83}\u{c774} \u{ba48}\u{cda5}\u{b2c8}\u{b2e4}.",
         "tmux_new_placeholder" => "\u{c0c8} \u{c138}\u{c158} \u{c774}\u{b984}(\u{c120}\u{d0dd} \u{c0ac}\u{d56d})",
