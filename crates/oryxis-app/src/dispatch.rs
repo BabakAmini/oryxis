@@ -55,6 +55,31 @@ impl Oryxis {
             self.sftp.suppress_hover = false;
             self.last_user_activity = std::time::Instant::now();
         }
+        // An armed drag-out (issue #167) whose cursor crossed the
+        // threshold becomes an OS drag NOW, while the button is still
+        // down (the global left-release message disarms below, so a
+        // finished click can never fire this late). The armed flag
+        // keeps `mouse_interest` on, which is what streams the
+        // CursorMoved messages this check rides on.
+        let drag_out_started: Option<Task<Message>> = match self.drag_out_arm.as_ref() {
+            Some(arm)
+                if arm.press.distance(self.mouse_position)
+                    >= crate::drag_out::DRAG_THRESHOLD =>
+            {
+                let arm = self.drag_out_arm.take().expect("checked above");
+                Some(Task::perform(
+                    crate::drag_out::prepare(arm.payload),
+                    |result| {
+                        Message::SidebarFiles(
+                            crate::messages::SidebarFilesMessage::SidebarFilesDragOutReady(
+                                result,
+                            ),
+                        )
+                    },
+                ))
+            }
+            _ => None,
+        };
         // Any user input event resets the vault auto-lock idle clock.
         // These are the raw-event messages `subscription.rs` maps from
         // iced's global listener, so presence is detected app-wide
@@ -76,6 +101,12 @@ impl Oryxis {
             self.route_sftp_async(id, message)
         } else {
             self.dispatch_message(message)
+        };
+        // The drag-out task rides along with whatever the triggering
+        // message returned (usually a MouseMoved's Task::none()).
+        let task = match drag_out_started {
+            Some(started) => Task::batch([task, started]),
+            None => task,
         };
         // Keep the unified strip order (terminal + SFTP) in sync with the live
         // tabs after every message: new tabs appended, closed ones dropped,
@@ -143,6 +174,7 @@ impl Oryxis {
             || self.sftp_chrome.col_drag.is_some()
             || self.sftp.drag.is_some()
             || self.tab_drag.is_some()
+            || self.drag_out_arm.is_some()
             || self.window_fullscreen
             || self.sftp.suppress_hover
     }

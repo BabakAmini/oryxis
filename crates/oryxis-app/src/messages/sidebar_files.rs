@@ -27,6 +27,11 @@ pub enum SidebarFilesMessage {
     ),
     /// A navigation / follow / refresh listing landed (same stamp rule).
     SidebarFilesListed(Uuid, u64, String, Vec<oryxis_ssh::SftpEntry>),
+    /// A drag-out's payload finished preparing (issue #167): remote
+    /// handles opened, runtime captured. The handler hops onto the UI
+    /// thread (`iced::window::run`) and starts the OS drag there,
+    /// while the mouse button is still down.
+    SidebarFilesDragOutReady(Result<crate::drag_out::Prepared, String>),
     SidebarFilesError(Uuid, u64, String),
     SidebarFilesRowHovered(usize),
     SidebarFilesRowUnhovered(usize),

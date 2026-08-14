@@ -249,6 +249,7 @@ impl Oryxis {
                 | SidebarFilesMessage::SidebarFilesUploadPicked(..)
                 | SidebarFilesMessage::SidebarFilesEdit(..)
                 | SidebarFilesMessage::SidebarFilesOpToast(..)
+                | SidebarFilesMessage::SidebarFilesDragOutReady(..)
             ) => self.handle_sidebar_files_transfer(m),
             m @ (
                 SidebarFilesMessage::SidebarFilesMounted(..)

@@ -172,6 +172,9 @@ impl Oryxis {
                     Some((side, self.mouse_position.x, self.chat_ui.sidebar_width[side.idx()]));
             }
             AiMessage::ChatSidebarResizeStop => {
+                // Global left-release: a drag-out that never crossed
+                // its threshold dies with the press (issue #167).
+                self.drag_out_arm = None;
                 self.chat_ui.sidebar_drag = None;
                 // The same global Left-release ends an SFTP divider drag;
                 // persist the final ratio so it survives a relaunch.

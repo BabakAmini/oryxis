@@ -113,6 +113,7 @@ mod remote_desktop;
 mod session_redact;
 mod sftp_helpers;
 mod sftp_methods;
+mod drag_out;
 mod install_presets;
 mod local_files;
 mod shell_integration;

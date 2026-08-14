@@ -209,6 +209,50 @@ impl Oryxis {
                     true,
                 )
             }
+            SidebarFilesMessage::SidebarFilesDragOutReady(result) => {
+                // The payload is ready; hop onto the UI thread and run
+                // the OS drag there (issue #167). `DoDragDrop` blocks
+                // that closure through the gesture; see `drag_out`.
+                // The button may already be up by now (a very quick
+                // flick): the drop source then ends the drag on its
+                // first QueryContinueDrag, which is the right outcome.
+                match result {
+                    Ok(prepared) => {
+                        // `window::run` takes an `Fn` closure, so the
+                        // one-shot payload travels in a take-once slot.
+                        let slot = std::sync::Arc::new(std::sync::Mutex::new(Some(prepared)));
+                        iced::window::oldest()
+                            .and_then(move |id| {
+                                let slot = slot.clone();
+                                iced::window::run(id, move |window| {
+                                    let Some(prepared) =
+                                        slot.lock().ok().and_then(|mut s| s.take())
+                                    else {
+                                        return;
+                                    };
+                                    if let Err(e) = crate::drag_out::start(window, prepared)
+                                    {
+                                        tracing::warn!("drag-out failed to start: {e}");
+                                    }
+                                })
+                            })
+                            .discard()
+                    }
+                    Err(e) => {
+                        // The open failed (file vanished, channel
+                        // died): the toast is the same surface every
+                        // other one-shot op reports through.
+                        self.set_toast(e);
+                        Task::perform(
+                            async {
+                                tokio::time::sleep(std::time::Duration::from_millis(3000))
+                                    .await;
+                            },
+                            |_| Message::ToastClear,
+                        )
+                    }
+                }
+            }
             SidebarFilesMessage::SidebarFilesOpToast(text) => {
                 self.set_toast(text);
                 Task::perform(

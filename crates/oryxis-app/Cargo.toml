@@ -187,6 +187,10 @@ notify-rust = "4"
 # See the note in oryxis-ssh; `windows-sys` is a different crate from
 # `windows` (0.62 above) and numbers on its own.
 windows-sys = { version = "0.61", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading", "Win32_System_Diagnostics_Debug", "Win32_Security", "Win32_Security_Authorization", "Win32_System_Pipes", "Win32_Storage_Packaging_Appx"] }
+# The #[implement] proc-macro's expansion references `::windows_core`
+# directly, so the COM objects in drag_out.rs need it as an explicit
+# dependency (same 0.62 line the `windows` crate itself resolves).
+windows-core = "0.62"
 # Higher-level COM ergonomics for the taskbar JumpList (ICustomDestinationList
 # / IShellLink / IPropertyStore), which windows-sys' raw vtables make painful.
 # Same 0.62 the oryxis-biometric crate uses, so Cargo shares one build.
@@ -198,6 +202,13 @@ windows = { version = "0.62", features = [
     "Win32_UI_Shell",
     "Win32_UI_Shell_Common",
     "Win32_UI_Shell_PropertiesSystem",
+    # Drag-out (issue #167): DoDragDrop + the virtual-file data object.
+    # Gdi rides along because STGMEDIUM's union carries an HBITMAP arm.
+    "Win32_System_Ole",
+    "Win32_Graphics_Gdi",
+    "Win32_System_Memory",
+    "Win32_System_DataExchange",
+    "Win32_System_SystemServices",
 ] }
 # The toast backend notify-rust itself uses on Windows, taken one major
 # newer (0.8 builds on `windows` 0.62, 0.7 on 0.61). Same library, same

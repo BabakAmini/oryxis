@@ -53,6 +53,46 @@ impl Oryxis {
                         SidebarFilesMessage::SidebarFilesNavigate(path),
                     ));
                 }
+                // Arm a drag-out (issue #167) on FILE rows where a
+                // backend can serve it: crossing the movement threshold
+                // while the button is still down turns this press into
+                // an OS drag (see the check in `dispatch.rs`); a plain
+                // click stays exactly the select it always was. The
+                // payload is resolved NOW, while the pane is in hand;
+                // the press anchor was synced at the top of `update`.
+                let arm = (!is_dir && crate::drag_out::supported())
+                    .then(|| {
+                        let name = files_basename(&path);
+                        let size = pane
+                            .files
+                            .entries
+                            .iter()
+                            .find(|e| e.name == name)
+                            .map(|e| e.size)
+                            .unwrap_or(0);
+                        match pane.files.client.as_ref()? {
+                            crate::local_files::FilesClient::Local(_) => {
+                                Some(crate::drag_out::DragOutPayload::Local(vec![
+                                    std::path::PathBuf::from(&path),
+                                ]))
+                            }
+                            crate::local_files::FilesClient::Sftp(client) => {
+                                Some(crate::drag_out::DragOutPayload::Remote {
+                                    client: client.clone(),
+                                    files: vec![crate::drag_out::RemoteDragFile {
+                                        path: path.clone(),
+                                        name,
+                                        size,
+                                    }],
+                                })
+                            }
+                        }
+                    })
+                    .flatten();
+                self.drag_out_arm = arm.map(|payload| crate::drag_out::DragOutArm {
+                    press: self.mouse_position,
+                    payload,
+                });
             }
             SidebarFilesMessage::SidebarFilesToggleFollow => {
                 if let Some(pane) = self.active_pane_mut() {
