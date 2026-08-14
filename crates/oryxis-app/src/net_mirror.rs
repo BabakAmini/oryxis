@@ -107,6 +107,37 @@ pub(crate) fn choice() -> MirrorChoice {
     CHOICE.read().map(|g| g.clone()).unwrap_or_default()
 }
 
+/// The hosts a GitHub-bound download may talk to under the CURRENT
+/// mirror choice, for error surfaces that want to say exactly what a
+/// blocked network needs to allow (discussion #163): the four GitHub
+/// hosts, plus the fallback asset host under Auto, plus a custom
+/// proxy's own host. Order matches dial order.
+pub(crate) fn consulted_hosts() -> Vec<String> {
+    let mut hosts: Vec<String> = GITHUB_HOSTS.iter().map(|h| (*h).to_string()).collect();
+    match choice() {
+        MirrorChoice::Auto => hosts.push(host_of(AUTO_ASSET_HOST)),
+        MirrorChoice::GitHubDirect => {}
+        MirrorChoice::Custom(base) => {
+            let host = host_of(&base);
+            if !host.is_empty() && !hosts.contains(&host) {
+                hosts.push(host);
+            }
+        }
+    }
+    hosts
+}
+
+/// The bare host of an `https://host[/path]` base, for display.
+fn host_of(base: &str) -> String {
+    base.split("://")
+        .nth(1)
+        .unwrap_or(base)
+        .split('/')
+        .next()
+        .unwrap_or("")
+        .to_string()
+}
+
 /// Whether `url` points at one of the GitHub download hosts (exact
 /// host match on a parsed URL, not a substring test, so
 /// `github.com.evil.tld` never qualifies).
@@ -315,6 +346,16 @@ mod tests {
         // A GitHub URL outside the published layout stays direct-only
         // (a foreign repo's releases, a gist, ...).
         assert_eq!(candidates(url), vec![url.to_string()]);
+
+        // The allowlist an error surface shows (discussion #163)
+        // follows the same choice. Asserted inside this test because
+        // it shares the process-wide CHOICE with the cases above.
+        assert!(consulted_hosts().contains(&"dl-cn.oryxis.app".to_string()));
+        set_choice(MirrorChoice::GitHubDirect);
+        assert_eq!(consulted_hosts().len(), 4);
+        set_choice(MirrorChoice::Custom("https://proxy.corp.example/p".into()));
+        assert!(consulted_hosts().contains(&"proxy.corp.example".to_string()));
+        set_choice(MirrorChoice::Auto);
     }
 
     #[test]

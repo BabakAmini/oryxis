@@ -1758,6 +1758,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "将插件二进制文件下载到本地缓存。可独立于应用进行更新或卸载。",
         "plugin_install_modal_size" => "下载大小",
         "plugin_install_modal_unknown_size" => "大小不可用（无法访问插件主机）。",
+        "plugin_hosts_hint" => "\u{6b64}\u{4e0b}\u{8f7d}\u{4f1a}\u{8bbf}\u{95ee}\u{4ee5}\u{4e0b}\u{57df}\u{540d}\u{ff1b}\u{9632}\u{706b}\u{5899}\u{6216}\u{4ee3}\u{7406}\u{9700}\u{653e}\u{884c}\u{ff1a}",
+        "plugin_mirror_hint" => "\u{5982}\u{679c}\u{4f60}\u{7684}\u{7f51}\u{7edc}\u{65e0}\u{6cd5}\u{8bbf}\u{95ee} GitHub\u{ff0c}\u{8bf7}\u{9009}\u{62e9}\u{4e0b}\u{8f7d}\u{955c}\u{50cf}\u{3002}\u{6240}\u{6709}\u{4e0b}\u{8f7d}\u{59cb}\u{7ec8}\u{7ecf}\u{8fc7} sha256 + Ed25519 \u{6821}\u{9a8c}\u{ff0c}\u{65e0}\u{8bba}\u{5b57}\u{8282}\u{6765}\u{81ea}\u{54ea}\u{4e2a}\u{4e3b}\u{673a}\u{3002}",
         "plugin_changelog" => "更新内容",
         "plugin_install_confirm" => "安装",
         "plugin_err_no_manifest" => "无法访问插件主机。请检查网络后重试。",

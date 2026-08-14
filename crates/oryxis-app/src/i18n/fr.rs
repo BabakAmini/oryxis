@@ -1798,6 +1798,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "Télécharge le binaire du plugin dans un cache local. Peut être mis à jour ou supprimé indépendamment de l'app.",
         "plugin_install_modal_size" => "Taille du téléchargement",
         "plugin_install_modal_unknown_size" => "Taille indisponible (impossible d'atteindre l'hôte des plugins).",
+        "plugin_hosts_hint" => "Ce t\u{e9}l\u{e9}chargement consulte ces domaines ; le pare-feu ou proxy doit les autoriser :",
+        "plugin_mirror_hint" => "Si GitHub est bloqu\u{e9} sur votre r\u{e9}seau, choisissez un miroir de t\u{e9}l\u{e9}chargement. Chaque t\u{e9}l\u{e9}chargement reste v\u{e9}rifi\u{e9} par sha256 + Ed25519, quel que soit l'h\u{f4}te d'origine.",
         "plugin_changelog" => "Nouveautés",
         "plugin_install_confirm" => "Installer",
         "plugin_err_no_manifest" => "Impossible d'atteindre l'hôte des plugins. Vérifiez votre connexion et réessayez.",

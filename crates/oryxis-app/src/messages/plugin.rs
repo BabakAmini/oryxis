@@ -20,6 +20,10 @@ pub enum PluginMessage {
     /// Open / close the first-use install opt-in modal for a provider.
     ShowPluginInstallModal(String),
     HidePluginInstallModal,
+    /// The unreachable-host hint's escape hatch (discussion #163):
+    /// close the modal and land on Settings > Advanced with the
+    /// Download mirror row revealed.
+    OpenMirrorSetting,
     /// Begin downloading + installing the best compatible version.
     PluginInstall(String),
     /// Install finished, `Ok` carries the installed version string.

@@ -1748,6 +1748,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "Scarica il binario del plugin in una cache locale. Può essere aggiornato o rimosso indipendentemente dall'app.",
         "plugin_install_modal_size" => "Dimensione del download",
         "plugin_install_modal_unknown_size" => "Dimensione non disponibile (host dei plugin non raggiungibile).",
+        "plugin_hosts_hint" => "Questo download consulta questi host; firewall o proxy devono consentirli:",
+        "plugin_mirror_hint" => "Se GitHub \u{e8} bloccato nella tua rete, scegli un mirror di download. Ogni download resta verificato con sha256 + Ed25519, da qualunque host provenga.",
         "plugin_changelog" => "Novità",
         "plugin_install_confirm" => "Installa",
         "plugin_err_no_manifest" => "Impossibile raggiungere l'host dei plugin. Controlla la connessione e riprova.",

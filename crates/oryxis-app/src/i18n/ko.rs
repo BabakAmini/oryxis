@@ -1841,6 +1841,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "플러그인 바이너리를 로컬 캐시에 다운로드합니다. 앱과 독립적으로 업데이트하거나 제거할 수 있습니다.",
         "plugin_install_modal_size" => "다운로드 크기",
         "plugin_install_modal_unknown_size" => "다운로드 크기를 알 수 없음(플러그인 호스트에 연결할 수 없음).",
+        "plugin_hosts_hint" => "\u{c774} \u{b2e4}\u{c6b4}\u{b85c}\u{b4dc}\u{b294} \u{b2e4}\u{c74c} \u{d638}\u{c2a4}\u{d2b8}\u{c5d0} \u{c811}\u{c18d}\u{d569}\u{b2c8}\u{b2e4}. \u{bc29}\u{d654}\u{bcbd}\u{c774}\u{b098} \u{d504}\u{b85d}\u{c2dc}\u{c5d0}\u{c11c} \u{d5c8}\u{c6a9}\u{d574}\u{c57c} \u{d569}\u{b2c8}\u{b2e4}:",
+        "plugin_mirror_hint" => "\u{b124}\u{d2b8}\u{c6cc}\u{d06c}\u{c5d0}\u{c11c} GitHub\u{c774} \u{cc28}\u{b2e8}\u{b418}\u{c5b4} \u{c788}\u{b2e4}\u{ba74} \u{b2e4}\u{c6b4}\u{b85c}\u{b4dc} \u{bbf8}\u{b7ec}\u{b97c} \u{c120}\u{d0dd}\u{d558}\u{c138}\u{c694}. \u{c5b4}\u{b5a4} \u{d638}\u{c2a4}\u{d2b8}\u{c5d0}\u{c11c} \u{bc1b}\u{b4e0} \u{baa8}\u{b4e0} \u{b2e4}\u{c6b4}\u{b85c}\u{b4dc}\u{b294} sha256 + Ed25519\u{b85c} \u{ac80}\u{c99d}\u{b429}\u{b2c8}\u{b2e4}.",
         "plugin_changelog" => "새로운 기능",
         "plugin_install_confirm" => "설치",
         "plugin_err_no_manifest" => "플러그인 호스트에 연결할 수 없습니다. 연결을 확인하고 다시 시도하세요.",

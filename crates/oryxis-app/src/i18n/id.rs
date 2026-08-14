@@ -1840,6 +1840,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "Ini mengunduh biner plugin ke cache lokal. Itu dapat diperbarui atau dihapus secara independen dari aplikasi.",
         "plugin_install_modal_size" => "Ukuran unduhan",
         "plugin_install_modal_unknown_size" => "Ukuran unduhan tidak tersedia (tidak dapat menjangkau host plugin).",
+        "plugin_hosts_hint" => "Unduhan ini menghubungi host berikut; firewall atau proxy harus mengizinkannya:",
+        "plugin_mirror_hint" => "Jika GitHub diblokir di jaringan Anda, pilih mirror unduhan. Setiap unduhan tetap diverifikasi dengan sha256 + Ed25519, dari host mana pun asalnya.",
         "plugin_changelog" => "Apa yang baru",
         "plugin_install_confirm" => "Pasang",
         "plugin_err_no_manifest" => "Tidak dapat menjangkau host plugin. Periksa koneksi Anda dan coba lagi.",

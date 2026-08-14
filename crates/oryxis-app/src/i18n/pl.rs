@@ -1847,6 +1847,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "To pobiera plik binarny wtyczki do lokalnej pamięci podręcznej. Można go aktualizować lub usuwać niezależnie od aplikacji.",
         "plugin_install_modal_size" => "Rozmiar pobierania",
         "plugin_install_modal_unknown_size" => "Rozmiar pobierania niedostępny (nie udało się połączyć z hostem wtyczki).",
+        "plugin_hosts_hint" => "To pobieranie \u{142}\u{105}czy si\u{119} z tymi hostami; zapora lub proxy musz\u{105} je dopu\u{15b}ci\u{107}:",
+        "plugin_mirror_hint" => "Je\u{15b}li GitHub jest zablokowany w twojej sieci, wybierz mirror pobierania. Ka\u{17c}de pobranie pozostaje weryfikowane przez sha256 + Ed25519, niezale\u{17c}nie od hosta.",
         "plugin_changelog" => "Co nowego",
         "plugin_install_confirm" => "Zainstaluj",
         "plugin_err_no_manifest" => "Nie udało się połączyć z hostem wtyczki. Sprawdź połączenie i spróbuj ponownie.",

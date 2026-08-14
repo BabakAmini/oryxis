@@ -1937,6 +1937,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "פעולה זו מורידה את קובץ התוסף למטמון מקומי. אפשר לעדכן או להסיר אותו בנפרד מהאפליקציה.",
         "plugin_install_modal_size" => "גודל ההורדה",
         "plugin_install_modal_unknown_size" => "גודל ההורדה לא זמין (לא ניתן להגיע למארח התוספים).",
+        "plugin_hosts_hint" => "\u{5d4}\u{5d4}\u{5d5}\u{5e8}\u{5d3}\u{5d4} \u{5d4}\u{5d6}\u{5d5} \u{5e4}\u{5d5}\u{5e0}\u{5d4} \u{5dc}\u{5de}\u{5d0}\u{5e8}\u{5d7}\u{5d9}\u{5dd} \u{5d4}\u{5d1}\u{5d0}\u{5d9}\u{5dd}; \u{5d7}\u{5d5}\u{5de}\u{5ea} \u{5d4}\u{5d0}\u{5e9} \u{5d0}\u{5d5} \u{5d4}\u{5e4}\u{5e8}\u{5d5}\u{5e7}\u{5e1}\u{5d9} \u{5e6}\u{5e8}\u{5d9}\u{5db}\u{5d9}\u{5dd} \u{5dc}\u{5d0}\u{5e4}\u{5e9}\u{5e8} \u{5d0}\u{5d5}\u{5ea}\u{5dd}:",
+        "plugin_mirror_hint" => "\u{5d0}\u{5dd} GitHub \u{5d7}\u{5e1}\u{5d5}\u{5dd} \u{5d1}\u{5e8}\u{5e9}\u{5ea} \u{5e9}\u{5dc}\u{5db}\u{5dd}, \u{5d1}\u{5d7}\u{5e8}\u{5d5} \u{5de}\u{5e8}\u{5d0}\u{5d4} \u{5d4}\u{5d5}\u{5e8}\u{5d3}\u{5d4}. \u{5db}\u{5dc} \u{5d4}\u{5d5}\u{5e8}\u{5d3}\u{5d4} \u{5de}\u{5de}\u{5e9}\u{5d9}\u{5db}\u{5d4} \u{5dc}\u{5d4}\u{5d9}\u{5d5}\u{5ea} \u{5de}\u{5d0}\u{5d5}\u{5de}\u{5ea}\u{5ea} \u{5d1}-sha256 + Ed25519, \u{5de}\u{5db}\u{5dc} \u{5de}\u{5d0}\u{5e8}\u{5d7} \u{5e9}\u{5de}\u{5de}\u{5e0}\u{5d5} \u{5d4}\u{5d2}\u{5d9}\u{5e2}\u{5d5} \u{5d4}\u{5e0}\u{5ea}\u{5d5}\u{5e0}\u{5d9}\u{5dd}.",
         "plugin_changelog" => "מה חדש",
         "plugin_install_confirm" => "התקנה",
         "plugin_err_no_manifest" => "לא ניתן להגיע למארח התוספים. בדקו את החיבור ונסו שוב.",

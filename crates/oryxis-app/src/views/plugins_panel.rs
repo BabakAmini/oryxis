@@ -240,10 +240,55 @@ impl Oryxis {
                 .size(12)
                 .color(OryxisColors::t().text_muted)
                 .into(),
-            None => text(crate::i18n::t("plugin_install_modal_unknown_size"))
-                .size(12)
-                .color(OryxisColors::t().warning)
-                .into(),
+            // The host never answered. A bare "unavailable" was a dead
+            // end (discussion #163, a mainland-China network with
+            // GitHub blocked), so the error carries its own way out:
+            // the exact hosts a firewall would need to allow, and a
+            // jump to the Download mirror setting.
+            None => {
+                let hosts = crate::net_mirror::consulted_hosts().join("\n");
+                column![
+                    text(crate::i18n::t("plugin_install_modal_unknown_size"))
+                        .size(12)
+                        .color(OryxisColors::t().warning),
+                    Space::new().height(10),
+                    text(crate::i18n::t("plugin_hosts_hint"))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                    Space::new().height(4),
+                    container(
+                        text(hosts)
+                            .size(11)
+                            .font(iced::Font::MONOSPACE)
+                            .color(OryxisColors::t().text_muted),
+                    )
+                    .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
+                    .width(Length::Fill)
+                    .style(|_| iced::widget::container::Style {
+                        background: Some(iced::Background::Color(
+                            OryxisColors::t().bg_primary,
+                        )),
+                        border: iced::Border {
+                            radius: iced::border::Radius::from(6.0),
+                            color: OryxisColors::t().border,
+                            width: 1.0,
+                        },
+                        ..Default::default()
+                    }),
+                    Space::new().height(10),
+                    text(crate::i18n::t("plugin_mirror_hint"))
+                        .size(12)
+                        .color(OryxisColors::t().text_secondary),
+                    Space::new().height(8),
+                    dir_row(vec![pill_button(
+                        crate::i18n::t("download_mirror"),
+                        Some(Message::Plugin(PluginMessage::OpenMirrorSetting)),
+                        OryxisColors::t().accent,
+                        false,
+                    )]),
+                ]
+                .into()
+            }
         };
 
         let mut body = column![

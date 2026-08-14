@@ -1760,6 +1760,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "プラグインのバイナリをローカルキャッシュにダウンロードします。アプリとは独立して更新・削除できます。",
         "plugin_install_modal_size" => "ダウンロードサイズ",
         "plugin_install_modal_unknown_size" => "サイズ不明（プラグインホストに到達できません）。",
+        "plugin_hosts_hint" => "\u{3053}\u{306e}\u{30c0}\u{30a6}\u{30f3}\u{30ed}\u{30fc}\u{30c9}\u{306f}\u{6b21}\u{306e}\u{30db}\u{30b9}\u{30c8}\u{306b}\u{63a5}\u{7d9a}\u{3057}\u{307e}\u{3059}\u{3002}\u{30d5}\u{30a1}\u{30a4}\u{30a2}\u{30a6}\u{30a9}\u{30fc}\u{30eb}\u{3084}\u{30d7}\u{30ed}\u{30ad}\u{30b7}\u{3067}\u{8a31}\u{53ef}\u{3057}\u{3066}\u{304f}\u{3060}\u{3055}\u{3044}\u{ff1a}",
+        "plugin_mirror_hint" => "\u{30cd}\u{30c3}\u{30c8}\u{30ef}\u{30fc}\u{30af}\u{3067} GitHub \u{304c}\u{30d6}\u{30ed}\u{30c3}\u{30af}\u{3055}\u{308c}\u{3066}\u{3044}\u{308b}\u{5834}\u{5408}\u{306f}\u{3001}\u{30c0}\u{30a6}\u{30f3}\u{30ed}\u{30fc}\u{30c9}\u{30df}\u{30e9}\u{30fc}\u{3092}\u{9078}\u{3093}\u{3067}\u{304f}\u{3060}\u{3055}\u{3044}\u{3002}\u{3069}\u{306e}\u{30db}\u{30b9}\u{30c8}\u{304b}\u{3089}\u{53d6}\u{5f97}\u{3057}\u{3066}\u{3082}\u{3001}\u{3059}\u{3079}\u{3066}\u{306e}\u{30c0}\u{30a6}\u{30f3}\u{30ed}\u{30fc}\u{30c9}\u{306f} sha256 + Ed25519 \u{3067}\u{691c}\u{8a3c}\u{3055}\u{308c}\u{307e}\u{3059}\u{3002}",
         "plugin_changelog" => "新着情報",
         "plugin_install_confirm" => "インストール",
         "plugin_err_no_manifest" => "プラグインホストに到達できません。接続を確認して再試行してください。",

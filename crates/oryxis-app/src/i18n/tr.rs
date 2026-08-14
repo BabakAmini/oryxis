@@ -1840,6 +1840,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "Bu, eklenti ikili dosyasını yerel bir önbelleğe indirir. Uygulamadan bağımsız olarak güncellenebilir veya kaldırılabilir.",
         "plugin_install_modal_size" => "İndirme boyutu",
         "plugin_install_modal_unknown_size" => "İndirme boyutu kullanılamıyor (eklenti sunucusuna ulaşılamadı).",
+        "plugin_hosts_hint" => "Bu indirme \u{15f}u ana makinelere ba\u{11f}lan\u{131}r; g\u{fc}venlik duvar\u{131} veya proxy izin vermelidir:",
+        "plugin_mirror_hint" => "A\u{11f}\u{131}n\u{131}zda GitHub engelliyse bir indirme aynas\u{131} se\u{e7}in. Baytlar hangi ana makineden gelirse gelsin her indirme sha256 + Ed25519 ile do\u{11f}rulan\u{131}r.",
         "plugin_changelog" => "Yenilikler",
         "plugin_install_confirm" => "Kur",
         "plugin_err_no_manifest" => "Eklenti sunucusuna ulaşılamadı. Bağlantınızı kontrol edip tekrar deneyin.",

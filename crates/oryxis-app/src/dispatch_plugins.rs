@@ -429,6 +429,20 @@ impl Oryxis {
                 Task::none()
             }
 
+            PluginMessage::OpenMirrorSetting => {
+                // Same teardown as a dismissal, then ride the settings
+                // search's reveal so the user lands ON the mirror row
+                // (discussion #163) instead of hunting for it.
+                self.plugin_install_modal = None;
+                self.gif_export.pending = None;
+                Task::done(crate::app::Message::Settings(
+                    crate::messages::SettingsMessage::RevealSetting(
+                        crate::state::SettingsSection::Advanced,
+                        "download_mirror",
+                    ),
+                ))
+            }
+
             PluginMessage::PluginInstall(id) => {
                 // Installing needs a manifest entry to download.
                 let (has_versions, best) = self

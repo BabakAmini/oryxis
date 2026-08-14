@@ -1938,6 +1938,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "plugin_install_modal_body" => "This downloads the plugin binary into a local cache. It can be updated or removed independently of the app.",
         "plugin_install_modal_size" => "Download size",
         "plugin_install_modal_unknown_size" => "Download size unavailable (could not reach the plugin host).",
+        "plugin_hosts_hint" => "This download talks to these hosts; a firewall or proxy must allow them:",
+        "plugin_mirror_hint" => "If GitHub is blocked on your network, pick a download mirror. Every download stays sha256 + Ed25519 verified, whatever host the bytes came from.",
         "plugin_changelog" => "What's new",
         "plugin_install_confirm" => "Install",
         "plugin_err_no_manifest" => "Could not reach the plugin host. Check your connection and try again.",

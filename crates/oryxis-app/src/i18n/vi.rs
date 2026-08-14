@@ -1840,6 +1840,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "Việc này tải binary plugin vào một bộ nhớ đệm cục bộ. Nó có thể được cập nhật hoặc gỡ bỏ độc lập với ứng dụng.",
         "plugin_install_modal_size" => "Kích thước tải về",
         "plugin_install_modal_unknown_size" => "Không có kích thước tải về (không thể kết nối tới host plugin).",
+        "plugin_hosts_hint" => "B\u{1ea3}n t\u{1ea3}i n\u{e0}y k\u{1ebf}t n\u{1ed1}i t\u{1edb}i c\u{e1}c m\u{e1}y ch\u{1ee7} sau; t\u{1b0}\u{1edd}ng l\u{1eed}a ho\u{1eb7}c proxy c\u{1ea7}n cho ph\u{e9}p:",
+        "plugin_mirror_hint" => "N\u{1ebf}u GitHub b\u{1ecb} ch\u{1eb7}n tr\u{ea}n m\u{1ea1}ng c\u{1ee7}a b\u{1ea1}n, h\u{e3}y ch\u{1ecd}n m\u{1ed9}t mirror t\u{1ea3}i v\u{1ec1}. M\u{1ecd}i b\u{1ea3}n t\u{1ea3}i v\u{1eab}n \u{111}\u{1b0}\u{1ee3}c x\u{e1}c minh b\u{1eb1}ng sha256 + Ed25519, b\u{1ea5}t k\u{1ec3} \u{111}\u{1ebf}n t\u{1eeb} m\u{e1}y ch\u{1ee7} n\u{e0}o.",
         "plugin_changelog" => "Có gì mới",
         "plugin_install_confirm" => "Cài đặt",
         "plugin_err_no_manifest" => "Không thể kết nối tới host plugin. Kiểm tra kết nối và thử lại.",

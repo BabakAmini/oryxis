@@ -1937,6 +1937,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "Tímto se stáhne binární soubor pluginu do místní mezipaměti. Lze jej aktualizovat nebo odebrat nezávisle na aplikaci.",
         "plugin_install_modal_size" => "Velikost stahování",
         "plugin_install_modal_unknown_size" => "Velikost stahování není k dispozici (nepodařilo se spojit s hostitelem pluginů).",
+        "plugin_hosts_hint" => "Toto stahov\u{e1}n\u{ed} se p\u{159}ipojuje k t\u{11b}mto hostitel\u{16f}m; firewall nebo proxy je mus\u{ed} povolit:",
+        "plugin_mirror_hint" => "Pokud je GitHub ve va\u{161}\u{ed} s\u{ed}ti blokovan\u{fd}, zvolte zrcadlo stahov\u{e1}n\u{ed}. Ka\u{17e}d\u{e9} sta\u{17e}en\u{ed} z\u{16f}st\u{e1}v\u{e1} ov\u{11b}\u{159}en\u{e9} p\u{159}es sha256 + Ed25519, a\u{165} bajty p\u{159}ijdou z kter\u{e9}hokoli hostitele.",
         "plugin_changelog" => "Co je nového",
         "plugin_install_confirm" => "Nainstalovat",
         "plugin_err_no_manifest" => "Nepodařilo se spojit s hostitelem pluginů. Zkontrolujte připojení a zkuste to znovu.",

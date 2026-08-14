@@ -1758,6 +1758,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugin_install_modal_body" => "將外掛程式二進位檔下載到本機快取。可獨立於應用程式進行更新或解除安裝。",
         "plugin_install_modal_size" => "下載大小",
         "plugin_install_modal_unknown_size" => "大小無法取得（無法連上外掛程式主機）。",
+        "plugin_hosts_hint" => "\u{6b64}\u{4e0b}\u{8f09}\u{6703}\u{5b58}\u{53d6}\u{4ee5}\u{4e0b}\u{7db2}\u{57df}\u{ff1b}\u{9632}\u{706b}\u{7246}\u{6216}\u{4ee3}\u{7406}\u{9700}\u{653e}\u{884c}\u{ff1a}",
+        "plugin_mirror_hint" => "\u{5982}\u{679c}\u{4f60}\u{7684}\u{7db2}\u{8def}\u{7121}\u{6cd5}\u{5b58}\u{53d6} GitHub\u{ff0c}\u{8acb}\u{9078}\u{64c7}\u{4e0b}\u{8f09}\u{93e1}\u{50cf}\u{3002}\u{6240}\u{6709}\u{4e0b}\u{8f09}\u{59cb}\u{7d42}\u{7d93}\u{904e} sha256 + Ed25519 \u{9a57}\u{8b49}\u{ff0c}\u{7121}\u{8ad6}\u{4f4d}\u{5143}\u{7d44}\u{4f86}\u{81ea}\u{54ea}\u{500b}\u{4e3b}\u{6a5f}\u{3002}",
         "plugin_changelog" => "更新內容",
         "plugin_install_confirm" => "安裝",
         "plugin_err_no_manifest" => "無法連上外掛程式主機。請檢查網路後重試。",
