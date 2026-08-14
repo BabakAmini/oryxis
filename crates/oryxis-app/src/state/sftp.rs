@@ -1178,6 +1178,12 @@ pub(crate) enum SftpSortColumn {
     Name,
     Modified,
     Size,
+    // The optional columns sort too (issue #143): Kind by the same
+    // label the cell shows, Permissions by the numeric mode,
+    // Owner by uid then gid.
+    Kind,
+    Permissions,
+    Owner,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -1343,14 +1349,18 @@ impl SftpColumn {
         }
     }
 
-    /// The sort column this header maps to, or `None` for display-only
-    /// columns (Type / Permissions / Owner aren't sortable).
+    /// The sort column this header maps to. Every column sorts (issue
+    /// #143 promoted the optional Type / Permissions / Owner trio);
+    /// `Option` stays so a future display-only column has somewhere to
+    /// say no.
     pub fn sort_column(self) -> Option<SftpSortColumn> {
         match self {
             SftpColumn::Name => Some(SftpSortColumn::Name),
             SftpColumn::Modified => Some(SftpSortColumn::Modified),
             SftpColumn::Size => Some(SftpSortColumn::Size),
-            _ => None,
+            SftpColumn::Kind => Some(SftpSortColumn::Kind),
+            SftpColumn::Permissions => Some(SftpSortColumn::Permissions),
+            SftpColumn::Owner => Some(SftpSortColumn::Owner),
         }
     }
 }

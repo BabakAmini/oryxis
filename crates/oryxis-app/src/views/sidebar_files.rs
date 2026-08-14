@@ -492,8 +492,24 @@ impl Oryxis {
         let c = OryxisColors::t();
         let hovered = self.hover.files_row == Some(pos);
 
+        // A folder's ICON enters it on a single click (issue #143), the
+        // dual-pane affordance; the rest of the row keeps single-click
+        // select / double-click enter. The inner MouseArea captures the
+        // press, so the row's own select never double-fires. For a
+        // folder `key_activate` IS the navigate message, which is what
+        // makes this one clone instead of a new parameter.
+        let icon: Element<'a, Message> =
+            crate::views::sftp::file_icon(name, is_dir, is_symlink).into();
+        let icon_cell: Element<'a, Message> = if is_dir {
+            MouseArea::new(icon)
+                .on_press(key_activate.clone())
+                .interaction(iced::mouse::Interaction::Pointer)
+                .into()
+        } else {
+            icon
+        };
         let mut cells: Vec<Element<'a, Message>> = vec![
-            crate::views::sftp::file_icon(name, is_dir, is_symlink).into(),
+            icon_cell,
             Space::new().width(8).into(),
             // Long names truncate with an ellipsis at the row edge
             // instead of bleeding over the size cell and past the card

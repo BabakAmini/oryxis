@@ -945,7 +945,25 @@ pub(crate) fn sort_remote_entries(
             SftpSortColumn::Name => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
             SftpSortColumn::Size => a.size.cmp(&b.size),
             SftpSortColumn::Modified => a.mtime.unwrap_or(0).cmp(&b.mtime.unwrap_or(0)),
-        };
+            // Kind sorts by the SAME label the cell shows (issue #143),
+            // so the order matches what the eye reads, localized names
+            // included. Permissions by the numeric mode bits (unknown
+            // first), Owner by uid then gid.
+            SftpSortColumn::Kind => {
+                crate::views::sftp::format_kind(&a.name, a.is_dir, a.is_symlink)
+                    .cmp(&crate::views::sftp::format_kind(&b.name, b.is_dir, b.is_symlink))
+            }
+            SftpSortColumn::Permissions => (a.permissions.unwrap_or(0) & 0o7777)
+                .cmp(&(b.permissions.unwrap_or(0) & 0o7777)),
+            SftpSortColumn::Owner => a
+                .uid
+                .cmp(&b.uid)
+                .then_with(|| a.gid.cmp(&b.gid)),
+        }
+        // Ties (every folder shares one Kind, one owner owns most of a
+        // home directory) resolve by name so the order stays stable and
+        // scannable instead of listing-order arbitrary.
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         if sort.ascending { cmp } else { cmp.reverse() }
     });
 }
@@ -967,7 +985,18 @@ pub(crate) fn sort_local_entries(
                 .modified
                 .unwrap_or(std::time::UNIX_EPOCH)
                 .cmp(&b.modified.unwrap_or(std::time::UNIX_EPOCH)),
-        };
+            // Same trio as the remote side (issue #143); the local
+            // listing has no symlink flag, matching its Kind cell.
+            SftpSortColumn::Kind => crate::views::sftp::format_kind(&a.name, a.is_dir, false)
+                .cmp(&crate::views::sftp::format_kind(&b.name, b.is_dir, false)),
+            SftpSortColumn::Permissions => (a.mode.unwrap_or(0) & 0o7777)
+                .cmp(&(b.mode.unwrap_or(0) & 0o7777)),
+            SftpSortColumn::Owner => a
+                .uid
+                .cmp(&b.uid)
+                .then_with(|| a.gid.cmp(&b.gid)),
+        }
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
         if sort.ascending { cmp } else { cmp.reverse() }
     });
 }
@@ -975,6 +1004,38 @@ pub(crate) fn sort_local_entries(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The optional columns sort too (issue #143): Kind by the shown
+    /// label, Permissions by mode bits, Owner by uid/gid, all with the
+    /// name as the tiebreak so equal keys stay scannable.
+    #[test]
+    fn extra_columns_sort_with_name_tiebreak() {
+        use crate::state::{SftpSort, SftpSortColumn};
+        let entry = |name: &str, perm: u32, uid: u32| oryxis_ssh::SftpEntry {
+            name: name.to_string(),
+            is_dir: false,
+            is_symlink: false,
+            size: 0,
+            mtime: None,
+            permissions: Some(perm),
+            uid: Some(uid),
+            gid: Some(0),
+        };
+        // Permissions: numeric mode order, names break the tie.
+        let mut rows = vec![entry("b.txt", 0o755, 1), entry("a.txt", 0o755, 2), entry("c.txt", 0o600, 3)];
+        sort_remote_entries(&mut rows, SftpSort { column: SftpSortColumn::Permissions, ascending: true });
+        let names: Vec<&str> = rows.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["c.txt", "a.txt", "b.txt"]);
+        // Owner: uid order.
+        sort_remote_entries(&mut rows, SftpSort { column: SftpSortColumn::Owner, ascending: false });
+        let names: Vec<&str> = rows.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["c.txt", "a.txt", "b.txt"]);
+        // Kind: the shown label (text/plain groups together), name tiebreak.
+        let mut rows = vec![entry("z.txt", 0, 0), entry("a.png", 0, 0), entry("m.txt", 0, 0)];
+        sort_remote_entries(&mut rows, SftpSort { column: SftpSortColumn::Kind, ascending: true });
+        let names: Vec<&str> = rows.iter().map(|e| e.name.as_str()).collect();
+        assert_eq!(names, ["a.png", "m.txt", "z.txt"]);
+    }
 
     /// Relaying a folder into its own subtree nests it into itself. The
     /// guard has to catch containment without catching the legitimate

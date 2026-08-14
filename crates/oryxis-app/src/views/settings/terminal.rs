@@ -445,59 +445,6 @@ impl Oryxis {
         card.into()
     }
 
-    fn default_download_dir_row(&self) -> Element<'_, Message> {
-        let configured = self.prefs.zmodem_download_dir.trim();
-        let shown = if configured.is_empty() {
-            dirs::download_dir()
-                .map(|p| p.display().to_string())
-                .unwrap_or_else(|| "~/.oryxis/downloads".to_string())
-        } else {
-            configured.to_string()
-        };
-        let browse = self.settings_nav_slot_labeled(
-            t("default_download_dir"),
-            crate::keynav::RowAction::activate(Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir)),
-            8.0,
-            crate::widgets::styled_button_opt(
-                crate::i18n::t("browse"),
-                Some(Message::Zmodem(ZmodemMessage::PickZmodemDownloadDir)),
-                crate::theme::OryxisColors::t().accent,
-            ),
-        );
-        let mut row = crate::widgets::dir_row(vec![
-            column![
-                text(crate::i18n::t("default_download_dir"))
-                    .size(13)
-                    .color(crate::theme::OryxisColors::t().text_primary),
-                Space::new().height(2),
-                text(shown)
-                    .size(11)
-                    .color(crate::theme::OryxisColors::t().text_muted),
-            ]
-            .width(Length::Fill)
-            .into(),
-            Space::new().width(10).into(),
-            browse,
-        ]);
-        // Reset-to-default only when a custom folder is set.
-        if !configured.is_empty() {
-            let reset = self.settings_nav_slot(
-                crate::keynav::RowAction::activate(Message::Zmodem(ZmodemMessage::ClearZmodemDownloadDir)),
-                8.0,
-                crate::widgets::styled_button_opt(
-                    crate::i18n::t("reset"),
-                    Some(Message::Zmodem(ZmodemMessage::ClearZmodemDownloadDir)),
-                    crate::theme::OryxisColors::t().text_muted,
-                ),
-            );
-            row = row.push(Space::new().width(8)).push(reset);
-        }
-        container(row.align_y(iced::Alignment::Center))
-            .padding(Padding { top: 8.0, ..Padding::ZERO })
-            .width(Length::Fill)
-            .into()
-    }
-
     pub(crate) fn view_settings_terminal(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded in visual order: the sections below
         // are deliberately CONSTRUCTED in the same order they render
@@ -685,9 +632,7 @@ impl Oryxis {
             toggles_col
                 .push(word_delimiters_block)
                 .push(Space::new().height(16))
-                .push(scrollback_block)
-                .push(Space::new().height(6))
-                .push(self.default_download_dir_row()),
+                .push(scrollback_block),
         );
 
         // Settings > Terminal used to have one "Appearance" card holding
