@@ -17,7 +17,7 @@ use iced::keyboard;
 use iced::Task;
 
 use crate::app::{SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SshMessage, CloudMessage, HistoryMessage, NavigationMessage, ProxyIdentityMessage, KnownHostMessage, SessionGroupMessage, PortForwardMessage, SnippetMessage, DashNavItem, Message, Oryxis};
-use crate::keynav::movement::{cycle_zone, grid_move, linear_move, MoveKey};
+use crate::keynav::movement::{cycle_zone, grid_move, index_move, linear_move, MoveKey};
 use crate::keynav::{FocusZone, NavItem, ToolbarItem};
 use crate::state::View;
 
@@ -100,7 +100,22 @@ impl Oryxis {
             ))));
         }
         match named {
-            Named::Tab => Some(self.keynav_cycle_zones(!modifiers.shift())),
+            Named::Tab => {
+                // Settings content, ring idle: a mouse-focused text input
+                // (the export / import password, the sync passphrase, the
+                // auto-lock field) owns its keys. Resolve what iced
+                // actually has focused, then walk the recorded rows from
+                // that field (the panel contract: inputs get real focus,
+                // the rest ring) instead of parking the ring on the FIRST
+                // content row — the Security section's "Vault Password"
+                // toggle — and scrolling the page away mid-typing. The
+                // fall-through keeps the zone cycle (Tab from the search
+                // field enters Content at its first row).
+                if let Some(task) = self.settings_ring_idle_resolve(*named, modifiers.shift()) {
+                    return Some(task);
+                }
+                Some(self.keynav_cycle_zones(!modifiers.shift()))
+            }
             // Desktop convention: the Menu key (and Shift+F10) opens
             // the selected item's context menu.
             Named::ContextMenu => self.keynav_open_context_menu(),
@@ -127,6 +142,12 @@ impl Oryxis {
                     // Shift+arrow is text selection in the search
                     // field; never ours.
                     return None;
+                }
+                // Same mouse-focused-field rule as Tab above: while the
+                // ring is idle in Settings the arrow belongs to the
+                // input's own caret, not to Content-entry at row 0.
+                if let Some(task) = self.settings_ring_idle_resolve(*named, modifiers.shift()) {
+                    return Some(task);
                 }
                 self.keynav_move(*named)
             }
@@ -884,5 +905,108 @@ impl Oryxis {
             scroll_id,
             iced::widget::operation::RelativeOffset { x: None, y: Some(y) },
         )
+    }
+
+    /// Settings content, ring idle: hand a Tab / movement key to
+    /// [`Self::settings_key_resolved`] once iced reports what it
+    /// actually has focused (resolved via `find_focused`). Returns
+    /// `Some(task)` when the Settings-keeps-its-keys rule applies (a
+    /// mouse-focused input row walks the recorded rows on Tab and keeps
+    /// its own caret on arrows); `None` leaves the normal vault-area
+    /// handling to run. Called from the router's Tab and movement arms,
+    /// whose surrounding gates (`side_panel_open`, modals, the Security
+    /// password forms, modifiers) have already run.
+    fn settings_ring_idle_resolve(
+        &self,
+        named: keyboard::key::Named,
+        shift: bool,
+    ) -> Option<Task<Message>> {
+        if !(self.active_tab.is_none()
+            && self.active_view == View::Settings
+            && self.keynav.focus.is_none())
+        {
+            return None;
+        }
+        Some(iced::widget::operation::find_focused().map(move |focused| {
+            Message::Navigation(NavigationMessage::SettingsKeyResolved {
+                named,
+                shift,
+                focused,
+            })
+        }))
+    }
+
+    /// Continuation of a Settings-content Tab / arrow press once iced
+    /// has reported which widget is actually focused (the gate in
+    /// `handle_keynav_key` resolves it via `find_focused`). A
+    /// mouse-focused input row owns the walk: Tab / Shift+Tab step
+    /// through the recorded rows from that field (the panel contract),
+    /// arrows / Home / End stay with the field's own caret. Anything
+    /// else gets the key the vault-area router would have given it:
+    /// Tab cycles the zones, arrows enter the content zone.
+    pub(crate) fn settings_key_resolved(
+        &mut self,
+        named: keyboard::key::Named,
+        shift: bool,
+        focused: Option<iced::widget::Id>,
+    ) -> Task<Message> {
+        use keyboard::key::Named as N;
+        let row = focused.and_then(|id| {
+            self.keynav
+                .settings_row_actions
+                .borrow()
+                .iter()
+                .position(|a| a.focus.as_ref() == Some(&id))
+        });
+        match (named, row) {
+            (N::Tab, Some(from)) => self.settings_nav_tab(!shift, from),
+            (N::Tab, None) => self.keynav_cycle_zones(!shift),
+            // A focused input row: the field's own caret / selection
+            // handling owns every non-Tab key (the panel contract).
+            (_, Some(_)) => Task::none(),
+            _ => self.settings_key_unclaimed(named),
+        }
+    }
+
+    /// Tab / Shift+Tab over the recorded Settings rows, entering at the
+    /// row whose input iced currently has focused (`from`). Input rows
+    /// receive real iced focus; the rest get the ring and iced focus is
+    /// blurred — the panel contract, applied to the Settings content so
+    /// a mouse-focused field (the export / import password, the sync
+    /// passphrase) Tabs onward instead of the vault-area router parking
+    /// the ring on the first content row and scrolling the page away.
+    fn settings_nav_tab(&mut self, forward: bool, from: usize) -> Task<Message> {
+        let len = self.keynav.settings_row_actions.borrow().len();
+        let Some(next) = index_move(len, Some(from), forward) else {
+            return Task::none();
+        };
+        let action = self.keynav.settings_row_actions.borrow().get(next).cloned();
+        let Some(action) = action else {
+            return Task::none();
+        };
+        self.keynav.focus = Some((FocusZone::Content, NavItem::SettingsRow(next)));
+        let step = match action.focus {
+            Some(id) => crate::widgets::focus_input(id),
+            None => blur_task(),
+        };
+        Task::batch([step, self.keynav_scroll_content_to(NavItem::SettingsRow(next))])
+    }
+
+    /// The vault-area handling a Settings-content key would have had
+    /// when no mouse-focused input row is in play: arrows / Home / End
+    /// move within the content zone from idle (Tab is handled inline by
+    /// `settings_key_resolved`). Mirrors the arms of `handle_keynav_key`
+    /// the resolution in `settings_ring_idle_resolve` intercepted.
+    fn settings_key_unclaimed(&mut self, named: keyboard::key::Named) -> Task<Message> {
+        use keyboard::key::Named as N;
+        match named {
+            N::ArrowUp
+            | N::ArrowDown
+            | N::ArrowLeft
+            | N::ArrowRight
+            | N::Home
+            | N::End => self.keynav_move(named).unwrap_or(Task::none()),
+            _ => Task::none(),
+        }
     }
 }

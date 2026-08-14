@@ -24,6 +24,21 @@ pub enum NavigationMessage {
         forward: bool,
         focused: Option<iced::widget::Id>,
     },
+    /// Continuation of a Settings-content Tab / arrow press with no
+    /// keynav ring active: `focused` is the widget iced actually has
+    /// focused (resolved via `find_focused`), so a mouse-focused field
+    /// (the export / import password, the sync passphrase) can walk the
+    /// recorded rows on Tab instead of the vault-area router parking
+    /// the ring on the first content row and scrolling the page away;
+    /// arrows / Home / End stay with the field's own caret. `None` =
+    /// nothing focused (fall back to the normal router).
+    SettingsKeyResolved {
+        /// The intercepted named key (Tab or a movement key).
+        named: iced::keyboard::key::Named,
+        /// Shift held: Shift+Tab walks the rows backward.
+        shift: bool,
+        focused: Option<iced::widget::Id>,
+    },
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the
