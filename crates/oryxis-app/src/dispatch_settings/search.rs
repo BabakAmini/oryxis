@@ -113,18 +113,25 @@ impl Oryxis {
                 }
                 self.keynav_clear_content();
                 self.keynav.settings_row_actions.borrow_mut().clear();
+                let mut tasks = vec![self.renderer_info_task()];
+                // Opening the Sync section re-probes `git` availability
+                // (a task, never in `view()`): the git card's "install
+                // it and reopen this screen" instruction relies on a
+                // reopen actually re-checking.
+                if section == crate::state::SettingsSection::Sync && self.sync.transport == "git" {
+                    tasks.push(crate::dispatch_git_sync::git_availability_task());
+                }
                 // Clicking another matching section while a search is
                 // active scrolls that section's first match into view.
-                if !self.settings_search.trim().is_empty() {
-                    return Ok(Task::batch([
-                        self.renderer_info_task(),
-                        self.schedule_settings_scroll(),
-                    ]));
-                }
-                // Sections remember where you left them (issue #120), so
-                // hopping out to check a change and back lands on the same
-                // row instead of at the top.
-                return Ok(Task::batch([self.renderer_info_task(), self.settings_restore_scroll()]));
+                // Otherwise sections remember where you left them (issue
+                // #120), so hopping out to check a change and back lands
+                // on the same row instead of at the top.
+                tasks.push(if !self.settings_search.trim().is_empty() {
+                    self.schedule_settings_scroll()
+                } else {
+                    self.settings_restore_scroll()
+                });
+                return Ok(Task::batch(tasks));
             }
             SettingsMessage::SectionScrolled(offset) => {
                 self.settings_scroll.insert(self.settings_section, offset);

@@ -630,8 +630,9 @@ pub(crate) struct GitSyncForm {
     pub passphrase: String,
     pub in_progress: bool,
     pub status: Option<Result<String, String>>,
-    /// Whether a usable `git` is on PATH. `None` = probe in flight (boot
-    /// or a transport switch resolves it within a moment); the card
+    /// Whether a usable `git` is on PATH. `None` = probe in flight (boot,
+    /// a transport switch or opening the Sync section resolves it within
+    /// a moment); the card
     /// disables "Sync now" until it is known. Probed on a worker thread
     /// ONLY: the old per-render `git_available()` call inside `view()`
     /// spawned a subprocess on the UI thread, freezing the app and

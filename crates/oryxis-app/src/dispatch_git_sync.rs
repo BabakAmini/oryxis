@@ -126,7 +126,11 @@ fn git(dir: Option<&Path>, args: &[&str]) -> Result<String, String> {
         use std::os::windows::process::CommandExt as _;
         cmd.creation_flags(0x0800_0000);
     }
+    // `spawn()` inherits stdin (unlike the old `output()`, which nulled
+    // it): null it explicitly so a git that decides to read stdin
+    // anyway fails fast instead of idling until the timeout kills it.
     let mut child = cmd
+        .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -187,12 +191,22 @@ pub(crate) fn git_available() -> bool {
 ///
 /// The probe must never run inside `view()`: it spawns a subprocess,
 /// so a per-render call blocks the UI thread and (on Windows) flashes
-/// a console window every frame. Boot, a transport switch and each
-/// finished round refresh the cache instead.
+/// a console window every frame. Boot, a transport switch, opening the
+/// Sync settings section and each finished round refresh the cache
+/// instead; the section-open refresh is what keeps the card's "install
+/// it and reopen this screen" instruction true.
 pub(crate) fn git_availability_task() -> Task<Message> {
-    Task::perform(async move { git_available() }, |available| {
-        Message::Sync(SyncMessage::GitAvailabilityChecked(available))
-    })
+    Task::perform(
+        // `spawn_blocking`, not a bare async block: the probe waits on
+        // a subprocess (worst case the whole `COMMAND_TIMEOUT`), and a
+        // bare block would pin an executor thread for that long.
+        async move {
+            tokio::task::spawn_blocking(git_available)
+                .await
+                .unwrap_or(false)
+        },
+        |available| Message::Sync(SyncMessage::GitAvailabilityChecked(available)),
+    )
 }
 
 impl Oryxis {

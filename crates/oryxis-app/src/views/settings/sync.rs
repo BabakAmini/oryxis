@@ -437,8 +437,9 @@ impl Oryxis {
     /// without it said so while the user was still choosing. That froze
     /// the UI and flashed a console window per render on Windows (a
     /// subprocess spawn on the UI thread). It now runs as a task
-    /// (`GitAvailabilityChecked`) at boot, on transport switch and after
-    /// each round; this card only reads the cached result.
+    /// (`GitAvailabilityChecked`) at boot, on transport switch, on
+    /// opening the Sync section and after each round; this card only
+    /// reads the cached result.
     fn sync_git_card(&self) -> Element<'_, Message> {
         let busy = self.sync.git.in_progress;
         // `None` = probe in flight: the button waits a moment rather

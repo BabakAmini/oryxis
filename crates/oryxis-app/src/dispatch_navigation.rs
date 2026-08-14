@@ -192,7 +192,18 @@ impl Oryxis {
                 // it: Settings has a search id, so an early return there
                 // would shadow both of these every time.
                 let settings_tasks: Vec<Task<Message>> = if view == View::Settings {
-                    vec![self.renderer_info_task(), self.settings_restore_scroll()]
+                    let mut tasks = vec![self.renderer_info_task(), self.settings_restore_scroll()];
+                    // Landing straight on the remembered Sync section
+                    // (issue #120) also skips ChangeSettingsSection, so
+                    // the git card's availability re-probe fires here
+                    // too; "install it and reopen this screen" must
+                    // stay true for this door as well.
+                    if self.settings_section == crate::state::SettingsSection::Sync
+                        && self.sync.transport == "git"
+                    {
+                        tasks.push(crate::dispatch_git_sync::git_availability_task());
+                    }
+                    tasks
                 } else {
                     Vec::new()
                 };
