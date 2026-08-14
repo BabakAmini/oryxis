@@ -20,6 +20,13 @@ pub struct Snippet {
     /// snippet deletes the shortcut with it, by construction.
     #[serde(default)]
     pub hotkey: Option<String>,
+    /// Install script (issue #147): a one-time host setup rather than a
+    /// command run often. Drives its own affordances (a confirmation
+    /// showing the full body before anything is sent, and the per-host
+    /// "already ran here" memory); `#[serde(default)]` so snippets from
+    /// older peers and exports read as ordinary commands.
+    #[serde(default)]
+    pub install: bool,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
 }
@@ -35,6 +42,7 @@ impl Snippet {
             tags: Vec::new(),
             group: None,
             hotkey: None,
+            install: false,
             created_at: now,
             updated_at: now,
         }

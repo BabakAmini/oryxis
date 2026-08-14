@@ -505,6 +505,12 @@ pub struct Oryxis {
     /// requested rather than resolved on confirm: see
     /// `dispatch_terminal::paste_text_into_tab`.
     pub(crate) pending_paste: Option<(uuid::Uuid, String)>,
+    /// Set alongside `pending_paste` when the parked text is an INSTALL
+    /// script (issue #147): `(snippet id, run)`. The confirm then sends
+    /// through the snippet injection (newline outside the bracketed
+    /// paste, so Run actually executes) and records the run into the
+    /// host's install memory; an ordinary paste park clears it.
+    pub(crate) pending_paste_install: Option<(uuid::Uuid, bool)>,
     /// Paths from an in-flight OS drop onto the terminal, buffered so a
     /// multi-file gesture (one `FileDropped` per file) becomes one routed
     /// batch. Flushed by `TerminalDropFlush` after a short debounce; the
@@ -881,6 +887,12 @@ pub struct Oryxis {
 
     // Snippets
     pub(crate) snippets: Vec<oryxis_core::models::snippet::Snippet>,
+    /// Which install script (issue #147) already ran on which host,
+    /// keyed (host id, snippet id) with the last run time. Mirror of
+    /// the vault's `install_runs` table; drives the "installed here"
+    /// hint on the snippet surfaces. Local bookkeeping, never synced.
+    pub(crate) install_runs:
+        std::collections::HashMap<(Uuid, Uuid), chrono::DateTime<chrono::Utc>>,
     /// User-defined terminal color schemes, shown in the theme pickers
     /// alongside the built-in presets and resolved by name.
     pub(crate) custom_terminal_themes:

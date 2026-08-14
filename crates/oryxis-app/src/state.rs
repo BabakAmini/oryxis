@@ -110,6 +110,11 @@ pub(crate) struct PendingSnippetVars {
     pub command: String,
     /// `true` = run (+ Enter); `false` = paste only.
     pub run: bool,
+    /// `Some(snippet id)` when the snippet is an install script (issue
+    /// #147): the vars confirm parks the careful-paste confirmation
+    /// (full body on screen) instead of sending, and a confirmed run
+    /// records into the host's install memory.
+    pub install: Option<uuid::Uuid>,
     /// (name, current value) per distinct placeholder, defaults
     /// pre-filled; edited in place by the modal inputs.
     pub vars: Vec<(String, String)>,

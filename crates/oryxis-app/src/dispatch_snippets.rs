@@ -94,7 +94,7 @@ impl Oryxis {
     /// tab, for the parked path: a snippet held in the variables modal
     /// belongs to the tab it was fired at, not to whatever is active by
     /// the time the user confirms.
-    fn inject_snippet_text_into(&mut self, tab_idx: usize, cmd: &str, run: bool) {
+    pub(crate) fn inject_snippet_text_into(&mut self, tab_idx: usize, cmd: &str, run: bool) {
         let Some(tab) = self.tabs.get(tab_idx) else {
             return;
         };
@@ -120,9 +120,22 @@ impl Oryxis {
             return Task::none();
         };
         let cmd = snip.command.clone();
+        // Install scripts (issue #147) never send on the click alone:
+        // whatever the path (Run or Paste, with or without variables),
+        // the full body ends up parked in the careful-paste
+        // confirmation, so what is about to reach the host is on
+        // screen first.
+        let install = snip.install.then_some(snip.id);
         let vars = crate::util::snippet_placeholders(&cmd);
         if vars.is_empty() {
-            self.inject_snippet_text(&cmd, run);
+            match install {
+                Some(snippet_id) => {
+                    if let Some(tab_idx) = self.snippet_injection_tab() {
+                        self.park_install_confirm(tab_idx, snippet_id, &cmd, run);
+                    }
+                }
+                None => self.inject_snippet_text(&cmd, run),
+            }
             return Task::none();
         }
         // Pin the target now, while it still means the tab the user was
@@ -138,9 +151,54 @@ impl Oryxis {
             target_tab,
             command: cmd,
             run,
+            install,
             vars,
         });
         crate::widgets::focus_input(iced::widget::Id::new("snippet-var-0"))
+    }
+
+    /// Park an install script in the careful-paste confirmation
+    /// (unconditionally: the guard settings gate accidents, this gates
+    /// a deliberate but consequential action) and remember which
+    /// snippet it was, so a confirmed run lands in the host's install
+    /// memory. The `__ORYXIS_NONCE__` placeholder is resolved here,
+    /// with the vault's CURRENT integration key, so the preview shows
+    /// exactly what will be sent.
+    fn park_install_confirm(
+        &mut self,
+        tab_idx: usize,
+        snippet_id: uuid::Uuid,
+        cmd: &str,
+        run: bool,
+    ) {
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return;
+        };
+        let text =
+            crate::shell_integration::fill_nonce(cmd, &self.shell_integration_nonce);
+        self.pending_paste = Some((tab._id, text));
+        self.pending_paste_install = Some((snippet_id, run));
+    }
+
+    /// A confirmed install run: write it into the host's install
+    /// memory (vault + in-memory mirror). Only saved hosts have one;
+    /// a quick-connect or local pane runs the script without a record.
+    pub(crate) fn record_install_run_for_tab(
+        &mut self,
+        tab_idx: usize,
+        snippet_id: uuid::Uuid,
+    ) {
+        let Some(tab) = self.tabs.get(tab_idx) else {
+            return;
+        };
+        let crate::state::PaneOrigin::Host(host_id) = tab.active().origin else {
+            return;
+        };
+        if let Some(vault) = &self.vault {
+            let _ = vault.record_install_run(&host_id, &snippet_id);
+        }
+        self.install_runs
+            .insert((host_id, snippet_id), chrono::Utc::now());
     }
 
     /// Rebuild the Group combo options from the distinct snippet
@@ -179,6 +237,7 @@ impl Oryxis {
                 self.snippet_form.tags_input.clear();
                 self.snippet_form.hotkey = None;
                 self.snippet_form.hotkey_capturing = false;
+                self.snippet_form.install = false;
                 self.snippet_form.editing_id = None;
                 self.snippet_form.error = None;
                 self.reset_snippet_group_combo();
@@ -190,6 +249,9 @@ impl Oryxis {
             SnippetMessage::SnippetLabelChanged(v) => self.snippet_form.label = v,
             SnippetMessage::SnippetGroupChanged(v) => self.snippet_form.group = v,
             SnippetMessage::SnippetTagsChanged(v) => self.snippet_form.tags_input = v,
+            SnippetMessage::ToggleSnippetInstall => {
+                self.snippet_form.install = !self.snippet_form.install;
+            }
             SnippetMessage::SnippetCommandAction(action) => self.snippet_form.command.perform(action),
             SnippetMessage::ToggleSnippetTagFilter => {
                 self.prefs.snippet_tag_filter = !self.prefs.snippet_tag_filter;
@@ -300,6 +362,7 @@ impl Oryxis {
                         .as_deref()
                         .and_then(crate::hotkeys::HotkeyBinding::parse);
                     self.snippet_form.hotkey_capturing = false;
+                    self.snippet_form.install = snip.install;
                     self.snippet_form.editing_id = Some(snip.id);
                     self.snippet_form.error = None;
                     self.reset_snippet_group_combo();
@@ -324,6 +387,7 @@ impl Oryxis {
                 };
                 snip.tags = crate::util::parse_tags(&self.snippet_form.tags_input);
                 snip.hotkey = self.snippet_form.hotkey.map(|b| b.serialize());
+                snip.install = self.snippet_form.install;
                 if let Some(vault) = &self.vault {
                     match vault.save_snippet(&snip) {
                         Ok(()) => {
@@ -415,7 +479,19 @@ impl Oryxis {
                     // other tab is a different host. Dropping the send is
                     // the only safe answer.
                     if let Some(tab_idx) = self.tab_index_by_id(pending.target_tab) {
-                        self.inject_snippet_text_into(tab_idx, &cmd, pending.run);
+                        match pending.install {
+                            // An install script goes through the body
+                            // confirmation next, vars resolved (#147).
+                            Some(snippet_id) => self.park_install_confirm(
+                                tab_idx,
+                                snippet_id,
+                                &cmd,
+                                pending.run,
+                            ),
+                            None => {
+                                self.inject_snippet_text_into(tab_idx, &cmd, pending.run)
+                            }
+                        }
                     }
                 }
             }

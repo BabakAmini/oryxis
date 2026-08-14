@@ -28,6 +28,8 @@ pub(crate) struct SnippetForm {
     /// True while the snippet editor's shortcut recorder waits for a
     /// key combo (next chord becomes the binding, Esc cancels).
     pub(crate) hotkey_capturing: bool,
+    /// "Install script" category toggle (issue #147).
+    pub(crate) install: bool,
     pub(crate) error: Option<String>,
 }
 
@@ -42,6 +44,7 @@ impl Default for SnippetForm {
             editing_id: None,
             hotkey: None,
             hotkey_capturing: false,
+            install: false,
             error: None,
         }
     }

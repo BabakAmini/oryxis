@@ -391,6 +391,16 @@ impl Oryxis {
             ));
         }
         let any_rows = !snippet_rows.is_empty();
+        // The focused pane's saved host, for the install-script hint
+        // (issue #147): quick-connect and local panes have no install
+        // memory, so their rows show the plain category marker.
+        let install_host = self
+            .active_tab
+            .and_then(|i| self.tabs.get(i))
+            .and_then(|t| match t.active().origin {
+                crate::state::PaneOrigin::Host(id) => Some(id),
+                _ => None,
+            });
         for idx in snippet_rows {
             let snip = &self.snippets[idx];
             let row = snippet_row(
@@ -398,6 +408,10 @@ impl Oryxis {
                 &snip.label,
                 &snip.command,
                 self.hover.snippet_card == Some(idx),
+                snip.install.then(|| {
+                    install_host
+                        .and_then(|h| self.install_runs.get(&(h, snip.id)).copied())
+                }),
             );
             list = list.push(self.sidebar_nav_slot(
                 crate::keynav::SidebarRow::item(
@@ -689,6 +703,10 @@ fn snippet_row<'a>(
     label: &'a str,
     command: &'a str,
     hovered: bool,
+    // Install-script hint (issue #147): `None` = ordinary snippet;
+    // `Some(None)` = install script, no recorded run on this host;
+    // `Some(Some(at))` = it ran here, last at `at`.
+    install: Option<Option<chrono::DateTime<chrono::Utc>>>,
 ) -> Element<'a, Message> {
     let c = OryxisColors::t();
     // First line only, ellipsized, so multi-line snippets stay one row.
@@ -702,12 +720,26 @@ fn snippet_row<'a>(
             head
         }
     };
-    let info = column![
+    let mut info = column![
         text(label).size(13).color(c.text_primary),
         text(preview).size(11).color(c.text_muted),
     ]
     .spacing(2)
     .width(Length::Fill);
+    // The category marker doubles as the per-host memory: "installed
+    // here" is a hint, not a lock, so the row stays runnable.
+    if let Some(ran) = install {
+        info = info.push(match ran {
+            Some(at) => text(format!(
+                "{} \u{b7} {}",
+                t("snippet_installed_here"),
+                at.format("%Y-%m-%d")
+            ))
+            .size(10)
+            .color(c.success),
+            None => text(t("snippet_install_badge")).size(10).color(c.warning),
+        });
+    }
 
     let card = container(info)
         .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })

@@ -76,6 +76,17 @@ impl VaultStore {
                 created_at  TEXT NOT NULL
             );
 
+            -- Install scripts (issue #147): which install snippet ran on
+            -- which host, and when. Local bookkeeping, deliberately not
+            -- synced or exported: it states a fact about THIS vault's
+            -- view of a host, and a hint is allowed to be conservative.
+            CREATE TABLE IF NOT EXISTS install_runs (
+                host_id    TEXT NOT NULL,
+                snippet_id TEXT NOT NULL,
+                ran_at     TEXT NOT NULL,
+                PRIMARY KEY (host_id, snippet_id)
+            );
+
             CREATE TABLE IF NOT EXISTS custom_terminal_themes (
                 id          TEXT PRIMARY KEY,
                 name        TEXT NOT NULL,
@@ -380,6 +391,10 @@ impl VaultStore {
         let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN group_name TEXT;");
         // Per-snippet custom hotkey (serialized binding, e.g. "ctrl+shift+k").
         let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN hotkey TEXT;");
+        // Install-script category (issue #147): 1 = one-time host setup
+        // with the confirm + per-host memory affordances. NULL/0 =
+        // ordinary snippet.
+        let _ = self.db.execute_batch("ALTER TABLE snippets ADD COLUMN install INTEGER;");
         // Session-recording timing (asciicast export): milliseconds since
         // the log's started_at, stamped at capture time. NULL on chunks
         // recorded before this column existed (exported with a fixed

@@ -245,9 +245,17 @@ impl Oryxis {
                         .into(),
                     Space::new().width(8).into(),
                     container(
-                        text(crate::i18n::t("careful_paste_title"))
-                            .size(16)
-                            .color(c.text_primary),
+                        // An install script (issue #147) parks in the
+                        // same dialog; the title says what confirming
+                        // actually does there (runs a host setup, not
+                        // "pastes some lines").
+                        text(crate::i18n::t(if self.pending_paste_install.is_some() {
+                            "install_script_title"
+                        } else {
+                            "careful_paste_title"
+                        }))
+                        .size(16)
+                        .color(c.text_primary),
                     )
                     .width(Length::Fill)
                     .align_x(dir_align_x())
@@ -278,7 +286,14 @@ impl Oryxis {
                             6.0,
                             true,
                             styled_button(
-                                crate::i18n::t("careful_paste_confirm"),
+                                crate::i18n::t(
+                                    match self.pending_paste_install {
+                                        // Run executes, Paste only types.
+                                        Some((_, true)) => "install_script_run",
+                                        Some((_, false)) => "careful_paste_confirm",
+                                        None => "careful_paste_confirm",
+                                    },
+                                ),
                                 Message::Terminal(TerminalMessage::ConfirmPendingPaste),
                                 c.accent,
                             ),

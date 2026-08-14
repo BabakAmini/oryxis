@@ -520,6 +520,17 @@ impl Oryxis {
                     .font(iced::Font::MONOSPACE)
                     .wrapping(iced::widget::text::Wrapping::None),
             ];
+            // Install-script category marker (issue #147); the per-host
+            // "installed here" state lives on the terminal sidebar rows,
+            // which know which host is focused.
+            if snip.install {
+                info_col = info_col.push(Space::new().height(2)).push(
+                    text(t("snippet_install_badge"))
+                        .size(10)
+                        .color(OryxisColors::t().warning)
+                        .wrapping(iced::widget::text::Wrapping::None),
+                );
+            }
             if !snip.tags.is_empty() {
                 let hashtags = snip
                     .tags
@@ -745,6 +756,23 @@ self.keynav_ring_content(kb_selected, card_el)
             text(t("snippet_hotkey")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),
             self.snippet_hotkey_row(true),
+            Space::new().height(14),
+            // Install-script category (issue #147): flips this snippet
+            // into the one-time host-setup affordances (a confirmation
+            // showing the full body before anything is sent, and the
+            // per-host "installed here" memory).
+            self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::Snippet(
+                    SnippetMessage::ToggleSnippetInstall,
+                )),
+                10.0,
+                crate::widgets::toggle_row_desc(
+                    t("snippet_install_toggle"),
+                    t("snippet_install_desc"),
+                    self.snippet_form.install,
+                    Message::Snippet(SnippetMessage::ToggleSnippetInstall),
+                ),
+            ),
             Space::new().height(14),
             text(t("command_label")).size(12).color(OryxisColors::t().text_secondary),
             Space::new().height(4),

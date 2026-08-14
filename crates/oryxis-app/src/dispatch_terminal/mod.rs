@@ -78,6 +78,10 @@ impl Oryxis {
                 && !crate::paste_guard::paste_warnings(text).is_empty())
         {
             self.pending_paste = Some((tab_id, text.to_string()));
+            // An ordinary paste park replaces whatever was parked; a
+            // stale install marker (issue #147) must not survive to
+            // claim this text's confirm.
+            self.pending_paste_install = None;
             return;
         }
         self.write_paste_to_tab(tab_id, text);
@@ -652,12 +656,28 @@ impl Oryxis {
             // Careful-paste confirmation: release the parked multi-line
             // text into the session, or drop it.
             TerminalMessage::ConfirmPendingPaste => {
-                if let Some((tab_idx, text)) = self.pending_paste.take() {
-                    self.write_paste_to_tab(tab_idx, &text);
+                if let Some((tab_id, text)) = self.pending_paste.take() {
+                    match self.pending_paste_install.take() {
+                        // A confirmed INSTALL script (issue #147) sends
+                        // through the snippet injection, so Run's
+                        // newline lands OUTSIDE the bracketed paste and
+                        // actually executes, then lands in the host's
+                        // install memory.
+                        Some((snippet_id, run)) => {
+                            if let Some(tab_idx) = self.tab_index_by_id(tab_id) {
+                                self.inject_snippet_text_into(tab_idx, &text, run);
+                                if run {
+                                    self.record_install_run_for_tab(tab_idx, snippet_id);
+                                }
+                            }
+                        }
+                        None => self.write_paste_to_tab(tab_id, &text),
+                    }
                 }
             }
             TerminalMessage::CancelPendingPaste => {
                 self.pending_paste = None;
+                self.pending_paste_install = None;
             }
             // Synthesized input from the terminal widget: mouse-tracking
             // reports (tmux `mouse on`, vim `mouse=a`, htop, ...) and the

@@ -55,6 +55,26 @@ pub(crate) fn snippet(nonce: &str) -> String {
         .replace(PLACEHOLDER, nonce)
 }
 
+/// The template with the placeholder INTACT (LF-normalized), for the
+/// install-script preset (issue #147): the preset stores the
+/// placeholder and the injection path substitutes the vault's current
+/// key at run time, so rotating the key can never leave a stale copy
+/// frozen inside the vault.
+pub(crate) fn template() -> String {
+    SNIPPET_TEMPLATE.replace("\r\n", "\n")
+}
+
+/// Substitute the current key into `text` (a snippet body about to be
+/// sent). A no-op for the overwhelming majority of snippets, which
+/// never carry the placeholder.
+pub(crate) fn fill_nonce(text: &str, nonce: &str) -> String {
+    if text.contains(PLACEHOLDER) {
+        text.replace(PLACEHOLDER, nonce)
+    } else {
+        text.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,6 +105,18 @@ mod tests {
         // sniffer compares; a snippet that emits the old 2-field form would
         // be refused by every pane.
         assert!(s.contains(r#"__oryxis_osc "633;E;$(__oryxis_esc "$1");$__oryxis_key""#));
+    }
+
+    #[test]
+    fn fill_nonce_substitutes_only_when_the_placeholder_is_there() {
+        assert_eq!(fill_nonce("key=__ORYXIS_NONCE__", "abc"), "key=abc");
+        // The install preset embeds the whole template; every copy of
+        // the placeholder must resolve, or the host gets a key that is
+        // half real, half literal.
+        let body = "a=__ORYXIS_NONCE__\nb=__ORYXIS_NONCE__";
+        assert!(!fill_nonce(body, "abc").contains(PLACEHOLDER));
+        // And an ordinary snippet passes through untouched.
+        assert_eq!(fill_nonce("echo hi", "abc"), "echo hi");
     }
 
     /// `docs/TMUX.md` shows the snippet inline, because a user reading it on

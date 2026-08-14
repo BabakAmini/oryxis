@@ -57,3 +57,86 @@ fn snippet_group_and_tags_roundtrip() {
     vault.save_snippet(&s2).unwrap();
     assert_eq!(vault.list_snippets().unwrap()[0].group, None);
 }
+
+
+// ── Install scripts (issue #147) ──
+
+
+#[test]
+fn snippet_install_flag_roundtrips() {
+    let vault = unlocked_vault();
+    let mut s = Snippet::new("setup", "echo install");
+    s.install = true;
+    vault.save_snippet(&s).unwrap();
+    assert!(vault.list_snippets().unwrap()[0].install);
+
+    // And back off again.
+    let mut s2 = vault.list_snippets().unwrap()[0].clone();
+    s2.install = false;
+    vault.save_snippet(&s2).unwrap();
+    assert!(!vault.list_snippets().unwrap()[0].install);
+}
+
+
+#[test]
+fn install_runs_record_list_and_refresh() {
+    let vault = unlocked_vault();
+    let host = uuid::Uuid::new_v4();
+    let snip = uuid::Uuid::new_v4();
+    vault.record_install_run(&host, &snip).unwrap();
+    let runs = vault.list_install_runs().unwrap();
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0].0, host);
+    assert_eq!(runs[0].1, snip);
+
+    // A re-run REFRESHES the row (hint, not a lock): still one row,
+    // with a timestamp at least as new.
+    let first = runs[0].2;
+    vault.record_install_run(&host, &snip).unwrap();
+    let runs = vault.list_install_runs().unwrap();
+    assert_eq!(runs.len(), 1);
+    assert!(runs[0].2 >= first);
+}
+
+
+#[test]
+fn deleting_a_snippet_takes_its_install_runs_along() {
+    let vault = unlocked_vault();
+    let mut s = Snippet::new("setup", "echo install");
+    s.install = true;
+    vault.save_snippet(&s).unwrap();
+    let host = uuid::Uuid::new_v4();
+    vault.record_install_run(&host, &s.id).unwrap();
+    vault.delete_snippet(&s.id).unwrap();
+    assert!(vault.list_install_runs().unwrap().is_empty());
+}
+
+
+#[test]
+fn deleting_a_host_takes_its_install_runs_along() {
+    let vault = unlocked_vault();
+    let conn = Connection::new("box", "10.0.0.1");
+    vault.save_connection(&conn, None).unwrap();
+    let snip = uuid::Uuid::new_v4();
+    vault.record_install_run(&conn.id, &snip).unwrap();
+    vault.delete_connection(&conn.id).unwrap();
+    assert!(vault.list_install_runs().unwrap().is_empty());
+}
+
+
+#[test]
+fn legacy_snippet_payload_defaults_to_not_install() {
+    // A snippet serialized by an older peer (sync) or an older export
+    // carries no `install` field; it must read as an ordinary snippet.
+    let json = r#"{
+        "id": "6dc6bfc9-9b2f-4d2f-9a94-1e2a53a24c2b",
+        "label": "old",
+        "command": "echo hi",
+        "description": null,
+        "tags": [],
+        "created_at": "2026-01-01T00:00:00Z",
+        "updated_at": "2026-01-01T00:00:00Z"
+    }"#;
+    let s: Snippet = serde_json::from_str(json).unwrap();
+    assert!(!s.install);
+}

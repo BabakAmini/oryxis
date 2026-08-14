@@ -693,6 +693,13 @@ impl VaultStore {
         // host must not leave its command trail behind). No tombstone: the
         // table never syncs.
         self.clear_command_history(id)?;
+        // Install-run rows (issue #147) are the same class of local
+        // bookkeeping: statements about this host, meaningless (and
+        // wrong, should the id ever be reused) once it is gone.
+        self.db.execute(
+            "DELETE FROM install_runs WHERE host_id = ?1",
+            params![id.to_string()],
+        )?;
         Ok(())
     }
 

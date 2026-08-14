@@ -97,6 +97,34 @@ impl Oryxis {
 
             // (migration runs after the rest of the load, see end of fn)
             self.snippets = vault.list_snippets().unwrap_or_default();
+            // Install-script presets (issue #147), seeded ONCE per vault:
+            // editable copies, so a user's edit or delete must never be
+            // overwritten by a later boot. Fixed ids + fixed old
+            // timestamps make two devices' seeds converge under sync
+            // instead of duplicating (see `install_presets`).
+            if !matches!(
+                vault.get_setting("install_presets_seeded"),
+                Ok(Some(ref v)) if v == "true"
+            ) {
+                for preset in
+                    crate::install_presets::presets(&crate::shell_integration::template())
+                {
+                    if !self.snippets.iter().any(|s| s.id == preset.id) {
+                        let _ = vault.save_snippet(&preset);
+                        self.snippets.push(preset);
+                    }
+                }
+                self.snippets.sort_by(|a, b| a.label.cmp(&b.label));
+                let _ = vault.set_setting("install_presets_seeded", "true");
+            }
+            // Which install scripts already ran where, for the
+            // "installed here" hint on the snippet surfaces.
+            self.install_runs = vault
+                .list_install_runs()
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(host, snippet, at)| ((host, snippet), at))
+                .collect();
             self.custom_terminal_themes =
                 vault.list_custom_terminal_themes().unwrap_or_default();
             self.custom_ui_themes = vault.list_custom_ui_themes().unwrap_or_default();

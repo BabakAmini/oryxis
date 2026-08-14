@@ -12,6 +12,8 @@ pub enum SnippetMessage {
     SnippetGroupChanged(String),
     /// Snippet editor: comma-separated tags field.
     SnippetTagsChanged(String),
+    /// Snippet editor: flip the install-script category (issue #147).
+    ToggleSnippetInstall,
     /// Snippets sidebar: toggle "only snippets tagged like this host".
     ToggleSnippetTagFilter,
     /// Vault Snippets: open/close the tag-filter dropdown.
