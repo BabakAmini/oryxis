@@ -293,6 +293,7 @@ impl Oryxis {
                 chain_editor_search: String::new(),
                 connecting: None,
                 connect_anim_tick: 0,
+                busy_anim_tick: 0,
                 last_window_press_at: None,
                 pending_legacy_algo: None,
                 pending_host_key: None,

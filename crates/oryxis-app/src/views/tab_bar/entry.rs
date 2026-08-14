@@ -374,6 +374,22 @@ impl Oryxis {
         } else {
             None
         };
+        // Running-command indicator (issue #146): some pane of this tab
+        // has a command running PAST the smart-tabs long-command
+        // threshold, so the strip says the host is busy while it still
+        // is (the attention dot only speaks after the fact). Same gates
+        // as the finished-command notification (toggle + threshold);
+        // the frame advances on `BusyAnimTick`, whose subscription only
+        // exists while a command is in flight.
+        let busy_frame: Option<u8> = (self.prefs.smart_tabs
+            && self.prefs.smart_long_secs > 0
+            && tab.pane_grid.panes.values().any(|p| {
+                p.running_cmd.as_ref().is_some_and(|run| {
+                    run.started.elapsed().as_secs()
+                        >= u64::from(self.prefs.smart_long_secs)
+                })
+            }))
+        .then_some((self.busy_anim_tick % 3) as u8);
         // Session-group tabs carry the group's own icon + color.
         let session_group = tab
             .session_group_id
@@ -470,6 +486,7 @@ impl Oryxis {
                 tab_badge_color,
                 status_dot,
                 attention_dot,
+                busy_frame,
                 self.prefs.tab_accent_text,
                 ctx.solid_fill,
                 files_mode,
@@ -519,6 +536,7 @@ impl Oryxis {
                 ctx.close_on_right,
                 status_dot,
                 attention_dot,
+                busy_frame,
                 tab_accent,
                 self.prefs.tab_accent_text,
                 host_icon_style,

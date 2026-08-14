@@ -357,6 +357,10 @@ pub struct Oryxis {
     /// Counter that advances ~every 100ms while a connection is in progress.
     /// Used only to drive the pulsing "loading" ring on the active step dot.
     pub(crate) connect_anim_tick: u32,
+    /// Frame counter for the tab strip's running-command indicator
+    /// (issue #146), advanced by `TabsMessage::BusyAnimTick` while its
+    /// subscription is mounted (some pane has a command in flight).
+    pub(crate) busy_anim_tick: u32,
     /// Timestamp of the last `WindowDrag` / `WindowResizeDrag` we
     /// forwarded to the OS. iced's `MouseArea` fires `on_press` on
     /// **both** clicks of a double-click (before the `on_double_click`

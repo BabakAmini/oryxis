@@ -209,6 +209,33 @@ impl Oryxis {
                     .map(|_| Message::Settings(SettingsMessage::ConnectAnimTick)),
             );
         }
+        // Running-command indicator on the tab strip (issue #146), only
+        // while smart tabs can even time a command. Fast while some
+        // command already runs past the long-command threshold (drives
+        // the marching dots); slow while one runs below it (only has to
+        // catch the crossing so the dots appear); idle otherwise.
+        if self.prefs.smart_tabs && self.prefs.smart_long_secs > 0 {
+            let threshold =
+                std::time::Duration::from_secs(u64::from(self.prefs.smart_long_secs));
+            let mut any_running = false;
+            let mut any_busy = false;
+            for pane in self.tabs.iter().flat_map(|t| t.pane_grid.panes.values()) {
+                if let Some(run) = &pane.running_cmd {
+                    any_running = true;
+                    if run.started.elapsed() >= threshold {
+                        any_busy = true;
+                        break;
+                    }
+                }
+            }
+            if any_running {
+                let period = if any_busy { 250 } else { 1000 };
+                subs.push(
+                    iced::time::every(std::time::Duration::from_millis(period))
+                        .map(|_| Message::Tabs(crate::app::TabsMessage::BusyAnimTick)),
+                );
+            }
+        }
         // Auto-dismiss the transient toast chip. Only ticks while a toast
         // is shown, otherwise idle; the handler clears it once its
         // deadline passes.

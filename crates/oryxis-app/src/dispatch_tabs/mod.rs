@@ -118,6 +118,7 @@ impl Oryxis {
                 | TabsMessage::CloseTabSftpSession(..)
                 | TabsMessage::OpenTerminalForSftpTab(..)
                 | TabsMessage::SsmKeepaliveTick
+                | TabsMessage::BusyAnimTick
             ) => self.handle_tabs_strip(m),
             m @ (
                 TabsMessage::ShowNewTabPicker

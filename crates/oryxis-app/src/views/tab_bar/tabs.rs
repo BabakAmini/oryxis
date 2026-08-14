@@ -545,6 +545,12 @@ pub(crate) fn session_tab<'a>(
     // tab), drawn as a dot on the badge's top-right corner so it can
     // coexist with the connection-state dot at the bottom-right.
     attention_dot: Option<Color>,
+    // Running-command indicator (issue #146): `Some(frame)` while a
+    // command runs past the smart-tabs threshold on some pane, drawn as
+    // three marching dots at the label's trailing edge. The frame comes
+    // from `busy_anim_tick`, whose subscription only exists while a
+    // command is in flight.
+    busy_frame: Option<u8>,
     host_accent: Option<Color>,
     // `tab_accent_text` setting: when false the label / close X render
     // in the theme's neutral text colours instead of the host accent.
@@ -825,6 +831,12 @@ pub(crate) fn session_tab<'a>(
             label_text.into()
         };
         items.push(label_column);
+        // Busy dots after the Fill label, so they sit at the trailing
+        // edge (next to the close slot) and never shift the label.
+        if let Some(frame) = busy_frame {
+            items.push(Space::new().width(4).into());
+            items.push(busy_dots(frame, effective_accent));
+        }
         if close_on_right {
             // Trailing slot reserves its width even when the X isn't
             // currently shown, so the label position doesn't jump on hover.
@@ -1112,10 +1124,52 @@ pub(crate) fn pinned_chip_width(files_mode: Option<bool>) -> f32 {
 /// ringed with the sidebar background so it pops off the glyph under it.
 /// Physical right on purpose: badges and their dots don't mirror under
 /// RTL (same rule as the OS glyph itself).
+/// The strip's running-command indicator (issue #146): three tiny
+/// discs, one lit per frame, marching left to right. Containers rather
+/// than a glyph, so it cannot render as tofu under the harness's
+/// bundled-fonts-only setup, and it needs no rotation support.
+fn busy_dots<'a>(frame: u8, color: Color) -> Element<'a, Message> {
+    let mut row: Vec<Element<'a, Message>> = Vec::with_capacity(5);
+    for i in 0..3u8 {
+        if i > 0 {
+            row.push(Space::new().width(2).into());
+        }
+        let alpha = if i == frame % 3 { 1.0 } else { 0.3 };
+        row.push(
+            container(Space::new().width(3).height(3))
+                .style(move |_| container::Style {
+                    background: Some(Background::Color(Color { a: alpha, ..color })),
+                    border: Border { radius: Radius::from(1.5), ..Default::default() },
+                    ..Default::default()
+                })
+                .into(),
+        );
+    }
+    // NOT dir_row: the marching direction is an animation, not a
+    // reading direction, and mirroring it under RTL would only make
+    // the loop appear to run backwards.
+    iced::widget::Row::with_children(row)
+        .align_y(iced::Alignment::Center)
+        .into()
+}
+
 fn corner_dot<'a>(
     color: Color,
     size: f32,
     ring: f32,
+    y: iced::alignment::Vertical,
+) -> Element<'a, Message> {
+    corner_dot_at(color, size, ring, iced::alignment::Horizontal::Right, y)
+}
+
+/// [`corner_dot`] with the horizontal corner spelled out; the pinned
+/// chip's busy pulse takes the bottom-LEFT so both state dots keep
+/// their right-hand corners.
+fn corner_dot_at<'a>(
+    color: Color,
+    size: f32,
+    ring: f32,
+    x: iced::alignment::Horizontal,
     y: iced::alignment::Vertical,
 ) -> Element<'a, Message> {
     let disc = container(Space::new().width(size).height(size)).style(move |_| {
@@ -1132,7 +1186,7 @@ fn corner_dot<'a>(
     container(disc)
         .width(Length::Fill)
         .height(Length::Fill)
-        .align_x(iced::alignment::Horizontal::Right)
+        .align_x(x)
         .align_y(y)
         .into()
 }
@@ -1151,6 +1205,10 @@ pub(crate) fn pinned_tab_chip<'a>(
     custom_color: Option<Color>,
     status_dot: Option<Color>,
     attention_dot: Option<Color>,
+    // Running-command indicator (issue #146). An icon-only chip has no
+    // room for the marching dots, so it pulses a single accent dot on
+    // the badge's bottom-LEFT corner (both right corners are taken).
+    busy_frame: Option<u8>,
     // `tab_accent_text` setting: when false the mode-chip glyph renders
     // in the theme's neutral text colours instead of the host accent.
     accent_text: bool,
@@ -1189,7 +1247,10 @@ pub(crate) fn pinned_tab_chip<'a>(
             crate::widgets::host_icon(host_icon_style, badge_color, "", Some(glyph_el), TAB_ICON_SLOT)
         }
     };
-    let badge: Element<'_, Message> = if status_dot.is_some() || attention_dot.is_some() {
+    let badge: Element<'_, Message> = if status_dot.is_some()
+        || attention_dot.is_some()
+        || busy_frame.is_some()
+    {
         let mut stack = iced::widget::Stack::new().push(
             container(base)
                 .center_x(Length::Fixed(TAB_ICON_SLOT))
@@ -1200,6 +1261,18 @@ pub(crate) fn pinned_tab_chip<'a>(
         }
         if let Some(c) = attention_dot {
             stack = stack.push(corner_dot(c, 6.0, 1.0, iced::alignment::Vertical::Top));
+        }
+        if let Some(frame) = busy_frame {
+            // Pulse instead of march: alpha steps through the same
+            // frames the full tab's dots use.
+            let alpha = [1.0, 0.55, 0.25][usize::from(frame % 3)];
+            stack = stack.push(corner_dot_at(
+                Color { a: alpha, ..accent },
+                6.0,
+                1.0,
+                iced::alignment::Horizontal::Left,
+                iced::alignment::Vertical::Bottom,
+            ));
         }
         stack
             .width(Length::Fixed(TAB_ICON_SLOT))

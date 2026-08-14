@@ -227,6 +227,11 @@ impl Oryxis {
                     }
                 }
             }
+            TabsMessage::BusyAnimTick => {
+                // The increment IS the re-render: the strip derives the
+                // marching-dots frame from this counter (issue #146).
+                self.busy_anim_tick = self.busy_anim_tick.wrapping_add(1);
+            }
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.
             m => return crate::dispatch::unrouted(m),

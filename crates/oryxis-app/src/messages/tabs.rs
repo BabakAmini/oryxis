@@ -174,6 +174,12 @@ pub enum TabsMessage {
     /// size so the SSM idle timer resets and a long alt-tab away doesn't
     /// drop the session.
     SsmKeepaliveTick,
+    /// Animation tick for the strip's running-command indicator (issue
+    /// #146). Mounted only while some pane has a command in flight
+    /// (smart tabs on): fast while one is past the long-command
+    /// threshold (it drives the marching dots), slow below it (it only
+    /// has to catch the crossing).
+    BusyAnimTick,
     /// Cursor entered / left the Settings tab. Drives the hover-revealed
     /// close X, and the flag the press handler reads to arm a reorder
     /// drag, exactly like `TabHovered` does for a session tab.
