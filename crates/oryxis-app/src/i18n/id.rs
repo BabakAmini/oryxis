@@ -770,6 +770,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Masukkan URL remote",
         "git_sync_no_git" => "git tidak ditemukan. Pasang lalu buka layar ini lagi; Oryxis memakai git yang sudah ada, bukan membawa sendiri.",
         "git_sync_busy" => "Perangkat lain sedang push bersamaan. Coba lagi sebentar. ({error})",
+        "git_sync_timeout" => "Perintah git kehabisan waktu. Periksa jaringan lalu coba lagi.",
         "git_sync_history_note" => "Setiap sinkronisasi adalah commit, jadi repositori menyimpan semua versi vault sebelumnya. Jaga tetap privat.",
         "folder_sync_desc" => "Satu snapshot terenkripsi di folder yang sudah ada di sistem: folder klien awan (OneDrive, Google Drive, Dropbox, iCloud), berbagi jaringan, disk eksternal. Oryxis tidak mengunggah apa pun; yang membawa adalah pemilik folder itu.",
         "folder_sync_path" => "Folder snapshot",

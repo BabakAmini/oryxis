@@ -18,9 +18,11 @@
 //! cheaper than carrying `gix` or `git2` in every build for one
 //! backend.
 
+use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use iced::Task;
 
@@ -56,6 +58,16 @@ const SIGNATURE_NAME: &str = "oryxis-sync.sig";
 /// whole design exists to prevent.
 const PUSH_ATTEMPTS: usize = 3;
 
+/// Per-command budget.
+///
+/// Generous enough for a clone/push over any connection a sync targets,
+/// short enough that a black-holed network (TCP stalls are minutes, not
+/// seconds) cannot wedge the transport: a round that hangs would leave
+/// `in_progress` set forever and silently kill every later round, auto
+/// and manual alike. The WebDAV transport caps its requests at 60s and
+/// SFTP at its per-op setting; this is the git equivalent.
+const COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// Where the working copies live: one clone per remote, under the
 /// app's own directory.
 ///
@@ -85,6 +97,13 @@ fn clone_dir(remote: &str) -> PathBuf {
 /// that does not exist here, and would block until the app is killed.
 /// `GIT_TERMINAL_PROMPT=0` and ssh's `BatchMode=yes` turn every such
 /// question into a fast failure the user can actually be told about.
+///
+/// `COMMAND_TIMEOUT` is the backstop for the questions the environment
+/// cannot answer fast: a stalled network. `output()` would block until
+/// the OS gives up on the socket (minutes), so the child is spawned
+/// with piped stdio and polled with `try_wait` while two reader threads
+/// drain stdout/stderr (a full pipe would stall the child the same
+/// way). On timeout the child is killed and the round reports it.
 fn git(dir: Option<&Path>, args: &[&str]) -> Result<String, String> {
     let mut cmd = Command::new("git");
     if let Some(dir) = dir {
@@ -107,12 +126,47 @@ fn git(dir: Option<&Path>, args: &[&str]) -> Result<String, String> {
         use std::os::windows::process::CommandExt as _;
         cmd.creation_flags(0x0800_0000);
     }
-    let out = cmd.output().map_err(|e| e.to_string())?;
-    if out.status.success() {
-        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+    let mut stdout = child.stdout.take().expect("piped stdout");
+    let mut stderr = child.stderr.take().expect("piped stderr");
+    let out = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = stdout.read_to_end(&mut buf);
+        buf
+    });
+    let err = std::thread::spawn(move || {
+        let mut buf = Vec::new();
+        let _ = stderr.read_to_end(&mut buf);
+        buf
+    });
+    let deadline = Instant::now() + COMMAND_TIMEOUT;
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status,
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    let _ = out.join();
+                    let _ = err.join();
+                    return Err(t("git_sync_timeout").to_string());
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(e.to_string()),
+        }
+    };
+    let stdout = out.join().unwrap_or_default();
+    let stderr = err.join().unwrap_or_default();
+    if status.success() {
+        Ok(String::from_utf8_lossy(&stdout).into_owned())
     } else {
         // git says everything useful on stderr.
-        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        let err = String::from_utf8_lossy(&stderr).trim().to_string();
         Err(if err.is_empty() {
             format!("git {} failed", args.first().copied().unwrap_or(""))
         } else {
@@ -157,21 +211,42 @@ impl Oryxis {
             self.sync.git.status = Some(Err(t("git_sync_no_remote").to_string()));
             return Task::none();
         }
-        if self.sync.git.passphrase.is_empty() {
-            self.sync.git.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
+        let Some(vault) = &self.vault else {
             return Task::none();
-        }
+        };
+        // The group key comes from STORAGE, not the form field. The four
+        // snapshot transports share one encrypted `sync_sftp_passphrase`
+        // row, and the in-memory forms can go stale relative to it
+        // (typing in the SFTP card rewrites the shared row while the git
+        // form keeps its old value). Sealing with the stale form value
+        // would push a snapshot the next session cannot decrypt
+        // ("Decryption failed (wrong key?)"): a restart loads the stored
+        // value, not the form. Reading the stored key makes the push key
+        // and the post-restart key the same by construction.
+        let passphrase = match vault.get_sync_sftp_passphrase() {
+            Ok(Some(p)) => p,
+            Ok(None) => {
+                self.sync.git.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
+                return Task::none();
+            }
+            Err(e) => {
+                self.sync.git.status = Some(Err(e.to_string()));
+                return Task::none();
+            }
+        };
         // The Argon2id derivation (~0.4 s) runs inside the blocking
         // task, not on the UI thread: it used to freeze the app for
         // every "Sync now" click (the stall watchdog logged GitSyncNow
         // at ~370 ms per round).
-        let passphrase = self.sync.git.passphrase.clone();
-        let Some(vault) = &self.vault else {
-            return Task::none();
-        };
         let db_path = vault.db_path().to_path_buf();
         let master_password = self.master_password.clone();
-        let device = self.sync.device_name.clone();
+        // Same fallback as `start_sync_engine`: an unset device name
+        // would otherwise render as a bare "oryxis: sync from" commit.
+        let device = if self.sync.device_name.trim().is_empty() {
+            "oryxis-device".to_string()
+        } else {
+            self.sync.device_name.clone()
+        };
 
         self.sync.git.in_progress = true;
         self.sync.git.status = None;

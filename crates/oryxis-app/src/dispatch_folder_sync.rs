@@ -72,15 +72,24 @@ impl Oryxis {
             self.sync.folder.status = Some(Err(t("folder_sync_no_path").to_string()));
             return Task::none();
         }
-        if self.sync.folder.passphrase.is_empty() {
-            self.sync.folder.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
-            return Task::none();
-        }
-        // Argon2id derivation (~0.4 s) runs inside the blocking task,
-        // not on the UI thread (same reason as the Git transport).
-        let passphrase = self.sync.folder.passphrase.clone();
         let Some(vault) = &self.vault else {
             return Task::none();
+        };
+        // Group key from STORAGE, not the form field: the four snapshot
+        // transports share one `sync_sftp_passphrase` row, and a sibling
+        // transport's edit can leave this form stale. Sealing with a
+        // stale value pushes a snapshot the next session cannot decrypt
+        // (see `run_git_sync_round`).
+        let passphrase = match vault.get_sync_sftp_passphrase() {
+            Ok(Some(p)) => p,
+            Ok(None) => {
+                self.sync.folder.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
+                return Task::none();
+            }
+            Err(e) => {
+                self.sync.folder.status = Some(Err(e.to_string()));
+                return Task::none();
+            }
         };
         // Argon2id derivation (~0.4 s) runs inside the blocking task,
         // not on the UI thread (same reason as the Git transport).

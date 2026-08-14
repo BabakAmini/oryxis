@@ -770,6 +770,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Uzak depo adresini girin",
         "git_sync_no_git" => "git bulunamad\u{131}. Kurun ve bu ekran\u{131} yeniden a\u{e7}\u{131}n; Oryxis kendi git'ini paketlemek yerine sizde olan\u{131} kullan\u{131}r.",
         "git_sync_busy" => "Ba\u{15f}ka bir cihaz ayn\u{131} anda g\u{f6}nderiyor. Birazdan yeniden deneyin. ({error})",
+        "git_sync_timeout" => "git komutu zaman a\u{15f}\u{131}m\u{131}na u\u{11f}rad\u{131}. A\u{11f}\u{131} kontrol edip tekrar deneyin.",
         "git_sync_history_note" => "Her e\u{15f}itleme bir i\u{15f}leme oldu\u{11f}undan depo kasan\u{131}n t\u{fc}m eski s\u{fc}r\u{fc}mlerini tutar. Depoyu \u{f6}zel tutun.",
         "folder_sync_desc" => "Sistemde zaten var olan bir klas\u{f6}re tek bir \u{15f}ifreli anl\u{131}k g\u{f6}r\u{fc}nt\u{fc}: bir bulut istemcisinin klas\u{f6}r\u{fc} (OneDrive, Google Drive, Dropbox, iCloud), bir a\u{11f} payla\u{15f}\u{131}m\u{131}, harici bir disk. Oryxis hi\u{e7}bir \u{15f}ey y\u{fc}klemez; ta\u{15f}\u{131}ma i\u{15f}ini klas\u{f6}r\u{fc}n sahibi yapar.",
         "folder_sync_path" => "Anl\u{131}k g\u{f6}r\u{fc}nt\u{fc} klas\u{f6}r\u{fc}",

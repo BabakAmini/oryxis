@@ -776,6 +776,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "git_sync_no_remote" => "Enter the remote URL",
         "git_sync_no_git" => "git was not found. Install it and reopen this screen; Oryxis drives the git you already have rather than bundling one.",
         "git_sync_busy" => "Another device is pushing at the same time. Try again in a moment. ({error})",
+        "git_sync_timeout" => "git command timed out. Check the network and try again.",
         "git_sync_history_note" => "Every sync is a commit, so the repository holds every past version of the vault. Keep it private.",
         "folder_sync_desc" => "One encrypted snapshot in a folder your system already has: a cloud client's folder (OneDrive, Google Drive, Dropbox, iCloud), a network share, an external disk. Nothing is uploaded by Oryxis; whatever owns the folder carries it.",
         "folder_sync_path" => "Snapshot folder",

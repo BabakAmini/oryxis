@@ -745,6 +745,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Informe a URL do remote",
         "git_sync_no_git" => "O git n\u{e3}o foi encontrado. Instale e reabra esta tela; o Oryxis usa o git que voc\u{ea} j\u{e1} tem em vez de embutir um.",
         "git_sync_busy" => "Outro dispositivo est\u{e1} enviando ao mesmo tempo. Tente de novo em instantes. ({error})",
+        "git_sync_timeout" => "O comando git atingiu o tempo limite. Verifique a rede e tente novamente.",
         "git_sync_history_note" => "Cada sync \u{e9} um commit, ent\u{e3}o o reposit\u{f3}rio guarda todas as vers\u{f5}es anteriores do vault. Mantenha-o privado.",
         "folder_sync_desc" => "Um snapshot encriptado numa pasta que o sistema j\u{e1} tem: a pasta de um cliente de nuvem (OneDrive, Google Drive, Dropbox, iCloud), um compartilhamento de rede, um disco externo. O Oryxis n\u{e3}o envia nada; quem carrega \u{e9} quem for dono da pasta.",
         "folder_sync_path" => "Pasta do snapshot",

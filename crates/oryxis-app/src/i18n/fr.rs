@@ -1161,6 +1161,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Saisissez l\u{2019}URL du d\u{e9}p\u{f4}t distant",
         "git_sync_no_git" => "git est introuvable. Installez-le puis rouvrez cet \u{e9}cran ; Oryxis utilise le git que vous avez d\u{e9}j\u{e0} au lieu d\u{2019}en embarquer un.",
         "git_sync_busy" => "Un autre appareil pousse en m\u{ea}me temps. R\u{e9}essayez dans un instant. ({error})",
+        "git_sync_timeout" => "La commande git a expir\u{e9}. V\u{e9}rifiez le r\u{e9}seau et r\u{e9}essayez.",
         "git_sync_history_note" => "Chaque synchronisation est un commit, donc le d\u{e9}p\u{f4}t conserve toutes les versions pass\u{e9}es du coffre. Gardez-le priv\u{e9}.",
         "folder_sync_desc" => "Un instantan\u{e9} chiffr\u{e9} dans un dossier que le syst\u{e8}me poss\u{e8}de d\u{e9}j\u{e0} : celui d\u{2019}un client cloud (OneDrive, Google Drive, Dropbox, iCloud), un partage r\u{e9}seau, un disque externe. Oryxis n\u{2019}envoie rien ; c\u{2019}est le propri\u{e9}taire du dossier qui transporte.",
         "folder_sync_path" => "Dossier de l\u{2019}instantan\u{e9}",

@@ -1158,6 +1158,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Introduce la URL del remoto",
         "git_sync_no_git" => "No se encontr\u{f3} git. Inst\u{e1}lalo y vuelve a abrir esta pantalla; Oryxis usa el git que ya tienes en lugar de incluir uno.",
         "git_sync_busy" => "Otro dispositivo est\u{e1} enviando a la vez. Int\u{e9}ntalo de nuevo en un momento. ({error})",
+        "git_sync_timeout" => "El comando git agot\u{f3} el tiempo de espera. Comprueba la red e int\u{e9}ntalo de nuevo.",
         "git_sync_history_note" => "Cada sincronizaci\u{f3}n es un commit, as\u{ed} que el repositorio guarda todas las versiones anteriores del vault. Mantenlo privado.",
         "folder_sync_desc" => "Una instant\u{e1}nea cifrada en una carpeta que el sistema ya tiene: la de un cliente de nube (OneDrive, Google Drive, Dropbox, iCloud), un recurso de red, un disco externo. Oryxis no sube nada; lo lleva quien sea due\u{f1}o de la carpeta.",
         "folder_sync_path" => "Carpeta de la instant\u{e1}nea",

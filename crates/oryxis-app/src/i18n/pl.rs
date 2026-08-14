@@ -776,6 +776,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Podaj URL repozytorium",
         "git_sync_no_git" => "Nie znaleziono gita. Zainstaluj i otw\u{f3}rz ten ekran ponownie; Oryxis u\u{17c}ywa gita, kt\u{f3}rego ju\u{17c} masz, zamiast do\u{142}\u{105}cza\u{107} w\u{142}asnego.",
         "git_sync_busy" => "Inne urz\u{105}dzenie w\u{142}a\u{15b}nie wypycha zmiany. Spr\u{f3}buj za chwil\u{119}. ({error})",
+        "git_sync_timeout" => "Przekroczono limit czasu polecenia git. Sprawd\u{17a} sie\u{107} i spr\u{f3}buj ponownie.",
         "git_sync_history_note" => "Ka\u{17c}da synchronizacja to commit, wi\u{119}c repozytorium przechowuje wszystkie poprzednie wersje sejfu. Trzymaj je prywatne.",
         "folder_sync_desc" => "Jedna zaszyfrowana migawka w folderze, kt\u{f3}ry system ju\u{17c} ma: folder klienta chmury (OneDrive, Google Drive, Dropbox, iCloud), udzia\u{142} sieciowy, dysk zewn\u{119}trzny. Oryxis niczego nie wysy\u{142}a; przenosi to w\u{142}a\u{15b}ciciel folderu.",
         "folder_sync_path" => "Folder migawki",

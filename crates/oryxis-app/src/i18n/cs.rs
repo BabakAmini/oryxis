@@ -776,6 +776,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Zadejte URL repozit\u{e1}\u{159}e",
         "git_sync_no_git" => "git nebyl nalezen. Nainstalujte jej a otev\u{159}ete tuto obrazovku znovu; Oryxis pou\u{17e}\u{ed}v\u{e1} v\u{e1}\u{161} git m\u{ed}sto vlastn\u{ed}ho.",
         "git_sync_busy" => "Jin\u{e9} za\u{159}\u{ed}zen\u{ed} pr\u{e1}v\u{11b} odes\u{ed}l\u{e1}. Zkuste to za okam\u{17e}ik. ({error})",
+        "git_sync_timeout" => "\u{10c}asov\u{fd} limit p\u{159}\u{ed}kazu git vypr\u{161}el. Zkontrolujte s\u{ed}\u{165} a zkuste to znovu.",
         "git_sync_history_note" => "Ka\u{17e}d\u{e1} synchronizace je commit, tak\u{17e}e repozit\u{e1}\u{159} uchov\u{e1}v\u{e1} v\u{161}echny p\u{159}edchoz\u{ed} verze trezoru. Dr\u{17e}te jej soukrom\u{fd}.",
         "folder_sync_desc" => "Jeden \u{161}ifrovan\u{fd} sn\u{ed}mek ve slo\u{17e}ce, kterou syst\u{e9}m u\u{17e} m\u{e1}: slo\u{17e}ka klienta cloudu (OneDrive, Google Drive, Dropbox, iCloud), s\u{ed}\u{165}ov\u{e9} sd\u{ed}len\u{ed}, extern\u{ed} disk. Oryxis nic nenahr\u{e1}v\u{e1}; p\u{159}en\u{e1}\u{161}\u{ed} to ten, komu slo\u{17e}ka pat\u{159}\u{ed}.",
         "folder_sync_path" => "Slo\u{17e}ka sn\u{ed}mku",

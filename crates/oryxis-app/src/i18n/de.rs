@@ -1152,6 +1152,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "git_sync_no_remote" => "Geben Sie die Remote-URL ein",
         "git_sync_no_git" => "git wurde nicht gefunden. Installieren Sie es und \u{f6}ffnen Sie diesen Bildschirm erneut; Oryxis nutzt Ihr vorhandenes git, statt eines mitzuliefern.",
         "git_sync_busy" => "Ein anderes Ger\u{e4}t pusht gerade. Versuchen Sie es gleich noch einmal. ({error})",
+        "git_sync_timeout" => "Der git-Befehl ist abgelaufen. \u{dc}berpr\u{fc}fen Sie die Netzwerkverbindung und versuchen Sie es erneut.",
         "git_sync_history_note" => "Jede Synchronisierung ist ein Commit, das Repository h\u{e4}lt also jede fr\u{fc}here Version des Tresors. Halten Sie es privat.",
         "folder_sync_desc" => "Ein verschl\u{fc}sselter Snapshot in einem Ordner, den das System bereits hat: der eines Cloud-Clients (OneDrive, Google Drive, Dropbox, iCloud), eine Netzwerkfreigabe, eine externe Platte. Oryxis l\u{e4}dt nichts hoch; das \u{fc}bernimmt, wem der Ordner geh\u{f6}rt.",
         "folder_sync_path" => "Snapshot-Ordner",
