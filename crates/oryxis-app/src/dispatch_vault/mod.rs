@@ -36,10 +36,12 @@ impl Oryxis {
                 | VaultMessage::VaultUnlock
             ) => self.handle_vault_open(m),
             m @ (
-                VaultMessage::AutoLockVault
+                VaultMessage::SoftLockVault
                 | VaultMessage::LockVault
                 | VaultMessage::LockVaultConfirm
                 | VaultMessage::CancelLockVaultConfirm
+                | VaultMessage::LockVaultConfirmRememberToggled
+                | VaultMessage::LockVaultConfirmProceed { .. }
             ) => self.handle_vault_lock(m),
             m @ (
                 VaultMessage::ToggleBiometricUnlock

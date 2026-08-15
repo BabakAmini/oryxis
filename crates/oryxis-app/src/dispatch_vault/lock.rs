@@ -2,7 +2,7 @@
 //!
 //! The two paths differ on purpose and are worth reading side by
 //! side: `LockVault` is a full teardown (sessions, tabs, secrets),
-//! `AutoLockVault` is soft (zeroize the key, show the lock screen,
+//! `SoftLockVault` is soft (zeroize the key, show the lock screen,
 //! keep the live SSH sessions, since an established channel never
 //! needs the key again).
 
@@ -25,15 +25,52 @@ impl Oryxis {
                 // RequestClearHistory's overlay close.
                 self.panels.burger_menu = false;
                 if self.vault_ui.has_user_password {
-                    self.vault_ui.lock_confirm = true;
+                    // A standing choice saved from the dialog's "always
+                    // use the selected option" opt-in commits directly;
+                    // Settings > Security exposes the same value so the
+                    // dialog can be brought back ("ask", the default).
+                    match self.prefs.manual_lock_action.as_str() {
+                        "sleep" => {
+                            return Task::done(Message::Vault(VaultMessage::SoftLockVault));
+                        }
+                        "lock" => {
+                            return Task::done(Message::Vault(VaultMessage::LockVault));
+                        }
+                        _ => {
+                            // The opt-in never carries over from an
+                            // earlier arming: a stale check would turn a
+                            // one-off choice into a standing one.
+                            self.vault_ui.lock_confirm_remember = false;
+                            self.vault_ui.lock_confirm = true;
+                        }
+                    }
                 }
             }
             VaultMessage::CancelLockVaultConfirm => {
                 self.vault_ui.lock_confirm = false;
             }
+            VaultMessage::LockVaultConfirmRememberToggled => {
+                self.vault_ui.lock_confirm_remember = !self.vault_ui.lock_confirm_remember;
+            }
+            VaultMessage::LockVaultConfirmProceed { sleep } => {
+                // Persist the standing choice BEFORE committing: both lock
+                // paths sweep dialog state, and the soft lock zeroizes the
+                // key (settings survive; the vault stays readable for
+                // settings without the master key).
+                if self.vault_ui.lock_confirm_remember {
+                    let value = if sleep { "sleep" } else { "lock" };
+                    self.prefs.manual_lock_action = value.into();
+                    self.persist_setting("manual_lock_action", value);
+                }
+                return Task::done(Message::Vault(if sleep {
+                    VaultMessage::SoftLockVault
+                } else {
+                    VaultMessage::LockVault
+                }));
+            }
 
             // ── Vault lock (manual + idle auto-lock) ──
-            VaultMessage::AutoLockVault => {
+            VaultMessage::SoftLockVault => {
                 // Soft lock: the user walked away, not "I'm done". Zeroize
                 // the master key and drop to the lock screen, but keep
                 // live SSH sessions and tabs so long-running remote work

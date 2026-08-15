@@ -52,6 +52,11 @@ pub(crate) struct VaultUi {
     /// `LockVaultConfirm`, cleared by `CancelLockVaultConfirm` and by
     /// either lock path.
     pub(crate) lock_confirm: bool,
+    /// The confirm dialog's "always use the selected option" opt-in.
+    /// Reset every time the dialog arms (a stale check would turn a
+    /// one-off choice into a standing one); when checked, the chosen
+    /// button persists itself as the `manual_lock_action` setting.
+    pub(crate) lock_confirm_remember: bool,
     /// Whether the "change master password" form is open (only meaningful
     /// once a password is set). Reuses `new_password` / `confirm_password`
     /// for the new value and adds `current_password` for verification.

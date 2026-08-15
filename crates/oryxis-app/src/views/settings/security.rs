@@ -443,6 +443,38 @@ impl Oryxis {
             lock_btn
         };
 
+        // What the Lock Vault button does (issue #169 follow-up):
+        // ask every time (the confirm dialog, default), sleep (soft
+        // lock, sessions survive) or lock (teardown directly). The
+        // dialog's "always use the selected option" opt-in writes the
+        // same setting; this row is the way back to "ask". Recorded
+        // after the button pair, matching the on-screen order, and
+        // hidden with the buttons while no master password exists.
+        let manual_action: Element<'_, Message> = if self.vault_ui.has_user_password {
+            column![
+                self.nav_pick_row(
+                    t("manual_lock_action"),
+                    vec!["ask".into(), "sleep".into(), "lock".into()],
+                    self.prefs.manual_lock_action.clone(),
+                    |v| crate::i18n::t(match v.as_str() {
+                        "sleep" => "lock_vault_sleep",
+                        "lock" => "lock_vault",
+                        _ => "manual_lock_ask",
+                    })
+                    .to_string(),
+                    240.0,
+                    |v| Message::Settings(SettingsMessage::SettingManualLockActionChanged(v)),
+                ),
+                Space::new().height(4),
+                text(t("manual_lock_action_desc"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            ]
+            .into()
+        } else {
+            Space::new().into()
+        };
+
         // MCP Server moved to its own Settings sidebar entry
         // in v0.7 (see `view_settings_mcp`). Keeping it here
         // was crowding the Security panel.
@@ -484,7 +516,15 @@ impl Oryxis {
             auto_lock_field,
         ]);
 
-        (lock_row, auto_lock_section)
+        // The picker only renders once a password exists; without one
+        // the button row already collapsed to the muted note, so the
+        // block stays a single element either way.
+        let lock_block: Element<'_, Message> = if self.vault_ui.has_user_password {
+            column![lock_row, Space::new().height(14), manual_action].into()
+        } else {
+            lock_row
+        };
+        (lock_block, auto_lock_section)
     }
 
     /// Privacy Mode card: the master toggle plus, while the mode is

@@ -1171,6 +1171,14 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("auto_lock_minutes") {
                 self.prefs.auto_lock_minutes = v;
             }
+            // Unknown tokens fall back to "ask" so a corrupted row can't
+            // silently make the Lock button skip its confirm.
+            if let Ok(Some(v)) = vault.get_setting("manual_lock_action") {
+                self.prefs.manual_lock_action = match v.as_str() {
+                    "sleep" | "lock" => v,
+                    _ => "ask".into(),
+                };
+            }
             if let Ok(Some(v)) = vault.get_setting("biometric_unlock_enabled") {
                 self.prefs.biometric_unlock_enabled = v == "true";
             }

@@ -1209,6 +1209,16 @@ pub struct Oryxis {
     /// Instant of the last user input event (keyboard / mouse / IME),
     /// the idle anchor for `setting_auto_lock_minutes`. Not persisted.
     pub(crate) last_user_activity: std::time::Instant,
+    /// Instant of the last successful password unlock. The Enter that
+    /// submits the unlock password reaches the global key subscription
+    /// one message AFTER the widget's on_submit unlocked the vault, so
+    /// every consumer below the lock-screen gate (including PTY
+    /// routing) would see it as an unlocked-app keystroke: with a
+    /// terminal tab restored by the soft lock, that newline lands on
+    /// the shell prompt and would RUN whatever was left typed there.
+    /// The key router swallows key events for a breath after this
+    /// stamp. `None` until the first unlock.
+    pub(crate) last_unlock: Option<std::time::Instant>,
     /// Whether this platform / session can service biometric unlock at
     /// all (probed once at boot via the provider). The whole affordance
     /// (setting row + lock-screen button) hides when false. Not persisted.

@@ -151,6 +151,23 @@ impl Oryxis {
                     }
                     return Ok(Task::none());
                 }
+                // The gate above cannot catch the key press that UNLOCKED
+                // the vault: the password input's on_submit processes first
+                // in the same update batch, so by the time that Enter
+                // arrives here the state is already Unlocked. Every
+                // consumer below would treat it as an unlocked-app
+                // keystroke; with a terminal tab restored by the soft lock
+                // the newline lands on the shell prompt and would run
+                // whatever was left typed there. Swallow key events for a
+                // breath after an unlock (a human's first intentional
+                // post-unlock key arrives much later; an unlock via the
+                // mouse leaves no in-flight key at all).
+                if self
+                    .last_unlock
+                    .is_some_and(|t| t.elapsed() < std::time::Duration::from_millis(150))
+                {
+                    return Ok(Task::none());
+                }
                 // Scrollback find-bar (C1): while it's open on the active
                 // pane it owns the keyboard, like a modal. Enter steps to the
                 // next match, Shift+Enter to the previous, Esc closes; every

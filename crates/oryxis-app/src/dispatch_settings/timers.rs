@@ -31,6 +31,18 @@ impl Oryxis {
                 self.prefs.auto_lock_minutes = sanitize_uint(&val, 1440);
                 self.persist_setting("auto_lock_minutes", &self.prefs.auto_lock_minutes);
             }
+            SettingsMessage::SettingManualLockActionChanged(val) => {
+                // Sibling of the lock family above: what the Lock Vault
+                // button does. The pick_list only offers the three known
+                // tokens, but the guard keeps a corrupted row from
+                // sticking as a phantom fourth state.
+                let normalized = match val.as_str() {
+                    "sleep" | "lock" => val.as_str(),
+                    _ => "ask",
+                };
+                self.prefs.manual_lock_action = normalized.into();
+                self.persist_setting("manual_lock_action", normalized);
+            }
             SettingsMessage::AutoLockTick => {
                 // Idle check. Guarded on Unlocked so a tick racing the
                 // lock is a no-op, and on a parseable non-zero threshold
@@ -49,7 +61,7 @@ impl Oryxis {
                     && self.last_user_activity.elapsed().as_secs() >= minutes * 60
                 {
                     tracing::info!("vault auto-lock after {minutes} min idle");
-                    return Ok(Task::done(Message::Vault(VaultMessage::AutoLockVault)));
+                    return Ok(Task::done(Message::Vault(VaultMessage::SoftLockVault)));
                 }
             }
             SettingsMessage::ConnectAnimTick => {

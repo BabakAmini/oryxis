@@ -28,19 +28,29 @@ pub enum VaultMessage {
     ToggleSetupBiometric,
     /// Arm the manual-lock confirmation dialog. `LockVault` tears every
     /// live session and tab down, so the button asks first (an accidental
-    /// click would sever all open connections); the dialog's Lock button
-    /// then fires the real `LockVault`.
+    /// click would sever all open connections); the dialog's Sleep / Lock
+    /// buttons then commit through `LockVaultConfirmProceed`. When the
+    /// user saved a standing choice (`manual_lock_action` = sleep / lock),
+    /// this skips the dialog and commits that choice directly.
     LockVaultConfirm,
     /// Dismiss the manual-lock confirmation dialog without locking.
     CancelLockVaultConfirm,
+    /// Flip the confirm dialog's "always use the selected option" opt-in.
+    LockVaultConfirmRememberToggled,
+    /// Commit the confirm dialog's choice: soft lock (`sleep`) or full
+    /// teardown. Persists the choice as `manual_lock_action` first when
+    /// the remember opt-in is checked, then dispatches `SoftLockVault` /
+    /// `LockVault`.
+    LockVaultConfirmProceed { sleep: bool },
     /// Commit the manual lock after the confirm dialog: full teardown of
-    /// sessions, tabs and secrets. Reached only from the dialog's Lock
-    /// button (the trigger sites arm `LockVaultConfirm` instead).
+    /// sessions, tabs and secrets. Reached only through the confirm flow
+    /// (the trigger sites arm `LockVaultConfirm` instead).
     LockVault,
-    /// Idle-triggered soft lock: zeroize the vault key and show the lock
-    /// screen but keep live SSH sessions and tabs (unlike the manual
-    /// `LockVault`, which tears sessions down).
-    AutoLockVault,
+    /// Soft lock: zeroize the vault key and show the lock screen but keep
+    /// live SSH sessions and tabs (unlike the manual `LockVault`, which
+    /// tears sessions down). Fired by the idle auto-lock timer and by the
+    /// confirm dialog's Sleep button.
+    SoftLockVault,
     ToggleVaultPassword,
     /// Commit the master-password removal after the confirm prompt.
     ConfirmRemoveVaultPassword,

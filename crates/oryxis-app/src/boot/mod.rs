@@ -555,6 +555,7 @@ impl Oryxis {
                 // expose new hosts via MCP by default.
                 revealed_secrets: std::collections::HashSet::new(),
                 last_user_activity: std::time::Instant::now(),
+                last_unlock: None,
                 biometric_available,
                 pending_update: None,
                 update_downloading: false,
@@ -767,7 +768,7 @@ impl Oryxis {
         app.reconcile_tab_order();
         // Booting straight onto the lock screen: put the keyboard in
         // the master-password field (same auto-focus as LockVault /
-        // AutoLockVault, so the password is typeable without a click).
+        // SoftLockVault, so the password is typeable without a click).
         if app.vault_ui.state == crate::state::VaultState::Locked {
             tasks.push(crate::widgets::focus_input(iced::widget::Id::new(
                 "vault-unlock-password",

@@ -170,6 +170,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Security, "lock_vault", "lock vault now secure"),
     e(S::Security, "update_password", "change master password rotate update"),
     e(S::Security, "auto_lock_minutes", "auto lock idle timeout vault minutes inactivity"),
+    e(S::Security, "manual_lock_action", "manual lock button sleep soft hard ask sessions behavior"),
     e(S::Security, "privacy_mode_label", "privacy mode mask redact hide secrets screenshot"),
     e(S::Security, "privacy_class_public_ips", "mask public ip address privacy"),
     e(S::Security, "privacy_class_private_ips", "mask private loopback ip lan privacy"),

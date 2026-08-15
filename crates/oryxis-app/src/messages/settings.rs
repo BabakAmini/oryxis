@@ -408,6 +408,11 @@ pub enum SettingsMessage {
     SettingMaxReconnectChanged(String),
     /// Vault auto-lock idle threshold, minutes as typed ("0" = off).
     SettingAutoLockChanged(String),
+    /// What the manual Lock Vault button does: "ask" (confirm dialog,
+    /// the default), "sleep" (soft lock directly) or "lock" (teardown
+    /// directly). Fired by the Settings > Security picker; the confirm
+    /// dialog's remember opt-in persists the same setting.
+    SettingManualLockActionChanged(String),
     /// Periodic idle check while the vault is unlocked and auto-lock is
     /// enabled; locks when the idle threshold is crossed.
     AutoLockTick,

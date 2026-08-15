@@ -957,11 +957,23 @@ impl Oryxis {
                 .into()
         };
 
-        // Keyboard rows, in visual order. Cancel first AND default (the
-        // `build_monitor_kill_dialog` precedent). Both buttons are the
-        // same widget (`styled_button` family: identical padding /
-        // radius / font), so the pair renders at exactly one height;
-        // widths follow the label, like every dialog in the app.
+        // Keyboard rows, in visual order: the remember opt-in, then
+        // Cancel (first button AND default, the
+        // `build_monitor_kill_dialog` precedent), Sleep, Lock. All three
+        // buttons are the same widget (`styled_button` family: identical
+        // padding / radius / font), so the trio renders at exactly one
+        // height; widths follow the label, like every dialog in the app.
+        let remember = self.modal_nav_slot(
+            RowAction::activate(Message::Vault(VaultMessage::LockVaultConfirmRememberToggled)),
+            4.0,
+            false,
+            iced::widget::checkbox(self.vault_ui.lock_confirm_remember)
+                .label(crate::i18n::t("lock_vault_confirm_remember"))
+                .on_toggle(|_| Message::Vault(VaultMessage::LockVaultConfirmRememberToggled))
+                .size(16)
+                .text_size(12)
+                .into(),
+        );
         let cancel = self.modal_nav_slot_default(
             RowAction::activate(Message::Vault(VaultMessage::CancelLockVaultConfirm)),
             6.0,
@@ -972,15 +984,31 @@ impl Oryxis {
                 c.text_muted,
             ),
         );
+        // Sleep: the soft lock (issue #169 ask). Same operation the idle
+        // auto-lock runs, so sessions and tabs survive the lock screen.
+        let sleep = self.modal_nav_slot(
+            RowAction::activate(Message::Vault(VaultMessage::LockVaultConfirmProceed {
+                sleep: true,
+            })),
+            6.0,
+            false,
+            styled_button(
+                crate::i18n::t("lock_vault_sleep"),
+                Message::Vault(VaultMessage::LockVaultConfirmProceed { sleep: true }),
+                c.accent,
+            ),
+        );
         // The filled error style marks the destructive action, matching
         // the clear-history "Clear all" button.
         let lock = self.modal_nav_slot(
-            RowAction::activate(Message::Vault(VaultMessage::LockVault)),
+            RowAction::activate(Message::Vault(VaultMessage::LockVaultConfirmProceed {
+                sleep: false,
+            })),
             6.0,
             true,
             styled_button(
                 crate::i18n::t("lock_vault"),
-                Message::Vault(VaultMessage::LockVault),
+                Message::Vault(VaultMessage::LockVaultConfirmProceed { sleep: false }),
                 c.error,
             ),
         );
@@ -1002,10 +1030,26 @@ impl Oryxis {
                     .color(c.text_secondary)
                     .width(Length::Fill)
                     .align_x(iced::alignment::Horizontal::Center),
+                Space::new().height(6),
+                // Its own line, not appended to the body: existing body
+                // translations stay valid across all 23 languages.
+                text(crate::i18n::t("lock_vault_confirm_sleep_hint"))
+                    .size(12)
+                    .color(c.text_muted)
+                    .width(Length::Fill)
+                    .align_x(iced::alignment::Horizontal::Center),
                 Space::new().height(if total == 0 { 4 } else { 12 }),
                 impact,
-                Space::new().height(20),
-                crate::widgets::dir_row(vec![cancel, Space::new().width(8).into(), lock]),
+                Space::new().height(14),
+                remember,
+                Space::new().height(14),
+                crate::widgets::dir_row(vec![
+                    cancel,
+                    Space::new().width(8).into(),
+                    sleep,
+                    Space::new().width(8).into(),
+                    lock,
+                ]),
             ]
             .width(Length::Fill)
             .align_x(iced::Alignment::Center)

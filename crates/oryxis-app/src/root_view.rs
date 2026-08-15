@@ -95,7 +95,7 @@ impl Oryxis {
         // plugin install, which are meant to surface over the lock screen),
         // an SFTP modal carries remote paths and live action buttons
         // (Save & Upload / Delete) and must never render or accept input
-        // over a soft-locked vault. `AutoLockVault` also sweeps these
+        // over a soft-locked vault. `SoftLockVault` also sweeps these
         // fields so nothing stale reappears after unlock.
         let composed = if matches!(self.vault_ui.state, VaultState::Unlocked) {
             self.layer_sftp_modals(composed)

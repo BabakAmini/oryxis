@@ -382,6 +382,7 @@ impl Oryxis {
             SettingsMessage::SettingToggleAutoReconnect
             | SettingsMessage::SettingMaxReconnectChanged(..)
             | SettingsMessage::SettingAutoLockChanged(..)
+            | SettingsMessage::SettingManualLockActionChanged(..)
             | SettingsMessage::AutoLockTick
             | SettingsMessage::ConnectAnimTick
             | SettingsMessage::AutoReconnectTick

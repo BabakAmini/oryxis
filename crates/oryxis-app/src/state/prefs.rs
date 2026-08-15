@@ -492,9 +492,15 @@ pub(crate) struct AppPrefs {
     pub(crate) max_reconnect_attempts: String,
     /// Vault auto-lock idle threshold, in minutes ("0" = off). When the
     /// user hasn't produced any input event for this long, a SOFT lock
-    /// fires (`AutoLockVault`): key zeroized + lock screen, but live
+    /// fires (`SoftLockVault`): key zeroized + lock screen, but live
     /// sessions and tabs survive, unlike the manual Lock teardown.
     pub(crate) auto_lock_minutes: String,
+    /// What the manual Lock Vault button does: "ask" (default) opens the
+    /// confirm dialog, "sleep" soft-locks directly (sessions survive),
+    /// "lock" tears down directly. Saved from the dialog's "always use
+    /// the selected option" opt-in; Settings > Security exposes it so
+    /// the dialog can be brought back.
+    pub(crate) manual_lock_action: String,
     /// Opt-in local unlock via the OS biometric / keystore. When on, a
     /// successful password unlock stores the master password under OS
     /// protection (Windows Hello / Touch ID / login keyring) so the lock
@@ -640,6 +646,7 @@ impl Default for AppPrefs {
             auto_reconnect: true,
             max_reconnect_attempts: "5".into(),
             auto_lock_minutes: "0".into(),
+            manual_lock_action: "ask".into(),
             // Overwritten by `boot` right after this, which probed before the unlock, so the lock screen can offer it.
             biometric_unlock_enabled: false,
             os_detection: true,

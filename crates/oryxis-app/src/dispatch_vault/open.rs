@@ -100,6 +100,11 @@ impl Oryxis {
                         Ok(()) => {
                             self.vault_ui.state = VaultState::Unlocked;
                             self.vault_ui.error = None;
+                            // Stamp the unlock so the key router can swallow
+                            // the Enter that submitted the password (it
+                            // arrives one message later, post-unlock; see
+                            // `Oryxis::last_unlock`).
+                            self.last_unlock = Some(std::time::Instant::now());
                             // Retain the password in memory so we can spawn
                             // child windows with it via stdin pipe.
                             self.master_password = Some(self.vault_ui.password_input.clone());
