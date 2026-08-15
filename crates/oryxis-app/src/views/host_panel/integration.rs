@@ -81,7 +81,7 @@ impl Oryxis {
                     .on_input(|v| {
                         Message::Editor(EditorMessage::EditorSftpInitialPathChanged(v))
                     })
-                    .on_submit(Message::Editor(EditorMessage::EditorSave))
+                    .on_submit_maybe(self.hp_submit())
                     .padding(6)
                     .width(Length::Fill)
                     .style(crate::widgets::rounded_input_style)

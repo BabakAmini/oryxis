@@ -429,6 +429,11 @@ pub struct Oryxis {
     /// form struct because `text_editor::Content` isn't Clone.
     pub(crate) editor_initial_command: iced::widget::text_editor::Content,
     pub(crate) host_panel_error: Option<String>,
+    /// Which host-editor sections are expanded. Session-scoped UI state
+    /// (never persisted) and deliberately NOT part of `editor_form`, so
+    /// switching between hosts keeps the sections the user was in.
+    pub(crate) host_editor_open_sections:
+        std::collections::HashSet<crate::state::HostEditorSection>,
 
     pub(crate) editor_session_group: crate::state::SessionGroupForm,
     /// Multi-line buffer for the currently-shown pane's startup script. Kept

@@ -167,6 +167,19 @@ impl Oryxis {
                 if self.any_modal_blocks_input() {
                     return Task::none();
                 }
+                // One Enter, one save. The same fork shortcut fires the
+                // binding from EVERY visible input of this panel, so a
+                // focused-field Enter arrives as a burst of identical
+                // EditorSave messages; on a NEW host each one would
+                // persist another copy (five duplicates in the field
+                // repro). The first save closes the panel (below), so
+                // "panel already closed" is exactly "this is a phantom
+                // repeat": every legitimate sender (footer button,
+                // focused on_submit, ringed footer row) only exists
+                // while the panel is up.
+                if !self.panels.host_panel {
+                    return Task::none();
+                }
                 if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("editor_label_host_required").to_string());
@@ -416,6 +429,16 @@ impl Oryxis {
                         }
                         self.load_data_from_vault();
                     }
+                }
+            }
+            EditorMessage::EditorSectionToggled(section) => {
+                // The keynav ring is left alone on purpose: the header's
+                // own index is stable across its toggle (every row before
+                // it is unchanged), so Enter-open / Enter-close keeps the
+                // ring on the header, same as the Use-TOTP and algo
+                // Auto/Custom rows that also reveal rows below themselves.
+                if !self.host_editor_open_sections.remove(&section) {
+                    self.host_editor_open_sections.insert(section);
                 }
             }
             // Routed here by the parent; anything else is a

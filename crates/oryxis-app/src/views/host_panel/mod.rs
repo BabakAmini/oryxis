@@ -28,6 +28,7 @@ mod integration;
 mod inherited;
 mod login_script;
 mod network;
+mod sections;
 mod terminal_settings;
 
 /// Empty placeholder element for gated-off (hidden) rows: the reduced
@@ -39,6 +40,22 @@ fn empty<'a>() -> Element<'a, Message> {
 }
 
 impl Oryxis {
+    /// The `on_submit` payload every host-editor text input carries
+    /// this frame. `None` while the panel ring sits on a non-input row:
+    /// no input is focused then, so Enter belongs to the ringed row,
+    /// and the fork's `text_input` would otherwise fire the binding
+    /// WITHOUT focus (its on_submit shortcut sits in front of the
+    /// `is_focused` gate) and capture the key away from the panel
+    /// router, turning "Enter opens the ringed section" into a phantom
+    /// save. Known residue: a mouse click into an input doesn't clear
+    /// the ring (focus is unobservable), so an Enter right after such
+    /// a click activates the still-ringed row instead of saving; the
+    /// next Tab re-syncs, and nothing is lost either way.
+    pub(super) fn hp_submit(&self) -> Option<Message> {
+        (!self.panel_ring_on_noninput())
+            .then(|| Message::Editor(EditorMessage::EditorSave))
+    }
+
     pub(crate) fn view_host_panel(&self) -> Element<'_, Message> {
         // Keyboard rows are recorded in visual order (row mode: Up/Down from any input).
         self.panel_nav_reset();
@@ -61,8 +78,9 @@ impl Oryxis {
         // password), a kind (RDP/VNC) and an optional SSH gateway. All the
         // SSH-only rows below are `is_ssh`-gated, so they drop for free.
         let is_rd = self.editor_form.protocol == Proto::RemoteDesktop;
-        // Telnet dials TCP too, so it shares the IP-version row below.
-        let is_telnet = self.editor_form.protocol == Proto::Telnet;
+        // Telnet needs no flag of its own: it is the trailing `else` of
+        // the protocol-card branch below (it dials TCP too, so that
+        // branch builds the IP-version row inline).
         // ── Header ──
         // The close (×) is intentionally not a keyboard row: Esc already
         // owns panel close, and recording it would make the header the
@@ -86,10 +104,11 @@ impl Oryxis {
         // lands the title's top edge level with the left gutter.
         .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 });
 
-        // Host-card fields, then the protocol block (Credentials /
-        // Serial / Authentication / Network / Integration) and the
-        // Terminal card. Built in visual order so `panel_nav_slot`
-        // records the keyboard rows in the same order they render.
+        // Two-tier form: the essential fields build (= keynav-record)
+        // first, then each collapsible section records its header and,
+        // only while open, its body (`hp_section` runs the body closure
+        // after the header). Build order stays render order throughout,
+        // which is the panel keyboard contract.
         let label_field = self.hp_label_field();
         let parent_combo = self.hp_parent_combo();
         let tags_field = self.hp_tags_field();
@@ -97,78 +116,12 @@ impl Oryxis {
         let protocol_row = self.hp_protocol_row(is_rd);
         let cloud_transport_row = self.hp_cloud_transport_row();
         let port_input = self.hp_port_input(is_serial);
-        let cred_items = self.hp_cred_items(is_serial, is_ssh);
-        let serial_params_block = self.hp_serial_params_block(is_serial);
-        let row_auth_method = self.hp_row_auth_method(is_ssh);
-        let ssh_key_row = self.hp_ssh_key_row(is_ssh);
-        let row_agent_fwd = self.hp_row_agent_fwd(is_ssh);
-        let row_x11_fwd = self.hp_row_x11_fwd(is_ssh);
-        let row_chaining = self.hp_row_chaining(is_ssh);
-        let proxy_rows: Element<'_, Message> = if is_ssh {
-            self.build_proxy_rows().into()
-        } else {
-            empty()
-        };
-        let pf_items = self.hp_pf_items(is_ssh);
-        let row_keepalive = self.hp_row_keepalive(is_ssh);
-        let row_address_family = self.hp_row_address_family(is_ssh, is_telnet);
-        // Built (= keynav-recorded) right after the address-family row
-        // because that is where it renders in both branches below.
-        let row_mac_address = self.hp_row_mac_address(is_ssh || is_telnet);
-        let row_auto_title = self.hp_row_auto_title(is_ssh);
-        let algo_overrides: Element<'_, Message> = if is_ssh {
-            self.algo_overrides_section()
-        } else {
-            empty()
-        };
-        let row_mcp = self.hp_row_mcp(is_ssh);
-        let row_monitor = self.hp_row_monitor(is_ssh);
-        let row_monitor_disks = self.hp_row_monitor_disks(is_ssh);
-        let row_sftp_initial_path = self.hp_row_sftp_initial_path(is_ssh);
-        let rd_block = self.hp_rd_block(is_rd);
-        let env_items = self.hp_env_items(is_ssh);
-        let startup_block = self.hp_startup_block(is_ssh);
-        let login_script_block = self.hp_login_script_block(is_ssh);
-        let appearance_items = self.hp_appearance_items();
-        let row_session_logging = self.hp_row_session_logging();
-        let row_privacy_mode = self.hp_row_privacy_mode();
-        let row_sidebar_auto_open = self.hp_row_sidebar_auto_open();
-        // C5 Advanced-terminal block: legacy keyboard modes + feature
-        // toggles. Terminal protocols only (SSH / Telnet / Serial); an
-        // RDP/VNC host drives no terminal pane, so it drops out.
-        let advanced_terminal: Element<'_, Message> = if is_rd {
-            Space::new().into()
-        } else {
-            self.hp_advanced_terminal_items()
-        };
-        // ── Error ──
-        // The gap toward the actions row lives in this container's own
-        // bottom padding (not a `.spacing` on the column below): the
-        // no-error placeholder is a present Shrink Space (constant tree
-        // shape, see main_layout's slot skeleton note), and a column
-        // spacing would open a stray 8px band above the buttons when
-        // there is no error to show.
-        let panel_error: Element<'_, Message> = if let Some(err) = &self.host_panel_error {
-            container(Element::from(text(err.clone()).size(11).color(OryxisColors::t().error)))
-                .padding(Padding { top: 4.0, right: 16.0, bottom: 12.0, left: 16.0 })
-                .into()
-        } else {
-            Space::new().into()
-        };
-        let actions_row = self.hp_actions_row(has_address);
-        // The error must live OUTSIDE the scrollable so it sits above
-        // the Save button at the bottom of the panel, otherwise long
-        // forms hide it below the fold and the user clicks Save again
-        // wondering why nothing happens.
-        let bottom = column![panel_error, actions_row];
 
         // ── Compose one card per semantic group ──
-        // Host (label / parent / connection target), SSH (everything
-        // protocol-specific, including the port in its header and the
-        // login/password right below it), and Terminal (appearance +
-        // session logging). The SSH card is the whole protocol block, so
-        // a future Telnet switch hides it in one move while keeping the
-        // universal-for-Telnet bits (port, login, password) at its top.
+        // Host (label / parent / connection target), the essential
+        // protocol card (port + login), then the collapsible sections
+        // (`hp_section`) and the bottom actions, in that build order,
+        // because build order is keyboard-record order.
         //
         // Spacing: GROUP_GAP (Space + divider + Space) between subgroups,
         // ROW_GAP between rows. No per-row dividers, so nothing hugs a
@@ -236,92 +189,51 @@ impl Oryxis {
             .align_y(iced::Alignment::Center)
         };
 
-        // Protocol card. SSH holds the full block (Credentials,
-        // Authentication, Network, Integration, initial command); Telnet
-        // holds only the port header, username/password credentials and
-        // an honest one-line cleartext note. Everything else is SSH-only
-        // and is dropped from the reduced form, not disabled.
+        // Essential protocol card: the port header plus the login.
+        // Everything else protocol-specific lives in the collapsible
+        // sections below; the reduced Serial / RD / Telnet forms keep
+        // their few extra rows inline, they already ARE the disclosure.
+        let cred_items = self.hp_cred_items(is_serial, is_ssh);
         let protocol_section: Element<'_, Message> = if is_ssh {
-            let mut ssh_col = column![proto_header]
-                .push(group_sep())
-                .push(section_header(t("credentials")))
-                .push(Space::new().height(ROW_GAP))
-                .push(cred_items)
-                .push(group_sep())
-                .push(section_header(t("authentication")))
-                .push(Space::new().height(ROW_GAP))
-                .push(row_auth_method);
-            // The chosen method's field: Key shows a key picker; the other
-            // methods need no extra input here (password lives in Credentials).
-            if let Some(k) = ssh_key_row {
-                ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(k);
-            }
-            ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(row_agent_fwd);
-            ssh_col = ssh_col.push(Space::new().height(ROW_GAP)).push(row_x11_fwd);
-            // Network subgroup.
-            ssh_col = ssh_col
-                .push(group_sep())
-                .push(section_header(t("network")))
-                .push(Space::new().height(ROW_GAP))
-                .push(row_chaining)
-                .push(Space::new().height(ROW_GAP))
-                .push(proxy_rows)
-                .push(Space::new().height(ROW_GAP))
-                .push(pf_items)
-                .push(Space::new().height(ROW_GAP))
-                .push(row_keepalive)
-                .push(Space::new().height(ROW_GAP))
-                .push(row_address_family)
-                .push(Space::new().height(ROW_GAP))
-                .push(row_mac_address)
-                .push(Space::new().height(ROW_GAP))
-                .push(row_auto_title)
-                .push(Space::new().height(ROW_GAP))
-                .push(algo_overrides);
-            // Integration subgroup + initial command.
-            ssh_col = ssh_col
-                .push(group_sep())
-                .push(section_header(t("integration")))
-                .push(Space::new().height(ROW_GAP))
-                .push(row_mcp)
-                .push(row_monitor)
-                .push(row_monitor_disks)
-                .push(row_sftp_initial_path)
-                .push(Space::new().height(ROW_GAP))
-                .push(env_items)
-                .push(group_sep())
-                .push(startup_block)
-                // Login automation sits right after the startup command
-                // on purpose: both are "what happens once the session
-                // opens", and the script has to finish before the
-                // startup command is sent (see `dispatch_ssh/session`).
-                .push(group_sep())
-                .push(login_script_block);
-            panel_section(ssh_col)
+            panel_section(
+                column![proto_header]
+                    .push(group_sep())
+                    .push(section_header(t("credentials")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(cred_items),
+            )
         } else if is_serial {
             // Serial card: the line-parameter block under the header.
             // No credentials (serial has no auth); the port path lives
             // in the Host card's connection target above.
-            let serial_col = column![proto_header]
-                .push(group_sep())
-                .push(section_header(t("serial_line")))
-                .push(Space::new().height(ROW_GAP))
-                .push(serial_params_block);
-            panel_section(serial_col)
+            let serial_params_block = self.hp_serial_params_block(true);
+            panel_section(
+                column![proto_header]
+                    .push(group_sep())
+                    .push(section_header(t("serial_line")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(serial_params_block),
+            )
         } else if is_rd {
             // Remote-desktop card: the endpoint login (Credentials) plus the
             // kind + SSH gateway rows. No SSH auth/network/integration.
-            let rd_col = column![proto_header]
-                .push(group_sep())
-                .push(section_header(t("credentials")))
-                .push(Space::new().height(ROW_GAP))
-                .push(cred_items)
-                .push(group_sep())
-                .push(section_header(t("remote_desktop")))
-                .push(Space::new().height(ROW_GAP))
-                .push(rd_block);
-            panel_section(rd_col)
+            let rd_block = self.hp_rd_block(true);
+            panel_section(
+                column![proto_header]
+                    .push(group_sep())
+                    .push(section_header(t("credentials")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(cred_items)
+                    .push(group_sep())
+                    .push(section_header(t("remote_desktop")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(rd_block),
+            )
         } else {
+            // Telnet keeps its two network rows inline (built here, in
+            // render order, so they record after the credential rows).
+            let row_address_family = self.hp_row_address_family(false, true);
+            let row_mac_address = self.hp_row_mac_address(true);
             // Telnet cleartext note: honest UX, not a lecture. The user
             // is the only party on the path without a secure option.
             let cleartext_note = dir_row(vec![
@@ -342,8 +254,6 @@ impl Oryxis {
                 .push(Space::new().height(ROW_GAP))
                 .push(cred_items)
                 .push(Space::new().height(ROW_GAP))
-                // Built after the credential rows, so it records after
-                // them and must render after them too (keynav order).
                 .push(row_address_family)
                 .push(Space::new().height(ROW_GAP))
                 .push(row_mac_address)
@@ -352,30 +262,153 @@ impl Oryxis {
             panel_section(telnet_col)
         };
 
-        // Terminal card: appearance + session logging.
-        let terminal_section = panel_section(
-            column![section_header(t("terminal_settings")), Space::new().height(ROW_GAP)]
-                .push(appearance_items)
+        // ── Collapsible tier ──
+        // Only the sections a protocol actually has are rendered: the
+        // Authentication / Network / Integration machinery is SSH-only,
+        // and an RDP/VNC host drives no terminal pane (no
+        // Compatibility). Each `hp_section` body closure runs only
+        // while its section is open, so a closed section builds (and
+        // keyboard-records) nothing.
+        use crate::state::HostEditorSection as S;
+        let auth_section = is_ssh.then(|| {
+            self.hp_section(S::Authentication, || {
+                let row_auth_method = self.hp_row_auth_method(true);
+                let ssh_key_row = self.hp_ssh_key_row(true);
+                let row_agent_fwd = self.hp_row_agent_fwd(true);
+                let row_x11_fwd = self.hp_row_x11_fwd(true);
+                let totp_block = self.hp_totp_block(true);
+                let mut col = column![row_auth_method];
+                // The chosen method's field: Key / Certificate / Agent
+                // show a key picker; the other methods need no extra
+                // input here (password lives in Credentials).
+                if let Some(k) = ssh_key_row {
+                    col = col.push(Space::new().height(ROW_GAP)).push(k);
+                }
+                col.push(Space::new().height(ROW_GAP))
+                    .push(row_agent_fwd)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(row_x11_fwd)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(totp_block)
+                    .into()
+            })
+        });
+        let network_section = is_ssh.then(|| {
+            self.hp_section(S::Network, || {
+                let row_chaining = self.hp_row_chaining(true);
+                let proxy_rows: Element<'_, Message> = self.build_proxy_rows().into();
+                let pf_items = self.hp_pf_items(true);
+                let row_keepalive = self.hp_row_keepalive(true);
+                let row_address_family = self.hp_row_address_family(true, false);
+                let row_mac_address = self.hp_row_mac_address(true);
+                let row_auto_title = self.hp_row_auto_title(true);
+                column![row_chaining]
+                    .push(Space::new().height(ROW_GAP))
+                    .push(proxy_rows)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(pf_items)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(row_keepalive)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(row_address_family)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(row_mac_address)
+                    .push(Space::new().height(ROW_GAP))
+                    .push(row_auto_title)
+                    .into()
+            })
+        });
+        // Compatibility (P2): the four legacy-algorithm pickers (SSH
+        // only) and the C5 legacy keyboard modes + feature toggles
+        // (every terminal protocol; an RDP/VNC host drives no terminal
+        // pane, so the whole section drops out for it).
+        let compat_section = (!is_rd).then(|| {
+            self.hp_section(S::Compatibility, || {
+                let mut col = column![];
+                if is_ssh {
+                    col = col
+                        .push(self.algo_overrides_section())
+                        .push(group_sep());
+                }
+                col.push(self.hp_advanced_terminal_items()).into()
+            })
+        });
+        let integration_section = is_ssh.then(|| {
+            self.hp_section(S::Integration, || {
+                let row_mcp = self.hp_row_mcp(true);
+                let row_monitor = self.hp_row_monitor(true);
+                let row_monitor_disks = self.hp_row_monitor_disks(true);
+                let row_sftp_initial_path = self.hp_row_sftp_initial_path(true);
+                let env_items = self.hp_env_items(true);
+                let startup_block = self.hp_startup_block(true);
+                let login_script_block = self.hp_login_script_block(true);
+                column![row_mcp, row_monitor, row_monitor_disks, row_sftp_initial_path]
+                    .push(Space::new().height(ROW_GAP))
+                    .push(env_items)
+                    .push(group_sep())
+                    .push(startup_block)
+                    // Login automation sits right after the startup
+                    // command on purpose: both are "what happens once
+                    // the session opens", and the script has to finish
+                    // before the startup command is sent (see
+                    // `dispatch_ssh/session`).
+                    .push(group_sep())
+                    .push(login_script_block)
+                    .into()
+            })
+        });
+        // Terminal section: appearance + session logging, every
+        // protocol (an RDP host still carries the recording / privacy
+        // overrides its file transfers and future panes read).
+        let terminal_section = self.hp_section(S::Terminal, || {
+            let appearance_items = self.hp_appearance_items();
+            let row_session_logging = self.hp_row_session_logging();
+            let row_privacy_mode = self.hp_row_privacy_mode();
+            let row_sidebar_auto_open = self.hp_row_sidebar_auto_open();
+            column![appearance_items]
                 .push(Space::new().height(GROUP_GAP))
                 .push(row_session_logging)
                 .push(Space::new().height(GROUP_GAP))
                 .push(row_privacy_mode)
                 .push(Space::new().height(GROUP_GAP))
                 .push(row_sidebar_auto_open)
-                .push(Space::new().height(GROUP_GAP))
-                .push(advanced_terminal),
-        );
+                .into()
+        });
+
+        // ── Error ──
+        // The gap toward the actions row lives in this container's own
+        // bottom padding (not a `.spacing` on the column below): the
+        // no-error placeholder is a present Shrink Space (constant tree
+        // shape, see main_layout's slot skeleton note), and a column
+        // spacing would open a stray 8px band above the buttons when
+        // there is no error to show.
+        let panel_error: Element<'_, Message> = if let Some(err) = &self.host_panel_error {
+            container(Element::from(text(err.clone()).size(11).color(OryxisColors::t().error)))
+                .padding(Padding { top: 4.0, right: 16.0, bottom: 12.0, left: 16.0 })
+                .into()
+        } else {
+            Space::new().into()
+        };
+        // Built last: the footer buttons render below every card, so
+        // their keyboard rows must record after them.
+        let actions_row = self.hp_actions_row(has_address);
+        // The error must live OUTSIDE the scrollable so it sits above
+        // the Save button at the bottom of the panel, otherwise long
+        // forms hide it below the fold and the user clicks Save again
+        // wondering why nothing happens.
+        let bottom = column![panel_error, actions_row];
 
         // ── Layout ──
+        let mut form_col = column![host_section, Space::new().height(10), protocol_section];
+        for section in [auth_section, network_section, compat_section, integration_section]
+            .into_iter()
+            .flatten()
+        {
+            form_col = form_col.push(Space::new().height(10)).push(section);
+        }
+        form_col = form_col.push(Space::new().height(10)).push(terminal_section);
         let form_scroll = scrollable(
-            column![
-                host_section,
-                Space::new().height(10),
-                protocol_section,
-                Space::new().height(10),
-                terminal_section,
-            ]
-            .padding(Padding { top: 0.0, right: 16.0, bottom: 16.0, left: 16.0 }),
+            form_col.padding(Padding { top: 0.0, right: 16.0, bottom: 16.0, left: 16.0 }),
         )
         // Shared id: the keyboard router keeps the selected row in view.
         .id(iced::widget::Id::new("side-panel-scroll"))

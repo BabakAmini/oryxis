@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Đang mở máy tính từ xa trên cổng {port}",
         "remote_desktop_no_client" => "Không tìm thấy ứng dụng máy tính từ xa; hãy cài một trong",
         "remote_desktop_tunnel_failed" => "Tạo tunnel máy tính từ xa thất bại",
+        "section_compatibility" => "Tương thích",
         "authentication" => "Xác thực",
         "network" => "Mạng",
         "integration" => "Tích hợp",

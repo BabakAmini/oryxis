@@ -252,7 +252,7 @@ impl Oryxis {
                     )
                         .id(iced::widget::Id::new("editor-keepalive"))
                         .on_input(|v| Message::Editor(EditorMessage::EditorKeepaliveChanged(v)))
-                        .on_submit(Message::Editor(EditorMessage::EditorSave))
+                        .on_submit_maybe(self.hp_submit())
                         .padding(6)
                         .width(100)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -292,7 +292,7 @@ impl Oryxis {
                     )
                         .id(iced::widget::Id::new("editor-mac-address"))
                         .on_input(|v| Message::Editor(EditorMessage::EditorMacAddressChanged(v)))
-                        .on_submit(Message::Editor(EditorMessage::EditorSave))
+                        .on_submit_maybe(self.hp_submit())
                         .padding(6)
                         .width(160)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -565,7 +565,7 @@ impl Oryxis {
                         )
                         .id(iced::widget::Id::new("editor-proxy-command"))
                         .on_input(|v| Message::Editor(EditorMessage::EditorProxyCommandChanged(v)))
-                        .on_submit(Message::Editor(EditorMessage::EditorSave))
+                        .on_submit_maybe(self.hp_submit())
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -588,7 +588,7 @@ impl Oryxis {
                         )
                         .id(iced::widget::Id::new("editor-proxy-host"))
                         .on_input(|v| Message::Editor(EditorMessage::EditorProxyHostChanged(v)))
-                        .on_submit(Message::Editor(EditorMessage::EditorSave))
+                        .on_submit_maybe(self.hp_submit())
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -603,7 +603,7 @@ impl Oryxis {
                         text_input("1080", &self.editor_form.proxy_port)
                             .id(iced::widget::Id::new("editor-proxy-port"))
                             .on_input(|v| Message::Editor(EditorMessage::EditorProxyPortChanged(v)))
-                            .on_submit(Message::Editor(EditorMessage::EditorSave))
+                            .on_submit_maybe(self.hp_submit())
                             .padding(6)
                             .width(70)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
@@ -622,7 +622,7 @@ impl Oryxis {
                         )
                         .id(iced::widget::Id::new("editor-proxy-username"))
                         .on_input(|v| Message::Editor(EditorMessage::EditorProxyUsernameChanged(v)))
-                        .on_submit(Message::Editor(EditorMessage::EditorSave))
+                        .on_submit_maybe(self.hp_submit())
                         .padding(10)
                         .style(crate::widgets::rounded_input_style).align_x(dir_align_x())
                         .into(),
@@ -653,7 +653,7 @@ impl Oryxis {
                         placeholder,
                         self.editor_form.proxy_password.as_str(),
                         |v| Message::Editor(EditorMessage::EditorProxyPasswordChanged(v.into())),
-                        Some(Message::Editor(EditorMessage::EditorSave)),
+                        self.hp_submit(),
                         self.editor_form.proxy_password_visible,
                         Message::Editor(EditorMessage::EditorToggleProxyPasswordVisibility),
                         10.0,

@@ -51,6 +51,21 @@ impl Oryxis {
             .is_some_and(|a| a.focus.is_some())
     }
 
+    /// Whether the side-panel keyboard ring currently sits on a
+    /// non-input row. While it does, no text input is focused (moving
+    /// the ring onto such a row blurs everything), so an Enter belongs
+    /// to the ringed row and view code must not hand any `on_submit`
+    /// binding to the panel's inputs: the fork's `text_input` fires
+    /// the binding on ANY Enter, focused or not (`from_key_press`
+    /// gates on focus, the on_submit shortcut in front of it does
+    /// not), and that phantom submit also CAPTURES the key away from
+    /// this router. See `hp_submit` in `views/host_panel/mod.rs`.
+    pub(crate) fn panel_ring_on_noninput(&self) -> bool {
+        self.keynav
+            .panel_selected
+            .is_some_and(|i| !self.panel_row_is_input(i))
+    }
+
     /// Keep the current row visible: every instrumented side panel
     /// gives its body scrollable the shared "side-panel-scroll" id
     /// (only one panel renders at a time), and the offset estimate is

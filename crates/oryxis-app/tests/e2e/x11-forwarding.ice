@@ -19,6 +19,10 @@ type "x11test.example.com"
 click "Continue"
 settle 250
 expect "New Host"
+# Two-tier editor: both forwarding rows live in the collapsed
+# Authentication section; open it first.
+click "Authentication"
+settle 300
 # Both forwarding rows render, in this order.
 expect "Forward SSH Agent"
 expect "Forward X11"

@@ -308,6 +308,7 @@ impl Oryxis {
                 editor_form: ConnectionForm::default(),
                 editor_initial_command: text_editor::Content::new(),
                 host_panel_error: None,
+                host_editor_open_sections: std::collections::HashSet::new(),
                 editor_session_group: crate::state::SessionGroupForm::default(),
                 session_group_script_editor: text_editor::Content::new(),
                 session_group_panel_error: None,

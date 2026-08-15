@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "در حال باز کردن دسکتاپ راه دور روی درگاه {port}",
         "remote_desktop_no_client" => "کلاینت دسکتاپ راه دور یافت نشد؛ یکی از این‌ها را نصب کنید",
         "remote_desktop_tunnel_failed" => "تونل دسکتاپ راه دور ناموفق بود",
+        "section_compatibility" => "سازگاری",
         "authentication" => "احراز هویت",
         "network" => "شبکه",
         "integration" => "یکپارچه‌سازی",

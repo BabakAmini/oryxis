@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Otwieranie pulpitu zdalnego na porcie {port}",
         "remote_desktop_no_client" => "Nie znaleziono klienta pulpitu zdalnego; zainstaluj jeden z",
         "remote_desktop_tunnel_failed" => "Tunel pulpitu zdalnego nie powiódł się",
+        "section_compatibility" => "Zgodność",
         "authentication" => "Uwierzytelnianie",
         "network" => "Sieć",
         "integration" => "Integracja",

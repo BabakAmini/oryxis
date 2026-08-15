@@ -63,7 +63,19 @@ impl Oryxis {
                 text_input(t("type_ip_or_hostname"), &self.quick_host_input)
                     .id(QUICK_HOST_INPUT_ID)
                     .on_input(|v| Message::Navigation(NavigationMessage::QuickHostInput(v)))
-                    .on_submit(Message::Navigation(NavigationMessage::QuickHostContinue))
+                    // No submit binding while a side panel is open: the
+                    // fork's `text_input` fires on_submit on ANY Enter,
+                    // focused or not, and the empty state stays mounted
+                    // BEHIND the host editor, so an Enter meant for the
+                    // editor also landed here and rebuilt its form (the
+                    // dispatcher's modal guard cannot help, the message
+                    // itself must not exist). The click path is
+                    // unaffected: the Continue button below keeps its
+                    // own on_press.
+                    .on_submit_maybe(
+                        (!self.side_panel_open())
+                            .then(|| Message::Navigation(NavigationMessage::QuickHostContinue)),
+                    )
                     .padding(14)
                     .width(BLOCK_WIDTH)
                     .style(crate::widgets::rounded_input_style)

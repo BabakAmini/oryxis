@@ -16,9 +16,10 @@ expect "Create host"
 click "Continue"
 expect "New Host"
 type "10.9.9.9"
-scroll pixels (0, -400) (990, 400)
+# Two-tier editor: the password row is part of the always-visible
+# essential tier, no scroll needed to reach it.
 settle 500
-click (1000, 320)
+click (1000, 720)
 type "hunter2"
 type tab
 settle 300

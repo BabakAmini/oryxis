@@ -356,6 +356,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "กำลังเปิดเดสก์ท็อประยะไกลที่พอร์ต {port}",
         "remote_desktop_no_client" => "ไม่พบไคลเอนต์เดสก์ท็อประยะไกล โปรดติดตั้งหนึ่งใน",
         "remote_desktop_tunnel_failed" => "ทันเนลเดสก์ท็อประยะไกลล้มเหลว",
+        "section_compatibility" => "ความเข้ากันได้",
         "authentication" => "การยืนยันตัวตน",
         "network" => "เครือข่าย",
         "integration" => "การผสานรวม",

@@ -356,6 +356,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "पोर्ट {port} पर रिमोट डेस्कटॉप खुल रहा है",
         "remote_desktop_no_client" => "कोई रिमोट-डेस्कटॉप क्लाइंट नहीं मिला; इनमें से एक इंस्टॉल करें",
         "remote_desktop_tunnel_failed" => "रिमोट डेस्कटॉप टनल विफल",
+        "section_compatibility" => "संगतता",
         "authentication" => "प्रमाणीकरण",
         "network" => "नेटवर्क",
         "integration" => "इंटीग्रेशन",

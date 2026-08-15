@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Membuka desktop jarak jauh di port {port}",
         "remote_desktop_no_client" => "Klien desktop jarak jauh tidak ditemukan; pasang salah satu dari",
         "remote_desktop_tunnel_failed" => "Tunnel desktop jarak jauh gagal",
+        "section_compatibility" => "Kompatibilitas",
         "authentication" => "Autentikasi",
         "network" => "Jaringan",
         "integration" => "Integrasi",

@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Відкриття віддаленого робочого столу на порту {port}",
         "remote_desktop_no_client" => "Клієнт віддаленого робочого столу не знайдено; встановіть один із",
         "remote_desktop_tunnel_failed" => "Помилка тунелю віддаленого робочого столу",
+        "section_compatibility" => "Сумісність",
         "authentication" => "Автентифікація",
         "network" => "Мережа",
         "integration" => "Інтеграція",

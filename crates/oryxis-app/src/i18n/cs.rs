@@ -356,6 +356,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Otevírání vzdálené plochy na portu {port}",
         "remote_desktop_no_client" => "Nebyl nalezen žádný klient vzdálené plochy; nainstalujte jeden z",
         "remote_desktop_tunnel_failed" => "Tunel vzdálené plochy selhal",
+        "section_compatibility" => "Kompatibilita",
         "authentication" => "Ověřování",
         "network" => "Síť",
         "integration" => "Integrace",

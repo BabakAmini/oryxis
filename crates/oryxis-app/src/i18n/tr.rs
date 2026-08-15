@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Uzak masaüstü {port} bağlantı noktasında açılıyor",
         "remote_desktop_no_client" => "Uzak masaüstü istemcisi bulunamadı; şunlardan birini kurun",
         "remote_desktop_tunnel_failed" => "Uzak masaüstü tüneli başarısız oldu",
+        "section_compatibility" => "Uyumluluk",
         "authentication" => "Kimlik Doğrulama",
         "network" => "Ağ",
         "integration" => "Entegrasyon",

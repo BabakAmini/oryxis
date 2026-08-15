@@ -22,6 +22,12 @@ click "Type IP or Hostname"
 type "quirkshost.example.com"
 click "Continue"
 settle 500
+# Two-tier editor: the quirks live in the collapsed Compatibility
+# section (with the legacy-algorithm pickers); open it first.
+expect "New Host"
+click "Compatibility"
+settle 300
+expect "Legacy algorithms"
 expect "Advanced terminal"
 expect "Backspace key"
 expect "Home/End keys"

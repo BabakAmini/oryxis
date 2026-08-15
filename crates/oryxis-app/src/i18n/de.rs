@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Remotedesktop wird auf Port {port} geöffnet",
         "remote_desktop_no_client" => "Kein Remotedesktop-Client gefunden; installiere einen von",
         "remote_desktop_tunnel_failed" => "Remotedesktop-Tunnel fehlgeschlagen",
+        "section_compatibility" => "Kompatibilität",
         "authentication" => "Authentifizierung",
         "network" => "Netzwerk",
         "integration" => "Integration",

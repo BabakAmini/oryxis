@@ -38,7 +38,7 @@ impl Oryxis {
                         text_input(t("username"), &self.editor_form.username)
                             .id(iced::widget::Id::new("editor-username"))
                             .on_input(|v| Message::Editor(EditorMessage::EditorUsernameChanged(v)))
-                            .on_submit(Message::Editor(EditorMessage::EditorSave))
+                            .on_submit_maybe(self.hp_submit())
                             .padding(10)
                             .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
                     ),
@@ -228,7 +228,7 @@ impl Oryxis {
                         pw_placeholder,
                         self.editor_form.password.as_str(),
                         |v| Message::Editor(EditorMessage::EditorPasswordChanged(v.into())),
-                        Some(Message::Editor(EditorMessage::EditorSave)),
+                        self.hp_submit(),
                         self.editor_form.password_visible,
                         Message::Editor(EditorMessage::EditorTogglePasswordVisibility),
                         10.0,
@@ -245,15 +245,25 @@ impl Oryxis {
             );
         }
 
-        // TOTP 2FA autofill, behind a "Use TOTP" disclosure so the
-        // secret field doesn't clutter hosts without 2FA. Offered for
-        // every auth method: a keyboard-interactive second factor can
-        // follow any first factor (password, key, agent). Telnet has no
-        // keyboard-interactive second factor, so the reduced form hides
-        // the whole block. The toggle row's own vertical padding
-        // provides the same 8px rhythm as the username/password gap.
-        if is_ssh {
-            cred_items = cred_items.push(self.panel_nav_slot(
+        cred_items.into()
+        };
+        cred_items
+    }
+
+    /// TOTP 2FA autofill, behind a "Use TOTP" disclosure so the secret
+    /// field doesn't clutter hosts without 2FA. Offered for every auth
+    /// method: a keyboard-interactive second factor can follow any
+    /// first factor (password, key, agent). Lives in the collapsed
+    /// Authentication section (it is a second factor, not the login);
+    /// Telnet has no keyboard-interactive second factor, so the reduced
+    /// form never builds it. The toggle row's own vertical padding
+    /// provides the same 8px rhythm as the username/password gap.
+    pub(super) fn hp_totp_block(&self, is_ssh: bool) -> Element<'_, Message> {
+        if !is_ssh {
+            return empty();
+        }
+        let mut cred_items = column![];
+        cred_items = cred_items.push(self.panel_nav_slot(
                 crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorUseTotpToggled)),
                 8.0,
                 container(
@@ -280,8 +290,7 @@ impl Oryxis {
                 )
                 .padding(Padding { top: 8.0, right: 0.0, bottom: 8.0, left: 0.0 }).into(),
             ));
-        }
-        if is_ssh && self.editor_form.use_totp {
+        if self.editor_form.use_totp {
             let totp_placeholder: &'static str = if self.editor_form.has_existing_totp
                 && !self.editor_form.totp_secret.touched()
             {
@@ -301,7 +310,7 @@ impl Oryxis {
                         totp_placeholder,
                         self.editor_form.totp_secret.as_str(),
                         |v| Message::Editor(EditorMessage::EditorTotpChanged(v.into())),
-                        Some(Message::Editor(EditorMessage::EditorSave)),
+                        self.hp_submit(),
                         self.editor_form.totp_visible,
                         Message::Editor(EditorMessage::EditorToggleTotpVisibility),
                         10.0,
@@ -318,8 +327,6 @@ impl Oryxis {
             );
         }
         cred_items.into()
-        };
-        cred_items
     }
 
     pub(super) fn hp_serial_params_block(&self, is_serial: bool) -> Element<'_, Message> {

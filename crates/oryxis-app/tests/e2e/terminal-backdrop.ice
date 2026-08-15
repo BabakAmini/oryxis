@@ -57,5 +57,9 @@ type ctrl+shift+1
 settle
 click "Continue"
 settle
+# Two-tier host editor: the backdrop overrides live in the collapsed
+# Terminal section; open it first.
+click "Terminal Settings"
+settle
 expect "Background opacity"
 expect "Background image"

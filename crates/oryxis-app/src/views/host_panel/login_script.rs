@@ -170,7 +170,7 @@ impl Oryxis {
                         placeholder,
                         self.editor_form.target_password.as_str(),
                         |v| Message::Editor(EditorMessage::EditorTargetPasswordChanged(v.into())),
-                        Some(Message::Editor(EditorMessage::EditorSave)),
+                        self.hp_submit(),
                         self.editor_form.target_password_visible,
                         Message::Editor(EditorMessage::EditorToggleTargetPasswordVisibility),
                         10.0,

@@ -14,7 +14,7 @@ impl Oryxis {
             10.0,
             text_input(t("my_server_placeholder"), &self.editor_form.label)
                 .id(iced::widget::Id::new("editor-label"))
-                .on_input(|v| Message::Editor(EditorMessage::EditorLabelChanged(v))).on_submit(Message::Editor(EditorMessage::EditorSave)).padding(10)
+                .on_input(|v| Message::Editor(EditorMessage::EditorLabelChanged(v))).on_submit_maybe(self.hp_submit()).padding(10)
                 .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
         );
         label_field
@@ -66,7 +66,7 @@ impl Oryxis {
             text_input(t("tags_placeholder"), &self.editor_form.tags_text)
                 .id(iced::widget::Id::new("editor-tags"))
                 .on_input(|v| Message::Editor(EditorMessage::EditorTagsChanged(v)))
-                .on_submit(Message::Editor(EditorMessage::EditorSave))
+                .on_submit_maybe(self.hp_submit())
                 .padding(10)
                 .style(crate::widgets::rounded_input_style)
                 .align_x(dir_align_x())
@@ -146,7 +146,7 @@ impl Oryxis {
                 )
                     .id(iced::widget::Id::new("editor-hostname"))
                     .on_input(|v| Message::Editor(EditorMessage::EditorHostnameChanged(v)))
-                    .on_submit(Message::Editor(EditorMessage::EditorSave))
+                    .on_submit_maybe(self.hp_submit())
                     .padding(10)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),
             ),
@@ -263,7 +263,7 @@ impl Oryxis {
                 text_input("22", &self.editor_form.port)
                     .id(iced::widget::Id::new("editor-port"))
                     .on_input(|v| Message::Editor(EditorMessage::EditorPortChanged(v)))
-                    .on_submit(Message::Editor(EditorMessage::EditorSave))
+                    .on_submit_maybe(self.hp_submit())
                     .padding(6)
                     .width(56)
                     .style(crate::widgets::rounded_input_style).align_x(dir_align_x()).into(),

@@ -337,6 +337,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "جارٍ فتح سطح المكتب البعيد على المنفذ {port}",
         "remote_desktop_no_client" => "لم يُعثر على عميل سطح مكتب بعيد؛ ثبّت أحد",
         "remote_desktop_tunnel_failed" => "فشل نفق سطح المكتب البعيد",
+        "section_compatibility" => "التوافق",
         "authentication" => "المصادقة",
         "network" => "الشبكة",
         "integration" => "التكامل",

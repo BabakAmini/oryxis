@@ -214,4 +214,7 @@ pub enum EditorMessage {
     EditorMonitorDiskChanged(usize, String),
     /// Cycle the per-host session-recording override: Default -> On -> Off.
     EditorCycleSessionLogging,
+    /// Open / close one of the host editor's collapsible sections
+    /// (two-tier form). Session-scoped UI state, never persisted.
+    EditorSectionToggled(crate::state::HostEditorSection),
 }

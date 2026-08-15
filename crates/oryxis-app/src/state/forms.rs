@@ -417,6 +417,34 @@ pub(crate) struct ConnectionForm {
     pub sftp_initial_path: String,
 }
 
+/// One collapsible section of the host editor's two-tier form. The
+/// essential fields (label / address / port / username / password)
+/// stay always visible; everything else lives under one of these
+/// headers, closed by default. Open state is per app session (a
+/// `HashSet` on `Oryxis`), shared across hosts: reopening the editor
+/// keeps the sections the user was working in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub(crate) enum HostEditorSection {
+    Authentication,
+    Network,
+    Compatibility,
+    Integration,
+    Terminal,
+}
+
+impl HostEditorSection {
+    /// i18n key for the section's header title.
+    pub(crate) fn title_key(self) -> &'static str {
+        match self {
+            Self::Authentication => "authentication",
+            Self::Network => "network",
+            Self::Compatibility => "section_compatibility",
+            Self::Integration => "integration",
+            Self::Terminal => "terminal_settings",
+        }
+    }
+}
+
 /// One SSH algorithm negotiation category, used to drive the per-host
 /// override UI generically (one block per category).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

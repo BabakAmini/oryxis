@@ -862,6 +862,7 @@ impl Oryxis {
                 | EditorMessage::RequestDeleteConnection(..)
                 | EditorMessage::DeleteConnection(..)
                 | EditorMessage::DuplicateConnection(..)
+                | EditorMessage::EditorSectionToggled(..)
             ) => self.handle_editor_lifecycle(m),
             m @ (
                 EditorMessage::EditorLabelChanged(..)

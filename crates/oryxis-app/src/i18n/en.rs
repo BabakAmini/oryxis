@@ -356,6 +356,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "remote_desktop_opening" => "Opening remote desktop on port {port}",
         "remote_desktop_no_client" => "No remote-desktop client found; install one of",
         "remote_desktop_tunnel_failed" => "Remote desktop tunnel failed",
+        "section_compatibility" => "Compatibility",
         "authentication" => "Authentication",
         "network" => "Network",
         "integration" => "Integration",

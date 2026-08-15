@@ -356,6 +356,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "Άνοιγμα απομακρυσμένης επιφάνειας στη θύρα {port}",
         "remote_desktop_no_client" => "Δεν βρέθηκε πρόγραμμα απομακρυσμένης επιφάνειας. Εγκαταστήστε ένα από τα",
         "remote_desktop_tunnel_failed" => "Το tunnel της απομακρυσμένης επιφάνειας απέτυχε",
+        "section_compatibility" => "Συμβατότητα",
         "authentication" => "Πιστοποίηση",
         "network" => "Δίκτυο",
         "integration" => "Ενσωμάτωση",

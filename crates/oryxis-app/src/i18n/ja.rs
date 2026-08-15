@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "ポート {port} でリモートデスクトップを開いています",
         "remote_desktop_no_client" => "リモートデスクトップクライアントが見つかりません。次のいずれかをインストールしてください",
         "remote_desktop_tunnel_failed" => "リモートデスクトップのトンネルに失敗しました",
+        "section_compatibility" => "互換性",
         "authentication" => "認証",
         "network" => "ネットワーク",
         "integration" => "統合",

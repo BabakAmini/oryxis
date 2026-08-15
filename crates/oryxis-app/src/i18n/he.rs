@@ -356,6 +356,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "פותח שולחן עבודה מרוחק על פורט {port}",
         "remote_desktop_no_client" => "לא נמצא לקוח שולחן עבודה מרוחק; התקינו אחד מאלה",
         "remote_desktop_tunnel_failed" => "מנהרת שולחן העבודה המרוחק נכשלה",
+        "section_compatibility" => "תאימות",
         "authentication" => "אימות",
         "network" => "רשת",
         "integration" => "אינטגרציה",

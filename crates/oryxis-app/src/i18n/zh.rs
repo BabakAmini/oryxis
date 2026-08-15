@@ -334,6 +334,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_opening" => "正在端口 {port} 上打开远程桌面",
         "remote_desktop_no_client" => "未找到远程桌面客户端；请安装以下之一",
         "remote_desktop_tunnel_failed" => "远程桌面隧道失败",
+        "section_compatibility" => "兼容性",
         "authentication" => "身份验证",
         "network" => "网络",
         "integration" => "集成",
