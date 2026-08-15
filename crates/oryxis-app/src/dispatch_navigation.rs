@@ -43,6 +43,9 @@ impl Oryxis {
             } => {
                 return self.settings_key_resolved(named, shift, focused);
             }
+            NavigationMessage::VaultNavKeyResolved { named, focused } => {
+                return self.vault_nav_key_resolved(named, focused);
+            }
             // -- Navigation --
             NavigationMessage::GoHome => {
                 // The Home tab lands on the vault surface the user left,

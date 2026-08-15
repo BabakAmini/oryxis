@@ -149,6 +149,13 @@ impl Oryxis {
                 if let Some(task) = self.settings_ring_idle_resolve(*named, modifiers.shift()) {
                     return Some(task);
                 }
+                // Ring idle in the other vault views: Up/Down only enter
+                // the content zone once iced confirms no non-search text
+                // input holds focus (issue #168, the empty dashboard's
+                // quick-host field under numpad NumLock-off arrows).
+                if let Some(task) = self.vault_ring_idle_resolve(*named) {
+                    return Some(task);
+                }
                 self.keynav_move(*named)
             }
             _ => None,
@@ -934,6 +941,46 @@ impl Oryxis {
                 focused,
             })
         }))
+    }
+
+    /// Vault-area ring idle: hand an Up/Down press to
+    /// [`Self::vault_nav_key_resolved`] once iced reports what it
+    /// actually has focused (resolved via `find_focused`). Only Up and
+    /// Down need the resolution: they are the only keys
+    /// [`Self::keynav_move`] claims from idle, so everything else keeps
+    /// falling through to the hotkey table untouched. Settings never
+    /// reaches here (`settings_ring_idle_resolve` claims its keys
+    /// first).
+    fn vault_ring_idle_resolve(&self, named: keyboard::key::Named) -> Option<Task<Message>> {
+        use keyboard::key::Named as N;
+        if self.keynav.focus.is_some() || !matches!(named, N::ArrowUp | N::ArrowDown) {
+            return None;
+        }
+        Some(iced::widget::operation::find_focused().map(move |focused| {
+            Message::Navigation(NavigationMessage::VaultNavKeyResolved { named, focused })
+        }))
+    }
+
+    /// Continuation of a vault-area Up/Down press from ring idle once
+    /// iced has reported which widget is actually focused. The view's
+    /// search field keeps the deliberate enter-the-content-zone
+    /// behavior (type a filter, Down picks a result); any OTHER
+    /// focused text input owns the key for its own caret — the empty
+    /// dashboard's quick-host field was being blurred mid-typing by
+    /// numpad arrows (NumLock off delivers Up/Down for 8/2, issue
+    /// #168), which scrolled the list and silently dropped every
+    /// keystroke after it.
+    pub(crate) fn vault_nav_key_resolved(
+        &mut self,
+        named: keyboard::key::Named,
+        focused: Option<iced::widget::Id>,
+    ) -> Task<Message> {
+        if let Some(id) = focused
+            && self.active_view_search_id() != Some(id)
+        {
+            return Task::none();
+        }
+        self.keynav_move(named).unwrap_or(Task::none())
     }
 
     /// Continuation of a Settings-content Tab / arrow press once iced

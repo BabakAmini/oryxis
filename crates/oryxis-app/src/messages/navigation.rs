@@ -39,6 +39,19 @@ pub enum NavigationMessage {
         shift: bool,
         focused: Option<iced::widget::Id>,
     },
+    /// Continuation of a vault-area Up/Down press with no keynav ring
+    /// active: `focused` is the widget iced actually has focused
+    /// (resolved via `find_focused`). A focused text input that is NOT
+    /// the view's search field (the empty dashboard's quick-host
+    /// input) keeps the key for its own caret; the search field and
+    /// the unfocused state keep today's enter-the-content-zone
+    /// behavior. Issue #168: numpad typing with NumLock off delivers
+    /// arrows mid-word, and the unresolved router blurred the field,
+    /// scrolled the list and silently ate every following digit.
+    VaultNavKeyResolved {
+        named: iced::keyboard::key::Named,
+        focused: Option<iced::widget::Id>,
+    },
     /// Dashboard: open/close the host tag-filter dropdown.
     ShowHostTagFilterMenu,
     /// Dashboard: toggle one tag in the multi-select filter (the
