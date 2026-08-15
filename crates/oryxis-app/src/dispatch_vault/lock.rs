@@ -100,6 +100,18 @@ impl Oryxis {
                     self.agent_on_lock();
                     self.overlay = None;
                     self.card_context_menu = None;
+                    // The burger menu and the SFTP row menu are dropdown
+                    // overlays, not Modals, so the modal sweep below never
+                    // reaches them. Left armed, their flag survives the
+                    // lock screen, and the Enter that submits the unlock
+                    // password reaches the modal keynav router in the same
+                    // update batch the vault unlocks in: the router then
+                    // activates the menu's remembered default row against
+                    // its stale pre-lock recording (issue #169, the unlock
+                    // that landed on a fresh SFTP tab with the host picker
+                    // up, because the SFTP row recorded slot 0).
+                    self.panels.burger_menu = false;
+                    self.sftp.row_menu = None;
                     // Top-strip pickers (command palette, tab-jump,
                     // new-tab picker) are NOT rendered over the lock
                     // screen, but their `show_*` flags still make
@@ -277,6 +289,13 @@ impl Oryxis {
                         self.history_content_reset();
                         self.overlay = None;
                         self.card_context_menu = None;
+                        // Same dropdown sweep as the soft lock: the confirm
+                        // dialog already closed the burger menu on its way
+                        // in, but the sweep must hold on its own so no
+                        // trigger site can leave the menu armed behind the
+                        // lock screen (issue #169). The SFTP row menu dies
+                        // with the buffer reset above.
+                        self.panels.burger_menu = false;
                         // Top-strip pickers: same reason as the soft lock,
                         // a stray key must not drive the hidden surface (the
                         // command palette could dispatch an action) behind

@@ -555,27 +555,6 @@ impl Oryxis {
         ]
         .width(Length::Fill)
         .into();
-        // Mirror every sidebar nav entry here so Workspace mode
-        // (where the sidebar is gone) still exposes the full set of
-        // vault surfaces. The SFTP entry is gated on `sftp_enabled`,
-        // same rule the sidebar applies.
-        let sftp_item: Element<'_, Message> = if self.sftp_enabled {
-            // SFTP is a tab now: the menu opens a fresh SFTP browser tab.
-            item("sftp", Message::Sftp(SftpMessage::NewSftpTab), hk_sftp)
-        } else {
-            Space::new().into()
-        };
-        // Lock Vault only when a master password is set; without one,
-        // locking has nothing to protect and the unlock screen has no
-        // way to re-enter (mirrors the Settings -> Security gating).
-        let lock_item: Element<'_, Message> = if self.vault_ui.has_user_password {
-            // Asks first: Lock Vault tears every live session down, so
-            // the item opens the confirm dialog (`LockVaultConfirm`)
-            // rather than committing directly.
-            item("lock_vault", Message::Vault(VaultMessage::LockVaultConfirm), None)
-        } else {
-            Space::new().into()
-        };
         // "VAULT" section header + indented children: the flat list
         // read as if Hosts/Keychain/... sat outside the Vault (issue
         // #38 review feedback); mirroring the top strip's Vault tab
@@ -674,13 +653,38 @@ impl Oryxis {
                 Space::new().into()
             },
             Space::new().height(4),
-            sftp_item,
+            // Mirror every sidebar nav entry here so Workspace mode
+            // (where the sidebar is gone) still exposes the full set of
+            // vault surfaces. The SFTP entry is gated on `sftp_enabled`,
+            // same rule the sidebar applies. Built IN PLACE (not in a
+            // variable above the column) on purpose: `item` records its
+            // keynav slot at construction time, so build order IS the
+            // Up/Down walk order and the menu's Enter default (slot 0).
+            // Hoisted ahead of the column, this row recorded slot 0 and
+            // a stray Enter through the modal router opened an SFTP tab
+            // instead of activating the first visible row (issue #169).
+            if self.sftp_enabled {
+                // SFTP is a tab now: the menu opens a fresh SFTP browser tab.
+                item("sftp", Message::Sftp(SftpMessage::NewSftpTab), hk_sftp)
+            } else {
+                Space::new().into()
+            },
             item("settings", Message::Navigation(NavigationMessage::ChangeView(View::Settings)), hk_settings),
             sep,
             item("local_shell", Message::Settings(SettingsMessage::OpenLocalShell), hk_local_shell),
             item("new_window", Message::Tabs(TabsMessage::SpawnNewWindow), hk_new_window),
             item("check_for_updates_now", Message::Update(UpdateMessage::CheckForUpdateManual), None),
-            lock_item,
+            // Lock Vault only when a master password is set; without one,
+            // locking has nothing to protect and the unlock screen has no
+            // way to re-enter (mirrors the Settings -> Security gating).
+            if self.vault_ui.has_user_password {
+                // Asks first: Lock Vault tears every live session down, so
+                // the item opens the confirm dialog (`LockVaultConfirm`)
+                // rather than committing directly.
+                item("lock_vault", Message::Vault(VaultMessage::LockVaultConfirm), None)
+            } else {
+                Space::new().into()
+            },
         ]
         .width(Length::Fill);
         // 300 px: wide enough that the longest label + the longest
