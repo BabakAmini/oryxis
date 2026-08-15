@@ -171,6 +171,24 @@ impl Oryxis {
             meta.push(Space::new().width(6).into());
             meta.push(text(format!("({group})")).size(10).color(muted).into());
         }
+        // Work still running inside the session (issue #159 follow-up):
+        // the pane commands that are not a shell at its prompt, so a
+        // detached session with a long job says so instead of looking
+        // idle. First command plus a count when several panes are busy.
+        if let Some(first) = session.running.first() {
+            let display = if session.running.len() > 1 {
+                format!("{first} +{}", session.running.len() - 1)
+            } else {
+                first.clone()
+            };
+            meta.push(Space::new().width(6).into());
+            meta.push(
+                text(t("tmux_running").replace("{cmd}", &display))
+                    .size(10)
+                    .color(OryxisColors::t().warning)
+                    .into(),
+            );
+        }
 
         let row_body = button(
             column![

@@ -60,6 +60,44 @@ impl Oryxis {
                 Task::none()
             }
             TmuxMessage::Attach(tab_idx, pane_id, name) => self.tmux_attach(tab_idx, pane_id, name),
+            TmuxMessage::SwitchClients(tab_idx, pane_id, name, result) => {
+                self.tmux_switch_clients(tab_idx, pane_id, name, result)
+            }
+            TmuxMessage::SwitchDone(pane_id, name, result) => {
+                if self.tmux.get(&pane_id).is_none() {
+                    return Task::none();
+                }
+                match result {
+                    Ok(()) => {
+                        let entry = self.tmux.entry(pane_id);
+                        entry.error = None;
+                        // Move our one client inside the list already on
+                        // screen, so the rows are right THIS frame instead
+                        // of after a round trip (the ~1s of stale
+                        // "attached" BabakAmini reported); the immediate
+                        // re-list below confirms against the host.
+                        let previous = entry.attached_to.replace(name.clone());
+                        if let TmuxStatus::Ready(sessions) = &mut entry.status {
+                            if let Some(prev) = previous
+                                && let Some(s) = sessions.iter_mut().find(|s| s.name == prev)
+                            {
+                                s.attached = s.attached.saturating_sub(1);
+                            }
+                            if let Some(s) = sessions.iter_mut().find(|s| s.name == name) {
+                                s.attached += 1;
+                            }
+                        }
+                        self.tmux_list(pane_id)
+                    }
+                    Err(e) => {
+                        // The switch may or may not have landed (a
+                        // vanished session, a raced kill): surface the
+                        // host's wording and re-read the truth.
+                        self.tmux.entry(pane_id).error = Some(e);
+                        self.tmux_list(pane_id)
+                    }
+                }
+            }
             TmuxMessage::NewNameChanged(pane_id, value) => {
                 self.tmux.entry(pane_id).new_name = value;
                 Task::none()
@@ -155,12 +193,17 @@ impl Oryxis {
         )
     }
 
-    /// Type `tmux attach -t <name>` into the pane the tab belongs to.
+    /// Route an attach click: typed into the pane when the pane sits at
+    /// its own shell, switched out-of-band when it is already inside
+    /// another session.
     ///
-    /// This is the one action that reaches the user's own shell. The
-    /// name came off the host, so it is quoted (and a name carrying a
-    /// line break is refused rather than quoted, which would otherwise
-    /// let the host run a second command here).
+    /// The split exists because the two states need opposite tools
+    /// (issue #159 follow-up). Outside tmux, attaching MUST go through
+    /// the foreground shell: it is the shell that hands its tty over to
+    /// the tmux client. Inside tmux, a typed line lands in whatever the
+    /// current session is running and waits for it (`sleep 10` delayed
+    /// the switch until it finished), while `switch-client` on an exec
+    /// channel moves the client instantly, busy or not.
     fn tmux_attach(&mut self, tab_idx: usize, pane_id: Uuid, name: String) -> Task<Message> {
         // A modal on screen owns the keyboard, and the fork's
         // `text_input` returns its `on_submit` binding for Enter before
@@ -181,6 +224,128 @@ impl Oryxis {
         {
             return Task::none();
         }
+        if let Some(current) = self
+            .tmux
+            .get(&pane_id)
+            .and_then(|e| e.attached_to.clone())
+        {
+            return self.tmux_switch_begin(tab_idx, pane_id, current, name);
+        }
+        self.tmux_attach_typed(tab_idx, pane_id, name)
+    }
+
+    /// First half of the out-of-band switch: read which clients the
+    /// CURRENT session holds, so the switch can name OUR client. Naming
+    /// it is what keeps this deterministic: a bare `switch-client` run
+    /// outside any client resolves "current client" to the most
+    /// recently used one anywhere and moves it (the issue #157 hijack).
+    fn tmux_switch_begin(
+        &mut self,
+        tab_idx: usize,
+        pane_id: Uuid,
+        current: String,
+        name: String,
+    ) -> Task<Message> {
+        let Some(session) = self.tmux_session_for_pane(pane_id) else {
+            return Task::none();
+        };
+        let command = match probe::list_clients_command(&current) {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                self.tmux.entry(pane_id).error = Some(e.to_string());
+                return Task::none();
+            }
+        };
+        self.tmux.entry(pane_id).error = None;
+        Task::perform(
+            async move {
+                session
+                    .probe(&command, TMUX_TIMEOUT)
+                    .await
+                    .ok_or_else(|| crate::i18n::t("tmux_probe_failed").to_string())
+            },
+            move |result| {
+                Message::Tmux(TmuxMessage::SwitchClients(
+                    tab_idx,
+                    pane_id,
+                    name.clone(),
+                    result,
+                ))
+            },
+        )
+    }
+
+    /// Second half: the `list-clients` payload arrived. A client tty
+    /// means the pane really is inside tmux, so move that client on an
+    /// exec channel. No client at all means the "attached here" hint
+    /// was stale (the user detached by hand between listings): retire
+    /// it and attach the ordinary typed way, because the pane's shell
+    /// is back outside tmux where the typed line is the right tool.
+    fn tmux_switch_clients(
+        &mut self,
+        tab_idx: usize,
+        pane_id: Uuid,
+        name: String,
+        result: Result<String, String>,
+    ) -> Task<Message> {
+        if self.tmux.get(&pane_id).is_none() {
+            return Task::none();
+        }
+        let payload = match result {
+            Ok(payload) => payload,
+            Err(e) => {
+                self.tmux.entry(pane_id).error = Some(e);
+                return Task::none();
+            }
+        };
+        let Some(tty) = probe::parse_clients(&payload) else {
+            self.tmux.entry(pane_id).attached_to = None;
+            return self.tmux_attach_typed(tab_idx, pane_id, name);
+        };
+        let Some(session) = self.tmux_session_for_pane(pane_id) else {
+            return Task::none();
+        };
+        let command = match probe::switch_client_command(&tty, &name) {
+            Ok(cmd) => cmd,
+            Err(e) => {
+                self.tmux.entry(pane_id).error = Some(e.to_string());
+                return Task::none();
+            }
+        };
+        Task::perform(
+            async move {
+                // `exec_capture`, not `probe`: tmux reports "can't find
+                // session" on stderr, which `probe` never collects, and
+                // the exit status is the only honest success signal.
+                match session.exec_capture(&command, None, TMUX_TIMEOUT).await {
+                    Some(res) if res.exit_code == 0 => Ok(()),
+                    Some(res) => {
+                        let reason = res.stderr.trim();
+                        let reason = if reason.is_empty() {
+                            res.stdout.trim()
+                        } else {
+                            reason
+                        };
+                        Err(if reason.is_empty() {
+                            crate::i18n::t("tmux_action_failed").to_string()
+                        } else {
+                            reason.to_string()
+                        })
+                    }
+                    None => Err(crate::i18n::t("tmux_action_failed").to_string()),
+                }
+            },
+            move |result| Message::Tmux(TmuxMessage::SwitchDone(pane_id, name.clone(), result)),
+        )
+    }
+
+    /// Type `tmux attach -t <name>` into the pane the tab belongs to.
+    ///
+    /// This is the one action that reaches the user's own shell. The
+    /// name came off the host, so it is quoted (and a name carrying a
+    /// line break is refused rather than quoted, which would otherwise
+    /// let the host run a second command here).
+    fn tmux_attach_typed(&mut self, tab_idx: usize, pane_id: Uuid, name: String) -> Task<Message> {
         let command = match probe::attach_command(&name) {
             Ok(cmd) => cmd,
             Err(e) => {

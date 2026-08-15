@@ -1886,6 +1886,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "tmux_no_sessions" => "No sessions yet. Create one below.",
         "tmux_windows" => "Windows: {n}",
         "tmux_attached" => "attached",
+        "tmux_running" => "running: {cmd}",
         "tmux_attached_here" => "attached here",
         "tmux_kill" => "Kill",
         "tmux_kill_confirm" => "Kill \u{201c}{name}\u{201d}? Everything running inside it stops.",

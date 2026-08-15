@@ -1706,6 +1706,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "\u{5c1a}\u{7121}\u{5de5}\u{4f5c}\u{968e}\u{6bb5}\u{3002}\u{8acb}\u{5728}\u{4e0b}\u{65b9}\u{65b0}\u{589e}\u{3002}",
         "tmux_windows" => "\u{8996}\u{7a97}\u{ff1a}{n}",
         "tmux_attached" => "\u{5df2}\u{9023}\u{63a5}",
+        "tmux_running" => "\u{57f7}\u{884c}\u{4e2d}\u{ff1a}{cmd}",
         "tmux_attached_here" => "\u{5df2}\u{5728}\u{6b64}\u{9023}\u{63a5}",
         "tmux_kill" => "\u{7d42}\u{6b62}",
         "tmux_kill_confirm" => "\u{7d42}\u{6b62}\u{300c}{name}\u{300d}\u{ff1f}\u{5176}\u{4e2d}\u{57f7}\u{884c}\u{7684}\u{4e00}\u{5207}\u{90fd}\u{6703}\u{505c}\u{6b62}\u{3002}",

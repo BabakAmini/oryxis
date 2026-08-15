@@ -1788,6 +1788,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "tmux_no_sessions" => "Nenhuma sess\u{e3}o ainda. Crie uma abaixo.",
         "tmux_windows" => "Janelas: {n}",
         "tmux_attached" => "conectada",
+        "tmux_running" => "executando: {cmd}",
         "tmux_attached_here" => "conectada aqui",
         "tmux_kill" => "Encerrar",
         "tmux_kill_confirm" => "Encerrar \u{201c}{name}\u{201d}? Tudo que estiver rodando dentro dela para.",

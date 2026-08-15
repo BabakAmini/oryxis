@@ -22,6 +22,12 @@ pub(crate) struct TmuxSession {
     pub created: Option<i64>,
     /// Session group, when this session is grouped with others.
     pub group: Option<String>,
+    /// Foreground commands of this session's panes that are NOT a
+    /// shell sitting at a prompt (deduplicated, listing order). This is
+    /// how a row can say a detached session still has work running
+    /// inside it (issue #159 follow-up); empty means every pane is idle
+    /// at a shell, or the tmux is too old to report commands.
+    pub running: Vec<String>,
 }
 
 impl TmuxSession {

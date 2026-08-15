@@ -18,8 +18,22 @@ pub enum TmuxMessage {
     /// Attach to a session: the command the user would type, sent into
     /// the pane the tab sits beside. Carries the pane AND the tab index
     /// captured when the row was built, so a tab switch between click
-    /// and delivery can't land the line in someone else's shell.
+    /// and delivery can't land the line in someone else's shell. When
+    /// the pane is already attached to another session the handler
+    /// switches out-of-band instead (see [`Self::SwitchClients`]): a
+    /// typed line would queue behind whatever command runs inside the
+    /// current session.
     Attach(usize, Uuid, String),
+    /// Continuation of [`Self::Attach`] while attached elsewhere: the
+    /// `list-clients` payload for the CURRENT session came back, naming
+    /// the client tty the switch must move. The tab index rides along
+    /// for the fallback (no client found = the hint was stale, attach
+    /// the ordinary typed way).
+    SwitchClients(usize, Uuid, String, Result<String, String>),
+    /// The out-of-band `switch-client` finished for that pane and
+    /// target session: `Ok(())` moves the attach hint and re-lists
+    /// immediately, `Err` surfaces the host's wording inline.
+    SwitchDone(Uuid, String, Result<(), String>),
     /// "New session" name field.
     NewNameChanged(Uuid, String),
     /// The name field's `on_submit` fired. The fork's `text_input` runs

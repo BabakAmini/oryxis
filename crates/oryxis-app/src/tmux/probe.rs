@@ -36,6 +36,13 @@ const NO_TMUX: &str = "---ORYXIS-NO-TMUX---";
 /// is not an error worth surfacing: it is the empty state.
 const NO_SERVER: &str = "---ORYXIS-NO-SERVER---";
 
+/// Marker separating the session lines from the pane lines in the
+/// listing payload. The pane lines carry each pane's foreground
+/// command, which is what lets a row say a DETACHED session still has
+/// work running inside it (issue #159 follow-up: "is there any way to
+/// tell if a long-term process is running after you detach?").
+const PANES: &str = "---ORYXIS-PANES---";
+
 /// The listing command.
 ///
 /// `command -v` is the POSIX way to ask whether a program exists;
@@ -56,9 +63,17 @@ pub(crate) fn list_sessions_command() -> String {
         "#{?session_grouped,#{session_group},}",
     ]
     .join(FIELD);
+    // The second list rides the same round trip: one line per pane with
+    // its foreground command, so the tab can mark sessions that still
+    // have something running inside them. The session name goes FIRST
+    // because it structurally cannot contain the separator, while a
+    // process name theoretically could.
+    let panes_format = ["#{session_name}", "#{pane_current_command}"].join(FIELD);
     let batch = format!(
         "command -v tmux >/dev/null 2>&1 || {{ echo {NO_TMUX}; exit 0; }}; \
-         tmux list-sessions -F \"{format}\" 2>/dev/null || echo {NO_SERVER}"
+         tmux list-sessions -F \"{format}\" 2>/dev/null || echo {NO_SERVER}; \
+         echo {PANES}; \
+         tmux list-panes -a -F \"{panes_format}\" 2>/dev/null"
     );
     debug_assert!(!batch.contains('\''));
     format!("sh -c '{batch}'")
@@ -82,17 +97,68 @@ pub(crate) fn parse_listing(payload: &str) -> Listing {
     if payload.lines().any(|l| l.trim() == NO_TMUX) {
         return Listing::NoTmux;
     }
-    let mut sessions = Vec::new();
+    let mut sessions: Vec<TmuxSession> = Vec::new();
+    let mut in_panes = false;
     for line in payload.lines() {
         let line = line.trim_end_matches(['\r', '\n']);
+        if line.trim() == PANES {
+            in_panes = true;
+            continue;
+        }
         if line.trim().is_empty() || line.trim() == NO_SERVER {
             continue;
         }
-        if let Some(session) = parse_line(line) {
+        if in_panes {
+            merge_pane_line(&mut sessions, line);
+        } else if let Some(session) = parse_line(line) {
             sessions.push(session);
         }
     }
     Listing::Sessions(sessions)
+}
+
+/// One `list-panes -a` line: `<session name><FIELD><foreground command>`.
+/// Split from the LEFT this time, because here it is the TRAILING field
+/// (a process name) that could theoretically carry the separator, while
+/// the session name structurally cannot. A command that is just a shell
+/// at its prompt is not "work running", so it is skipped; everything
+/// else lands on its session, deduplicated.
+fn merge_pane_line(sessions: &mut [TmuxSession], line: &str) {
+    let Some((name, command)) = line.split_once(FIELD) else {
+        return;
+    };
+    let command = command.trim();
+    if command.is_empty() || is_shell(command) {
+        return;
+    }
+    if let Some(session) = sessions.iter_mut().find(|s| s.name == name)
+        && !session.running.iter().any(|c| c == command)
+    {
+        session.running.push(command.to_string());
+    }
+}
+
+/// Whether a pane's foreground command is a shell sitting at its
+/// prompt. The leading dash of a login shell is stripped first
+/// (`-bash`). Deliberately a list of shells rather than a heuristic: an
+/// unknown command is more useful shown than guessed away.
+fn is_shell(command: &str) -> bool {
+    matches!(
+        command.trim_start_matches('-'),
+        "sh" | "bash"
+            | "zsh"
+            | "fish"
+            | "csh"
+            | "tcsh"
+            | "ksh"
+            | "mksh"
+            | "dash"
+            | "ash"
+            | "nu"
+            | "pwsh"
+            | "elvish"
+            | "xonsh"
+    )
 }
 
 /// One `list-sessions` line. Split from the RIGHT: the four trailing
@@ -117,6 +183,7 @@ fn parse_line(line: &str) -> Option<TmuxSession> {
         attached: parts[2].trim().parse().unwrap_or(0),
         created: parts[3].trim().parse().ok(),
         group: (!parts[4].trim().is_empty()).then(|| parts[4].trim().to_string()),
+        running: Vec::new(),
         name,
     })
 }
@@ -168,6 +235,59 @@ pub(crate) fn attach_command(name: &str) -> Result<String, oryxis_archive::Archi
     Ok(format!(
         "tmux attach -t {name} 2>/dev/null || tmux switch-client -t {name}"
     ))
+}
+
+/// `tmux list-clients -t <session>`: the clients attached to the
+/// session this pane is believed to be showing, so the switch can name
+/// OUR client explicitly instead of typing into a shell that may be
+/// busy (issue #159 follow-up: with `sleep 10` running inside the
+/// session, a typed `switch-client` queues in the shell's input buffer
+/// until the command finishes).
+pub(crate) fn list_clients_command(name: &str) -> Result<String, oryxis_archive::ArchiveError> {
+    let name = oryxis_archive::quote::sh_quote(name)?;
+    Ok(format!(
+        "tmux list-clients -t {name} -F \"#{{client_activity}}{FIELD}#{{client_tty}}\""
+    ))
+}
+
+/// Pick this pane's client tty out of a `list-clients` payload: the
+/// most recently ACTIVE client attached to the session the pane is
+/// showing. Usually that list has exactly one entry. When the session
+/// is shared, the newest activity is the best available discriminator
+/// (the user just ran something in this pane); the worst miss moves a
+/// co-viewer of the SAME session, never an arbitrary client, which is
+/// what makes this safe where the bare `switch-client` of issue #157
+/// was not. `None` means no client is attached at all: the "attached
+/// here" hint was stale and the caller falls back to the typed attach.
+pub(crate) fn parse_clients(payload: &str) -> Option<String> {
+    payload
+        .lines()
+        .filter_map(|line| {
+            // Activity first, tty second: a tty path cannot carry the
+            // separator, but splitting on the FIRST one keeps a
+            // hypothetical odd tty intact anyway.
+            let (activity, tty) = line.trim().split_once(FIELD)?;
+            let tty = tty.trim();
+            (!tty.is_empty())
+                .then(|| (activity.trim().parse::<u64>().unwrap_or(0), tty.to_string()))
+        })
+        .max_by_key(|(activity, _)| *activity)
+        .map(|(_, tty)| tty)
+}
+
+/// `tmux switch-client -c <tty> -t <session>`, run on an exec channel,
+/// never typed. Naming the client is what makes this deterministic:
+/// without `-c`, tmux run outside any client resolves "current client"
+/// to the most recently used one ANYWHERE and exits 0 having moved it
+/// (the issue #157 hijack). Both arguments are text the remote host
+/// printed, so both are quoted.
+pub(crate) fn switch_client_command(
+    tty: &str,
+    name: &str,
+) -> Result<String, oryxis_archive::ArchiveError> {
+    let tty = oryxis_archive::quote::sh_quote(tty)?;
+    let name = oryxis_archive::quote::sh_quote(name)?;
+    Ok(format!("tmux switch-client -c {tty} -t {name}"))
 }
 
 #[cfg(test)]
@@ -296,6 +416,17 @@ mod tests {
                 "an unquoted copy survived: {built}"
             );
         }
+        // The switch pair quotes the name too (the tty check has its
+        // own test: it is remote text just the same).
+        for built in [
+            list_clients_command(evil).unwrap(),
+            switch_client_command("/dev/pts/0", evil).unwrap(),
+        ] {
+            assert!(
+                !built.replace("'foo; rm -rf ~'", "").contains("rm -rf"),
+                "an unquoted copy survived: {built}"
+            );
+        }
         // A quote of its own cannot break out either.
         assert_eq!(
             kill_session_command("it's").unwrap(),
@@ -342,6 +473,73 @@ mod tests {
         // the command is never built at all.
         assert!(kill_session_command("foo\nbar").is_err());
         assert!(attach_command("foo\rbar").is_err());
+        assert!(list_clients_command("foo\nbar").is_err());
+        // The tty came off the host exactly like the name did, so it
+        // follows the same rules: quoted always, refused on a break.
+        assert!(switch_client_command("/dev/pts\n/0", "work").is_err());
+        assert_eq!(
+            switch_client_command("/dev/pts/3", "it's").unwrap(),
+            r#"tmux switch-client -c '/dev/pts/3' -t 'it'\''s'"#
+        );
+    }
+
+    #[test]
+    fn pane_lines_mark_sessions_with_work_running() {
+        // `sleep` in one pane, shells at their prompt everywhere else:
+        // only the sleep survives, on its own session, deduplicated.
+        let payload = format!(
+            "{}\n{}\n---ORYXIS-PANES---\nwork{FIELD}sleep\nwork{FIELD}sleep\nwork{FIELD}-bash\nbuild{FIELD}zsh\n",
+            line("work", "2", "0", "1754600000", ""),
+            line("build", "1", "1", "1754600100", "")
+        );
+        let Listing::Sessions(sessions) = parse_listing(&payload) else {
+            panic!("expected a session list");
+        };
+        assert_eq!(sessions[0].running, vec!["sleep".to_string()]);
+        assert!(sessions[1].running.is_empty());
+    }
+
+    #[test]
+    fn a_tmux_too_old_for_pane_commands_still_lists() {
+        // No marker, no pane lines: exactly the payload every listing
+        // produced before this field existed.
+        let payload = line("work", "1", "0", "1754600000", "");
+        let Listing::Sessions(sessions) = parse_listing(&payload) else {
+            panic!("expected a session list");
+        };
+        assert_eq!(sessions.len(), 1);
+        assert!(sessions[0].running.is_empty());
+    }
+
+    #[test]
+    fn a_pane_line_for_an_unlisted_session_is_dropped() {
+        // A session created between the two tmux calls of the batch:
+        // its pane line has no row to land on and must not panic or
+        // invent one.
+        let payload = format!(
+            "{}\n---ORYXIS-PANES---\nghost{FIELD}sleep\n",
+            line("work", "1", "0", "1754600000", "")
+        );
+        let Listing::Sessions(sessions) = parse_listing(&payload) else {
+            panic!("expected a session list");
+        };
+        assert_eq!(sessions.len(), 1);
+        assert!(sessions[0].running.is_empty());
+    }
+
+    #[test]
+    fn the_most_recently_active_client_wins() {
+        // Two clients on the shared session: ours is the one the user
+        // just typed into, i.e. the newest activity.
+        let payload = format!(
+            "1754600100{FIELD}/dev/pts/7\n1754600900{FIELD}/dev/pts/3\n"
+        );
+        assert_eq!(parse_clients(&payload).as_deref(), Some("/dev/pts/3"));
+        // No clients at all: the hint was stale, the caller falls back
+        // to the typed attach.
+        assert_eq!(parse_clients(""), None);
+        // A tty-less line (dead client mid-teardown) cannot be a target.
+        assert_eq!(parse_clients(&format!("1754600100{FIELD}\n")), None);
     }
 
     #[test]
