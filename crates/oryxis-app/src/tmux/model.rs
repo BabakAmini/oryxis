@@ -77,17 +77,38 @@ pub(crate) struct PaneTmux {
     /// so a click cannot type a command into the session it is already
     /// showing.
     pub attached_to: Option<String>,
-    /// When `attached_to` was last SET (typed attach / confirmed
-    /// switch). A listing may only retire the hint when it started
-    /// comfortably after this: the typed attach takes a shell round
-    /// trip to register, so a listing racing the click still reports
-    /// the pre-attach world (zero clients) and clearing on it would
-    /// make the session's row clickable again, re-arming the exact
-    /// typed-into-the-session failure the hint exists to stop (#159).
-    pub hint_set_at: Option<std::time::Instant>,
-    /// When the in-flight listing started (one at a time per pane,
-    /// `begin_probe` guards). Compared against `hint_set_at` above.
-    pub listing_started: Option<std::time::Instant>,
+}
+
+/// Whether a listing lets the pane KEEP its "attached here" hint
+/// (issue #159). Pure so both directions of the rule stay testable:
+/// retiring the hint too eagerly re-arms the click that types `tmux
+/// attach` into the session it is already showing, and never retiring
+/// it leaves the row permanently inert.
+///
+/// - A session tmux no longer lists cannot be this pane's, whatever the
+///   pane draws. Conclusive: the hint goes.
+/// - A failed probe proves nothing; the hint stays for the next good
+///   listing.
+/// - Zero clients is only evidence WITH the pane off the alternate
+///   screen. A tmux client draws there, so a pane still on the primary
+///   screen is not showing one: the attach never landed (or already
+///   detached). While the pane IS on the alternate screen, a
+///   zero-client reading is just a listing that raced the attach, which
+///   takes a shell round trip to register.
+pub(crate) fn hint_survives_listing(
+    status: &TmuxStatus,
+    name: &str,
+    pane_in_alt_screen: bool,
+) -> bool {
+    match status {
+        TmuxStatus::Failed(_) => true,
+        TmuxStatus::Ready(sessions) => match sessions.iter().find(|s| s.name == name) {
+            None => false,
+            Some(s) => s.is_attached() || pane_in_alt_screen,
+        },
+        // NoTmux / Idle / Loading: no tmux, no session.
+        _ => false,
+    }
 }
 
 /// Every pane's tmux state, plus the in-flight guard.
@@ -148,6 +169,63 @@ mod tests {
         assert!(!state.begin_probe(pane));
         state.end_probe(&pane);
         assert!(state.begin_probe(pane));
+    }
+
+    fn session(name: &str, attached: u32) -> TmuxSession {
+        TmuxSession {
+            name: name.into(),
+            windows: 1,
+            attached,
+            created: None,
+            group: None,
+            running: Vec::new(),
+        }
+    }
+
+    /// Issue #159, the direction that types a command INTO the session:
+    /// the typed attach needs a shell round trip to register, so a
+    /// listing that raced it reports zero clients. While the pane is on
+    /// the alternate screen (a tmux client IS drawing) that reading is
+    /// not evidence, and the hint must survive it however long the host
+    /// takes to answer.
+    #[test]
+    fn a_racing_listing_cannot_retire_the_hint() {
+        let ready = TmuxStatus::Ready(vec![session("work", 0)]);
+        assert!(hint_survives_listing(&ready, "work", true));
+    }
+
+    /// The opposite direction, which a timing grace could not unstick:
+    /// a typed attach that failed outright leaves the pane on the
+    /// PRIMARY screen, so the next listing must retire the hint rather
+    /// than leave the row inert forever.
+    #[test]
+    fn a_failed_attach_retires_the_hint_on_the_next_listing() {
+        let ready = TmuxStatus::Ready(vec![session("work", 0)]);
+        assert!(!hint_survives_listing(&ready, "work", false));
+    }
+
+    #[test]
+    fn an_attached_session_keeps_the_hint_either_way() {
+        let ready = TmuxStatus::Ready(vec![session("work", 1)]);
+        assert!(hint_survives_listing(&ready, "work", true));
+        // Our own client is counted even before the pane's first
+        // alternate-screen batch lands.
+        assert!(hint_survives_listing(&ready, "work", false));
+    }
+
+    #[test]
+    fn a_vanished_session_retires_the_hint_whatever_the_pane_draws() {
+        // Killed under the pane, or renamed: nothing here can be it,
+        // even while the pane still draws the dead client's screen.
+        let ready = TmuxStatus::Ready(vec![session("other", 1)]);
+        assert!(!hint_survives_listing(&ready, "work", true));
+        assert!(!hint_survives_listing(&TmuxStatus::NoTmux, "work", true));
+    }
+
+    #[test]
+    fn a_failed_probe_proves_nothing_and_keeps_the_hint() {
+        let failed = TmuxStatus::Failed("timeout".into());
+        assert!(hint_survives_listing(&failed, "work", false));
     }
 
     #[test]

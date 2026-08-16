@@ -19,12 +19,6 @@ use crate::tmux::probe;
 /// this long is a host the tab should report on rather than wait for.
 const TMUX_TIMEOUT: Duration = Duration::from_secs(8);
 
-/// How much older than a listing the attach hint must be before the
-/// listing's "zero clients" is trusted to retire it. Covers the shell
-/// round trip the typed attach needs to register, sized just above the
-/// 1200ms confirm re-list so a merely-slow register doesn't clear the
-/// hint the moment it lands.
-const TMUX_HINT_RETIRE_GRACE: Duration = Duration::from_millis(1500);
 
 impl Oryxis {
     pub(crate) fn handle_tmux(&mut self, message: TmuxMessage) -> Task<Message> {
@@ -39,6 +33,11 @@ impl Oryxis {
                 if self.tmux.get(&pane_id).is_none() {
                     return Task::none();
                 }
+                // Has the typed attach actually registered? A tmux
+                // client draws the ALTERNATE SCREEN, so the pane being
+                // on it is the direct evidence, with no timing
+                // assumption: read it before borrowing the entry.
+                let pane_in_alt_screen = self.pane_alt_screen(pane_id);
                 let entry = self.tmux.entry(pane_id);
                 entry.status = match result {
                     Ok(payload) => match probe::parse_listing(&payload) {
@@ -50,34 +49,14 @@ impl Oryxis {
                 // The listing corrects the "attached here" hint: a
                 // session that is gone, or that tmux reports with zero
                 // clients, cannot be the one this pane is showing.
-                if let Some(name) = entry.attached_to.clone() {
-                    let still_attached = match &entry.status {
-                        TmuxStatus::Ready(sessions) => sessions
-                            .iter()
-                            .any(|s| s.name == name && s.is_attached()),
-                        // A failed probe proves nothing either way;
-                        // keep the hint for the next good listing.
-                        TmuxStatus::Failed(_) => true,
-                        _ => false,
-                    };
-                    // Only a listing that STARTED comfortably after the
-                    // hint was set may retire it: the typed attach takes
-                    // a shell round trip to register, so a listing racing
-                    // the click (an external refresh, or the ~1200ms
-                    // confirm under a still-busy shell) reports the
-                    // pre-attach world with zero clients, and clearing on
-                    // that re-arms the row for a click that would type
-                    // `tmux attach` INTO the session (#159).
-                    let listing_after_hint =
-                        match (entry.listing_started, entry.hint_set_at) {
-                            (Some(started), Some(set)) => {
-                                started >= set + TMUX_HINT_RETIRE_GRACE
-                            }
-                            _ => true,
-                        };
-                    if !still_attached && listing_after_hint {
-                        entry.attached_to = None;
-                    }
+                if let Some(name) = entry.attached_to.clone()
+                    && !crate::tmux::model::hint_survives_listing(
+                        &entry.status,
+                        &name,
+                        pane_in_alt_screen,
+                    )
+                {
+                    entry.attached_to = None;
                 }
                 Task::none()
             }
@@ -99,7 +78,6 @@ impl Oryxis {
                         // "attached" BabakAmini reported); the immediate
                         // re-list below confirms against the host.
                         let previous = entry.attached_to.replace(name.clone());
-                        entry.hint_set_at = Some(std::time::Instant::now());
                         if let TmuxStatus::Ready(sessions) = &mut entry.status {
                             if let Some(prev) = previous
                                 && let Some(s) = sessions.iter_mut().find(|s| s.name == prev)
@@ -201,10 +179,6 @@ impl Oryxis {
         // so the rows don't blink away on every action; only a first
         // load shows the spinner.
         let entry = self.tmux.entry(pane_id);
-        // Stamp when this listing's data is FROM, for the hint-retire
-        // comparison in `Listed` (one listing per pane at a time, so a
-        // single slot is unambiguous).
-        entry.listing_started = Some(std::time::Instant::now());
         if matches!(entry.status, TmuxStatus::Idle) {
             entry.status = TmuxStatus::Loading;
         }
@@ -385,7 +359,6 @@ impl Oryxis {
         // Believed, not proven: the listing and the alternate-screen
         // edge correct it if the command lands somewhere unexpected.
         entry.attached_to = Some(name);
-        entry.hint_set_at = Some(std::time::Instant::now());
         self.write_ring_injection_to_tab(tab_idx, format!("{command}\n").as_bytes());
         // Re-read after the shell has had a moment to run the line: a
         // switch between two sessions never leaves the alternate
@@ -475,6 +448,18 @@ impl Oryxis {
     /// The live SSH session behind a pane, when the feature is on and
     /// the transport is still up. `None` for local / serial / telnet
     /// panes and for dead sessions.
+    /// Whether the pane's emulator sat on the alternate screen after
+    /// the last output batch. A tmux client draws there, so this is the
+    /// evidence that a typed attach registered (`Listed` reads it
+    /// before trusting a zero-client listing). A pane that is gone
+    /// answers `false`: it is showing no tmux client either.
+    fn pane_alt_screen(&self, pane_id: Uuid) -> bool {
+        self.tabs
+            .iter()
+            .find_map(|tab| tab.pane_grid.panes.values().find(|p| p.id == pane_id))
+            .is_some_and(|pane| pane.alt_screen)
+    }
+
     pub(crate) fn tmux_session_for_pane(
         &self,
         pane_id: Uuid,
