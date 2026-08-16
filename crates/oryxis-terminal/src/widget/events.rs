@@ -244,7 +244,11 @@ impl<Message> TerminalView<Message> {
                 // reporting part of a detent (#150): accumulated into
                 // whole notches, or the remote app would get one report
                 // per fragment and scroll a multiple of what the user
-                // turned. `Pixels` keeps its own cell-based scale.
+                // turned. `Pixels` accumulates the same way on the
+                // cell scale: each fragment is a few pixels, and the
+                // per-notch minimum below would turn every one into a
+                // full wheel report, flooding a tracking TUI with
+                // several times the gesture.
                 let dy = match delta {
                     mouse::ScrollDelta::Lines { y, .. } => {
                         widget_state.scroll_px_residual.set(0.0);
@@ -252,11 +256,17 @@ impl<Message> TerminalView<Message> {
                     }
                     mouse::ScrollDelta::Pixels { y, .. } => {
                         widget_state.scroll_line_residual.set(0.0);
-                        *y / self.cell_height
+                        Self::whole_cells_px(widget_state, *y, self.cell_height) as f32
                     }
                 };
                 if dy == 0.0 {
-                    return None;
+                    // The fragment only grew a residual. Still consume
+                    // it: while the app holds mouse tracking the wheel
+                    // belongs to the report path, and falling through
+                    // would hand the fragment to the local-scrollback
+                    // arm (which shares the pixel residual) to scroll a
+                    // buffer the TUI is covering.
+                    return Some(CanvasAction::capture());
                 }
                 let btn = if dy > 0.0 {
                     ReportButton::WheelUp
@@ -349,6 +359,35 @@ impl<Message> TerminalView<Message> {
         let whole = acc.trunc();
         widget_state.scroll_line_residual.set(acc - whole);
         whole as i32
+    }
+
+    /// Whole CELLS in a `ScrollDelta::Pixels` value, carrying the
+    /// sub-cell pixel remainder on the widget state: the pixel twin of
+    /// [`Self::whole_notches`], shared by the local-scrollback arm and
+    /// the mouse-report arm. A precision touchpad delivers a few
+    /// pixels per event, below one cell, and both consumers must
+    /// accumulate: flooring floored every event to zero and scrollback
+    /// never moved (#91), while the report arm's ceil turned every
+    /// fragment into at least one wheel notch, so a slow two-finger
+    /// scroll over a tracking TUI (tmux `mouse on`, htop) flooded it
+    /// with several times the gesture (#150's shape, other arm). The
+    /// same zero guard as `whole_notches` applies: a horizontal-only
+    /// event names a device but not a direction, so it must not read
+    /// as a reversal.
+    pub(super) fn whole_cells_px(
+        widget_state: &TerminalWidgetState,
+        y: f32,
+        cell_height: f32,
+    ) -> i32 {
+        let prev = widget_state.scroll_px_residual.get();
+        let acc = if prev != 0.0 && y != 0.0 && prev.signum() != y.signum() {
+            y
+        } else {
+            prev + y
+        };
+        let cells = (acc / cell_height).trunc();
+        widget_state.scroll_px_residual.set(acc - cells * cell_height);
+        cells as i32
     }
 
     pub(super) fn is_in_selection(sel: &Selection, col: u16, line: i32) -> bool {

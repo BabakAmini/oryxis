@@ -33,11 +33,16 @@
     /// tracking (tmux `mouse on`, htop), a high-resolution wheel's
     /// fragments must accumulate into whole detents here too. Reporting
     /// each fragment as a notch — what `ceil()` alone did — scrolled the
-    /// remote app eight times per click of the wheel.
+    /// remote app eight times per click of the wheel. A residual-only
+    /// fragment is still CONSUMED (publishing nothing): while the app
+    /// holds tracking the wheel belongs to the report path, and falling
+    /// through would hand the fragment to the local-scrollback arm,
+    /// which shares the residual and would double-count it.
     #[test]
     fn fractional_line_wheel_reports_one_notch_per_detent() {
         use alacritty_terminal::term::TermMode;
         let (view, mut ws) = view_and_state();
+        let view = view.on_terminal_input(|_| ());
         let mode = TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE;
         let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
         let frag = iced::Event::Mouse(mouse::Event::WheelScrolled {
@@ -45,12 +50,51 @@
         });
 
         for _ in 0..7 {
-            let action =
-                view.handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24);
-            assert!(action.is_none(), "a partial detent reports nothing");
+            let action = view
+                .handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24)
+                .expect("a partial detent is still consumed by the report path");
+            let (msg, _, _) = action.into_inner();
+            assert!(msg.is_none(), "a partial detent reports nothing");
         }
-        let action = view.handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24);
-        assert!(action.is_some(), "the completed detent reports once");
+        let action = view
+            .handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24)
+            .expect("the completed detent is consumed");
+        let (msg, _, _) = action.into_inner();
+        assert!(msg.is_some(), "the completed detent reports once");
+    }
+
+    /// The touchpad twin: `ScrollDelta::Pixels` fragments arrive a few
+    /// pixels at a time, below one cell, and must accumulate on the
+    /// cell scale before reporting. Ceiling each fragment to a notch
+    /// flooded a tracking TUI with several times the gesture (a slow
+    /// two-finger scroll became ~30 wheel reports where ~6 lines were
+    /// scrolled), while the same gesture over local scrollback, which
+    /// already accumulated, scrolled correctly.
+    #[test]
+    fn fractional_pixel_wheel_reports_whole_cells_only() {
+        use alacritty_terminal::term::TermMode;
+        let (view, mut ws) = view_and_state();
+        let view = view.on_terminal_input(|_| ());
+        let mode = TermMode::MOUSE_REPORT_CLICK | TermMode::SGR_MOUSE;
+        let cursor = mouse::Cursor::Available(Point::new(40.0, 40.0));
+        // Four fragments of a quarter-cell each: only the fourth
+        // completes a cell and may report.
+        let frag = iced::Event::Mouse(mouse::Event::WheelScrolled {
+            delta: mouse::ScrollDelta::Pixels { x: 0.0, y: view.cell_height / 4.0 },
+        });
+
+        for _ in 0..3 {
+            let action = view
+                .handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24)
+                .expect("a sub-cell fragment is still consumed by the report path");
+            let (msg, _, _) = action.into_inner();
+            assert!(msg.is_none(), "a sub-cell fragment reports nothing");
+        }
+        let action = view
+            .handle_mouse_report(&mut ws, &frag, bounds(), cursor, mode, 80, 24)
+            .expect("the completed cell is consumed");
+        let (msg, _, _) = action.into_inner();
+        assert!(msg.is_some(), "the completed cell reports once");
     }
 
     /// The canvas-originated press → drag off-canvas → release flow must
