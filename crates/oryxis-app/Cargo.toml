@@ -167,12 +167,13 @@ winresource = "0.1"
 libc = "0.2"
 
 # Native OS notifications everywhere except Windows. On Windows this crate
-# is just a thin wrapper over `tauri-winrt-notification`, and it pins the
-# 0.7 line, which drags a SECOND major of the `windows` crate into the
-# build (0.61 next to the 0.62 that wgpu-hal, gpu-allocator and our own
-# Win32 code use). Two majors of `windows` is what broke the Windows build
-# in 25ae5b27, so the Windows half calls that backend directly below and
-# notify-rust stays off this target entirely.
+# is just a thin wrapper over `tauri-winrt-notification`, so the Windows
+# half calls that backend directly below rather than through it. The 0.7
+# line notify-rust requires used to pin `windows` 0.61, a second major next
+# to the 0.62 that wgpu-hal, gpu-allocator and our own Win32 code use,
+# which is what broke the Windows build in 25ae5b27; the patch in the root
+# manifest moves that line to 0.62, so the requirement no longer costs
+# anything and this stays cfg-gated only because the direct call is better.
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 notify-rust = "4"
 
@@ -210,11 +211,14 @@ windows = { version = "0.62", features = [
     "Win32_System_DataExchange",
     "Win32_System_SystemServices",
 ] }
-# The toast backend notify-rust itself uses on Windows, taken one major
-# newer (0.8 builds on `windows` 0.62, 0.7 on 0.61). Same library, same
-# `POWERSHELL_APP_ID` fallback notify-rust picks for us today, one fewer
-# major of `windows` in the build. See the note on the not(windows) block.
-tauri-winrt-notification = "0.8"
+# The toast backend notify-rust itself uses on Windows, called directly so
+# the toast carries our AppUserModelID instead of the `POWERSHELL_APP_ID`
+# fallback the wrapper picks. Same 0.7 line notify-rust requires, patched
+# in the root manifest onto `windows` 0.62, so one version of this crate
+# serves both edges and the build has a single major of `windows`. Taking
+# upstream's 0.8 here instead would leave two versions of this crate in the
+# graph and 0.61 still in the lock. See the note on the not(windows) block.
+tauri-winrt-notification = "0.7"
 # Cross-platform tray icon, but only built on Windows. macOS and
 # Linux need different lifecycle conventions (LSUIElement on macOS,
 # SNI/AppIndicator on Linux), deferred to a later release.
