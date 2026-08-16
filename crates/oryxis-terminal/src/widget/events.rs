@@ -747,20 +747,7 @@ where
                 // reversal responds at once.
                 mouse::ScrollDelta::Pixels { y, .. } => {
                     widget_state.scroll_line_residual.set(0.0);
-                    let prev = widget_state.scroll_px_residual.get();
-                    // Same zero guard as `whole_notches`, for the same
-                    // reason: a horizontal-only event names a device but
-                    // not a direction, so it must not read as a reversal.
-                    let acc = if prev != 0.0 && *y != 0.0 && prev.signum() != y.signum() {
-                        *y
-                    } else {
-                        prev + *y
-                    };
-                    let cells = (acc / self.cell_height).trunc();
-                    widget_state
-                        .scroll_px_residual
-                        .set(acc - cells * self.cell_height);
-                    cells as i32
+                    Self::whole_cells_px(widget_state, *y, self.cell_height)
                 }
             };
             // A delta that only grew a residual (no whole cell / notch
