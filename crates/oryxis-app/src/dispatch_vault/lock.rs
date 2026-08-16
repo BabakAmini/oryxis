@@ -163,6 +163,21 @@ impl Oryxis {
                     self.close_modal(crate::state::Modal::CommandPalette);
                     self.close_modal(crate::state::Modal::TabJump);
                     self.close_modal(crate::state::Modal::NewTabPicker);
+                    // A careful-paste / snippet-variables confirm parked
+                    // over a live session is ARMED state: its keynav
+                    // default is the Confirm row, the lock screen never
+                    // re-records the modal ring, and both flags keep
+                    // `any_modal_blocks_input()` true while locked, so a
+                    // stray Enter on the lock screen (an empty or failed
+                    // unlock) would reach the modal key router and
+                    // activate the stale default, injecting the staged
+                    // text into the still-live session, the exact
+                    // auto-run the careful paste exists to stop. Close
+                    // them and drop the stale modal recording with them.
+                    self.close_modal(crate::state::Modal::CarefulPaste);
+                    self.close_modal(crate::state::Modal::SnippetVars);
+                    self.pending_paste_install = None;
+                    self.modal_nav_reset();
                     // A master-password candidate typed into the change /
                     // set-password form must not survive the soft lock.
                     self.vault_ui.new_password.clear();
@@ -346,6 +361,16 @@ impl Oryxis {
                         self.close_modal(crate::state::Modal::CommandPalette);
                         self.close_modal(crate::state::Modal::TabJump);
                         self.close_modal(crate::state::Modal::NewTabPicker);
+                        // Same paste-confirm sweep as the soft lock. The
+                        // sessions are gone here, so a stale Confirm could
+                        // not inject anywhere, but the armed flags would
+                        // still hold `any_modal_blocks_input()` true and
+                        // feed the modal router stale rows behind the lock
+                        // screen.
+                        self.close_modal(crate::state::Modal::CarefulPaste);
+                        self.close_modal(crate::state::Modal::SnippetVars);
+                        self.pending_paste_install = None;
+                        self.modal_nav_reset();
                         self.error_dialog = None;
                         self.panels.host_panel = false;
                         self.host_panel_error = None;
