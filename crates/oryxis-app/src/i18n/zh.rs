@@ -1699,6 +1699,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugins" => "插件",
         "features_and_plugins" => "功能与插件",
         "update_replace_failed" => "无法自动替换正在运行的应用。请打开发布页面手动更新。",
+        "update_close_other_windows" => "请关闭其他 Oryxis 窗口后重试。只要还有其他窗口在运行，更新就无法替换应用。",
         "features" => "功能",
         "feature_ai_desc" => "终端内的 AI 聊天，可在已连接的服务器上运行命令。",
         "feature_sftp_desc" => "通过 SSH 用双面板管理器浏览和传输文件。",

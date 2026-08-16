@@ -1701,6 +1701,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugins" => "プラグイン",
         "features_and_plugins" => "機能とプラグイン",
         "update_replace_failed" => "実行中のアプリを自動的に置き換えできませんでした。リリースページを開いて手動で更新してください。",
+        "update_close_other_windows" => "他の Oryxis ウィンドウを閉じてから再試行してください。別のウィンドウが実行中の間は、アップデートでアプリを置き換えられません。",
         "features" => "機能",
         "feature_ai_desc" => "接続中のサーバーでコマンドを実行できるターミナル内 AI チャット。",
         "feature_sftp_desc" => "デュアルペインのマネージャーで SSH 経由のファイル閲覧・転送。",

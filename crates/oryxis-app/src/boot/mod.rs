@@ -639,7 +639,20 @@ impl Oryxis {
                 detail = %detail,
                 "previous self-update failed after exit",
             );
-            app.set_toast(crate::i18n::t("update_replace_failed").to_string());
+            // A blocking dialog, not a toast: the boot check right above
+            // lands 1-2s later and its "update available" toast + modal
+            // would overwrite/cover a 2.5s toast, which made a failing
+            // swap look exactly like a successful update that "didn't
+            // stick". The body carries the helper's captured error
+            // verbatim (the actual `copy`/`move` stderr), so the user
+            // sees WHY instead of a generic shrug; the update modal
+            // yields while this dialog is up (root_view gates on it).
+            app.error_dialog = Some(crate::state::ErrorDialog {
+                title: crate::i18n::t("update_replace_failed").to_string(),
+                body: detail,
+                link: None,
+                action: None,
+            });
         }
         if app.vault_ui.state == VaultState::Unlocked
             && let Some(connect_id) = app.pending_auto_connect.take()

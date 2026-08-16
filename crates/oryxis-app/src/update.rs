@@ -340,7 +340,10 @@ fn pick_asset(
     };
     let (want, exclude) = match channel {
         UpdateChannel::Stable => (platform_asset_fragment(), platform_asset_exclude()),
-        UpdateChannel::Nightly => (nightly_asset_fragment(), vec![]),
+        // The `.exe` fragment also matches the detached-signature and
+        // checksum sidecars (`….exe.sig`); only asset ordering keeps the
+        // real binary winning today, so exclude them explicitly.
+        UpdateChannel::Nightly => (nightly_asset_fragment(), vec![".sig", ".sha256"]),
     };
     for a in assets {
         let name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -660,6 +663,16 @@ pub fn apply_binary_update(downloaded: &std::path::Path) -> Result<(), String> {
 
     #[cfg(windows)]
     {
+        // The helper waits for THIS pid and then replaces the exe, but a
+        // second Oryxis window is its own process running the same file,
+        // and Windows refuses to delete/replace a running image. The
+        // move would burn its whole retry budget against the sibling's
+        // lock and relaunch the old build, an admin token included (the
+        // lock is not a permission problem). Refuse up front, while the
+        // modal is still on screen to explain what to do.
+        if !crate::tray_ipc::Primary::list_instances().is_empty() {
+            return Err(crate::i18n::t("update_close_other_windows").to_string());
+        }
         // A running .exe can't be overwritten in place, and on a
         // protected install dir (Program Files) it can't even be renamed
         // aside (the old code's `rename` failed with ERROR_ACCESS_DENIED
@@ -759,12 +772,26 @@ fn windows_self_replace(
     //
     // `enabledelayedexpansion` + `!tries!` so the retry counter updates
     // across loop iterations (plain `%tries%` is frozen at parse time).
+    // The exit wait is bounded: if this process somehow never dies (a
+    // hung teardown, a shell keeping the pid alive), an unbounded loop
+    // would leave the helper spinning invisibly forever and the marker
+    // reporting the misleading "helper did not run". Bail out after two
+    // minutes with the real story in the marker and WITHOUT relaunching
+    // (the process still being alive means its window is still there).
     let script = format!(
         "@echo off\r\n\
          setlocal enabledelayedexpansion\r\n\
+         set waits=0\r\n\
          :wait\r\n\
          tasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul\r\n\
          if not errorlevel 1 (\r\n\
+         set /a waits+=1\r\n\
+         if !waits! geq 120 (\r\n\
+         echo Oryxis process {pid} did not exit within 120s>\"{marker}\"\r\n\
+         del \"{src}\" >nul 2>&1\r\n\
+         del \"%~f0\" >nul 2>&1\r\n\
+         exit /b 1\r\n\
+         )\r\n\
          timeout /t 1 /nobreak >nul\r\n\
          goto wait\r\n\
          )\r\n\

@@ -1690,6 +1690,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugins" => "Plugins",
         "features_and_plugins" => "Funktionen & Plugins",
         "update_replace_failed" => "Die laufende App konnte nicht automatisch ersetzt werden. Öffne die Release-Seite, um manuell zu aktualisieren.",
+        "update_close_other_windows" => "Schließe die anderen Oryxis-Fenster und versuche es erneut. Das Update kann die App nicht ersetzen, solange ein weiteres Fenster läuft.",
         "features" => "Funktionen",
         "feature_ai_desc" => "KI-Chat im Terminal, der Befehle auf dem verbundenen Server ausführen kann.",
         "feature_sftp_desc" => "Dateien per SSH mit einem Zweifenster-Manager durchsuchen und übertragen.",

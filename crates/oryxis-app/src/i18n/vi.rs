@@ -1781,6 +1781,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugins" => "Plugin",
         "features_and_plugins" => "Tính năng & plugin",
         "update_replace_failed" => "Không thể tự động thay thế ứng dụng đang chạy. Mở trang phát hành để cập nhật thủ công.",
+        "update_close_other_windows" => "Hãy đóng các cửa sổ Oryxis khác rồi thử lại. Bản cập nhật không thể thay thế ứng dụng khi còn cửa sổ khác đang chạy.",
         "features" => "Tính năng",
         "feature_ai_desc" => "Trò chuyện AI trong terminal có thể chạy lệnh trên máy chủ đã kết nối.",
         "feature_sftp_desc" => "Duyệt và truyền tệp qua SSH bằng trình quản lý hai khung.",

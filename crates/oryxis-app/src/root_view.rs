@@ -38,7 +38,14 @@ impl Oryxis {
         // the top the moment one opened; `layer_modals` documents the same
         // rule for the in-view modals.
         let modal: Option<(Element<'_, Message>, Option<Message>, f32)> =
-            if self.pending_update.is_some() {
+            // The error dialog renders inside `view_main` (below this
+            // overlay), so the update modal must yield while one is up:
+            // at boot a failed self-update raises the dialog and the
+            // update check re-offers the same build moments later, and
+            // without the gate the offer would cover the failure report
+            // it is the consequence of. Dismissing the dialog reveals
+            // the pending offer.
+            if self.pending_update.is_some() && self.error_dialog.is_none() {
                 Some((self.view_update_modal(), None, 40.0))
             } else if self.local_shell_picker_open {
                 Some((

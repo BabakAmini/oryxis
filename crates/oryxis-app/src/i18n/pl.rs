@@ -1788,6 +1788,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugins" => "Wtyczki",
         "features_and_plugins" => "Funkcje i wtyczki",
         "update_replace_failed" => "Nie można automatycznie zastąpić uruchomionej aplikacji. Otwórz stronę wydania, aby zaktualizować ręcznie.",
+        "update_close_other_windows" => "Zamknij pozostałe okna Oryxis i spróbuj ponownie. Aktualizacja nie może podmienić aplikacji, dopóki działa inne okno.",
         "features" => "Funkcje",
         "feature_ai_desc" => "Czat AI w terminalu, który może uruchamiać polecenia na połączonym serwerze.",
         "feature_sftp_desc" => "Przeglądaj i przesyłaj pliki przez SSH dwupanelowym menedżerem.",

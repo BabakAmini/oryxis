@@ -1878,6 +1878,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "plugins" => "תוספים",
         "features_and_plugins" => "יכולות ותוספים",
         "update_replace_failed" => "לא ניתן היה להחליף את האפליקציה הרצה אוטומטית. פתחו את דף הגרסה כדי לעדכן ידנית.",
+        "update_close_other_windows" => "סגרו את חלונות Oryxis האחרים ונסו שוב. העדכון לא יכול להחליף את היישום כל עוד חלון אחר פועל.",
         "features" => "יכולות",
         "feature_ai_desc" => "צ'אט AI בתוך הטרמינל שיכול להריץ פקודות על השרת המחובר.",
         "feature_sftp_desc" => "עיון בקבצים והעברתם דרך SSH עם מנהל דו-חלוני.",
