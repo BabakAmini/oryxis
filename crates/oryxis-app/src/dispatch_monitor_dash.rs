@@ -105,6 +105,23 @@ impl Oryxis {
                     Some(DashLink::Failed { .. })
                 ) {
                     self.monitor_dash.links.remove(&key);
+                    // A live tab to this machine outranks any stored
+                    // credentials, same preference the establish path
+                    // has: a host whose stored password went stale is
+                    // exactly the one an open authenticated tab can
+                    // still serve, and redialing the same bad
+                    // credentials would just fail again.
+                    if let Some((via, session)) = self.live_session_for_machine(&key) {
+                        let transport = DashTransport::Tab(session);
+                        self.monitor_dash.links.insert(
+                            key.clone(),
+                            DashLink::Live {
+                                via,
+                                transport: transport.clone(),
+                            },
+                        );
+                        return Ok(self.dash_probe(key, via, transport));
+                    }
                     return Ok(self.dash_dial(&key, conn_id, Vec::new()));
                 }
                 Ok(Task::none())
@@ -286,10 +303,26 @@ impl Oryxis {
                     tasks.push(self.dash_probe(key, via, transport));
                 }
                 Some(DashLink::Failed { tried, .. }) => {
+                    let tried = tried.clone();
+                    // A live tab opened AFTER the failure is the way
+                    // back for a machine whose stored credentials are
+                    // stale: adopt its session now instead of leaving
+                    // the card Failed until the 60s off-view sweep.
+                    if let Some((via, session)) = self.live_session_for_machine(&key) {
+                        let transport = DashTransport::Tab(session);
+                        self.monitor_dash.links.insert(
+                            key.clone(),
+                            DashLink::Live {
+                                via,
+                                transport: transport.clone(),
+                            },
+                        );
+                        tasks.push(self.dash_probe(key, via, transport));
+                        continue;
+                    }
                     // One row's credentials failing is not the machine
                     // being down: try the next row that reaches it,
                     // once each, before the slot settles as failed.
-                    let tried = tried.clone();
                     if let Some(next) = members.iter().find(|m| !tried.contains(m)) {
                         tasks.push(self.dash_dial(&key, *next, tried));
                     }
