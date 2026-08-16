@@ -24,6 +24,48 @@ pub(crate) enum EditorSecret {
     TargetPassword,
 }
 
+/// What building a `Connection` from the form may do about a typed
+/// Parent Group value. Split three ways because the auto-save debounce
+/// sits between "just checking" and "the user is done": a half-typed
+/// name must never mint a vault group ("Pro" while typing
+/// "Production"), yet the completed name must materialize once the
+/// editor commits.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum GroupWrite {
+    /// Find-or-create (the explicit Save and the closing flush): an
+    /// unmatched value materializes as a breadcrumb path.
+    Create,
+    /// Resolve against EXISTING groups only (the auto-save tick): an
+    /// unmatched value keeps the host's stored group instead of
+    /// creating rows or reparenting mid-keystroke. A blank value still
+    /// means root, that is a deliberate clear.
+    ResolveOnly,
+    /// No group resolution at all (signature builds and
+    /// connect-without-saving): nothing may be written, not even into
+    /// the in-memory list.
+    Skip,
+}
+
+/// Why a persist refused, split by what dropping the error would cost.
+/// `Invalid` means the form does not build (half-typed state): the
+/// vault keeps the last valid save and the auto-save paths stay
+/// silent by design. `Vault` means the write itself failed: silence
+/// here is data loss, so every caller must surface it.
+#[derive(Debug)]
+pub(super) enum PersistError {
+    Invalid(String),
+    Vault(String),
+}
+
+impl PersistError {
+    /// The user-facing text, for surfaces that show both kinds.
+    pub(super) fn into_message(self) -> String {
+        match self {
+            PersistError::Invalid(m) | PersistError::Vault(m) => m,
+        }
+    }
+}
+
 impl Oryxis {
     /// Flip one secret field's eye.
     ///
@@ -337,36 +379,51 @@ impl Oryxis {
     /// Build a `Connection` from the host-editor form: everything
     /// `EditorSave` persists except the tri-state secrets (main password,
     /// proxy password, TOTP secret), which each flow handles itself.
-    /// `persist_group` gates the find-or-create group side effect; the
-    /// connect-without-saving flow passes `false` so nothing is written.
+    /// `groups` decides what the typed Parent Group value may do (see
+    /// [`GroupWrite`]); apart from `GroupWrite::Create` the build has
+    /// no side effects, which the auto-save dirty check depends on.
     /// Errors are user-facing strings for `host_panel_error`.
     fn connection_from_editor_form(
         &mut self,
-        persist_group: bool,
+        groups: GroupWrite,
     ) -> Result<Connection, String> {
         let port: u16 = self.editor_form.port.parse().unwrap_or(22);
 
-        // Find or create group. The combo displays breadcrumb paths,
-        // so resolution tries the full path first, then a bare label
-        // (typed by hand). An unmatched value is materialised as a
-        // breadcrumb PATH: "Prod / NewTeam" builds the nested chain
+        // Group resolution. The combo displays breadcrumb paths, so it
+        // tries the full path first, then a bare label (typed by
+        // hand). Under `Create`, an unmatched value is materialised as
+        // a breadcrumb PATH: "Prod / NewTeam" builds the nested chain
         // (reusing existing segments), never a single root group named
         // with the separator inside it (which would then impersonate a
-        // real path). Skipped entirely for the connect-without-saving
-        // flow: an ad-hoc host must not write anything, not even a new
-        // group.
+        // real path).
         let group_name = self.editor_form.group_name.trim().to_string();
-        let group_id = if persist_group && !group_name.is_empty() {
-            let mut created = Vec::new();
-            let gid = Group::resolve_or_create_path(&mut self.groups, &group_name, &mut created);
-            if let Some(vault) = &self.vault {
-                for g in &created {
-                    let _ = vault.save_group(g);
+        let group_id = match groups {
+            GroupWrite::Skip => None,
+            _ if group_name.is_empty() => None,
+            GroupWrite::Create => {
+                let mut created = Vec::new();
+                let gid =
+                    Group::resolve_or_create_path(&mut self.groups, &group_name, &mut created);
+                if let Some(vault) = &self.vault {
+                    for g in &created {
+                        let _ = vault.save_group(g);
+                    }
                 }
+                gid
             }
-            gid
-        } else {
-            None
+            GroupWrite::ResolveOnly => Group::resolve_path_or_label(
+                &self.groups,
+                &group_name,
+                &std::collections::HashSet::new(),
+            )
+            .or_else(|| {
+                // Mid-typing: the value matches nothing YET. Keep the
+                // stored group rather than bouncing the host to root
+                // and back with every keystroke the debounce lands on.
+                self.editor_form.editing_id.and_then(|id| {
+                    self.connections.iter().find(|c| c.id == id).and_then(|c| c.group_id)
+                })
+            }),
         };
 
         // Snapshot the pre-edit Connection (when editing an
@@ -472,23 +529,6 @@ impl Oryxis {
         conn.monitor_enabled = self.editor_form.protocol
             == oryxis_core::models::connection::ConnectionProtocol::Ssh
             && self.editor_form.monitor_enabled;
-        // Opting the host OUT drops its series right away: the status
-        // bar / sidebar must not keep painting the last sample as if it
-        // were live, and an in-flight probe must land dead (stamp bump).
-        //
-        // The window is keyed on the MACHINE (issue #156) and this save
-        // can move the row to another one, so the key comes from the
-        // row as it was BEFORE the edit: that is the window this host
-        // has been filling until now.
-        let previous_key = original
-            .as_ref()
-            .map(crate::monitor::endpoint::MonitorKey::new);
-        if original.as_ref().is_some_and(|o| o.monitor_enabled)
-            && !conn.monitor_enabled
-            && let Some(key) = &previous_key
-        {
-            self.monitor_reset_key(key, &conn.id);
-        }
         // Disk selection (issue #135). Auto is `None`; Custom keeps the
         // rows the user typed, blanks dropped (an unfinished row is not
         // a pattern) but an all-blank list still stored as `Some(vec![])`,
@@ -502,15 +542,6 @@ impl Oryxis {
                 .filter(|m| !m.is_empty())
                 .collect()
         });
-        // The window in the ring was filtered by the OLD selection, so a
-        // change would keep showing stale disks until the next probe
-        // aged them out. Dropping the series makes the next tick rebuild
-        // it under the new rules.
-        if original.as_ref().is_some_and(|o| o.monitor_disks != conn.monitor_disks)
-            && let Some(key) = &previous_key
-        {
-            self.monitor_reset_key(key, &conn.id);
-        }
         conn.agent_forwarding = self.editor_form.agent_forwarding;
         // Same SSH clamp as `mcp_enabled` / `monitor_enabled`: `x11-req`
         // is an SSH channel request, so a host switched to Telnet /
@@ -821,6 +852,10 @@ impl Oryxis {
             target_password: Default::default(),
             has_existing_target_password: has_target_pw,
             target_password_visible: false,
+            // A fresh form has no derived clear parked.
+            proxy_password_rescue: Default::default(),
+            totp_rescue: Default::default(),
+            target_password_rescue: Default::default(),
             login_script_draft: None,
             auto_title: conn.auto_title,
             tags_text: conn.tags.join(", "),

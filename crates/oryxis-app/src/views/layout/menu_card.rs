@@ -191,7 +191,7 @@ impl Oryxis {
         );
         let mut items = column![
             self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::Ssh(SshMessage::ConnectSsh(idx)), OryxisColors::t().success),
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Editor(EditorMessage::EditConnection(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), conn.map_or(Message::NoOp, |c| Message::Editor(EditorMessage::EditConnection(c.id))), OryxisColors::t().text_secondary),
             self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::Editor(EditorMessage::DuplicateConnection(idx)), OryxisColors::t().text_secondary),
         ];
         if is_ssh_host {

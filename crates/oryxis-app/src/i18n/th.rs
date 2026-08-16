@@ -1193,6 +1193,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "ส่งเมื่อเชื่อมต่อ เซิร์ฟเวอร์ส่วนใหญ่อนุญาตเฉพาะ LC_* และ LANG_*",
         "env_value_placeholder" => "ค่า",
         "editor_label_host_required" => "ต้องระบุป้ายชื่อและชื่อโฮสต์",
+        "editor_autosave_failed" => "บันทึกอัตโนมัติล้มเหลว",
         "apply_sudo_password" => "ใส่รหัสผ่าน sudo",
         "sudo_password_sent" => "ส่งรหัสผ่านแล้ว",
         "no_stored_password" => "ไม่มีรหัสผ่านที่บันทึกไว้สำหรับโฮสต์นี้",

@@ -1001,6 +1001,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "連線時傳送。多數伺服器只允許 LC_* 和 LANG_*。",
         "env_value_placeholder" => "值",
         "editor_label_host_required" => "標籤和主機名稱為必填",
+        "editor_autosave_failed" => "自動儲存失敗",
         "apply_sudo_password" => "套用 sudo 密碼",
         "sudo_password_sent" => "密碼已傳送",
         "no_stored_password" => "此主機沒有已儲存的密碼",

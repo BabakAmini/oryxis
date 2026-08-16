@@ -1192,6 +1192,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "कनेक्ट होने पर भेजे जाते हैं। ज़्यादातर सर्वर केवल LC_* और LANG_* की अनुमति देते हैं।",
         "env_value_placeholder" => "मान",
         "editor_label_host_required" => "लेबल और होस्टनेम आवश्यक हैं",
+        "editor_autosave_failed" => "स्वतः सहेजना विफल रहा",
         "apply_sudo_password" => "sudo पासवर्ड लागू करें",
         "sudo_password_sent" => "पासवर्ड भेजा गया",
         "no_stored_password" => "इस होस्ट के लिए कोई सेव किया हुआ पासवर्ड नहीं",

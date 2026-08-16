@@ -1192,6 +1192,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Wysyłane po połączeniu. Większość serwerów zezwala tylko na LC_* i LANG_*.",
         "env_value_placeholder" => "wartość",
         "editor_label_host_required" => "Etykieta i nazwa hosta są wymagane",
+        "editor_autosave_failed" => "Automatyczny zapis nie powiódł się",
         "apply_sudo_password" => "Zastosuj hasło sudo",
         "sudo_password_sent" => "Hasło wysłane",
         "no_stored_password" => "Brak zapisanego hasła dla tego hosta",

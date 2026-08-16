@@ -1192,6 +1192,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Αποστέλλονται κατά τη σύνδεση. Οι περισσότεροι διακομιστές επιτρέπουν μόνο LC_* και LANG_*.",
         "env_value_placeholder" => "τιμή",
         "editor_label_host_required" => "Η ετικέτα και το όνομα host είναι υποχρεωτικά",
+        "editor_autosave_failed" => "Η αυτόματη αποθήκευση απέτυχε",
         "apply_sudo_password" => "Εφαρμογή κωδικού sudo",
         "sudo_password_sent" => "Ο κωδικός στάλθηκε",
         "no_stored_password" => "Κανένας αποθηκευμένος κωδικός για αυτόν τον host",

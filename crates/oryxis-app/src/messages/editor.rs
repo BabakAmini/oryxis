@@ -79,7 +79,11 @@ pub enum EditorMessage {
     /// Open the host editor seeded as a RemoteDesktop host ("Add remote
     /// desktop" in the + Host menu; only shown when the feature toggle is on).
     ShowNewRemoteDesktop,
-    EditConnection(usize),
+    /// Open the host editor on a vault host, by ID: the click's index
+    /// can go stale before the handler runs (its own flush of a
+    /// pending auto-save rename re-sorts the list), same rationale as
+    /// `DeleteConnection`.
+    EditConnection(uuid::Uuid),
     EditorLabelChanged(String),
     /// Host editor: comma-separated tags field.
     EditorTagsChanged(String),

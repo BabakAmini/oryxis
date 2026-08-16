@@ -1188,6 +1188,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "هنگام اتصال ارسال می‌شود. بیشتر سرورها فقط LC_* و LANG_* را مجاز می‌دانند.",
         "env_value_placeholder" => "مقدار",
         "editor_label_host_required" => "برچسب و نام میزبان الزامی هستند",
+        "editor_autosave_failed" => "ذخیره خودکار ناموفق بود",
         "apply_sudo_password" => "اعمال رمز عبور sudo",
         "sudo_password_sent" => "رمز عبور ارسال شد",
         "no_stored_password" => "رمز عبوری برای این میزبان ذخیره نشده است",

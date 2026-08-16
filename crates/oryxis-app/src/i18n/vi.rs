@@ -1186,6 +1186,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Gửi khi kết nối. Hầu hết máy chủ chỉ cho phép LC_* và LANG_*.",
         "env_value_placeholder" => "giá trị",
         "editor_label_host_required" => "Nhãn và tên máy chủ là bắt buộc",
+        "editor_autosave_failed" => "Tự động lưu thất bại",
         "apply_sudo_password" => "Áp dụng mật khẩu sudo",
         "sudo_password_sent" => "Đã gửi mật khẩu",
         "no_stored_password" => "Không có mật khẩu lưu cho máy chủ này",

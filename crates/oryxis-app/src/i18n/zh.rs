@@ -1001,6 +1001,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "连接时发送。多数服务器只允许 LC_* 和 LANG_*。",
         "env_value_placeholder" => "值",
         "editor_label_host_required" => "标签和主机名为必填项",
+        "editor_autosave_failed" => "自动保存失败",
         "apply_sudo_password" => "应用 sudo 密码",
         "sudo_password_sent" => "密码已发送",
         "no_stored_password" => "此主机没有保存的密码",

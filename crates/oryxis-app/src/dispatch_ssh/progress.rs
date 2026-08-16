@@ -79,8 +79,17 @@ impl Oryxis {
                     self.active_tab = None;
                     self.active_view = View::Dashboard;
                     return match origin {
+                        // Resolve the ID at click time: `Saved(idx)`
+                        // was captured when the connect began and the
+                        // list can have re-sorted since (an auto-saved
+                        // rename, a sync apply).
                         crate::state::ProgressOrigin::Saved(idx) => {
-                            self.update(Message::Editor(EditorMessage::EditConnection(idx)))
+                            match self.connections.get(idx).map(|c| c.id) {
+                                Some(id) => self.update(Message::Editor(
+                                    EditorMessage::EditConnection(id),
+                                )),
+                                None => Task::none(),
+                            }
                         }
                         // Ad-hoc host: edit the TEMPORARY entry; the editor
                         // opens with Connect (without saving) as the primary

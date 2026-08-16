@@ -1186,6 +1186,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Bağlantıda gönderilir. Çoğu sunucu yalnızca LC_* ve LANG_*'a izin verir.",
         "env_value_placeholder" => "değer",
         "editor_label_host_required" => "Etiket ve ana bilgisayar adı gereklidir",
+        "editor_autosave_failed" => "Otomatik kaydetme başarısız oldu",
         "apply_sudo_password" => "Sudo parolasını uygula",
         "sudo_password_sent" => "Parola gönderildi",
         "no_stored_password" => "Bu sunucu için kayıtlı parola yok",

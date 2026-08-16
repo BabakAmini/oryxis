@@ -1186,6 +1186,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Надсилаються при підключенні. Більшість серверів дозволяють лише LC_* і LANG_*.",
         "env_value_placeholder" => "значення",
         "editor_label_host_required" => "Мітка та ім'я хоста обов'язкові",
+        "editor_autosave_failed" => "Не вдалося автоматично зберегти",
         "apply_sudo_password" => "Застосувати пароль sudo",
         "sudo_password_sent" => "Пароль надіслано",
         "no_stored_password" => "Немає збереженого пароля для цього хоста",

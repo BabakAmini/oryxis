@@ -1193,6 +1193,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "env_vars_desc" => "Sent on connect. Most servers only allow LC_* and LANG_*.",
         "env_value_placeholder" => "value",
         "editor_label_host_required" => "Label and hostname are required",
+        "editor_autosave_failed" => "Auto-save failed",
         "apply_sudo_password" => "Apply sudo password",
         "sudo_password_sent" => "Password sent",
         "no_stored_password" => "No stored password for this host",

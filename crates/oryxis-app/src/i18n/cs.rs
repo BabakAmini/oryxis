@@ -1192,6 +1192,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Odesílají se při připojení. Většina serverů povoluje jen LC_* a LANG_*.",
         "env_value_placeholder" => "hodnota",
         "editor_label_host_required" => "Popisek a název hostitele jsou povinné",
+        "editor_autosave_failed" => "Automatické uložení se nezdařilo",
         "apply_sudo_password" => "Použít sudo heslo",
         "sudo_password_sent" => "Heslo odesláno",
         "no_stored_password" => "Pro tohoto hostitele není uloženo žádné heslo",

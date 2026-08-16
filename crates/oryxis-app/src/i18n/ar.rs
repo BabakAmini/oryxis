@@ -1204,6 +1204,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "تُرسل عند الاتصال. معظم الخوادم تسمح فقط بـ LC_* و LANG_*.",
         "env_value_placeholder" => "قيمة",
         "editor_label_host_required" => "التسمية واسم المضيف مطلوبان",
+        "editor_autosave_failed" => "فشل الحفظ التلقائي",
         "apply_sudo_password" => "تطبيق كلمة مرور sudo",
         "sudo_password_sent" => "تم إرسال كلمة المرور",
         "no_stored_password" => "لا توجد كلمة مرور محفوظة لهذا المضيف",

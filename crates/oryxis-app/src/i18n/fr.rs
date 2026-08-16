@@ -1001,6 +1001,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Envoyées à la connexion. La plupart des serveurs n'autorisent que LC_* et LANG_*.",
         "env_value_placeholder" => "valeur",
         "editor_label_host_required" => "Le libellé et le nom d'hôte sont requis",
+        "editor_autosave_failed" => "Échec de l'enregistrement automatique",
         "apply_sudo_password" => "Appliquer le mot de passe sudo",
         "sudo_password_sent" => "Mot de passe envoyé",
         "no_stored_password" => "Aucun mot de passe enregistré pour cet hôte",

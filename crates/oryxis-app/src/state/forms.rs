@@ -369,6 +369,16 @@ pub(crate) struct ConnectionForm {
     pub target_password: SecretInput,
     pub has_existing_target_password: bool,
     pub target_password_visible: bool,
+    /// Secrets parked by a DERIVED clear (persist_editor_form): when a
+    /// toggle-driven auto-save wipes a stored side-column secret
+    /// (proxy disabled, "Use TOTP" off, login script detached), the
+    /// plaintext moves here first, so re-enabling the toggle within
+    /// the same editor session writes it back instead of leaving a
+    /// misclick permanently destructive. An empty buffer is "nothing
+    /// parked". Swept with the other secret buffers on close / lock.
+    pub proxy_password_rescue: SecretInput,
+    pub totp_rescue: SecretInput,
+    pub target_password_rescue: SecretInput,
     /// Inline "new script" sub-form, open only while the user is
     /// creating one from the host editor. `None` = closed.
     pub login_script_draft: Option<LoginScriptDraft>,
@@ -567,6 +577,12 @@ impl ConnectionForm {
             }
             *visible = false;
         }
+        // Rescue stashes are never the user's own typing, so they are
+        // dropped unconditionally: past the sweep the derived clear
+        // they were parked for is final.
+        self.proxy_password_rescue.clear();
+        self.totp_rescue.clear();
+        self.target_password_rescue.clear();
     }
 }
 
@@ -1338,6 +1354,9 @@ impl Default for ConnectionForm {
             target_password: SecretInput::default(),
             has_existing_target_password: false,
             target_password_visible: false,
+            proxy_password_rescue: SecretInput::default(),
+            totp_rescue: SecretInput::default(),
+            target_password_rescue: SecretInput::default(),
             login_script_draft: None,
             auto_title: None,
             cloud_transport: None,

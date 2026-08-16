@@ -1186,6 +1186,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Dikirim saat terhubung. Sebagian besar server hanya mengizinkan LC_* dan LANG_*.",
         "env_value_placeholder" => "nilai",
         "editor_label_host_required" => "Label dan nama host wajib diisi",
+        "editor_autosave_failed" => "Penyimpanan otomatis gagal",
         "apply_sudo_password" => "Terapkan kata sandi sudo",
         "sudo_password_sent" => "Kata sandi terkirim",
         "no_stored_password" => "Tidak ada kata sandi tersimpan untuk host ini",

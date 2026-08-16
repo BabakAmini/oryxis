@@ -1192,6 +1192,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "נשלחים בהתחברות. רוב השרתים מאפשרים רק משתני LC_* ומשתני LANG_*.",
         "env_value_placeholder" => "ערך",
         "editor_label_host_required" => "תווית ושם מארח הם שדות חובה",
+        "editor_autosave_failed" => "השמירה האוטומטית נכשלה",
         "apply_sudo_password" => "החלת סיסמת sudo",
         "sudo_password_sent" => "הסיסמה נשלחה",
         "no_stored_password" => "אין סיסמה שמורה למארח הזה",

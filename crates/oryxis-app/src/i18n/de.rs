@@ -992,6 +992,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Beim Verbinden gesendet. Die meisten Server erlauben nur LC_* und LANG_*.",
         "env_value_placeholder" => "Wert",
         "editor_label_host_required" => "Bezeichnung und Hostname sind erforderlich",
+        "editor_autosave_failed" => "Automatisches Speichern fehlgeschlagen",
         "apply_sudo_password" => "Sudo-Passwort anwenden",
         "sudo_password_sent" => "Passwort gesendet",
         "no_stored_password" => "Kein gespeichertes Passwort für diesen Host",

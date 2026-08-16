@@ -1186,6 +1186,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "연결 시 전송됩니다. 대부분의 서버는 LC_* 및 LANG_*만 허용합니다.",
         "env_value_placeholder" => "값",
         "editor_label_host_required" => "레이블과 호스트 이름은 필수입니다",
+        "editor_autosave_failed" => "자동 저장 실패",
         "apply_sudo_password" => "sudo 비밀번호 적용",
         "sudo_password_sent" => "비밀번호 전송됨",
         "no_stored_password" => "이 호스트에 저장된 비밀번호가 없습니다",

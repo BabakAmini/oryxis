@@ -27,7 +27,7 @@ impl Oryxis {
     /// the `Connection` JSON does not carry. `None` = the form does
     /// not build (half-typed state), which is never dirty on its own.
     fn editor_form_signature(&mut self) -> Option<String> {
-        let mut conn = self.connection_from_editor_form(false).ok()?;
+        let mut conn = self.connection_from_editor_form(super::GroupWrite::Skip).ok()?;
         conn.updated_at = chrono::DateTime::<chrono::Utc>::MIN_UTC;
         let json = serde_json::to_string(&conn).ok()?;
         Some(format!(
@@ -97,21 +97,50 @@ impl Oryxis {
         )
     }
 
+    /// Whether the typed Parent Group value names a group that does
+    /// not exist yet. The ticks persist with `GroupWrite::ResolveOnly`
+    /// (a half-typed name must not mint vault rows), so a completed
+    /// NEW name is work only the closing flush can do; without this
+    /// the ticks re-baseline the signature and the flush would judge
+    /// the form clean and never create it.
+    fn editor_group_pending_creation(&self) -> bool {
+        if !self.editor_autosave_armed() {
+            return false;
+        }
+        let name = self.editor_form.group_name.trim();
+        !name.is_empty()
+            && oryxis_core::models::Group::resolve_path_or_label(
+                &self.groups,
+                name,
+                &std::collections::HashSet::new(),
+            )
+            .is_none()
+    }
+
     /// Persist a still-debouncing change NOW. Sits on every path that
     /// closes or replaces the editor under an existing host (the X /
     /// Esc cancel, opening another host or panel, the vault locks, the
     /// window close), so the debounce window can never swallow the
-    /// last edit. Silent on an invalid form: the vault keeps the last
+    /// last edit. Closing is the commit point for a typed NEW group
+    /// name (`GroupWrite::Create`; the ticks only resolve existing
+    /// ones). Silent on an invalid form: the vault keeps the last
     /// valid save, which is the only coherent answer for a surface
-    /// that is going away.
+    /// that is going away. A failed WRITE is not silent: the surface
+    /// is going away, so the loss is announced through a toast, the
+    /// one channel that survives the close.
     pub(crate) fn editor_flush_pending(&mut self) {
-        if !self.editor_autosave_dirty() {
+        if !self.editor_autosave_dirty() && !self.editor_group_pending_creation() {
             return;
         }
         // Invalidate any in-flight tick; this flush is its work.
         self.editor_autosave_gen += 1;
-        if self.persist_editor_form().is_ok() {
-            self.editor_autosave_settle();
+        match self.persist_editor_form(super::GroupWrite::Create) {
+            Ok(_) => self.editor_autosave_settle(),
+            Err(super::PersistError::Invalid(_)) => {}
+            Err(super::PersistError::Vault(e)) => {
+                tracing::warn!("host editor flush failed: {e}");
+                self.set_toast(format!("{}: {e}", crate::i18n::t("editor_autosave_failed")));
+            }
         }
     }
 
@@ -153,27 +182,42 @@ impl Oryxis {
                 if tick_gen != self.editor_autosave_gen || !self.editor_autosave_dirty() {
                     return Task::none();
                 }
-                if self.persist_editor_form().is_ok() {
-                    self.editor_autosave_settle();
-                    // The inline error only ever holds a stale save
-                    // failure here; this save superseded it.
-                    self.host_panel_error = None;
-                    self.editor_autosave_saved_visible = true;
-                    self.editor_autosave_flash_gen += 1;
-                    let fgen = self.editor_autosave_flash_gen;
-                    return Task::perform(
-                        async {
-                            tokio::time::sleep(std::time::Duration::from_millis(1600))
-                                .await;
-                        },
-                        move |_| {
-                            Message::Editor(EditorMessage::EditorAutoSaveFlashClear(fgen))
-                        },
-                    );
+                // `ResolveOnly`: a debounce tick can land on a
+                // half-typed Parent Group value, which must not mint
+                // vault groups ("Pro" while typing "Production") or
+                // reparent the host mid-keystroke. The closing flush
+                // is the commit point for a new name.
+                match self.persist_editor_form(super::GroupWrite::ResolveOnly) {
+                    Ok(_) => {
+                        self.editor_autosave_settle();
+                        // The inline error only ever holds a stale save
+                        // failure here; this save superseded it.
+                        self.host_panel_error = None;
+                        self.editor_autosave_saved_visible = true;
+                        self.editor_autosave_flash_gen += 1;
+                        let fgen = self.editor_autosave_flash_gen;
+                        return Task::perform(
+                            async {
+                                tokio::time::sleep(std::time::Duration::from_millis(1600))
+                                    .await;
+                            },
+                            move |_| {
+                                Message::Editor(EditorMessage::EditorAutoSaveFlashClear(fgen))
+                            },
+                        );
+                    }
+                    // Mid-edit invalid states (a cleared hostname, a
+                    // half-typed port) skip silently: the vault keeps
+                    // the last valid save and the next tick retries.
+                    Err(super::PersistError::Invalid(_)) => {}
+                    // A failed WRITE means edits the user believes
+                    // saved did not: surface it inline while the
+                    // panel is still up to show it.
+                    Err(super::PersistError::Vault(e)) => {
+                        tracing::warn!("host editor auto-save failed: {e}");
+                        self.host_panel_error = Some(e);
+                    }
                 }
-                // Mid-edit invalid states (a cleared hostname, a
-                // half-typed port) skip silently: the vault keeps the
-                // last valid save and the next tick retries.
             }
             EditorMessage::EditorAutoSaveFlashClear(flash_gen) => {
                 if flash_gen == self.editor_autosave_flash_gen {

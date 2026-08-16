@@ -436,8 +436,12 @@ impl Oryxis {
                 }
             }
             OpenPortForwards => {
-                if let Some(idx) = self.active_tab_connection_idx() {
-                    Task::done(Message::Editor(EditorMessage::EditConnection(idx)))
+                if let Some(id) = self
+                    .active_tab_connection_idx()
+                    .and_then(|idx| self.connections.get(idx))
+                    .map(|c| c.id)
+                {
+                    Task::done(Message::Editor(EditorMessage::EditConnection(id)))
                 } else if let Some(qid) = self.active_tab.and_then(|i| {
                     self.tabs.get(i).and_then(|t| match &t.active().origin {
                         crate::state::PaneOrigin::QuickHost(qid) => Some(*qid),

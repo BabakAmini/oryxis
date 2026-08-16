@@ -998,6 +998,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "Enviadas al conectar. La mayoría de servidores solo permiten LC_* y LANG_*.",
         "env_value_placeholder" => "valor",
         "editor_label_host_required" => "La etiqueta y el nombre de host son obligatorios",
+        "editor_autosave_failed" => "Error al guardar automáticamente",
         "apply_sudo_password" => "Aplicar contraseña de sudo",
         "sudo_password_sent" => "Contraseña enviada",
         "no_stored_password" => "No hay contraseña guardada para este host",

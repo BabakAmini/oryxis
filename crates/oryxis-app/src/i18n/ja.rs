@@ -1001,6 +1001,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "env_vars_desc" => "接続時に送信。多くのサーバーは LC_* と LANG_* のみ許可します。",
         "env_value_placeholder" => "値",
         "editor_label_host_required" => "ラベルとホスト名は必須です",
+        "editor_autosave_failed" => "自動保存に失敗しました",
         "apply_sudo_password" => "sudo パスワードを適用",
         "sudo_password_sent" => "パスワードを送信しました",
         "no_stored_password" => "このホストに保存されたパスワードがありません",
