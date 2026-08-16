@@ -420,7 +420,22 @@ impl Oryxis {
                         tracing::warn!("sync engine failed to start: {e}");
                         return Task::none();
                     }
-                    Err(_) => {
+                    Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {
+                        // A STALE notification. A spawn always sends its
+                        // result BEFORE emitting its own `EngineSpawned`,
+                        // so an empty channel means this message belongs
+                        // to an OLDER spawn (one `stop_sync_engine`
+                        // abandoned during a fast off/on toggle) while
+                        // the receiver just taken belongs to a newer
+                        // spawn still inside its ~1s unlock. Put it
+                        // back: dropping it here would fail the new
+                        // spawn's send and silently drop its engine,
+                        // leaving sync enabled in the UI with nothing
+                        // running.
+                        self.sync.pending_engine = Some(rx);
+                        return Task::none();
+                    }
+                    Err(tokio::sync::oneshot::error::TryRecvError::Closed) => {
                         // The spawn task panicked before sending; there
                         // is nothing to adopt and `engine_running` was
                         // never set.
