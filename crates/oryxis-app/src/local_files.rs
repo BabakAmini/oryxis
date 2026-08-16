@@ -108,9 +108,16 @@ impl LocalFs {
 
 /// `\\?\C:\...` is what `canonicalize` answers on Windows; the verbatim
 /// prefix confuses every non-Windows-API consumer (and the user), so it
-/// is stripped for display and further joining.
+/// is stripped for display and further joining. Network locations
+/// canonicalize to the verbatim UNC form `\\?\UNC\server\share\...`,
+/// which must become `\\server\share\...`: dropping only the `\\?\`
+/// would leave the RELATIVE path `UNC\server\share\...`, dead-ending
+/// every mapped drive and redirected folder the local browser lands on.
 fn strip_verbatim(path: &std::path::Path) -> String {
     let s = path.to_string_lossy();
+    if let Some(unc) = s.strip_prefix(r"\\?\UNC\") {
+        return format!(r"\\{unc}");
+    }
     s.strip_prefix(r"\\?\").unwrap_or(&s).to_string()
 }
 
@@ -285,5 +292,21 @@ mod tests {
             r"C:\Users\x"
         );
         assert_eq!(strip_verbatim(std::path::Path::new("/home/x")), "/home/x");
+    }
+
+    /// A network location canonicalizes to the verbatim UNC form; it
+    /// must come back as a real `\\server\share` path, never the
+    /// relative `UNC\server\share` that stripping only `\\?\` leaves.
+    #[test]
+    fn verbatim_unc_prefix_becomes_unc_path() {
+        assert_eq!(
+            strip_verbatim(std::path::Path::new(r"\\?\UNC\server\share\dir")),
+            r"\\server\share\dir"
+        );
+        // An already-plain UNC path is untouched.
+        assert_eq!(
+            strip_verbatim(std::path::Path::new(r"\\server\share\dir")),
+            r"\\server\share\dir"
+        );
     }
 }
