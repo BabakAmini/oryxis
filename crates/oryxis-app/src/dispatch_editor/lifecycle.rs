@@ -530,6 +530,9 @@ impl Oryxis {
             form.has_existing_proxy_password = false;
         } else if let Some(pw) = form.proxy_password.resolve() {
             let _ = vault.set_proxy_password(&conn.id, (!pw.is_empty()).then_some(pw));
+            // The persist owns the flag: `editor_autosave_settle` must
+            // not second-guess what landed in the column.
+            form.has_existing_proxy_password = !pw.is_empty();
             // Edited by hand: the stash is stale either way.
             form.proxy_password_rescue.clear();
         } else if !form.has_existing_proxy_password
@@ -558,6 +561,7 @@ impl Oryxis {
             let s = secret.trim();
             let s = (!s.is_empty()).then_some(s);
             let _ = vault.set_connection_totp_secret(&conn.id, s);
+            form.has_existing_totp = s.is_some();
             form.totp_rescue.clear();
         } else if !form.has_existing_totp && !form.totp_rescue.as_str().is_empty() {
             let _ = vault
@@ -577,6 +581,7 @@ impl Oryxis {
             form.has_existing_target_password = false;
         } else if let Some(pw) = form.target_password.resolve() {
             let _ = vault.set_connection_target_password(&conn.id, Some(pw));
+            form.has_existing_target_password = !pw.is_empty();
             form.target_password_rescue.clear();
         } else if !form.has_existing_target_password
             && !form.target_password_rescue.as_str().is_empty()

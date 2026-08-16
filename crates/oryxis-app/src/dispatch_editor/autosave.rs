@@ -97,48 +97,63 @@ impl Oryxis {
         )
     }
 
-    /// Whether the typed Parent Group value names a group that does
-    /// not exist yet. The ticks persist with `GroupWrite::ResolveOnly`
-    /// (a half-typed name must not mint vault rows), so a completed
-    /// NEW name is work only the closing flush can do; without this
-    /// the ticks re-baseline the signature and the flush would judge
-    /// the form clean and never create it.
-    fn editor_group_pending_creation(&self) -> bool {
+    /// Whether the typed Parent Group value still has to be applied.
+    /// The ticks persist with `GroupWrite::Keep` (a mid-word value is
+    /// not an answer about the group), so ANY group change is work
+    /// only the concluding flush can do; without this the ticks
+    /// re-baseline the signature and the flush would judge the form
+    /// clean and never apply it.
+    fn editor_group_pending(&self) -> bool {
         if !self.editor_autosave_armed() {
             return false;
         }
-        let name = self.editor_form.group_name.trim();
-        !name.is_empty()
-            && oryxis_core::models::Group::resolve_path_or_label(
-                &self.groups,
-                name,
-                &std::collections::HashSet::new(),
-            )
-            .is_none()
+        let stored = self
+            .editor_form
+            .editing_id
+            .and_then(|id| self.connections.iter().find(|c| c.id == id))
+            .and_then(|c| c.group_id)
+            .map(|gid| oryxis_core::models::Group::path_of(&self.groups, gid))
+            .unwrap_or_default();
+        self.editor_form.group_name.trim() != stored.trim()
     }
 
-    /// Persist a still-debouncing change NOW. Sits on every path that
-    /// closes or replaces the editor under an existing host (the X /
-    /// Esc cancel, opening another host or panel, the vault locks, the
-    /// window close), so the debounce window can never swallow the
-    /// last edit. Closing is the commit point for a typed NEW group
-    /// name (`GroupWrite::Create`; the ticks only resolve existing
-    /// ones). Silent on an invalid form: the vault keeps the last
-    /// valid save, which is the only coherent answer for a surface
-    /// that is going away. A failed WRITE is not silent: the surface
-    /// is going away, so the loss is announced through a toast, the
-    /// one channel that survives the close.
+    /// Persist a still-debouncing change NOW, on a path the USER
+    /// concluded: the X / Esc cancel, opening another host, swapping
+    /// the panel. That gesture is what makes the typed Parent Group
+    /// value an answer, so this is the commit point for it
+    /// (`GroupWrite::Create`; the ticks never touch the group).
     pub(crate) fn editor_flush_pending(&mut self) {
-        if !self.editor_autosave_dirty() && !self.editor_group_pending_creation() {
+        self.editor_flush_with(super::GroupWrite::Create);
+    }
+
+    /// Persist a still-debouncing change NOW on a path NOTHING
+    /// concluded: the vault locks under an idle user, the window
+    /// closes. The edits are theirs and are kept, but the Parent Group
+    /// value stays whatever the host already had: an interrupted
+    /// "Staging" must not mint a permanent, synced group named "Sta".
+    pub(crate) fn editor_flush_interrupted(&mut self) {
+        self.editor_flush_with(super::GroupWrite::Keep);
+    }
+
+    /// Shared body. Silent on an invalid form: the vault keeps the last
+    /// valid save, which is the only coherent answer for a surface
+    /// that is going away. A failed WRITE is not silent: it raises the
+    /// inline panel error (still on screen on the gesture paths) AND a
+    /// toast, and is always logged, because the surfaces that outlive
+    /// neither are exactly where the loss would otherwise be silent.
+    fn editor_flush_with(&mut self, groups: super::GroupWrite) {
+        let group_pending = groups == super::GroupWrite::Create && self.editor_group_pending();
+        if !self.editor_autosave_dirty() && !group_pending {
             return;
         }
         // Invalidate any in-flight tick; this flush is its work.
         self.editor_autosave_gen += 1;
-        match self.persist_editor_form(super::GroupWrite::Create) {
+        match self.persist_editor_form(groups) {
             Ok(_) => self.editor_autosave_settle(),
             Err(super::PersistError::Invalid(_)) => {}
             Err(super::PersistError::Vault(e)) => {
                 tracing::warn!("host editor flush failed: {e}");
+                self.host_panel_error = Some(e.clone());
                 self.set_toast(format!("{}: {e}", crate::i18n::t("editor_autosave_failed")));
             }
         }
@@ -149,28 +164,35 @@ impl Oryxis {
     /// buffer to the untouched "preserve the stored value" state (the
     /// value it holds IS the stored value now), syncing the
     /// has-a-stored-secret placeholders the views read.
+    ///
+    /// The three side-column flags are NOT recomputed here: the persist
+    /// that just ran is the only thing that knows whether it stored the
+    /// buffer or performed a DERIVED CLEAR (proxy disabled, TOTP off,
+    /// script detached), and it wrote each flag to match what actually
+    /// landed. Recomputing them from the buffer alone contradicted that
+    /// and disabled the rescue restore: typing a proxy password and
+    /// misclicking the proxy off inside one debounce window cleared the
+    /// column, then set has_existing back to true, so re-enabling wrote
+    /// nothing while the field still showed the secret.
     fn editor_autosave_settle(&mut self) {
         self.editor_saved_snapshot = self.editor_form_signature();
         let f = &mut self.editor_form;
+        // The main password has no derived clear (no toggle governs it),
+        // so the buffer IS the authority for its flag.
         if f.password.touched() {
             f.has_existing_password = !f.password.as_str().is_empty();
             let v = f.password.as_str().to_string();
             f.password.prefill(v);
         }
-        if f.proxy_password.touched() {
-            f.has_existing_proxy_password = !f.proxy_password.as_str().is_empty();
-            let v = f.proxy_password.as_str().to_string();
-            f.proxy_password.prefill(v);
-        }
-        if f.totp_secret.touched() {
-            f.has_existing_totp = f.use_totp && !f.totp_secret.as_str().trim().is_empty();
-            let v = f.totp_secret.as_str().to_string();
-            f.totp_secret.prefill(v);
-        }
-        if f.target_password.touched() {
-            f.has_existing_target_password = !f.target_password.as_str().is_empty();
-            let v = f.target_password.as_str().to_string();
-            f.target_password.prefill(v);
+        for buffer in [
+            &mut f.proxy_password,
+            &mut f.totp_secret,
+            &mut f.target_password,
+        ] {
+            if buffer.touched() {
+                let v = buffer.as_str().to_string();
+                buffer.prefill(v);
+            }
         }
     }
 
@@ -182,12 +204,13 @@ impl Oryxis {
                 if tick_gen != self.editor_autosave_gen || !self.editor_autosave_dirty() {
                     return Task::none();
                 }
-                // `ResolveOnly`: a debounce tick can land on a
-                // half-typed Parent Group value, which must not mint
-                // vault groups ("Pro" while typing "Production") or
-                // reparent the host mid-keystroke. The closing flush
-                // is the commit point for a new name.
-                match self.persist_editor_form(super::GroupWrite::ResolveOnly) {
+                // `Keep`: a debounce tick can land mid-word, and a
+                // mid-word Parent Group value is not an answer, it
+                // must neither mint vault groups ("Sta" out of
+                // "Staging") nor reparent onto a group whose label
+                // the prefix happens to match ("Prod" while typing
+                // "Production"). The concluding flush applies it.
+                match self.persist_editor_form(super::GroupWrite::Keep) {
                     Ok(_) => {
                         self.editor_autosave_settle();
                         // The inline error only ever holds a stale save

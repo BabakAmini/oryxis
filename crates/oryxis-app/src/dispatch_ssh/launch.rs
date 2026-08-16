@@ -12,6 +12,12 @@ impl Oryxis {
         match message {
             // -- SSH connection --
             SshMessage::ConnectSsh(idx) => {
+                // The drawer has no Save button, so "fix the port, then
+                // reconnect" is one gesture with a 700ms debounce in the
+                // middle: dial the row the user is looking at, not the
+                // one the vault still holds. Every other consumer of the
+                // edited host flushes first; this is the one that dials.
+                self.editor_flush_pending();
                 self.card_context_menu = None;
                 self.overlay = None;
                 // Close the new-tab picker if the connection was picked there.
@@ -28,9 +34,17 @@ impl Oryxis {
                     }
                 }
                 if let Some(conn) = self.connections.get(idx).cloned() {
-                    return 
-                        self.start_ssh_tab(conn, crate::state::ProgressOrigin::Saved(idx))
-                    ;
+                    let id = conn.id;
+                    return self.start_ssh_tab(conn, crate::state::ProgressOrigin::Saved(id));
+                }
+            }
+            SshMessage::ConnectSavedHost(id) => {
+                // The host may be gone (deleted, or a sync apply
+                // dropped it) by the time the retry fires; declining is
+                // the only honest answer, the progress card is already
+                // showing the failure.
+                if let Some(idx) = self.connections.iter().position(|c| c.id == id) {
+                    return self.update(Message::Ssh(SshMessage::ConnectSsh(idx)));
                 }
             }
             SshMessage::QuickConnect(entry) => {

@@ -35,11 +35,15 @@ pub(super) enum GroupWrite {
     /// Find-or-create (the explicit Save and the closing flush): an
     /// unmatched value materializes as a breadcrumb path.
     Create,
-    /// Resolve against EXISTING groups only (the auto-save tick): an
-    /// unmatched value keeps the host's stored group instead of
-    /// creating rows or reparenting mid-keystroke. A blank value still
-    /// means root, that is a deliberate clear.
-    ResolveOnly,
+    /// Keep the host's stored group (the auto-save tick, and the
+    /// flushes no user gesture concluded: a lock, a window close). A
+    /// debounce tick lands mid-word, and a mid-word value is not an
+    /// answer about the group: "Prod" while typing "Production" is an
+    /// exact label match for a DIFFERENT group, so resolving it would
+    /// reparent the host (and ride sync) until the next keystroke, and
+    /// creating it would mint "Sta" out of an interrupted "Staging".
+    /// A blank value still means root, that is a deliberate clear.
+    Keep,
     /// No group resolution at all (signature builds and
     /// connect-without-saving): nothing may be written, not even into
     /// the in-memory list.
@@ -411,18 +415,11 @@ impl Oryxis {
                 }
                 gid
             }
-            GroupWrite::ResolveOnly => Group::resolve_path_or_label(
-                &self.groups,
-                &group_name,
-                &std::collections::HashSet::new(),
-            )
-            .or_else(|| {
-                // Mid-typing: the value matches nothing YET. Keep the
-                // stored group rather than bouncing the host to root
-                // and back with every keystroke the debounce lands on.
-                self.editor_form.editing_id.and_then(|id| {
-                    self.connections.iter().find(|c| c.id == id).and_then(|c| c.group_id)
-                })
+            GroupWrite::Keep => self.editor_form.editing_id.and_then(|id| {
+                self.connections
+                    .iter()
+                    .find(|c| c.id == id)
+                    .and_then(|c| c.group_id)
             }),
         };
 

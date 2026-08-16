@@ -82,8 +82,10 @@ impl Oryxis {
                 // nothing hits the sealed vault; pane buffers accumulate
                 // and drain after unlock.
                 // A debouncing host-editor auto-save needs the key;
-                // persist it before the vault seals.
-                self.editor_flush_pending();
+                // persist it before the vault seals. Interrupted: an
+                // idle lock concluded nothing, so a half-typed Parent
+                // Group name must not become a vault group.
+                self.editor_flush_interrupted();
                 if let Some(vault) = &mut self.vault
                     && self.vault_ui.has_user_password
                 {
@@ -262,8 +264,9 @@ impl Oryxis {
             }
             VaultMessage::LockVault => {
                 // Same as the soft lock: flush a debouncing host-editor
-                // auto-save while the key still exists.
-                self.editor_flush_pending();
+                // auto-save while the key still exists, and on the same
+                // interrupted terms.
+                self.editor_flush_interrupted();
                 if let Some(vault) = &mut self.vault {
                     vault.lock();
                     // The dialog that armed this is committed; clear the

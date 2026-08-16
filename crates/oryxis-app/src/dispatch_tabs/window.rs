@@ -433,8 +433,10 @@ impl Oryxis {
         // window goes away (real close or hide-to-tray both).
         self.flush_session_logs_final();
         // A host-editor auto-save still inside its debounce window
-        // must not die with the process.
-        self.editor_flush_pending();
+        // must not die with the process. Interrupted: closing the
+        // window concluded nothing about a half-typed Parent Group
+        // name, so it must not become a vault group.
+        self.editor_flush_interrupted();
         // Remember size + maximized/fullscreen for the next
         // launch (also on hide-to-tray: a later tray Quit exits
         // without passing through here again).
