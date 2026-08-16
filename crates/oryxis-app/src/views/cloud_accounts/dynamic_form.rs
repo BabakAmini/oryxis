@@ -486,6 +486,6 @@ impl Oryxis {
         // Standardised side-panel chrome: same `bg_surface` as the
         // host editor (`view_host_panel`) so all right-side editors
         // share the same visual frame.
-        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface, self.panel_width)
     }
 }

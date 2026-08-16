@@ -7,7 +7,7 @@ use iced::widget::{
 use iced::widget::button::Status as BtnStatus;
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{TabsMessage, SnippetMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{TabsMessage, SnippetMessage, Message, Oryxis, CARD_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{card_grid_columns, dir_align_x, dir_row, distribute_card_grid};
@@ -299,7 +299,7 @@ impl Oryxis {
         }
 
         let nav_width = self.vault_rail_width();
-        let panel_width = if self.panels.snippet_panel { PANEL_WIDTH } else { 0.0 };
+        let panel_width = if self.panels.snippet_panel { self.panel_width } else { 0.0 };
         let available = (self.window_size.width
             - nav_width
             - self.side_strip_reserve()
@@ -828,6 +828,6 @@ self.keynav_ring_content(kb_selected, card_el)
             footer,
         ].height(Length::Fill);
 
-        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_sidebar)
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_sidebar, self.panel_width)
     }
 }

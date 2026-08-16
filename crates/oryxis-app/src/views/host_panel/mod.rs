@@ -422,7 +422,7 @@ impl Oryxis {
         ]
         .height(Length::Fill);
 
-        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface, self.panel_width)
     }
 }
 

@@ -191,6 +191,11 @@ pub enum TabsMessage {
     CloseSettingsTab,
     WindowDrag,
     WindowResizeDrag(iced::window::Direction),
+    /// Press on the side-panel editor drawer's edge handle: arms a
+    /// width-resize drag. `MouseMoved` tracks the cursor against the
+    /// press position; the global left-release ends it (and persists
+    /// the width, see `ChatSidebarResizeStop`).
+    SidePanelResizeStart,
     /// Double-click on a N/S edge, fill the full monitor height while
     /// keeping horizontal position and width.
     WindowExpandVertical,

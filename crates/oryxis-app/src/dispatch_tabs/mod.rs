@@ -68,6 +68,7 @@ impl Oryxis {
                 | TabsMessage::WindowFocusChanged(..)
                 | TabsMessage::WindowDrag
                 | TabsMessage::WindowResizeDrag(..)
+                | TabsMessage::SidePanelResizeStart
                 | TabsMessage::WindowExpandVertical
                 | TabsMessage::WindowMinimize
                 | TabsMessage::WindowMaximizeToggle

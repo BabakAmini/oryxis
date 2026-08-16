@@ -360,33 +360,44 @@ pub(crate) fn shortcut_row<'a>(keys: Vec<Element<'a, Message>>, action: &'a str)
 
 /// Chrome for the right-side editor panels (host editor, key import /
 /// generate, identity, snippet, port-forward, cloud forms, ...):
-/// `PANEL_WIDTH` total, the given panel background, and a single 1 px
-/// separator on the LEADING edge (between main content and panel)
-/// instead of a full frame. The full border used to double up with
-/// the status-bar hairline below and the tab-bar hairline above (a
-/// visible 2 px "double border" at the panel's bottom edge), and with
-/// the 1 px window frame on the trailing edge; those chrome lines
-/// already bound the other three sides. Under RTL the panel sits on
-/// the leading (left) side, and `dir_row` mirrors the separator onto
-/// the panel's content-facing edge automatically.
+/// `width` total (pass the live `Oryxis::panel_width`), the given panel
+/// background, and a 4 px draggable handle on the LEADING edge (between
+/// main content and panel) instead of a full frame. The handle replaces
+/// the old 1 px separator and doubles as the resize grip: pressing it
+/// arms `panel_resize_drag`, the global mouse-move handler in
+/// `dispatch_tabs/window.rs` follows the cursor, and the global
+/// left-release ends the drag and persists the width. Same affordance
+/// (width, colour, cursor) as the terminal sidebar's region handle. The
+/// full border used to double up with the status-bar hairline below and
+/// the tab-bar hairline above (a visible 2 px "double border" at the
+/// panel's bottom edge), and with the 1 px window frame on the trailing
+/// edge; those chrome lines already bound the other three sides. Under
+/// RTL the panel sits on the leading (left) side, and `dir_row` mirrors
+/// the handle onto the panel's content-facing edge automatically.
 pub(crate) fn side_panel_frame(
     content: Element<'_, Message>,
     background: iced::Color,
+    width: f32,
 ) -> Element<'_, Message> {
-    let separator = container(Space::new().width(1).height(Length::Fill)).style(|_| {
-        container::Style {
-            background: Some(Background::Color(OryxisColors::t().border)),
-            ..Default::default()
-        }
-    });
+    let handle = iced::widget::MouseArea::new(
+        container(Space::new().width(Length::Fixed(4.0)).height(Length::Fill))
+            .width(Length::Fixed(4.0))
+            .height(Length::Fill)
+            .style(|_| container::Style {
+                background: Some(Background::Color(OryxisColors::t().border)),
+                ..Default::default()
+            }),
+    )
+    .on_press(Message::Tabs(crate::app::TabsMessage::SidePanelResizeStart))
+    .interaction(iced::mouse::Interaction::ResizingHorizontally);
     let body = container(content)
-        .width(crate::app::PANEL_WIDTH - 1.0)
+        .width(width - 4.0)
         .height(Length::Fill)
         .style(move |_| container::Style {
             background: Some(Background::Color(background)),
             ..Default::default()
         });
-    dir_row(vec![separator.into(), body.into()])
+    dir_row(vec![handle.into(), body.into()])
         .height(Length::Fill)
         .into()
 }

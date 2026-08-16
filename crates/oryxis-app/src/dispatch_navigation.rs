@@ -396,20 +396,20 @@ impl Oryxis {
                     // content's right edge.
                     let panel_width = match kind {
                         SortMenuKind::Hosts => {
-                            if self.panels.host_panel { crate::app::PANEL_WIDTH } else { 0.0 }
+                            if self.panels.host_panel { self.panel_width } else { 0.0 }
                         }
                         SortMenuKind::Keys => {
                             if self.panels.key_panel
                                 || self.panels.identity_panel
                                 || self.panels.key_generate_panel
                             {
-                                crate::app::PANEL_WIDTH
+                                self.panel_width
                             } else {
                                 0.0
                             }
                         }
                         SortMenuKind::Snippets => {
-                            if self.panels.snippet_panel { crate::app::PANEL_WIDTH } else { 0.0 }
+                            if self.panels.snippet_panel { self.panel_width } else { 0.0 }
                         }
                     };
                     // Must match the `OverlayContent::SortMenu` width in
@@ -470,7 +470,7 @@ impl Oryxis {
                     let menu_w = self.toolbar_search_width();
                     let pad = 24.0_f32;
                     let panel = if self.vault_panel_open() {
-                        crate::app::PANEL_WIDTH
+                        self.panel_width
                     } else {
                         0.0
                     };
@@ -516,7 +516,7 @@ impl Oryxis {
                         y: 0.0,
                     });
                     let panel = if self.vault_panel_open() {
-                        crate::app::PANEL_WIDTH
+                        self.panel_width
                     } else {
                         0.0
                     };

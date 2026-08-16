@@ -168,6 +168,7 @@ impl Oryxis {
     /// clear `suppress_hover`, after which the gate closes again).
     fn mouse_interest(&self) -> bool {
         self.chat_ui.sidebar_drag.is_some()
+            || self.panel_resize_drag.is_some()
             || self.sftp_chrome.split_drag.is_some()
             || self.sftp_chrome.log_drag.is_some()
             || self.sftp_chrome.col_resize.is_some()

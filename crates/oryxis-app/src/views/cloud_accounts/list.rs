@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{SettingsMessage, CloudMessage, Message, Oryxis, CARD_WIDTH, PANEL_WIDTH};
+use crate::app::{SettingsMessage, CloudMessage, Message, Oryxis, CARD_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
@@ -340,7 +340,7 @@ impl Oryxis {
             }
 
             let nav_width = self.vault_rail_width();
-            let panel_width = if self.cloud_form.visible { PANEL_WIDTH } else { 0.0 };
+            let panel_width = if self.cloud_form.visible { self.panel_width } else { 0.0 };
             let available =
                 (self.window_size.width
                 - nav_width

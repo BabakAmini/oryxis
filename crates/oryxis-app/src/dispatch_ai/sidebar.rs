@@ -176,6 +176,15 @@ impl Oryxis {
                 // its threshold dies with the press (issue #167).
                 self.drag_out_arm = None;
                 self.chat_ui.sidebar_drag = None;
+                // The same global Left-release ends a side-panel editor
+                // drawer resize; persist the final width so it survives
+                // a relaunch.
+                if self.panel_resize_drag.take().is_some() {
+                    self.persist_setting(
+                        "side_panel_width",
+                        &format!("{:.0}", self.panel_width),
+                    );
+                }
                 // The same global Left-release ends an SFTP divider drag;
                 // persist the final ratio so it survives a relaunch.
                 if self.sftp_chrome.split_drag.take().is_some() {

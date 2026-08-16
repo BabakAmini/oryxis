@@ -284,7 +284,7 @@ impl Oryxis {
         // editor and the dynamic-group / wizard panels so the
         // right side of the dashboard reads as one consistent
         // surface regardless of which editor is open.
-        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface, self.panel_width)
     }
 
     /// Render the EC2 / ECS / K8s sections of the loaded discovery result.

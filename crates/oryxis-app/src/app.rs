@@ -53,7 +53,14 @@ pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;
 pub(crate) const DEFAULT_TERM_ROWS: u32 = 40;
+/// Default width of the right-side editor drawer; the live value is
+/// `Oryxis::panel_width` (drag-resizable, persisted). Layout math must
+/// read the field, never this constant.
 pub(crate) const PANEL_WIDTH: f32 = 420.0;
+/// Clamp band for the drawer resize drag: the floor keeps the form
+/// rows usable, the ceiling keeps some content visible next to it.
+pub(crate) const PANEL_WIDTH_MIN: f32 = 340.0;
+pub(crate) const PANEL_WIDTH_MAX: f32 = 720.0;
 pub(crate) const SIDEBAR_WIDTH_COLLAPSED: f32 = 56.0;
 /// Width of the vertical nav rail when expanded to show section labels.
 pub(crate) const NAV_RAIL_WIDTH_EXPANDED: f32 = 190.0;
@@ -1202,6 +1209,15 @@ pub struct Oryxis {
     pub(crate) pending_ecs_autoconnect: Option<crate::state::PendingEcsAutoConnect>,
     /// In-progress tab reorder drag (see `TabDrag`). `None` when not dragging.
     pub(crate) tab_drag: Option<crate::state::TabDrag>,
+    /// Live width of the right-side editor drawer (host / key / identity /
+    /// snippet / port-forward / cloud forms, all of them: they share one
+    /// width, like they shared one constant). Defaults to `PANEL_WIDTH`,
+    /// dragged via the drawer's edge handle, persisted as the
+    /// `side_panel_width` setting on release.
+    pub(crate) panel_width: f32,
+    /// In-progress drawer resize drag: (cursor x at press, width at
+    /// press). `None` when not dragging.
+    pub(crate) panel_resize_drag: Option<(f32, f32)>,
     /// Toggles the SFTP feature entirely. Off hides the SFTP sidebar
     /// entry (both expanded and collapsed) so users who never transfer
     /// files don't have it taking up nav space. The SFTP settings panel

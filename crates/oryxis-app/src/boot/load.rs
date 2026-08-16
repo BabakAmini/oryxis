@@ -870,6 +870,12 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("sync_git_remote") {
                 self.sync.git.remote = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("side_panel_width")
+                && let Ok(w) = v.parse::<f32>()
+            {
+                self.panel_width =
+                    w.clamp(crate::app::PANEL_WIDTH_MIN, crate::app::PANEL_WIDTH_MAX);
+            }
             if let Ok(Some(v)) = vault.get_setting("sftp_split_ratio")
                 && let Ok(r) = v.parse::<f32>()
             {

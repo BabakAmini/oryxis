@@ -779,7 +779,7 @@ impl Oryxis {
         // Standardised side-panel chrome (matches host editor,
         // discovery, dynamic-group editor) so every right-panel
         // editor shares the same background surface.
-        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface, self.panel_width)
     }
 }
 

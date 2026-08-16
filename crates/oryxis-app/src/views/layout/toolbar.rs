@@ -7,7 +7,7 @@ impl Oryxis {
     /// padding. Drives the responsive collapse tiers.
     pub(crate) fn toolbar_content_width(&self) -> f32 {
         let panel = if self.vault_panel_open() {
-            crate::app::PANEL_WIDTH
+            self.panel_width
         } else {
             0.0
         };
@@ -40,7 +40,7 @@ impl Oryxis {
                 // Grid/list toggle only shows above a single grid column.
                 let nav_width = self.vault_rail_width();
                 let panel = if self.vault_panel_open() {
-                    crate::app::PANEL_WIDTH
+                    self.panel_width
                 } else {
                     0.0
                 };
@@ -706,7 +706,7 @@ impl Oryxis {
         // so subtract its width from the budget or pills would render
         // under the panel before the "…" kicks in.
         let panel_reserve = if self.side_panel_open() {
-            crate::app::PANEL_WIDTH
+            self.panel_width
         } else {
             0.0
         };

@@ -243,6 +243,6 @@ impl Oryxis {
 
         let panel_content = column![panel_header, form_scroll, footer].height(Length::Fill);
 
-        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface)
+        crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface, self.panel_width)
     }
 }

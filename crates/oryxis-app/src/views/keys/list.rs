@@ -464,7 +464,7 @@ impl Oryxis {
             || self.panels.identity_panel
             || self.panels.key_generate_panel
         {
-            crate::app::PANEL_WIDTH
+            self.panel_width
         } else {
             0.0
         };

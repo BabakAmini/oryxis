@@ -570,7 +570,7 @@ impl Oryxis {
         // the side panel reflows the cards into the new column count.
         let nav_width = self.vault_rail_width();
         let panel_open = self.cloud_discover.visible || self.panels.host_panel;
-        let panel_width = if panel_open { crate::app::PANEL_WIDTH } else { 0.0 };
+        let panel_width = if panel_open { self.panel_width } else { 0.0 };
         // A side-docked tab strip (issue #87) narrows the content band
         // like the other grids; without it the math yields one column
         // too many and the card row clips at the edge.

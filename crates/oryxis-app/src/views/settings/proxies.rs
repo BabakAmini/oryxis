@@ -509,7 +509,7 @@ impl Oryxis {
         let panel_content = column![panel_header, form_scroll, error_el, footer].height(Length::Fill);
 
         container(panel_content)
-            .width(crate::app::PANEL_WIDTH)
+            .width(self.panel_width)
             .height(Length::Fill)
             .style(|_| container::Style {
                 background: Some(Background::Color(OryxisColors::t().bg_surface)),

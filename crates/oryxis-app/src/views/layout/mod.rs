@@ -368,7 +368,7 @@ impl Oryxis {
 
     /// `true` when a side-panel editor is open over the active vault
     /// view, so it narrows the content (and therefore the toolbar) by
-    /// `PANEL_WIDTH`. Mirrors `active_side_panel`'s conditions cheaply
+    /// the live `panel_width`. Mirrors `active_side_panel`'s conditions cheaply
     /// (no Element built) for the responsive-toolbar width budget.
     pub(crate) fn vault_panel_open(&self) -> bool {
         if self.active_tab.is_some() {

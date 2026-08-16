@@ -547,6 +547,8 @@ impl Oryxis {
                 pin_next_plugin_tab: None,
                 pending_ecs_autoconnect: None,
                 tab_drag: None,
+                panel_width: crate::app::PANEL_WIDTH,
+                panel_resize_drag: None,
                 sftp_enabled: true,
                 // Workspace is the v0.7 default. Existing users who
                 // never persisted `layout_mode` also fall through to

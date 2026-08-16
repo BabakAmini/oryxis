@@ -27,6 +27,7 @@ impl Oryxis {
             y: (pos.y / SNAP).round() * SNAP,
         };
         let needs_drag_update = self.chat_ui.sidebar_drag.is_some()
+            || self.panel_resize_drag.is_some()
             || self.sftp_chrome.split_drag.is_some()
             || self.sftp_chrome.log_drag.is_some()
             || self.sftp_chrome.col_resize.is_some()
@@ -95,6 +96,18 @@ impl Oryxis {
             };
             let new_width = (start_width + signed).clamp(260.0, 700.0);
             self.chat_ui.sidebar_width[side.idx()] = new_width;
+        }
+        // While the side-panel editor drawer's edge handle is held
+        // down, the drawer width tracks the cursor. The drawer sits on
+        // the trailing edge (physical right under LTR, left under RTL),
+        // so the direction that grows it flips with the layout
+        // direction. Clamp to the band that keeps both the form and the
+        // content next to it usable.
+        if let Some((start_x, start_width)) = self.panel_resize_drag {
+            let delta = pos.x - start_x;
+            let signed = if crate::i18n::is_rtl_layout() { delta } else { -delta };
+            self.panel_width = (start_width + signed)
+                .clamp(crate::app::PANEL_WIDTH_MIN, crate::app::PANEL_WIDTH_MAX);
         }
         // SFTP center divider: the ratio tracks the cursor across the
         // content area (window minus the nav rail; the chat sidebar is
@@ -272,6 +285,10 @@ impl Oryxis {
             self.tab_drag = None;
             self.sftp.drag = None;
             self.sftp_chrome.col_drag = None;
+            // A drawer-resize release outside the window never reaches
+            // us either; the width already applied live, only the drag
+            // state (and its pending persist) is dropped.
+            self.panel_resize_drag = None;
             // An Alt released outside the window never reaches us; a
             // wedged side would silently turn Option keystrokes into
             // Meta (or vice versa) after refocus.
@@ -566,6 +583,12 @@ impl Oryxis {
                     Some(id) => iced::window::drag_resize(id, direction),
                     None => Task::none(),
                 });
+            }
+            TabsMessage::SidePanelResizeStart => {
+                // Capture cursor x plus the current width; the
+                // MouseMoved handler computes the delta against these.
+                self.panel_resize_drag =
+                    Some((self.mouse_position.x, self.panel_width));
             }
             TabsMessage::WindowExpandVertical => return self.handle_window_expand_vertical(),
             TabsMessage::WindowMinimize => return self.handle_window_minimize(),
