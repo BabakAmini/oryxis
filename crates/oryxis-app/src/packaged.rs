@@ -43,6 +43,30 @@ pub(crate) fn is_packaged() -> bool {
     })
 }
 
+/// The `<PackageFamilyName>!<App Id>` AUMID Windows assigned this
+/// packaged process. `None` outside a package (or on an unexpected
+/// failure); callers use it to file toasts under the package identity,
+/// which is the only id the shell attributes to a Store install.
+#[cfg(target_os = "windows")]
+pub(crate) fn application_user_model_id() -> Option<String> {
+    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentApplicationUserModelId;
+
+    // First call sizes the buffer (ERROR_INSUFFICIENT_BUFFER + length
+    // incl. the trailing NUL), second call fills it.
+    let mut len: u32 = 0;
+    unsafe { GetCurrentApplicationUserModelId(&mut len, std::ptr::null_mut()) };
+    if len == 0 {
+        return None;
+    }
+    let mut buf = vec![0u16; len as usize];
+    let rc = unsafe { GetCurrentApplicationUserModelId(&mut len, buf.as_mut_ptr()) };
+    if rc != ERROR_SUCCESS {
+        return None;
+    }
+    Some(String::from_utf16_lossy(&buf[..len.saturating_sub(1) as usize]))
+}
+
 /// Non-Windows builds are never packaged; MSIX is a Windows container.
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn is_packaged() -> bool {

@@ -9,12 +9,14 @@
 //! taskbar button that carries the same AUMID. The installer reserves
 //! `io.oryxis.Oryxis` for this (see `resources/installer.nsi`) but does not
 //! yet stamp it on the Start-menu shortcut. Rather than call
-//! `SetCurrentProcessExplicitAppUserModelID` (which Windows toast
-//! notifications also key off of, and which `notify-rust` may rely on), we
-//! tag only the *window* with the AUMID via `SHGetPropertyStoreForWindow`
-//! and file the list under the same string with `SetAppID`. That gives the
-//! running window's button a working JumpList without touching the process
-//! AUMID, so existing OS notifications are provably unaffected.
+//! `SetCurrentProcessExplicitAppUserModelID` (a process-wide switch other
+//! shell surfaces key off of), we tag only the *window* with the AUMID via
+//! `SHGetPropertyStoreForWindow` and file the list under the same string
+//! with `SetAppID`. That gives the running window's button a working
+//! JumpList without touching the process AUMID. Toast notifications carry
+//! the same id explicitly (`util.rs::toast_app_id`, backed by an HKCU
+//! `AppUserModelId` registration), so all three surfaces agree on
+//! `io.oryxis.Oryxis` with zero process-global state.
 //!
 //! Known limitation (owner-tracked in the installer): a pinned-but-not-
 //! running Start-menu shortcut keeps its implicit exe-path AUMID until the

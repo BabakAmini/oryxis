@@ -207,4 +207,8 @@ Section "Uninstall"
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\App Paths\oryxis.exe"
     DeleteRegKey HKLM "Software\Classes\oryxis"
     DeleteRegKey HKLM "Software\Classes\ssh"
+    ; Toast identity the app self-registers at runtime (util.rs::
+    ; register_toast_aumid). Written per-user, so sweep HKCU even
+    ; from the elevated uninstaller.
+    DeleteRegKey HKCU "Software\Classes\AppUserModelId\io.oryxis.Oryxis"
 SectionEnd

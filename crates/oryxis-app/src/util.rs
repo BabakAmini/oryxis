@@ -490,7 +490,7 @@ impl HintMode {
 
 /// Show a native OS notification (OSC 9). Returns whether it was dispatched;
 /// the caller falls back to an in-app toast on `false` (no notification daemon
-/// on Linux, or no registered AppUserModelID on a non-installed Windows build).
+/// on Linux, or the toast pipeline failing on Windows).
 #[cfg(not(target_os = "windows"))]
 pub(crate) fn show_os_notification(summary: &str, body: &str) -> bool {
     notify_rust::Notification::new()
@@ -501,28 +501,141 @@ pub(crate) fn show_os_notification(summary: &str, body: &str) -> bool {
         .is_ok()
 }
 
-/// Windows half, calling the same backend notify-rust would.
+/// Windows half, calling the same backend notify-rust would (0.8 builds
+/// on `windows` 0.62, the major everything else in the tree already
+/// uses, while notify-rust pins the 0.7 line to 0.61).
 ///
-/// notify-rust's Windows path is a thin wrapper over this crate, and it
-/// ignores `appname` entirely: it sends `Notification::app_id`, which we
-/// never set, so it falls back to `Toast::POWERSHELL_APP_ID`. Passing that
-/// id here reproduces today's behaviour exactly, including the
-/// documented failure mode (no toast on a build with no registered
-/// AppUserModelID). What changes is only the version: 0.8 builds on
-/// `windows` 0.62, the major everything else in the tree already uses,
-/// while notify-rust pins the 0.7 line to 0.61.
+/// Toasts are attributed to whatever AppUserModelID they are sent under,
+/// so the id decides the name and icon Windows prints on the banner and
+/// in the Action Center. `toast_app_id` resolves ours; the historical
+/// `POWERSHELL_APP_ID` fallback (which labelled every notification
+/// "Windows PowerShell") only survives for the case where the HKCU
+/// registration itself is refused, where a mislabelled toast still beats
+/// a silently dropped one.
 ///
 /// Deliberately NOT calling `SetCurrentProcessExplicitAppUserModelID` to
-/// "improve" this: `jumplist.rs` explains why the process AUMID is left
-/// alone, and toast routing keys off it.
+/// wire this up: `jumplist.rs` explains why the process AUMID is left
+/// alone. The notifier takes the id explicitly, no process state needed.
 #[cfg(target_os = "windows")]
 pub(crate) fn show_os_notification(summary: &str, body: &str) -> bool {
     use tauri_winrt_notification::Toast;
-    Toast::new(Toast::POWERSHELL_APP_ID)
+    Toast::new(&toast_app_id())
         .title(summary)
         .text1(body)
         .show()
         .is_ok()
+}
+
+/// The AppUserModelID toasts are filed under.
+///
+/// Packaged (MSIX) processes must use the package identity: Windows
+/// already registered `<PackageFamilyName>!<AppId>` with the Store
+/// metadata's name and logo, and any other id would either fail or
+/// misattribute the toast. Unpackaged builds self-register
+/// `jumplist::AUMID` under `HKCU\Software\Classes\AppUserModelId` once
+/// per process; that key is what makes the shell render "Oryxis" + our
+/// logo instead of demanding a Start-menu shortcut carry the id.
+#[cfg(target_os = "windows")]
+fn toast_app_id() -> String {
+    if crate::packaged::is_packaged()
+        && let Some(id) = crate::packaged::application_user_model_id()
+    {
+        return id;
+    }
+    static REGISTERED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    if *REGISTERED.get_or_init(register_toast_aumid) {
+        crate::jumplist::AUMID.to_string()
+    } else {
+        tauri_winrt_notification::Toast::POWERSHELL_APP_ID.to_string()
+    }
+}
+
+/// Register `jumplist::AUMID` as a toast-capable app identity:
+/// `HKCU\Software\Classes\AppUserModelId\<AUMID>` with `DisplayName` and
+/// `IconUri`, the documented registration path for unpackaged apps.
+/// HKCU is writable at any integrity level and merges over an HKLM
+/// entry, so one code path serves the system install, the per-user
+/// install and portable/dev runs alike. Idempotent by construction
+/// (create-or-open + set), and the uninstallers sweep the key.
+#[cfg(target_os = "windows")]
+fn register_toast_aumid() -> bool {
+    use windows_sys::Win32::Foundation::ERROR_SUCCESS;
+    use windows_sys::Win32::System::Registry::{
+        RegCloseKey, RegCreateKeyExW, RegSetValueExW, HKEY, HKEY_CURRENT_USER, KEY_WRITE,
+        REG_OPTION_NON_VOLATILE, REG_SZ,
+    };
+
+    fn wide(s: &str) -> Vec<u16> {
+        s.encode_utf16().chain(std::iter::once(0)).collect()
+    }
+
+    let subkey = wide(&format!(
+        "Software\\Classes\\AppUserModelId\\{}",
+        crate::jumplist::AUMID
+    ));
+    let mut hkey: HKEY = std::ptr::null_mut();
+    let rc = unsafe {
+        RegCreateKeyExW(
+            HKEY_CURRENT_USER,
+            subkey.as_ptr(),
+            0,
+            std::ptr::null(),
+            REG_OPTION_NON_VOLATILE,
+            KEY_WRITE,
+            std::ptr::null(),
+            &mut hkey,
+            std::ptr::null_mut(),
+        )
+    };
+    if rc != ERROR_SUCCESS {
+        tracing::debug!("toast: AUMID registration failed to open key: {rc}");
+        return false;
+    }
+    let set = |name: &str, value: &str| -> bool {
+        let name_w = wide(name);
+        let value_w = wide(value);
+        let rc = unsafe {
+            RegSetValueExW(
+                hkey,
+                name_w.as_ptr(),
+                0,
+                REG_SZ,
+                value_w.as_ptr().cast(),
+                (value_w.len() * std::mem::size_of::<u16>()) as u32,
+            )
+        };
+        rc == ERROR_SUCCESS
+    };
+    // The display name is what fixes the "Windows PowerShell" label; the
+    // icon is best-effort on top (a missing one only costs the banner
+    // its logo, never the toast).
+    let ok = set("DisplayName", "Oryxis");
+    if let Some(icon) = toast_icon_path() {
+        set("IconUri", &icon.to_string_lossy());
+    }
+    unsafe { RegCloseKey(hkey) };
+    ok
+}
+
+/// Icon for the AUMID registration. Installed builds ship `logo.ico`
+/// next to the exe (both NSIS scripts lay it down); portable/dev runs
+/// materialize the embedded 64px logo under `~/.oryxis/runtime/` once,
+/// since `IconUri` only accepts a filesystem path, not an exe resource.
+#[cfg(target_os = "windows")]
+fn toast_icon_path() -> Option<std::path::PathBuf> {
+    if let Ok(exe) = std::env::current_exe()
+        && let Some(ico) = exe.parent().map(|dir| dir.join("logo.ico"))
+        && ico.exists()
+    {
+        return Some(ico);
+    }
+    let dir = oryxis_core::paths::oryxis_dir()?.join("runtime");
+    std::fs::create_dir_all(&dir).ok()?;
+    let png = dir.join("toast-icon.png");
+    if !png.exists() {
+        std::fs::write(&png, include_bytes!("../../../resources/logo_64.png")).ok()?;
+    }
+    Some(png)
 }
 
 /// Best-effort native system beep, no audio dependency. Windows uses
