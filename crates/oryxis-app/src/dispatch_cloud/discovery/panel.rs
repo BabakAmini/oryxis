@@ -18,6 +18,7 @@ impl Oryxis {
                 // hangs on top of the freshly-opened discovery panel.
                 self.overlay = None;
                 // Close any other right-panel (mutually exclusive slot).
+                self.editor_flush_pending();
                 self.panels.host_panel = false;
                 // Drop what the host editor's eyes revealed.
                 self.editor_form.sweep_secrets();

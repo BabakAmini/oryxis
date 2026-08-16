@@ -88,6 +88,9 @@ impl Oryxis {
         &mut self,
         protocol: oryxis_core::models::connection::ConnectionProtocol,
     ) -> iced::Task<crate::app::Message> {
+        // An existing host may still be open with a debouncing
+        // auto-save; persist it before the form resets to blank.
+        self.editor_flush_pending();
         // Dismiss the `…` overflow menu if it launched this.
         self.overlay = None;
         // Mutually exclusive right-panel slot, close any other panel
@@ -863,7 +866,12 @@ impl Oryxis {
                 | EditorMessage::DeleteConnection(..)
                 | EditorMessage::DuplicateConnection(..)
                 | EditorMessage::EditorSectionToggled(..)
+                | EditorMessage::EditorPresetPicked(..)
             ) => self.handle_editor_lifecycle(m),
+            m @ (
+                EditorMessage::EditorAutoSaveTick(..)
+                | EditorMessage::EditorAutoSaveFlashClear(..)
+            ) => self.handle_editor_autosave(m),
             m @ (
                 EditorMessage::EditorLabelChanged(..)
                 | EditorMessage::EditorTagsChanged(..)
@@ -1146,6 +1154,7 @@ fn build_proxy_resolution(form: &ConnectionForm) -> Result<ProxyResolution, Stri
     }
 }
 
+mod autosave;
 mod lifecycle;
 mod identity;
 mod login_script;

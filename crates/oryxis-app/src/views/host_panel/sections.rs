@@ -50,10 +50,22 @@ impl Oryxis {
         } else {
             iced_fonts::lucide::chevron_right()
         };
+        // A glyph per section gives the closed stack a scannable
+        // hierarchy: the eye finds "the key one" / "the globe one"
+        // before reading a word.
+        let glyph = match section {
+            HostEditorSection::Authentication => iced_fonts::lucide::key(),
+            HostEditorSection::Network => iced_fonts::lucide::globe(),
+            HostEditorSection::Compatibility => iced_fonts::lucide::wrench(),
+            HostEditorSection::Integration => iced_fonts::lucide::blocks(),
+            HostEditorSection::Terminal => iced_fonts::lucide::terminal(),
+        };
         let mut header_col = column![
             dir_row(vec![
                 chevron.size(14).color(OryxisColors::t().text_muted).into(),
                 Space::new().width(8).into(),
+                glyph.size(13).color(OryxisColors::t().text_secondary).into(),
+                Space::new().width(7).into(),
                 text(t(section.title_key()))
                     .size(13)
                     .color(OryxisColors::t().text_secondary)
@@ -71,8 +83,8 @@ impl Oryxis {
                     container(
                         text(summary).size(11).color(OryxisColors::t().accent),
                     )
-                    // Align under the title, past the chevron column.
-                    .padding(Padding { top: 4.0, right: 0.0, bottom: 0.0, left: 22.0 }),
+                    // Align under the title, past the chevron + glyph.
+                    .padding(Padding { top: 4.0, right: 0.0, bottom: 0.0, left: 42.0 }),
                 );
             }
         }
@@ -275,6 +287,76 @@ impl Oryxis {
             }
         }
         tokens
+    }
+
+    /// Create-flow starting points (P3): a row of one-shot chips under
+    /// the panel header, new-host flow only. Each chip prepares the
+    /// form for a common shape of host (`HostEditorPreset`); none is a
+    /// persisted mode, so there is no selected state, they are verbs.
+    /// Built (= keyboard-recorded) before the form fields, matching
+    /// their on-screen position above the scroll.
+    pub(super) fn hp_preset_row(&self) -> Element<'_, Message> {
+        use crate::state::HostEditorPreset as P;
+        let chip = |app: &Self, preset: P| -> Element<'_, Message> {
+            let icon = match preset {
+                P::BasicSsh => iced_fonts::lucide::server(),
+                P::ViaBastion => iced_fonts::lucide::route(),
+                P::Cloud => iced_fonts::lucide::cloud(),
+            };
+            let msg = Message::Editor(EditorMessage::EditorPresetPicked(preset));
+            app.panel_nav_slot(
+                crate::keynav::RowAction::activate(msg.clone()),
+                4.0,
+                button(
+                    dir_row(vec![
+                        icon.size(13).color(OryxisColors::t().text_secondary).into(),
+                        Space::new().width(6).into(),
+                        text(t(preset.label_key()))
+                            .size(12)
+                            .color(OryxisColors::t().text_secondary)
+                            .into(),
+                    ])
+                    .align_y(iced::Alignment::Center),
+                )
+                .on_press(msg)
+                .padding(Padding { top: 5.0, right: 10.0, bottom: 5.0, left: 10.0 })
+                .style(|_, status| {
+                    let bg = match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            OryxisColors::t().bg_hover
+                        }
+                        _ => OryxisColors::t().bg_surface,
+                    };
+                    button::Style {
+                        background: Some(Background::Color(bg)),
+                        border: Border {
+                            radius: Radius::from(14.0),
+                            width: 1.0,
+                            color: OryxisColors::t().border,
+                        },
+                        ..Default::default()
+                    }
+                })
+                .into(),
+            )
+        };
+        container(
+            dir_row(vec![
+                text(t("editor_preset_heading"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted)
+                    .into(),
+                Space::new().width(8).into(),
+                chip(self, P::BasicSsh),
+                Space::new().width(6).into(),
+                chip(self, P::ViaBastion),
+                Space::new().width(6).into(),
+                chip(self, P::Cloud),
+            ])
+            .align_y(iced::Alignment::Center),
+        )
+        .padding(Padding { top: 0.0, right: 16.0, bottom: 10.0, left: 16.0 })
+        .into()
     }
 }
 

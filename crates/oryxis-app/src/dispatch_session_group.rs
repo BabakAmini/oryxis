@@ -269,6 +269,7 @@ impl Oryxis {
     /// any stale error.
     fn open_session_group_editor(&mut self, mut form: SessionGroupForm) -> Task<Message> {
         // Mutually exclusive right-panel slot, close other panels first.
+        self.editor_flush_pending();
         self.panels.host_panel = false;
         // Drop what the host editor's eyes revealed.
         self.editor_form.sweep_secrets();

@@ -165,7 +165,11 @@ pub enum EditorMessage {
     /// `DeleteConnection`. Destructive removals are routed through a confirm
     /// dialog so a stray click can't silently drop a host.
     RequestDeleteConnection(usize),
-    DeleteConnection(usize),
+    /// By id, not index: the action sits behind a confirm dialog, and
+    /// the list can re-sort while it is up (an auto-saved rename, a
+    /// sync apply), so an index captured at request time could point
+    /// at a different host by the time the user confirms.
+    DeleteConnection(Uuid),
     DuplicateConnection(usize),
     /// Open the host editor prefilled from the quick-connect entry so the
     /// user can persist it as a regular host.
@@ -217,4 +221,14 @@ pub enum EditorMessage {
     /// Open / close one of the host editor's collapsible sections
     /// (two-tier form). Session-scoped UI state, never persisted.
     EditorSectionToggled(crate::state::HostEditorSection),
+    /// A create-flow starting-point chip was clicked (new-host editor
+    /// only). One-shot form preparation, see `HostEditorPreset`.
+    EditorPresetPicked(crate::state::HostEditorPreset),
+    /// Debounce expiry for the edit-an-existing-host auto-save. Carries
+    /// the generation it was armed with; a tick whose generation is no
+    /// longer current lost to a newer edit and does nothing.
+    EditorAutoSaveTick(u64),
+    /// Ends the transient "Saved" footer confirmation, generation-gated
+    /// the same way so a rapid save train keeps the label up.
+    EditorAutoSaveFlashClear(u64),
 }

@@ -118,6 +118,7 @@ impl Oryxis {
                 // Right-panel slot is mutually exclusive, close any
                 // other panel that's currently open so the user
                 // doesn't end up with two side-by-side editors.
+                self.editor_flush_pending();
                 self.panels.host_panel = false;
                 // Drop what the host editor's eyes revealed.
                 self.editor_form.sweep_secrets();

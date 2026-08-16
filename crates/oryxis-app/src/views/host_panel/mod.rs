@@ -104,6 +104,13 @@ impl Oryxis {
         // lands the title's top edge level with the left gutter.
         .padding(Padding { top: 12.0, right: 16.0, bottom: 12.0, left: 16.0 });
 
+        // Create-flow starting points (P3): fixed under the header,
+        // above the scroll, so they build (= keyboard-record) before
+        // the form fields. New-host flow only: an existing host IS its
+        // shape already, and the quick flow edits a live dial.
+        let preset_row: Option<Element<'_, Message>> =
+            (!is_editing && !self.editor_form.quick_flow).then(|| self.hp_preset_row());
+
         // Two-tier form: the essential fields build (= keynav-record)
         // first, then each collapsible section records its header and,
         // only while open, its body (`hp_section` runs the body closure
@@ -414,13 +421,17 @@ impl Oryxis {
         .id(iced::widget::Id::new("side-panel-scroll"))
         .height(Length::Fill);
 
-        let panel_content = column![
-            panel_header,
-            form_scroll,
-            container(bottom)
-                .padding(Padding { top: 8.0, right: 16.0, bottom: 16.0, left: 16.0 }),
-        ]
-        .height(Length::Fill);
+        let mut panel_content = column![panel_header];
+        if let Some(pr) = preset_row {
+            panel_content = panel_content.push(pr);
+        }
+        let panel_content = panel_content
+            .push(form_scroll)
+            .push(
+                container(bottom)
+                    .padding(Padding { top: 8.0, right: 16.0, bottom: 16.0, left: 16.0 }),
+            )
+            .height(Length::Fill);
 
         crate::widgets::side_panel_frame(panel_content.into(), OryxisColors::t().bg_surface, self.panel_width)
     }

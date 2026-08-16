@@ -1,4 +1,4 @@
-viewport: 1200x750
+viewport: 1200x900
 mode: Zen
 -----
 # Issue #52: the password reveal eye is a keyboard stop right after
@@ -17,9 +17,10 @@ click "Continue"
 expect "New Host"
 type "10.9.9.9"
 # Two-tier editor: the password row is part of the always-visible
-# essential tier, no scroll needed to reach it.
+# essential tier; the 900-tall viewport keeps it above the fold now
+# that the preset-chip row (P3) sits above the form.
 settle 500
-click (1000, 720)
+click (1000, 757)
 type "hunter2"
 type tab
 settle 300

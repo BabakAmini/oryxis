@@ -20,6 +20,9 @@ impl Oryxis {
                 );
             }
             EditorMessage::EditConnection(idx) => {
+                // Another host may still be open with a debouncing
+                // auto-save; persist it before its form is replaced.
+                self.editor_flush_pending();
                 self.card_context_menu = None;
                 self.overlay = None;
                 if let Some(conn) = self.connections.get(idx) {
@@ -84,12 +87,19 @@ impl Oryxis {
                         _ => crate::state::StartupChoice::None,
                     };
                     self.rebuild_editor_combos();
+                    // Fresh host in the form: drop the previous
+                    // baseline; the post-dispatch kick records the new
+                    // one before any edit can land.
+                    self.editor_saved_snapshot = None;
                     return crate::widgets::focus_input(iced::widget::Id::new(
                         "editor-hostname",
                     ));
                 }
             }
             EditorMessage::SaveQuickHost(id) => {
+                // Same guard as EditConnection: an existing host's
+                // pending auto-save must not die with the form swap.
+                self.editor_flush_pending();
                 self.overlay = None;
                 self.card_context_menu = None;
                 let Some(entry) = self.quick_connects.get(&id).cloned() else {
@@ -180,92 +190,18 @@ impl Oryxis {
                 if !self.panels.host_panel {
                     return Task::none();
                 }
-                if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
-                    self.host_panel_error =
-                        Some(crate::i18n::t("editor_label_host_required").to_string());
-                    return Task::none();
-                }
-                let conn = match self.connection_from_editor_form(true) {
-                    Ok(conn) => conn,
-                    Err(msg) => {
-                        self.host_panel_error = Some(msg);
-                        return Task::none();
+                match self.persist_editor_form() {
+                    Ok(_) => {
+                        self.panels.host_panel = false;
+                        self.panel_nav_clear();
+                        self.host_panel_error = None;
+                        // The save consumed the secrets; drop any
+                        // plaintext the eye may have revealed.
+                        self.editor_form.sweep_secrets();
+                        self.editor_saved_snapshot = None;
                     }
-                };
-                // Tri-state: untouched preserves the stored password,
-                // cleared removes it, typed stores (SecretInput::resolve).
-                let password = self.editor_form.password.resolve();
-
-                if let Some(vault) = &self.vault {
-                    match vault.save_connection(&conn, password) {
-                        Ok(()) => {
-                            // Persist the encrypted proxy password in its own
-                            // column. We only touch it when the user edited
-                            // the field (resolve returns Some), mirroring the
-                            // main connection password; an edited-empty field
-                            // maps to None = remove for this setter.
-                            if let Some(pw) = self.editor_form.proxy_password.resolve() {
-                                let _ = vault.set_proxy_password(
-                                    &conn.id,
-                                    (!pw.is_empty()).then_some(pw),
-                                );
-                            }
-                            // If the proxy was disabled in this save, drop any
-                            // previously stored proxy password, keeping a
-                            // dangling encrypted credential would be surprising.
-                            if conn.proxy.is_none() {
-                                let _ = vault.set_proxy_password(&conn.id, None);
-                            }
-                            // TOTP secret, same touched tri-state as the
-                            // proxy password (empty input clears). TOTP is
-                            // SSH-only (keyboard-interactive 2FA); if the
-                            // protocol was switched to Telnet/Serial/RDP the
-                            // field is hidden, so clear any secret rather than
-                            // persisting dead credential material, mirroring
-                            // the `mcp_enabled` SSH clamp above. Toggling
-                            // "Use TOTP" off clears the same way: the field
-                            // is gone from the form, keeping the secret
-                            // would be surprising.
-                            let is_ssh = self.editor_form.protocol
-                                == oryxis_core::models::connection::ConnectionProtocol::Ssh;
-                            if !is_ssh || !self.editor_form.use_totp {
-                                let _ = vault.set_connection_totp_secret(&conn.id, None);
-                            } else if let Some(secret) =
-                                self.editor_form.totp_secret.resolve()
-                            {
-                                let s = secret.trim();
-                                let s = (!s.is_empty()).then_some(s);
-                                let _ = vault.set_connection_totp_secret(&conn.id, s);
-                            }
-                            // Target password, same clamp: it only means
-                            // anything while a login script is attached
-                            // (the save above already dropped the
-                            // reference on a non-SSH protocol), so
-                            // detaching the script clears the credential
-                            // instead of leaving it stranded.
-                            if conn.login_script_id.is_none() {
-                                let _ = vault.set_connection_target_password(&conn.id, None);
-                            } else if let Some(pw) =
-                                self.editor_form.target_password.resolve()
-                            {
-                                let _ = vault.set_connection_target_password(&conn.id, Some(pw));
-                            }
-                            self.panels.host_panel = false;
-                            self.panel_nav_clear();
-                            self.host_panel_error = None;
-                            // The save consumed the secrets; drop any
-                            // plaintext the eye may have revealed.
-                            self.editor_form.sweep_secrets();
-                            // Re-paint any open tabs of this host so a
-                            // newly chosen palette takes effect without
-                            // a reconnect.
-                            let host_label = conn.label.clone();
-                            self.load_data_from_vault();
-                            self.repaint_terminal_palettes_for_label(&host_label);
-                        }
-                        Err(e) => {
-                            self.host_panel_error = Some(e.to_string());
-                        }
+                    Err(e) => {
+                        self.host_panel_error = Some(e);
                     }
                 }
             }
@@ -333,24 +269,42 @@ impl Oryxis {
                 return self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(entry))));
             }
             EditorMessage::EditorCancel => {
+                // Editing an existing host is auto-save territory: the
+                // X / Esc means "done", not "discard", so persist what
+                // the debounce still holds. A new host keeps the old
+                // meaning (nothing was written, nothing survives).
+                self.editor_flush_pending();
                 self.panels.host_panel = false;
                 self.panel_nav_clear();
                 self.host_panel_error = None;
-                // Nothing was written, so there is nothing to preserve
-                // but the user's own typing.
                 self.editor_form.sweep_secrets();
+                self.editor_saved_snapshot = None;
             }
             EditorMessage::RequestDeleteConnection(idx) => {
                 if let Some(conn) = self.connections.get(idx) {
                     let name = conn.label.clone();
-                    self.confirm_remove(name, Message::Editor(EditorMessage::DeleteConnection(idx)));
+                    // The confirmed action carries the ID: the list can
+                    // re-sort while the dialog is up (an auto-saved
+                    // rename, a sync apply), so a captured index could
+                    // name a different host by confirm time.
+                    self.confirm_remove(
+                        name,
+                        Message::Editor(EditorMessage::DeleteConnection(conn.id)),
+                    );
                 }
             }
-            EditorMessage::DeleteConnection(idx) => {
+            EditorMessage::DeleteConnection(id) => {
                 self.card_context_menu = None;
                 self.overlay = None;
-                if let Some(conn) = self.connections.get(idx) {
-                    let id = conn.id;
+                if self.connections.iter().any(|c| c.id == id) {
+                    // The delete closes the editor below; a pending
+                    // auto-save on a DIFFERENT host must not die with
+                    // it. The deleted host itself is never flushed:
+                    // resurrecting a row the user just removed would
+                    // be worse than dropping its last keystrokes.
+                    if self.editor_form.editing_id != Some(id) {
+                        self.editor_flush_pending();
+                    }
                     if let Some(vault) = &self.vault {
                         let _ = vault.delete_connection(&id);
                         // Saved AI conversations reference the host by id, so
@@ -431,6 +385,46 @@ impl Oryxis {
                     }
                 }
             }
+            EditorMessage::EditorPresetPicked(preset) => {
+                use crate::state::{HostEditorPreset as P, HostEditorSection as S};
+                match preset {
+                    P::BasicSsh => {
+                        // Also the "back to plain" verb: protocol and
+                        // port reset, the section state folds shut.
+                        self.editor_form.protocol =
+                            oryxis_core::models::connection::ConnectionProtocol::Ssh;
+                        self.editor_form.port = "22".to_string();
+                        self.host_editor_open_sections.clear();
+                    }
+                    P::ViaBastion => {
+                        self.editor_form.protocol =
+                            oryxis_core::models::connection::ConnectionProtocol::Ssh;
+                        self.host_editor_open_sections.insert(S::Network);
+                        // Jump straight into picking the bastion when
+                        // the vault has candidates; on an empty vault
+                        // the opened section explains itself and an
+                        // empty picker would only confuse.
+                        if !self.connections.is_empty() {
+                            self.panels.chain_editor = true;
+                            self.chain_editor_adding = true;
+                            self.chain_editor_search.clear();
+                        }
+                    }
+                    P::Cloud => {
+                        // The cloud import lives in its own view; the
+                        // pristine create form has nothing to keep.
+                        self.panels.host_panel = false;
+                        self.panel_nav_clear();
+                        self.host_panel_error = None;
+                        self.editor_form.sweep_secrets();
+                        return self.update(Message::Navigation(
+                            crate::app::NavigationMessage::ChangeView(
+                                crate::state::View::Cloud,
+                            ),
+                        ));
+                    }
+                }
+            }
             EditorMessage::EditorSectionToggled(section) => {
                 // The keynav ring is left alone on purpose: the header's
                 // own index is stable across its toggle (every row before
@@ -446,5 +440,82 @@ impl Oryxis {
             m => return crate::dispatch::unrouted(m),
         }
         Task::none()
+    }
+
+    /// The vault-write half of `EditorSave`, shared with the auto-save
+    /// tick and flush (`dispatch_editor/autosave.rs`): validate, build
+    /// the `Connection`, persist the row plus its side-column secrets,
+    /// refresh app data and repaint any open tabs of the host. Does
+    /// NOT close the panel or sweep the form; each caller decides what
+    /// the save means for the surface.
+    pub(super) fn persist_editor_form(
+        &mut self,
+    ) -> Result<oryxis_core::models::Connection, String> {
+        if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
+            return Err(crate::i18n::t("editor_label_host_required").to_string());
+        }
+        let conn = self.connection_from_editor_form(true)?;
+        // Tri-state: untouched preserves the stored password,
+        // cleared removes it, typed stores (SecretInput::resolve).
+        let password = self.editor_form.password.resolve();
+        let Some(vault) = &self.vault else {
+            // Unreachable in practice: the editor only renders over an
+            // unlocked vault. A hard error beats a silent drop.
+            return Err(crate::i18n::t("error").to_string());
+        };
+        vault
+            .save_connection(&conn, password)
+            .map_err(|e| e.to_string())?;
+        // Persist the encrypted proxy password in its own
+        // column. We only touch it when the user edited
+        // the field (resolve returns Some), mirroring the
+        // main connection password; an edited-empty field
+        // maps to None = remove for this setter.
+        if let Some(pw) = self.editor_form.proxy_password.resolve() {
+            let _ = vault.set_proxy_password(&conn.id, (!pw.is_empty()).then_some(pw));
+        }
+        // If the proxy was disabled in this save, drop any
+        // previously stored proxy password, keeping a
+        // dangling encrypted credential would be surprising.
+        if conn.proxy.is_none() {
+            let _ = vault.set_proxy_password(&conn.id, None);
+        }
+        // TOTP secret, same touched tri-state as the
+        // proxy password (empty input clears). TOTP is
+        // SSH-only (keyboard-interactive 2FA); if the
+        // protocol was switched to Telnet/Serial/RDP the
+        // field is hidden, so clear any secret rather than
+        // persisting dead credential material, mirroring
+        // the `mcp_enabled` SSH clamp above. Toggling
+        // "Use TOTP" off clears the same way: the field
+        // is gone from the form, keeping the secret
+        // would be surprising.
+        let is_ssh = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh;
+        if !is_ssh || !self.editor_form.use_totp {
+            let _ = vault.set_connection_totp_secret(&conn.id, None);
+        } else if let Some(secret) = self.editor_form.totp_secret.resolve() {
+            let s = secret.trim();
+            let s = (!s.is_empty()).then_some(s);
+            let _ = vault.set_connection_totp_secret(&conn.id, s);
+        }
+        // Target password, same clamp: it only means
+        // anything while a login script is attached
+        // (the save above already dropped the
+        // reference on a non-SSH protocol), so
+        // detaching the script clears the credential
+        // instead of leaving it stranded.
+        if conn.login_script_id.is_none() {
+            let _ = vault.set_connection_target_password(&conn.id, None);
+        } else if let Some(pw) = self.editor_form.target_password.resolve() {
+            let _ = vault.set_connection_target_password(&conn.id, Some(pw));
+        }
+        // Re-paint any open tabs of this host so a
+        // newly chosen palette takes effect without
+        // a reconnect.
+        let host_label = conn.label.clone();
+        self.load_data_from_vault();
+        self.repaint_terminal_palettes_for_label(&host_label);
+        Ok(conn)
     }
 }

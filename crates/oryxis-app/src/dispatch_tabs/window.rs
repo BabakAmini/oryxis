@@ -432,6 +432,9 @@ impl Oryxis {
         // Persist any buffered session-log output before the
         // window goes away (real close or hide-to-tray both).
         self.flush_session_logs_final();
+        // A host-editor auto-save still inside its debounce window
+        // must not die with the process.
+        self.editor_flush_pending();
         // Remember size + maximized/fullscreen for the next
         // launch (also on hide-to-tray: a later tray Quit exits
         // without passing through here again).

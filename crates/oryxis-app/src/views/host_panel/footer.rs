@@ -152,7 +152,24 @@ impl Oryxis {
                 .width(Length::Fill)
                 .into()
         } else {
-            make_save_btn(self)
+            // Editing an existing host: no Save button, changes persist
+            // on their own (dispatch_editor/autosave.rs). The slot
+            // states the contract instead, flipping to an accent
+            // "Saved" for a moment after each persist so the writes
+            // are not invisible. Enter still saves-and-closes via the
+            // fields' on_submit; Esc / X flush before closing.
+            let (label, color) = if self.editor_autosave_saved_visible {
+                ("editor_autosave_saved", OryxisColors::t().accent)
+            } else {
+                ("editor_autosave_hint", OryxisColors::t().text_muted)
+            };
+            container(
+                text(crate::i18n::t(label)).size(12).color(color),
+            )
+            .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
+            .width(Length::Fill)
+            .center_x(Length::Fill)
+            .into()
         };
         actions_row
     }

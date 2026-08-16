@@ -29,7 +29,9 @@ click "Continue"
 settle 400
 find "Label"
 type "db.example.com"
-click (988, 182)
+# Label input; the create drawer's preset-chip row (P3) sits above the
+# form, so the field is lower than it was pre-chips.
+click (988, 219)
 type "db-prod"
 click "Save"
 settle 700

@@ -81,6 +81,9 @@ impl Oryxis {
                 // auto-reconnect tickers unmount (subscription.rs), so
                 // nothing hits the sealed vault; pane buffers accumulate
                 // and drain after unlock.
+                // A debouncing host-editor auto-save needs the key;
+                // persist it before the vault seals.
+                self.editor_flush_pending();
                 if let Some(vault) = &mut self.vault
                     && self.vault_ui.has_user_password
                 {
@@ -243,6 +246,9 @@ impl Oryxis {
                 }
             }
             VaultMessage::LockVault => {
+                // Same as the soft lock: flush a debouncing host-editor
+                // auto-save while the key still exists.
+                self.editor_flush_pending();
                 if let Some(vault) = &mut self.vault {
                     vault.lock();
                     // The dialog that armed this is committed; clear the

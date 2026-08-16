@@ -230,7 +230,25 @@ impl Oryxis {
             Message::Vault(m) => self.handle_vault(m),
             Message::Sync(m) => self.handle_sync(m),
             Message::Mcp(m) => self.handle_mcp(m),
-            Message::Editor(m) => self.handle_editor(m),
+            Message::Editor(m) => {
+                // Auto-save watch (dispatch_editor/autosave.rs): any
+                // editor-domain message may have drifted the form of an
+                // open EXISTING host, so re-arm the debounce after
+                // handling. The tick and its flash are excluded or the
+                // tick would re-arm itself forever.
+                let watch = !matches!(
+                    m,
+                    crate::app::EditorMessage::EditorAutoSaveTick(..)
+                        | crate::app::EditorMessage::EditorAutoSaveFlashClear(..)
+                );
+                let task = self.handle_editor(m);
+                if watch {
+                    let kick = self.editor_autosave_kick();
+                    Task::batch([task, kick])
+                } else {
+                    task
+                }
+            }
             Message::Share(m) => self.handle_share(m),
             Message::Tray(m) => self.handle_tray(m),
             Message::Onboarding(m) => self.handle_onboarding(m),
@@ -239,7 +257,16 @@ impl Oryxis {
             Message::Monitor(m) => self.handle_monitor(m),
             Message::Tmux(m) => self.handle_tmux(m),
             Message::History(m) => self.handle_history(m),
-            Message::Settings(m) => self.handle_settings(m),
+            Message::Settings(m) => {
+                // Two settings-domain arms edit the OPEN host editor's
+                // form (the host-scope highlight rules, a login-script
+                // delete clearing its reference), so the auto-save
+                // watch extends here; `editor_autosave_kick` no-ops
+                // unless an existing host is open and drifted.
+                let task = self.handle_settings(m);
+                let kick = self.editor_autosave_kick();
+                Task::batch([task, kick])
+            }
             Message::Keys(m) => self.handle_keys(m),
             Message::Cloud(m) => self.handle_cloud(m),
             Message::Ssh(m) => self.handle_ssh(m),

@@ -1218,6 +1218,20 @@ pub struct Oryxis {
     /// In-progress drawer resize drag: (cursor x at press, width at
     /// press). `None` when not dragging.
     pub(crate) panel_resize_drag: Option<(f32, f32)>,
+    /// Auto-save debounce generation for the host editor (existing
+    /// hosts persist as they are edited; see `dispatch_editor/autosave.rs`).
+    /// Each re-arm bumps it, so only the newest scheduled tick acts.
+    pub(crate) editor_autosave_gen: u64,
+    /// Generation gate for the transient "Saved" footer confirmation.
+    pub(crate) editor_autosave_flash_gen: u64,
+    /// Whether the footer currently shows "Saved" instead of the
+    /// standing "changes save automatically" hint.
+    pub(crate) editor_autosave_saved_visible: bool,
+    /// Signature of the editor form as of the last persist (or the
+    /// baseline recorded when the editor opened): what
+    /// `editor_autosave_dirty` compares against. `None` = no baseline
+    /// yet; the first post-open editor message records it.
+    pub(crate) editor_saved_snapshot: Option<String>,
     /// Toggles the SFTP feature entirely. Off hides the SFTP sidebar
     /// entry (both expanded and collapsed) so users who never transfer
     /// files don't have it taking up nav space. The SFTP settings panel

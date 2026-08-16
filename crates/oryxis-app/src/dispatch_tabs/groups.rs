@@ -29,6 +29,7 @@ impl Oryxis {
                     self.hydrate_group_defaults_form(gid);
                     self.group_edit.visible = true;
                     // Mutually exclusive with the other right-hand panels.
+                    self.editor_flush_pending();
                     self.panels.host_panel = false;
                     // Drop what the host editor's eyes revealed.
                     self.editor_form.sweep_secrets();
@@ -59,6 +60,7 @@ impl Oryxis {
                         ..Default::default()
                     };
                     // Mutually exclusive with the other right-hand panels.
+                    self.editor_flush_pending();
                     self.panels.host_panel = false;
                     // Drop what the host editor's eyes revealed.
                     self.editor_form.sweep_secrets();
@@ -85,6 +87,7 @@ impl Oryxis {
                     ..Default::default()
                 };
                 // Mutually exclusive with the other right-hand panels.
+                self.editor_flush_pending();
                 self.panels.host_panel = false;
                 // Drop what the host editor's eyes revealed.
                 self.editor_form.sweep_secrets();

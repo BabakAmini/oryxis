@@ -432,6 +432,31 @@ pub(crate) enum HostEditorSection {
     Terminal,
 }
 
+/// Create-flow starting points (P3 of the two-tier rework): one-shot
+/// verbs on the new-host editor, not a persisted mode. Each prepares
+/// the form and the section state for a common shape of host.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HostEditorPreset {
+    /// Plain SSH host: protocol/port reset, every section closed.
+    BasicSsh,
+    /// Host reached through a jump host: opens the Network section and
+    /// (when the vault has candidates) the chain editor's add flow.
+    ViaBastion,
+    /// Import from a cloud provider: hands the flow to the Cloud view.
+    Cloud,
+}
+
+impl HostEditorPreset {
+    /// i18n key for the chip label.
+    pub(crate) fn label_key(self) -> &'static str {
+        match self {
+            Self::BasicSsh => "preset_basic_ssh",
+            Self::ViaBastion => "preset_via_bastion",
+            Self::Cloud => "preset_cloud",
+        }
+    }
+}
+
 impl HostEditorSection {
     /// i18n key for the section's header title.
     pub(crate) fn title_key(self) -> &'static str {
