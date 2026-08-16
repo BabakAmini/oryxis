@@ -77,6 +77,17 @@ pub(crate) struct PaneTmux {
     /// so a click cannot type a command into the session it is already
     /// showing.
     pub attached_to: Option<String>,
+    /// When `attached_to` was last SET (typed attach / confirmed
+    /// switch). A listing may only retire the hint when it started
+    /// comfortably after this: the typed attach takes a shell round
+    /// trip to register, so a listing racing the click still reports
+    /// the pre-attach world (zero clients) and clearing on it would
+    /// make the session's row clickable again, re-arming the exact
+    /// typed-into-the-session failure the hint exists to stop (#159).
+    pub hint_set_at: Option<std::time::Instant>,
+    /// When the in-flight listing started (one at a time per pane,
+    /// `begin_probe` guards). Compared against `hint_set_at` above.
+    pub listing_started: Option<std::time::Instant>,
 }
 
 /// Every pane's tmux state, plus the in-flight guard.
