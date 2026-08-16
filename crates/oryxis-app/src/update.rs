@@ -338,12 +338,21 @@ fn pick_asset(
         Some(a) => a,
         None => return (None, None),
     };
-    let (want, exclude) = match channel {
-        UpdateChannel::Stable => (platform_asset_fragment(), platform_asset_exclude()),
-        // The `.exe` fragment also matches the detached-signature and
-        // checksum sidecars (`….exe.sig`); only asset ordering keeps the
-        // real binary winning today, so exclude them explicitly.
-        UpdateChannel::Nightly => (nightly_asset_fragment(), vec![".sig", ".sha256"]),
+    // Every asset ships with a detached signature and a checksum whose
+    // names EXTEND the asset's own (`oryxis-setup-x86_64.exe.sig`), so
+    // the substring match accepts them for both channels and only asset
+    // ordering keeps the real installer winning. Exclude them
+    // explicitly, everywhere: picking a sidecar downloads a base64
+    // signature as the installer (verification then fails, so the cost
+    // is a dead update, not code execution, but it is dead for every
+    // user of that release).
+    let mut exclude = vec![".sig", ".sha256"];
+    let want = match channel {
+        UpdateChannel::Stable => {
+            exclude.extend(platform_asset_exclude());
+            platform_asset_fragment()
+        }
+        UpdateChannel::Nightly => nightly_asset_fragment(),
     };
     for a in assets {
         let name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");

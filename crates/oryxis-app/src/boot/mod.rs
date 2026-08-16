@@ -650,7 +650,16 @@ impl Oryxis {
             app.error_dialog = Some(crate::state::ErrorDialog {
                 title: crate::i18n::t("update_replace_failed").to_string(),
                 body: detail,
-                link: None,
+                // The title's own wording tells the user to open the
+                // release page, so the dialog carries the button rather
+                // than leaving them to find it.
+                link: Some(crate::state::ErrorDialogLink {
+                    label: crate::i18n::t("download").to_string(),
+                    url: format!(
+                        "https://github.com/{}/releases/latest",
+                        crate::update::RELEASE_REPO
+                    ),
+                }),
                 action: None,
             });
         }
