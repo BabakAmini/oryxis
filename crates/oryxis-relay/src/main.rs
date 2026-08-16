@@ -625,6 +625,20 @@ mod tests {
     use super::*;
     use std::net::SocketAddr;
 
+    /// The one place these tests build an HTTP client.
+    ///
+    /// They only ever talk `http://127.0.0.1`, and this crate asks reqwest
+    /// for no TLS at all, but Cargo unifies features across a workspace
+    /// build: `cargo test --workspace` compiles reqwest once, with the
+    /// app's `rustls-tls-webpki-roots-no-provider` folded in, and that
+    /// build panics on `Client::new` unless a provider was installed.
+    /// Installing one is a no-op for the plain-HTTP requests below and
+    /// keeps `cargo test -p oryxis-relay` working the same way.
+    fn client() -> reqwest::Client {
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+        reqwest::Client::new()
+    }
+
     async fn spawn_server() -> (SocketAddr, String) {
         let token = "test-token-must-be-long-enough".to_string();
         let state = AppState {
@@ -656,7 +670,7 @@ mod tests {
     #[tokio::test]
     async fn rejects_missing_auth() {
         let (addr, _) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let resp = client
             .get(format!("http://{addr}/lookup/{}", Uuid::new_v4()))
             .send()
@@ -738,7 +752,7 @@ mod tests {
     #[tokio::test]
     async fn register_lookup_unregister() {
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let signing = fresh_signing_key();
         let device_id = Uuid::new_v4();
 
@@ -787,7 +801,7 @@ mod tests {
         // Legacy unsigned body (the shape v0.6.1 clients used). Must
         // be refused now that the signature is mandatory.
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let resp = client
             .post(format!("http://{addr}/register"))
             .bearer_auth(&token)
@@ -806,7 +820,7 @@ mod tests {
     #[tokio::test]
     async fn register_rejects_stale_signed_at() {
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let signing = fresh_signing_key();
         let device_id = Uuid::new_v4();
         // Sign 5 minutes in the past: outside the 60s skew window.
@@ -826,7 +840,7 @@ mod tests {
         // TOFU defense: device_id is pinned to the first signer.
         // A second registration with a different key returns 403.
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let owner = fresh_signing_key();
         let attacker = fresh_signing_key();
         let device_id = Uuid::new_v4();
@@ -858,7 +872,7 @@ mod tests {
     #[tokio::test]
     async fn unregister_rejects_wrong_signer() {
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let owner = fresh_signing_key();
         let attacker = fresh_signing_key();
         let device_id = Uuid::new_v4();
@@ -886,7 +900,7 @@ mod tests {
     #[tokio::test]
     async fn relay_round_trip() {
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let recipient = Uuid::new_v4();
         let sender = Uuid::new_v4();
         let body = b"\x01\x02\x03 oryxis test frame";
@@ -924,7 +938,7 @@ mod tests {
     #[tokio::test]
     async fn relay_returns_204_after_timeout() {
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let recipient = Uuid::new_v4();
         let start = Instant::now();
         let resp = client
@@ -943,7 +957,7 @@ mod tests {
     #[tokio::test]
     async fn relay_rejects_oversized_body() {
         let (addr, token) = spawn_server().await;
-        let client = reqwest::Client::new();
+        let client = client();
         let recipient = Uuid::new_v4();
         let sender = Uuid::new_v4();
         // Build a body just above the cap.

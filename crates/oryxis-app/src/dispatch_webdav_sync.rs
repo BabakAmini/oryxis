@@ -380,6 +380,9 @@ mod tests {
     /// `Authorization` header.
     #[test]
     fn blank_credentials_send_no_auth_header() {
+        // Tests never run `main`, and reqwest carries no provider of its
+        // own, so the client would panic on construction without this.
+        crate::util::ensure_crypto_provider();
         let client = reqwest::Client::new();
         let anon = Auth {
             user: String::new(),

@@ -132,7 +132,10 @@ ttf-parser = "0.25"
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-reqwest = { version = "0.12", features = ["json", "rustls-tls", "stream"], default-features = false }
+# `rustls-tls` would pull its own `ring` in (the feature expands to
+# `__rustls-ring`), so take the same webpki roots without a provider and let
+# the aws-lc-rs one installed in `main` serve it.
+reqwest = { version = "0.12", features = ["json", "rustls-tls-webpki-roots-no-provider", "stream"], default-features = false }
 # Async stream combinators, used by the AI streaming path to fold the
 # reqwest byte stream into provider-specific SSE chunks.
 futures-util = "0.3"

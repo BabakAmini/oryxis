@@ -31,9 +31,11 @@ use oryxis_plugin_protocol::{error_codes, method, JsonRpcRequest, JsonRpcRespons
 async fn main() {
     // rustls 0.23 requires a crypto provider installed before any
     // TLS connection. The AWS SDK's HTTPS client otherwise fails
-    // with a generic "dispatch failure". `install_default` errors
-    // only if a provider was already set, harmless to ignore.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    // with a generic "dispatch failure". aws-lc-rs is what that
+    // client builds on anyway, and the only backend the tree carries
+    // now. `install_default` errors only if a provider was already
+    // set, harmless to ignore.
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     // Logs to stderr so they never corrupt the JSON-RPC stream on
     // stdout.

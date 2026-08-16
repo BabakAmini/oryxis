@@ -178,14 +178,11 @@ fn main() -> iced::Result {
         std::process::exit(2);
     }
 
-    // rustls 0.23 requires a crypto provider to be installed before
-    // any TLS connection, without it, the AWS SDK's HTTPS client
-    // fails with a generic "dispatch failure". The workspace pins
-    // `ring` as the rustls crypto, so install ring's default provider
-    // here at process start. `install_default` returns Err if a
-    // provider was already set (cheap re-entry from tests / repeated
-    // calls), which we deliberately ignore.
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    // rustls 0.23 requires a crypto provider to be installed before any
+    // TLS connection, without it the AWS SDK's HTTPS client fails with a
+    // generic "dispatch failure" and reqwest panics with "No provider
+    // set". See the helper for why the tree carries exactly one backend.
+    util::ensure_crypto_provider();
 
     // Sweep the `.old.exe` left behind by a Windows nightly self-update
     // (no-op elsewhere). Done before anything else touches the binary.

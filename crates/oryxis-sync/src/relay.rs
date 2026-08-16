@@ -47,6 +47,15 @@ impl RelayClient {
     /// UUID, sent in `X-Sender-Id` so the peer can demux multi-source
     /// inboxes and reply to the right address.
     pub fn new(base_url: &str, token: &str, sender_id: Uuid) -> Self {
+        // reqwest is built without a bundled crypto backend (the feature
+        // that bundles one is what used to drag `ring` in next to the
+        // aws-lc-rs russh already links), so it takes the process-level
+        // provider and panics with "No provider set" when none was
+        // installed. `engine::start` installs it, but a `RelayClient` can
+        // be built before or without the engine, so guarantee it here
+        // instead of relying on call order. Idempotent: `install_default`
+        // only errors when a provider is already set.
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         Self {
             base_url: base_url.trim_end_matches('/').to_string(),
             token: token.to_string(),

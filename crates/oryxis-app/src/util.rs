@@ -1111,6 +1111,20 @@ pub(crate) fn env_vars_from_setting(v: &str) -> Vec<crate::state::EnvVarForm> {
         .collect()
 }
 
+/// Install the process-wide rustls crypto provider.
+///
+/// reqwest is built with `rustls-tls-webpki-roots-no-provider`, so it uses
+/// whatever the process installed rather than bundling a backend of its own
+/// (bundling one is how `ring` used to end up in the tree next to the
+/// aws-lc-rs russh already links). Constructing a `reqwest::Client` before
+/// this runs panics with "No provider set", so `main` calls it at startup,
+/// and so must any test that builds a client, since tests never go through
+/// `main`. `install_default` errors only when a provider is already set,
+/// which makes this idempotent and cheap to repeat.
+pub(crate) fn ensure_crypto_provider() {
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -277,11 +277,13 @@ impl SyncEngine {
             return Ok(());
         }
 
-        // rustls 0.23 requires an explicit CryptoProvider when both
-        // `ring` and `aws-lc-rs` could be linked transitively. We pin
-        // `ring` here once, before any TLS handshake. `install_default`
-        // errors if already installed, fine, treat as idempotent.
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        // rustls 0.23 requires an explicit CryptoProvider, and reqwest
+        // asks for the no-provider feature, so this line serves the
+        // snapshot transports too. aws-lc-rs is the backend russh
+        // already links, so the tree carries exactly one.
+        // `install_default` errors if already installed, fine, treat as
+        // idempotent.
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
         let (shutdown_tx, _) = tokio::sync::broadcast::channel(1);
         self.shutdown_tx = Some(shutdown_tx.clone());
@@ -848,7 +850,7 @@ impl SyncHandle {
 
         // Tier 1: direct QUIC. Bounded at 8s so we don't make the user
         // wait the full 30s pairing budget on every blocked-NAT case.
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let direct = tokio::time::timeout(
             std::time::Duration::from_secs(8),
             self.join_pairing_inner(addr, &code),
@@ -950,7 +952,7 @@ impl SyncHandle {
         addr: SocketAddr,
         code: &str,
     ) -> Result<(Uuid, String), SyncError> {
-        let _ = rustls::crypto::ring::default_provider().install_default();
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         let client = transport::create_client_endpoint()?;
         let connection = client
             .connect(addr, "oryxis-sync")
