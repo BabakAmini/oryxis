@@ -69,6 +69,7 @@ impl Oryxis {
                             DashLink::Live {
                                 via,
                                 transport: transport.clone(),
+                                tried: tried.clone(),
                             },
                         );
                         // First sample now, so the card fills in instead
@@ -105,22 +106,8 @@ impl Oryxis {
                     Some(DashLink::Failed { .. })
                 ) {
                     self.monitor_dash.links.remove(&key);
-                    // A live tab to this machine outranks any stored
-                    // credentials, same preference the establish path
-                    // has: a host whose stored password went stale is
-                    // exactly the one an open authenticated tab can
-                    // still serve, and redialing the same bad
-                    // credentials would just fail again.
-                    if let Some((via, session)) = self.live_session_for_machine(&key) {
-                        let transport = DashTransport::Tab(session);
-                        self.monitor_dash.links.insert(
-                            key.clone(),
-                            DashLink::Live {
-                                via,
-                                transport: transport.clone(),
-                            },
-                        );
-                        return Ok(self.dash_probe(key, via, transport));
+                    if let Some(task) = self.dash_adopt_live(&key, Vec::new()) {
+                        return Ok(task);
                     }
                     return Ok(self.dash_dial(&key, conn_id, Vec::new()));
                 }
@@ -287,16 +274,20 @@ impl Oryxis {
         for (i, (key, members)) in groups.into_iter().enumerate() {
             match self.monitor_dash.links.get(&key) {
                 None => tasks.push(self.dash_link(&key, &members)),
-                Some(DashLink::Live { transport, .. }) if !transport.is_alive() => {
+                Some(DashLink::Live { transport, tried, .. }) if !transport.is_alive() => {
                     // The link died (tab closed, network drop): one
                     // automatic re-establish. If the redial fails the
                     // card goes Failed and stays there (no hammering a
-                    // down host every second).
+                    // down host every second). The tried list rides
+                    // along, so a tab that flaps cannot restart the
+                    // machine's rotation on the row that already
+                    // failed, once per flap.
+                    let tried = tried.clone();
                     transport.close_pooled();
                     self.monitor_dash.links.remove(&key);
-                    tasks.push(self.dash_link(&key, &members));
+                    tasks.push(self.dash_link_with(&key, &members, tried));
                 }
-                Some(DashLink::Live { via, transport })
+                Some(DashLink::Live { via, transport, .. })
                     if (self.monitor_dash.tick + i as u64).is_multiple_of(interval) =>
                 {
                     let (via, transport) = (*via, transport.clone());
@@ -308,16 +299,8 @@ impl Oryxis {
                     // back for a machine whose stored credentials are
                     // stale: adopt its session now instead of leaving
                     // the card Failed until the 60s off-view sweep.
-                    if let Some((via, session)) = self.live_session_for_machine(&key) {
-                        let transport = DashTransport::Tab(session);
-                        self.monitor_dash.links.insert(
-                            key.clone(),
-                            DashLink::Live {
-                                via,
-                                transport: transport.clone(),
-                            },
-                        );
-                        tasks.push(self.dash_probe(key, via, transport));
+                    if let Some(task) = self.dash_adopt_live(&key, tried.clone()) {
+                        tasks.push(task);
                         continue;
                     }
                     // One row's credentials failing is not the machine
@@ -333,23 +316,52 @@ impl Oryxis {
         Task::batch(tasks)
     }
 
+    /// Adopt a live terminal tab's session for this machine, if any of
+    /// its rows has one. This outranks a headless dial everywhere it is
+    /// offered: a host whose STORED credentials went stale is exactly
+    /// the one an authenticated tab can still serve, and redialing them
+    /// would only repeat the failed auth (fail2ban counts those). The
+    /// `tried` list rides along so a link that later drops does not
+    /// restart the machine's dial rotation from scratch.
+    fn dash_adopt_live(
+        &mut self,
+        key: &MonitorKey,
+        tried: Vec<Uuid>,
+    ) -> Option<Task<Message>> {
+        let (via, session) = self.live_session_for_machine(key)?;
+        let transport = DashTransport::Tab(session);
+        self.monitor_dash.links.insert(
+            key.clone(),
+            DashLink::Live {
+                via,
+                transport: transport.clone(),
+                tried,
+            },
+        );
+        Some(self.dash_probe(key.clone(), via, transport))
+    }
+
     /// Establish a machine's link: borrow a live tab session when any
     /// of its rows has one (plus an immediate first sample), otherwise
     /// dial the first row.
     fn dash_link(&mut self, key: &MonitorKey, members: &[Uuid]) -> Task<Message> {
-        if let Some((via, session)) = self.live_session_for_machine(key) {
-            let transport = DashTransport::Tab(session);
-            self.monitor_dash.links.insert(
-                key.clone(),
-                DashLink::Live {
-                    via,
-                    transport: transport.clone(),
-                },
-            );
-            return self.dash_probe(key.clone(), via, transport);
+        self.dash_link_with(key, members, Vec::new())
+    }
+
+    /// `dash_link` carrying forward what has already been tried, so a
+    /// re-establish after a dropped link continues the machine's dial
+    /// rotation instead of restarting it on the row that just failed.
+    fn dash_link_with(
+        &mut self,
+        key: &MonitorKey,
+        members: &[Uuid],
+        tried: Vec<Uuid>,
+    ) -> Task<Message> {
+        if let Some(task) = self.dash_adopt_live(key, tried.clone()) {
+            return task;
         }
-        match members.first() {
-            Some(via) => self.dash_dial(key, *via, Vec::new()),
+        match members.iter().find(|m| !tried.contains(m)).or(members.first()) {
+            Some(via) => self.dash_dial(key, *via, tried),
             None => Task::none(),
         }
     }
@@ -508,7 +520,7 @@ impl Oryxis {
                 None => tasks.push(self.dash_link(&key, &members)),
                 // A quick round-trip elsewhere kept the links warm
                 // (that is the idle TTL's point); refresh them now.
-                Some(DashLink::Live { via, transport }) if transport.is_alive() => {
+                Some(DashLink::Live { via, transport, .. }) if transport.is_alive() => {
                     let (via, transport) = (*via, transport.clone());
                     tasks.push(self.dash_probe(key, via, transport));
                 }
@@ -522,6 +534,18 @@ impl Oryxis {
                     }
                     let next = members.iter().find(|m| !tried.contains(m)).copied();
                     self.monitor_dash.links.remove(&key);
+                    // Same preference as every other establish path, and
+                    // it has to be HERE rather than only inside
+                    // `dash_link`: this arm always finds an untried row
+                    // and dials it, so entering the view or clicking
+                    // Refresh would re-dial stale credentials while a
+                    // working tab sat open (and, while paused, would do
+                    // it on every click, since the tick that adopts
+                    // never runs).
+                    if let Some(task) = self.dash_adopt_live(&key, tried.clone()) {
+                        tasks.push(task);
+                        continue;
+                    }
                     match next {
                         Some(next) => tasks.push(self.dash_dial(&key, next, tried)),
                         None => tasks.push(self.dash_link(&key, &members)),

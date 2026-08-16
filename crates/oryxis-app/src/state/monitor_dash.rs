@@ -51,6 +51,11 @@ pub(crate) enum DashLink {
     Live {
         via: Uuid,
         transport: DashTransport,
+        /// The rows already tried while establishing this link. Carried
+        /// so a link that DROPS re-establishes where the rotation left
+        /// off: without it a flapping tab session restarted the machine
+        /// on the row that already failed, once per flap.
+        tried: Vec<Uuid>,
     },
     /// The dial (or a probe on a dead link's redial) failed. Every row
     /// that reaches this machine is tried ONCE before the slot settles
