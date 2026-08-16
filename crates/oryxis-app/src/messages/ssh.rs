@@ -8,6 +8,12 @@ use super::Message;
 #[derive(Debug, Clone)]
 pub enum SshMessage {
     ConnectSsh(usize),
+    /// Connect a saved host BY ID, for senders that outlive the list
+    /// order they were built under (the progress screen's Retry, the
+    /// legacy-algorithm dialog's re-dial): both fire long after their
+    /// connect began, and an auto-saved rename or a sync apply can
+    /// re-sort `connections` in between. Resolves to `ConnectSsh`.
+    ConnectSavedHost(uuid::Uuid),
     /// Connect an ad-hoc quick-connect host (never persisted). The entry
     /// is inserted into `quick_connects` keyed by its connection id; a
     /// retry for an id already present reuses the stored entry so

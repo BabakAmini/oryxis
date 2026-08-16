@@ -499,7 +499,7 @@ pub struct Oryxis {
     /// keeps the kebab visible while the popup is up, mirroring
     /// `card_context_menu` for hosts.
     pub(crate) snippet_context_menu: Option<usize>,
-    pub(crate) card_context_menu: Option<usize>,
+    pub(crate) card_context_menu: Option<uuid::Uuid>,
 
     // Floating overlay menu
     pub(crate) overlay: Option<OverlayState>,

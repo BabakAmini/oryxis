@@ -401,7 +401,7 @@ impl Oryxis {
         depth: usize,
     ) -> (Element<'a, Message>, Color) {
         let conn = &self.connections[idx];
-        let hovered = self.hover.card == Some(idx) || self.card_context_menu == Some(idx);
+        let hovered = self.hover.card == Some(idx) || self.card_context_menu == Some(conn.id);
         let display_label = if self.privacy_active(conn) && self.hover.card != Some(idx) {
             crate::widgets::redact_for_display(
                 &conn.label,

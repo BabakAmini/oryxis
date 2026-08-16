@@ -96,6 +96,7 @@ impl Oryxis {
                 self.handle_ssh_kbi(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SshMessage::ConnectSsh(..)
+            | SshMessage::ConnectSavedHost(..)
             | SshMessage::QuickConnect(..)) => self.handle_ssh_launch(m),
             m @ (SshMessage::SshProgress(..)
             | SshMessage::SshCloseProgress

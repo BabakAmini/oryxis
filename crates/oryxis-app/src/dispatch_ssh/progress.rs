@@ -79,17 +79,8 @@ impl Oryxis {
                     self.active_tab = None;
                     self.active_view = View::Dashboard;
                     return match origin {
-                        // Resolve the ID at click time: `Saved(idx)`
-                        // was captured when the connect began and the
-                        // list can have re-sorted since (an auto-saved
-                        // rename, a sync apply).
-                        crate::state::ProgressOrigin::Saved(idx) => {
-                            match self.connections.get(idx).map(|c| c.id) {
-                                Some(id) => self.update(Message::Editor(
-                                    EditorMessage::EditConnection(id),
-                                )),
-                                None => Task::none(),
-                            }
+                        crate::state::ProgressOrigin::Saved(id) => {
+                            self.update(Message::Editor(EditorMessage::EditConnection(id)))
                         }
                         // Ad-hoc host: edit the TEMPORARY entry; the editor
                         // opens with Connect (without saving) as the primary
@@ -111,8 +102,8 @@ impl Oryxis {
                     }
                     self.active_tab = None;
                     return match origin {
-                        crate::state::ProgressOrigin::Saved(idx) => {
-                            self.update(Message::Ssh(SshMessage::ConnectSsh(idx)))
+                        crate::state::ProgressOrigin::Saved(id) => {
+                            self.update(Message::Ssh(SshMessage::ConnectSavedHost(id)))
                         }
                         crate::state::ProgressOrigin::Quick(id) => {
                             match self.quick_connects.get(&id).cloned() {

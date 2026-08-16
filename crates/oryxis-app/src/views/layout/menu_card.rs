@@ -114,15 +114,15 @@ impl Oryxis {
         col.into()
     }
 
-    pub(crate) fn build_menu_host_actions(&self, idx: usize) -> Element<'_, Message> {
-        self.build_menu_host_actions_inner(idx, true)
+    pub(crate) fn build_menu_host_actions(&self, id: uuid::Uuid) -> Element<'_, Message> {
+        self.build_menu_host_actions_inner(id, true)
     }
 
     /// The sidebar Hosts tree's reduced host menu (issue #102): the
     /// same actions as the card menu minus Remove and the dashboard
     /// filter entry.
-    pub(crate) fn build_menu_tree_host_actions(&self, idx: usize) -> Element<'_, Message> {
-        self.build_menu_host_actions_inner(idx, false)
+    pub(crate) fn build_menu_tree_host_actions(&self, id: uuid::Uuid) -> Element<'_, Message> {
+        self.build_menu_host_actions_inner(id, false)
     }
 
     /// `dashboard` gates the entries that only make sense on the
@@ -130,14 +130,14 @@ impl Oryxis {
     /// destruction keeps its confirm over the card list) and
     /// filter-by-cloud-profile (it drives the dashboard's own filter
     /// chip).
-    /// Row count of `build_menu_host_actions_inner` for the SAME idx +
+    /// Row count of `build_menu_host_actions_inner` for the SAME host +
     /// surface, feeding `overlay_menu_height`. Kept next to the builder
     /// so a new entry can't ship without its height: the old fixed
     /// estimates clipped the menu whenever every conditional entry
     /// applied at once (WoL + SSH URL on the tree = 7 rows, not 6).
-    pub(crate) fn host_actions_menu_rows(&self, idx: usize, dashboard: bool) -> f32 {
+    pub(crate) fn host_actions_menu_rows(&self, id: uuid::Uuid, dashboard: bool) -> f32 {
         use oryxis_core::models::connection::ConnectionProtocol;
-        let conn = self.connections.get(idx);
+        let conn = self.connections.iter().find(|c| c.id == id);
         let protocol = conn.map(|c| c.protocol).unwrap_or(ConnectionProtocol::Ssh);
         let mut rows = 3.0; // Connect + Edit + Duplicate
         if protocol == ConnectionProtocol::Ssh {
@@ -168,10 +168,21 @@ impl Oryxis {
 
     fn build_menu_host_actions_inner(
         &self,
-        idx: usize,
+        id: uuid::Uuid,
         dashboard: bool,
     ) -> Element<'_, Message> {
-        let conn = self.connections.get(idx);
+        // The menu is anchored to the HOST, so the index every
+        // index-taking action still needs is resolved here, per render,
+        // against the list this frame draws. A re-sort under the open
+        // menu (an auto-saved rename, a sync apply) goes through
+        // update() -> view(), so the rebuilt items carry the host's new
+        // position rather than aiming at whoever took the old one. A
+        // host that vanished leaves the actions inert.
+        let idx = self.connections.iter().position(|c| c.id == id);
+        let conn = idx.and_then(|i| self.connections.get(i));
+        // Every index-taking action goes through this, so a vanished
+        // host cannot dispatch one against a stale position.
+        let by_idx = |msg: fn(usize) -> Message| idx.map_or(Message::NoOp, msg);
         let cloud_profile_id = conn
             .and_then(|c| c.cloud_ref.as_ref())
             .map(|r| r.profile_id);
@@ -190,25 +201,25 @@ impl Oryxis {
             ConnectionProtocol::Ssh | ConnectionProtocol::Telnet
         );
         let mut items = column![
-            self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), Message::Ssh(SshMessage::ConnectSsh(idx)), OryxisColors::t().success),
-            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), conn.map_or(Message::NoOp, |c| Message::Editor(EditorMessage::EditConnection(c.id))), OryxisColors::t().text_secondary),
-            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), Message::Editor(EditorMessage::DuplicateConnection(idx)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), by_idx(|i| Message::Ssh(SshMessage::ConnectSsh(i))), OryxisColors::t().success),
+            self.menu_item(iced_fonts::lucide::pencil(), crate::i18n::t("edit"), Message::Editor(EditorMessage::EditConnection(id)), OryxisColors::t().text_secondary),
+            self.menu_item(iced_fonts::lucide::copy(), crate::i18n::t("duplicate"), by_idx(|i| Message::Editor(EditorMessage::DuplicateConnection(i))), OryxisColors::t().text_secondary),
         ];
         if is_ssh_host {
             items = items
-                .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), Message::Share(ShareMessage::ShareConnection(idx)), OryxisColors::t().text_secondary));
+                .push(self.menu_item(iced_fonts::lucide::share(), crate::i18n::t("share"), by_idx(|i| Message::Share(ShareMessage::ShareConnection(i))), OryxisColors::t().text_secondary));
             // SFTP is an optional feature: its entry hides with the
             // toggle, like every other SFTP surface.
             if self.sftp_enabled {
-                items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), Message::Sftp(SftpMessage::OpenSftpForConnection(idx)), OryxisColors::t().text_secondary));
+                items = items.push(self.menu_item(iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"), by_idx(|i| Message::Sftp(SftpMessage::OpenSftpForConnection(i))), OryxisColors::t().text_secondary));
             }
         }
         if has_url {
-            items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), Message::History(HistoryMessage::CopyHostSshUrl(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(iced_fonts::lucide::link(), crate::i18n::t("copy_ssh_url"), by_idx(|i| Message::History(HistoryMessage::CopyHostSshUrl(i))), OryxisColors::t().text_secondary));
         }
         // Wake on LAN: only hosts with a stored MAC (editor > Network).
         if conn.and_then(|c| c.mac_address.as_deref()).is_some_and(|m| !m.is_empty()) {
-            items = items.push(self.menu_item(iced_fonts::lucide::zap(), crate::i18n::t("wake_on_lan"), Message::History(HistoryMessage::WakeOnLan(idx)), OryxisColors::t().text_secondary));
+            items = items.push(self.menu_item(iced_fonts::lucide::zap(), crate::i18n::t("wake_on_lan"), by_idx(|i| Message::History(HistoryMessage::WakeOnLan(i))), OryxisColors::t().text_secondary));
         }
         // Remote-desktop host: Connect (above) already launches the
         // desktop; add an explicit Stop while its tunnel is live.
@@ -244,7 +255,7 @@ impl Oryxis {
             (crate::i18n::t("remove"), iced_fonts::lucide::trash())
         };
         items
-            .push(self.menu_item(remove_icon, remove_label, Message::Editor(EditorMessage::RequestDeleteConnection(idx)), OryxisColors::t().error))
+            .push(self.menu_item(remove_icon, remove_label, by_idx(|i| Message::Editor(EditorMessage::RequestDeleteConnection(i))), OryxisColors::t().error))
             .into()
     }
 

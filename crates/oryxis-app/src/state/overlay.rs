@@ -4,13 +4,18 @@ use super::*;
 
 #[derive(Debug, Clone)]
 pub(crate) enum OverlayContent {
-    HostActions(usize),
+    /// Kebab / right-click menu on a host card, BY ID. The list can
+    /// re-sort while the menu is up (an auto-save rename, a sync
+    /// apply), and the menu's items are rebuilt from a position on
+    /// every render: a stored index would silently re-aim Duplicate,
+    /// Connect and Remove at whatever host moved into that slot.
+    HostActions(uuid::Uuid),
     /// Right-click / Menu-key menu on a host row of the sidebar Hosts
     /// tree (issue #102): the card menu's ACTION half. No Remove and
     /// no filter-by-profile: the tree is a navigate-and-connect
     /// surface, destruction and dashboard filters stay on the
     /// dashboard (owner call).
-    TreeHostActions(usize),
+    TreeHostActions(uuid::Uuid),
     /// Kebab / right-click menu on a session-group card. Items: Open, Edit,
     /// Duplicate, Delete.
     SessionGroupActions(usize),

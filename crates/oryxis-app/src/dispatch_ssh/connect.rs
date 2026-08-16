@@ -510,7 +510,9 @@ impl Oryxis {
                 // entry; the handler reuses it by id, so in-place mutations
                 // (expanded algorithms) survive the round trip.
                 let retry_msg = match origin {
-                    crate::state::ProgressOrigin::Saved(i) => Message::Ssh(SshMessage::ConnectSsh(i)),
+                    crate::state::ProgressOrigin::Saved(id) => {
+                        Message::Ssh(SshMessage::ConnectSavedHost(id))
+                    }
                     crate::state::ProgressOrigin::Quick(id) => {
                         Message::Ssh(SshMessage::QuickConnect(Box::new(
                             self.quick_connects.get(&id).cloned().unwrap_or_else(

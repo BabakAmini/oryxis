@@ -55,10 +55,10 @@ impl Oryxis {
         progress: &crate::state::ConnectionProgress,
     ) -> Option<&oryxis_core::models::Connection> {
         match progress.origin {
-            crate::state::ProgressOrigin::Saved(idx) => self
+            crate::state::ProgressOrigin::Saved(id) => self
                 .connections
-                .get(idx)
-                .filter(|c| c.label == progress.label)
+                .iter()
+                .find(|c| c.id == id)
                 .or_else(|| self.connections.iter().find(|c| c.label == progress.label)),
             crate::state::ProgressOrigin::Quick(id) => {
                 self.quick_connects.get(&id).map(|e| &e.conn)

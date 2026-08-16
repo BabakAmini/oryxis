@@ -23,14 +23,22 @@ impl Oryxis {
                 self.panels.keychain_add_menu = false;
             }
             TabsMessage::ShowCardMenu(idx) => {
-                if self.card_context_menu == Some(idx) {
+                // The index is resolved to the host ID HERE, against
+                // the list this click was rendered from; everything
+                // downstream (the menu's items, the card's own kebab
+                // highlight) keys off the id, so a re-sort under the
+                // open menu can't re-aim it at another host.
+                let Some(id) = self.connections.get(idx).map(|c| c.id) else {
+                    return Task::none();
+                };
+                if self.card_context_menu == Some(id) {
                     self.card_context_menu = None;
                     self.overlay = None;
                 } else {
-                    self.card_context_menu = Some(idx);
+                    self.card_context_menu = Some(id);
                     let anchor = self.keynav_take_menu_anchor();
                     self.overlay = Some(OverlayState {
-                        content: OverlayContent::HostActions(idx),
+                        content: OverlayContent::HostActions(id),
                         x: anchor.0,
                         y: anchor.1,
                     });
@@ -43,9 +51,12 @@ impl Oryxis {
                 // `card_context_menu` here: that flag pins the
                 // dashboard card's kebab, which the tree row doesn't
                 // have.
+                let Some(id) = self.connections.get(idx).map(|c| c.id) else {
+                    return Task::none();
+                };
                 let anchor = self.keynav_take_menu_anchor();
                 self.overlay = Some(OverlayState {
-                    content: OverlayContent::TreeHostActions(idx),
+                    content: OverlayContent::TreeHostActions(id),
                     x: anchor.0,
                     y: anchor.1,
                 });

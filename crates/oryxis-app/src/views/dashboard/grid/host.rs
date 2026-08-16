@@ -114,7 +114,9 @@ impl Oryxis {
         // of hover state. The button itself is always mounted (so the
         // surrounding MouseArea sees stable child bounds, no hover
         // event loop) and just toggles its glyph color + hover bg.
-        let show_dots = self.hover.card == Some(idx) || self.card_context_menu == Some(idx);
+        let show_dots = self.hover.card == Some(idx)
+            || (self.card_context_menu.is_some()
+                && self.card_context_menu == self.connections.get(idx).map(|c| c.id));
         let rtl = crate::i18n::is_rtl_layout();
         let pad_trailing = 24.0_f32;
         let card_padding = if rtl {

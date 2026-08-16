@@ -104,9 +104,9 @@ impl Oryxis {
             }
             // Counted next to the builder (`host_actions_menu_rows`)
             // so the height follows the conditional entries exactly.
-            OverlayContent::HostActions(idx) => self.host_actions_menu_rows(*idx, true),
+            OverlayContent::HostActions(id) => self.host_actions_menu_rows(*id, true),
             // The card menu minus Remove / filter-by-profile.
-            OverlayContent::TreeHostActions(idx) => self.host_actions_menu_rows(*idx, false),
+            OverlayContent::TreeHostActions(id) => self.host_actions_menu_rows(*id, false),
             OverlayContent::PluginActions(_) => 3.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
@@ -273,8 +273,8 @@ impl Oryxis {
             OverlayContent::SessionLogViewerActions(idx) => {
                 self.build_menu_session_log_viewer_actions(*idx)
             }
-            OverlayContent::HostActions(idx) => self.build_menu_host_actions(*idx),
-            OverlayContent::TreeHostActions(idx) => self.build_menu_tree_host_actions(*idx),
+            OverlayContent::HostActions(id) => self.build_menu_host_actions(*id),
+            OverlayContent::TreeHostActions(id) => self.build_menu_tree_host_actions(*id),
             OverlayContent::SessionGroupActions(idx) => self.build_menu_session_group_actions(*idx),
             OverlayContent::KeyActions(idx) => self.build_menu_key_actions(*idx),
             OverlayContent::PluginActions(id) => self.build_menu_plugin_actions(id),

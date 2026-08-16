@@ -395,8 +395,11 @@ impl std::fmt::Debug for QuickConnectEntry {
 /// screen's Retry / Edit actions resolve the right store.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ProgressOrigin {
-    /// Index into `Oryxis.connections` (a saved host).
-    Saved(usize),
+    /// A saved host, BY ID. The connect can outlive the list order it
+    /// started under (an auto-saved rename re-sorts, a sync apply
+    /// rebuilds it), so a stored index would resolve to a different
+    /// host by the time the progress screen's Retry / Edit fire.
+    Saved(Uuid),
     /// Key into `Oryxis.quick_connects` (an ad-hoc host).
     Quick(Uuid),
 }
