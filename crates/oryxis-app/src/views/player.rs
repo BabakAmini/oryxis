@@ -90,22 +90,28 @@ impl Oryxis {
                 self.overlay.as_ref().map(|o| &o.content),
                 Some(crate::state::OverlayContent::SessionLogViewerActions(i)) if *i == idx
             );
-            header_items.push(crate::views::terminal::icon_tooltip(
-                super::history::viewer_header_btn(
-                    // Same glyph the card kebabs draw.
-                    text("\u{22EE}")
-                        .size(13)
-                        .color(if menu_open {
-                            OryxisColors::t().text_primary
-                        } else {
-                            OryxisColors::t().text_muted
-                        })
-                        .into(),
-                    None,
-                    Message::History(HistoryMessage::ShowSessionLogViewerMenu(idx)),
-                ),
-                crate::i18n::t("more_actions"),
-            ));
+            let kebab = super::history::viewer_header_btn(
+                // Same glyph the card kebabs draw.
+                text("\u{22EE}")
+                    .size(13)
+                    .color(if menu_open {
+                        OryxisColors::t().text_primary
+                    } else {
+                        OryxisColors::t().text_muted
+                    })
+                    .into(),
+                None,
+                Message::History(HistoryMessage::ShowSessionLogViewerMenu(idx)),
+            );
+            // No tooltip while the menu is up: the cursor is still over
+            // the button right after the opening click, and the tooltip
+            // is an iced overlay, so it would paint on top of the menu
+            // anchored below.
+            header_items.push(if menu_open {
+                kebab
+            } else {
+                crate::views::terminal::icon_tooltip(kebab, crate::i18n::t("more_actions"))
+            });
             header_items.push(Space::new().width(8).into());
         }
         header_items.push(
