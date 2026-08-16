@@ -51,6 +51,77 @@ fn capture_terminal_context(
         .join("\n")
 }
 
+/// Cap on the lines of a single command's output handed to the model. Past
+/// this the middle is elided (see [`oryxis_terminal::RegionText`]).
+const MAX_TOOL_OUTPUT_LINES: usize = 200;
+
+/// One anchored read of what a command printed: the region of the grid from
+/// the row the command was echoed on down to the last row with content.
+struct CommandCapture {
+    /// The text as the model will see it, redacted under Privacy Mode.
+    text: String,
+    /// A shell prompt has been drawn under the echo, so the command is over
+    /// and a short stability window is enough to call the capture complete.
+    finished: bool,
+    /// The command has printed something. A quiet screen with nothing printed
+    /// is not evidence of anything: `find / -name x` prints its first line
+    /// tens of seconds in, so the poll must keep waiting rather than hand the
+    /// model an empty answer.
+    has_output: bool,
+}
+
+/// Read the output of the command echoed at absolute row `anchor`.
+///
+/// This is what keeps a tool result about the command that ran: an
+/// undelimited tail of the grid returns whatever was already on screen (the
+/// login banner, the previous commands) whenever the command itself printed
+/// little or nothing yet, and the model reports that back as the answer.
+///
+/// `None` when the anchor is no longer readable (the pane entered the
+/// alternate screen, or the row rotated out of the scrollback ring), which
+/// leaves the caller to fall back to [`capture_terminal_context`].
+fn capture_command_output(
+    terminal: &std::sync::Mutex<crate::state::TerminalState>,
+    anchor: i64,
+    privacy_terms: Option<&[String]>,
+    privacy_classes: oryxis_terminal::PrivacyClasses,
+) -> Option<CommandCapture> {
+    let region = {
+        let state = terminal.lock().ok()?;
+        state.text_from_abs(anchor, MAX_TOOL_OUTPUT_LINES)?
+    };
+    // The first line is the echo (prompt + command); everything under it is
+    // this command's own output, and the shell's next prompt closes it.
+    let last_content = region.lines.iter().rposition(|l| !l.trim().is_empty());
+    let finished = last_content
+        .is_some_and(|i| i > 0 && crate::command_capture::line_is_prompt(&region.lines[i]));
+    let body_end = if finished { last_content.unwrap_or(0) } else { region.lines.len() };
+    let has_output = region
+        .lines
+        .iter()
+        .take(body_end)
+        .skip(1)
+        .any(|l| !l.trim().is_empty());
+
+    let mut out: Vec<String> = Vec::with_capacity(region.lines.len() + 2);
+    for (i, line) in region.lines.iter().enumerate() {
+        if region.dropped > 0 && i == region.head_len {
+            out.push(format!(
+                "[... {} lines omitted from the middle of the output ...]",
+                region.dropped
+            ));
+        }
+        out.push(match privacy_terms {
+            Some(terms) => crate::widgets::redact_for_display(line, terms, privacy_classes),
+            None => line.clone(),
+        });
+    }
+    if finished && !has_output {
+        out.push("[command completed with no output]".to_string());
+    }
+    Some(CommandCapture { text: out.join("\n"), finished, has_output })
+}
+
 /// Reconstruct the provider-agnostic message list from chat history,
 /// rebuilding native `tool_use` / `tool_result` pairs from completed `Tool`
 /// exchanges. Rules that keep the request valid on every provider:
@@ -485,8 +556,75 @@ mod tools;
 
 #[cfg(test)]
 mod tests {
-    use super::{classify_tool_gate, ToolGate, ToolGateInput};
+    use super::{capture_command_output, classify_tool_gate, ToolGate, ToolGateInput};
     use crate::state::ChatMode;
+
+    /// What a freshly-connected pane holds before the assistant runs
+    /// anything: a login banner, then earlier commands and their output. None
+    /// of it is a tool result, and all of it is what the undelimited tail used
+    /// to hand the model.
+    const BANNER: &[u8] = b"Welcome to Ubuntu 24.04.2 LTS (GNU/Linux 6.8.0-124-generic x86_64)\r\n\
+        \r\n System load: 0.14   Processes: 326\r\n\
+        admin@db:~$ ls\r\nwget-log\r\nadmin@db:~$ ";
+
+    /// Drive a terminal to the state a pane is in when the assistant writes a
+    /// command: banner + prompt on screen, anchor taken, then `echoed` (the
+    /// shell's echo of the command and whatever followed it) processed.
+    fn capture_after(
+        echoed: &[u8],
+    ) -> super::CommandCapture {
+        let mut term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        term.process(BANNER);
+        let anchor = term
+            .abs_cursor_logical_start()
+            .expect("the prompt row is on the primary screen");
+        term.process(echoed);
+        let term = std::sync::Mutex::new(term);
+        capture_command_output(&term, anchor, None, Default::default())
+            .expect("the anchor is still readable")
+    }
+
+    /// The bug behind the "it opens a new connection every time" report: a
+    /// command that has printed nothing yet must capture nothing, never the
+    /// screen it was typed on.
+    #[test]
+    fn a_silent_command_captures_no_prior_screen() {
+        let cap = capture_after(b"find / -name \"wp-config.php\" 2>/dev/null\r\n");
+        assert!(
+            !cap.text.contains("Welcome to Ubuntu"),
+            "the login banner is not this command's output: {:?}",
+            cap.text
+        );
+        assert!(!cap.text.contains("wget-log"), "nor is the previous command's: {:?}", cap.text);
+        assert!(cap.text.contains("find / -name"), "the echo delimits the region: {:?}", cap.text);
+        // And nothing here says the command is over, so the poll keeps
+        // waiting instead of reporting an empty answer as the result.
+        assert!(!cap.finished);
+        assert!(!cap.has_output);
+    }
+
+    /// The shell's next prompt is what proves the command ended.
+    #[test]
+    fn a_prompt_under_the_output_ends_the_capture() {
+        let cap = capture_after(
+            b"find / -name \"wp-config.php\" 2>/dev/null\r\n\
+              /dados/ecp.org.br/wp-config.php\r\nadmin@db:~$ ",
+        );
+        assert!(cap.finished);
+        assert!(cap.has_output);
+        assert!(cap.text.contains("/dados/ecp.org.br/wp-config.php"));
+        assert!(!cap.text.contains("Welcome to Ubuntu"));
+    }
+
+    /// A command that ran and printed nothing has to SAY so: an empty tool
+    /// result reads as a failure, or gets dropped by the provider.
+    #[test]
+    fn a_finished_command_with_no_output_says_so() {
+        let cap = capture_after(b"touch /tmp/x\r\nadmin@db:~$ ");
+        assert!(cap.finished);
+        assert!(!cap.has_output);
+        assert!(cap.text.contains("[command completed with no output]"), "{:?}", cap.text);
+    }
 
     /// Convenience builder: Auto mode, everything else off (a plain
     /// risky/unclassified call). Individual tests override the fields they

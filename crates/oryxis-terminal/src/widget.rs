@@ -50,7 +50,7 @@ pub use backdrop::Backdrop;
 pub use background::{BackgroundImage, BgFit};
 pub use clipboard::wrap_paste;
 pub use selection::Selection;
-pub use state::{HoveredLink, TerminalState};
+pub use state::{HoveredLink, RegionText, TerminalState};
 
 /// Callback for a terminal context-menu request: `(x, y, selection)` ->
 /// app message, where `selection` is the live selection's text (`None`

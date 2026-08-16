@@ -244,6 +244,16 @@ pub(crate) fn strip_prompt(line: &str) -> Option<&str> {
     Some(&line[pos + len..])
 }
 
+/// True when `line` reads as a shell prompt, including the empty one a shell
+/// leaves under a finished command. Same markers as [`strip_prompt`], but
+/// tolerant of the trailing space having been trimmed away: a grid read ends
+/// at the last non-blank cell, so the fresh prompt the shell just drew comes
+/// back as `admin@db:~$`, which no marker would match. Used by the AI tool
+/// capture to tell "the command is over" from "the screen is merely quiet".
+pub(crate) fn line_is_prompt(line: &str) -> bool {
+    strip_prompt(line).is_some() || strip_prompt(&format!("{line} ")).is_some()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

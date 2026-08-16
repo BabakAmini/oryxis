@@ -902,6 +902,130 @@ impl TerminalState {
         let start = (end - (n_lines as i32 - 1)).max(top);
         (start..=end).map(line_text).collect()
     }
+
+    /// Absolute row (`history_size + visible line`, the coordinate space of
+    /// [`crate::osc::PositionedShellMark`]) of the FIRST physical row of the
+    /// logical line the cursor sits on. `None` on the alternate screen, where
+    /// rows are repainted in place and an anchor into them means nothing.
+    ///
+    /// Taken before a command is written to the PTY, this is the row the
+    /// shell will echo it on, so it anchors [`Self::text_from_abs`] to the
+    /// output of that one command instead of whatever the tail of the buffer
+    /// happens to be. The walk up the wrap chain is what makes it survive a
+    /// half-typed line that had already wrapped (the `Ctrl+U` sent with the
+    /// command clears it back to the prompt row).
+    pub fn abs_cursor_logical_start(&self) -> Option<i64> {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        if self.is_alt_screen() {
+            return None;
+        }
+        let grid = self.backend.term.grid();
+        let cols = grid.columns();
+        let topmost = grid.topmost_line().0;
+        let mut first = grid.cursor.point.line.0;
+        let mut walked = 0;
+        while first > topmost && walked < 64 {
+            let prev = &grid[Line(first - 1)];
+            if !prev[Column(cols - 1)].flags.contains(CellFlags::WRAPLINE) {
+                break;
+            }
+            first -= 1;
+            walked += 1;
+        }
+        Some(grid.history_size() as i64 + i64::from(first))
+    }
+
+    /// Every logical (wrap-joined) line from absolute row `abs_line` down to
+    /// the last row carrying content. Returns `None` on the alternate screen
+    /// or when the row has left the addressable grid (scrollback ring
+    /// saturated and rotated past it), same contract as
+    /// [`Self::logical_line_from_abs`], so a caller with a stale anchor can
+    /// fall back instead of reading unrelated rows.
+    ///
+    /// Unlike [`Self::logical_line_from_abs`] this does NOT apply the RPROMPT
+    /// gap heuristic: command output is full of column runs (`ls -l`, `df -h`,
+    /// `docker ps`) that the heuristic would truncate mid-row.
+    ///
+    /// At most `max_lines` lines are returned; a longer region drops rows from
+    /// the MIDDLE (a `find` puts its answer at the head, a build puts its
+    /// error at the tail) and reports how many in [`RegionText::dropped`].
+    pub fn text_from_abs(&self, abs_line: i64, max_lines: usize) -> Option<RegionText> {
+        use alacritty_terminal::grid::Dimensions;
+        use alacritty_terminal::index::{Column, Line};
+        use alacritty_terminal::term::cell::Flags as CellFlags;
+        if self.is_alt_screen() {
+            return None;
+        }
+        let grid = self.backend.term.grid();
+        let cols = grid.columns();
+        let rel = abs_line - grid.history_size() as i64;
+        if rel < i64::from(grid.topmost_line().0) || rel > i64::from(grid.bottommost_line().0) {
+            return None;
+        }
+        let row_text = |li: i32| -> String {
+            let row = &grid[Line(li)];
+            let mut s = String::new();
+            for c in 0..cols {
+                let cell = &row[Column(c)];
+                if cell.c != '\0' && !cell.flags.contains(CellFlags::WIDE_CHAR_SPACER) {
+                    s.push(cell.c);
+                }
+            }
+            s
+        };
+        let wraps = |li: i32| -> bool {
+            grid[Line(li)][Column(cols - 1)]
+                .flags
+                .contains(CellFlags::WRAPLINE)
+        };
+        // Trailing blank rows are the unwritten part of the screen, not
+        // output: end the region on the last row that carries content.
+        let bottom = grid.bottommost_line().0;
+        let mut end = bottom;
+        while end > rel as i32 && row_text(end).trim().is_empty() {
+            end -= 1;
+        }
+        let mut lines: Vec<String> = Vec::new();
+        let mut li = rel as i32;
+        while li <= end {
+            let mut text = row_text(li);
+            let mut rows = 1;
+            while wraps(li) && li < end && rows < 64 {
+                li += 1;
+                text.push_str(&row_text(li));
+                rows += 1;
+            }
+            lines.push(text.trim_end().to_string());
+            li += 1;
+        }
+        let mut dropped = 0;
+        let mut head_len = lines.len();
+        if max_lines > 0 && lines.len() > max_lines {
+            head_len = max_lines / 2;
+            let tail_len = max_lines - head_len;
+            dropped = lines.len() - max_lines;
+            lines.drain(head_len..head_len + dropped);
+            debug_assert_eq!(lines.len(), head_len + tail_len);
+        }
+        Some(RegionText { lines, head_len, dropped })
+    }
+}
+
+/// A slice of the grid read by [`TerminalState::text_from_abs`]: logical
+/// lines, with the middle elided when the region is longer than the cap.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RegionText {
+    /// The kept lines: `lines[..head_len]` from the top of the region,
+    /// `lines[head_len..]` from its bottom.
+    pub lines: Vec<String>,
+    /// Where the tail slice starts. Equals `lines.len()` when nothing was
+    /// dropped.
+    pub head_len: usize,
+    /// How many lines were removed from the middle. `0` = the region is
+    /// complete.
+    pub dropped: usize,
 }
 
 #[cfg(test)]
@@ -925,6 +1049,92 @@ mod tests {
             state.render_epoch() > e1,
             "set_palette() must advance the render epoch"
         );
+    }
+
+    // ── Anchored region reads (AI tool capture) ──
+
+    /// The whole point of the anchor: what was already on screen when the
+    /// command was written stays out of the region.
+    #[test]
+    fn text_from_abs_starts_at_the_anchor() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"Welcome to Ubuntu\r\nadmin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"uptime\r\n 07:55:44 up 3 days\r\nadmin@db:~$ ");
+        let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
+        assert!(!region.lines.iter().any(|l| l.contains("Welcome to Ubuntu")));
+        assert_eq!(region.lines[0], "admin@db:~$ uptime");
+        assert_eq!(region.lines[1], " 07:55:44 up 3 days");
+        assert_eq!(region.dropped, 0);
+    }
+
+    /// Column runs are output, not a zsh right prompt: `logical_line_from_abs`
+    /// truncates at 8 interior spaces and this reader must not, or every
+    /// `ls -l` / `df -h` table would reach the model cut off at its first gap.
+    #[test]
+    fn text_from_abs_keeps_column_runs() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"df -h\r\n/dev/sda1        47G   19G   26G  41% /\r\n");
+        let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
+        assert!(
+            region.lines[1].ends_with("41% /"),
+            "the whole row survives: {:?}",
+            region.lines[1]
+        );
+    }
+
+    /// Past the cap the MIDDLE goes, so a `find`'s first hits and a build's
+    /// final error both survive, and the elision is reported rather than
+    /// silent.
+    #[test]
+    fn text_from_abs_elides_the_middle_past_the_cap() {
+        let mut state = TerminalState::new_no_pty(80, 200).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"seq 1 40\r\n");
+        for i in 1..=40 {
+            state.process(format!("line{i}\r\n").as_bytes());
+        }
+        // 1 echo + 40 rows = 41 lines of content, capped at 10.
+        let region = state.text_from_abs(anchor, 10).expect("anchor still readable");
+        assert_eq!(region.lines.len(), 10);
+        assert_eq!(region.head_len, 5);
+        assert_eq!(region.dropped, 31);
+        assert_eq!(region.lines[0], "admin@db:~$ seq 1 40");
+        assert_eq!(region.lines[4], "line4");
+        assert_eq!(region.lines[5], "line36");
+        assert_eq!(region.lines[9], "line40");
+    }
+
+    /// A command long enough to wrap must stay ONE entry even when the wrap
+    /// chain is the last thing on screen: a second entry would read as output
+    /// and drop the poll's patience from "wait it out" to a short silence,
+    /// which is the give-up this whole change exists to remove.
+    #[test]
+    fn text_from_abs_joins_an_echo_that_wraps_to_the_last_row() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        let long = format!("find / -name \"{}\" 2>/dev/null", "x".repeat(90));
+        state.process(long.as_bytes());
+        let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
+        assert_eq!(region.lines.len(), 1, "the wrapped echo is one line: {:?}", region.lines);
+        assert!(region.lines[0].ends_with("2>/dev/null"));
+    }
+
+    /// The alternate screen repaints rows in place, so an anchor into it
+    /// addresses nothing stable: both halves refuse it and the caller falls
+    /// back to the undelimited tail.
+    #[test]
+    fn the_alternate_screen_has_no_anchor() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"\x1b[?1049h");
+        assert!(state.abs_cursor_logical_start().is_none());
+        assert!(state.text_from_abs(anchor, 200).is_none());
     }
 
     // ── Scrollback search (C1) ──

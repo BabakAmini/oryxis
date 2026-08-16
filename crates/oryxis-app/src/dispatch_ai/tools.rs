@@ -285,6 +285,17 @@ impl Oryxis {
                 // Captured before the detached poll below: the spawn
                 // can't borrow `self` (same reason the terms are).
                 let privacy_classes = self.privacy_classes();
+                // Where the shell is about to echo this command. Taken before
+                // the write, so the poll reads THIS command's output instead
+                // of the tail of the buffer (which is the login banner and
+                // the previous commands until something is printed over it).
+                // `None` on the alternate screen (tmux, a TUI): rows there are
+                // repainted in place, so no anchor is meaningful and the poll
+                // keeps the undelimited tail.
+                let anchor = terminal
+                    .lock()
+                    .ok()
+                    .and_then(|state| state.abs_cursor_logical_start());
 
                 // Write the command, clearing any half-typed prompt line
                 // first (Ctrl+U) so the AI's command isn't concatenated onto
@@ -365,31 +376,76 @@ impl Oryxis {
                 });
                 tab.chat_loading = true;
 
-                // Poll the terminal off-thread until output stabilizes (no
-                // change for 800ms) or a 15s cap, then deliver the captured
-                // text as `ChatToolResult`. Redaction + trim + scrollback are
-                // handled by the shared capture helper.
+                // Poll the terminal off-thread until the command is done, then
+                // deliver the captured text as `ChatToolResult`. Redaction +
+                // trim + scrollback are handled by the shared capture helpers.
+                //
+                // "Done" is three answers, in descending order of proof, and
+                // getting this wrong is what fed the model a stale screen: a
+                // quiet terminal is NOT evidence a command finished. A
+                // `find / -name x` prints nothing for tens of seconds, so the
+                // old "no change for 800ms" rule gave up ~1.3s in and reported
+                // the login banner as the command's output.
+                //
+                // - The shell drew a prompt under the echo: it is over, a
+                //   short stability window confirms the last write landed.
+                // - No prompt we recognize, but the command HAS printed and
+                //   then went quiet: most likely done (a custom prompt we
+                //   can't match), so accept a longer silence.
+                // - Nothing printed at all: wait it out. Only the cap ends it,
+                //   and the result says so.
                 let poll = Task::perform(
                     async move {
                         let poll_interval = std::time::Duration::from_millis(300);
-                        let stable_threshold = std::time::Duration::from_millis(800);
-                        let max_wait = std::time::Duration::from_secs(15);
+                        let finished_threshold = std::time::Duration::from_millis(800);
+                        let quiet_threshold = std::time::Duration::from_millis(2500);
+                        // Anchored captures can tell "still running" from
+                        // "done", so waiting longer costs nothing on fast
+                        // commands. Without an anchor the cap is the only
+                        // brake, so it stays where it was.
+                        let max_wait = std::time::Duration::from_secs(if anchor.is_some() {
+                            60
+                        } else {
+                            15
+                        });
                         let start_time = std::time::Instant::now();
                         let mut last_snapshot = String::new();
                         let mut stable_since = std::time::Instant::now();
                         let mut timed_out = false;
                         tokio::time::sleep(std::time::Duration::from_millis(500)).await;
                         loop {
-                            let snapshot = capture_terminal_context(
-                                &terminal,
-                                40,
-                                privacy_terms.as_deref(),
-                                privacy_classes,
-                            );
+                            let capture = anchor.and_then(|a| {
+                                capture_command_output(
+                                    &terminal,
+                                    a,
+                                    privacy_terms.as_deref(),
+                                    privacy_classes,
+                                )
+                            });
+                            // No anchor, or it stopped being readable (the
+                            // command opened a TUI, or its output pushed the
+                            // echo out of the scrollback ring): the tail is
+                            // all there is, under the old stability rule.
+                            let (snapshot, threshold) = match capture {
+                                Some(c) if c.finished => (c.text, Some(finished_threshold)),
+                                Some(c) if c.has_output => (c.text, Some(quiet_threshold)),
+                                Some(c) => (c.text, None),
+                                None => (
+                                    capture_terminal_context(
+                                        &terminal,
+                                        40,
+                                        privacy_terms.as_deref(),
+                                        privacy_classes,
+                                    ),
+                                    Some(finished_threshold),
+                                ),
+                            };
                             if snapshot != last_snapshot {
                                 last_snapshot = snapshot;
                                 stable_since = std::time::Instant::now();
-                            } else if stable_since.elapsed() >= stable_threshold {
+                            } else if let Some(threshold) = threshold
+                                && stable_since.elapsed() >= threshold
+                            {
                                 break;
                             }
                             if start_time.elapsed() >= max_wait {
@@ -398,13 +454,14 @@ impl Oryxis {
                             }
                             tokio::time::sleep(poll_interval).await;
                         }
-                        // A command still producing output at the 15s cap
-                        // (long build, `tail -f`, a TUI) would otherwise look
-                        // "done" to the model; flag the partial capture.
+                        // A command still producing output at the cap (long
+                        // build, `tail -f`, a TUI) would otherwise look "done"
+                        // to the model; flag the partial capture.
                         if timed_out {
-                            last_snapshot.push_str(
-                                "\n[Note: command may still be running; output captured after 15s]",
-                            );
+                            last_snapshot.push_str(&format!(
+                                "\n[Note: command may still be running; output captured after {}s]",
+                                max_wait.as_secs()
+                            ));
                         }
                         last_snapshot
                     },
