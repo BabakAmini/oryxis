@@ -549,9 +549,6 @@ impl Oryxis {
                 tab_drag: None,
                 panel_width: crate::app::PANEL_WIDTH,
                 panel_resize_drag: None,
-                editor_autosave_gen: 0,
-                editor_autosave_flash_gen: 0,
-                editor_autosave_saved_visible: false,
                 editor_saved_snapshot: None,
                 sftp_enabled: true,
                 // Workspace is the v0.7 default. Existing users who

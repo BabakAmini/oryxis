@@ -901,10 +901,6 @@ impl Oryxis {
                 | EditorMessage::EditorPresetPicked(..)
             ) => self.handle_editor_lifecycle(m),
             m @ (
-                EditorMessage::EditorAutoSaveTick(..)
-                | EditorMessage::EditorAutoSaveFlashClear(..)
-            ) => self.handle_editor_autosave(m),
-            m @ (
                 EditorMessage::EditorLabelChanged(..)
                 | EditorMessage::EditorTagsChanged(..)
                 | EditorMessage::EditorHostnameChanged(..)

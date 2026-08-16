@@ -335,8 +335,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "リモートデスクトップクライアントが見つかりません。次のいずれかをインストールしてください",
         "remote_desktop_tunnel_failed" => "リモートデスクトップのトンネルに失敗しました",
         "section_compatibility" => "互換性",
-        "editor_autosave_hint" => "変更は自動的に保存されます",
-        "editor_autosave_saved" => "保存済み",
         "editor_preset_heading" => "ここから開始",
         "preset_basic_ssh" => "基本 SSH",
         "preset_via_bastion" => "踏み台経由",

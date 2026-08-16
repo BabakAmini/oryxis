@@ -338,8 +338,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "Nie znaleziono klienta pulpitu zdalnego; zainstaluj jeden z",
         "remote_desktop_tunnel_failed" => "Tunel pulpitu zdalnego nie powiódł się",
         "section_compatibility" => "Zgodność",
-        "editor_autosave_hint" => "Zmiany są zapisywane automatycznie",
-        "editor_autosave_saved" => "Zapisano",
         "editor_preset_heading" => "Zacznij od",
         "preset_basic_ssh" => "Podstawowe SSH",
         "preset_via_bastion" => "Przez bastion",

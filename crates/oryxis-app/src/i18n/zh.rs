@@ -335,8 +335,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "未找到远程桌面客户端；请安装以下之一",
         "remote_desktop_tunnel_failed" => "远程桌面隧道失败",
         "section_compatibility" => "兼容性",
-        "editor_autosave_hint" => "更改会自动保存",
-        "editor_autosave_saved" => "已保存",
         "editor_preset_heading" => "从模板开始",
         "preset_basic_ssh" => "基础 SSH",
         "preset_via_bastion" => "经跳板机",

@@ -335,8 +335,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "Nessun client desktop remoto trovato; installane uno tra",
         "remote_desktop_tunnel_failed" => "Tunnel desktop remoto non riuscito",
         "section_compatibility" => "Compatibilità",
-        "editor_autosave_hint" => "Le modifiche vengono salvate automaticamente",
-        "editor_autosave_saved" => "Salvato",
         "editor_preset_heading" => "Inizia da",
         "preset_basic_ssh" => "SSH di base",
         "preset_via_bastion" => "Via bastion",

@@ -228,11 +228,4 @@ pub enum EditorMessage {
     /// A create-flow starting-point chip was clicked (new-host editor
     /// only). One-shot form preparation, see `HostEditorPreset`.
     EditorPresetPicked(crate::state::HostEditorPreset),
-    /// Debounce expiry for the edit-an-existing-host auto-save. Carries
-    /// the generation it was armed with; a tick whose generation is no
-    /// longer current lost to a newer edit and does nothing.
-    EditorAutoSaveTick(u64),
-    /// Ends the transient "Saved" footer confirmation, generation-gated
-    /// the same way so a rapid save train keeps the label up.
-    EditorAutoSaveFlashClear(u64),
 }

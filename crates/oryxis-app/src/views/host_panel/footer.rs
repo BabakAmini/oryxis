@@ -152,24 +152,18 @@ impl Oryxis {
                 .width(Length::Fill)
                 .into()
         } else {
-            // Editing an existing host: no Save button, changes persist
-            // on their own (dispatch_editor/autosave.rs). The slot
-            // states the contract instead, flipping to an accent
-            // "Saved" for a moment after each persist so the writes
-            // are not invisible. Enter still saves-and-closes via the
-            // fields' on_submit; Esc / X flush before closing.
-            let (label, color) = if self.editor_autosave_saved_visible {
-                ("editor_autosave_saved", OryxisColors::t().accent)
-            } else {
-                ("editor_autosave_hint", OryxisColors::t().text_muted)
-            };
-            container(
-                text(crate::i18n::t(label)).size(12).color(color),
-            )
-            .padding(Padding { top: 10.0, right: 0.0, bottom: 10.0, left: 0.0 })
-            .width(Length::Fill)
-            .center_x(Length::Fill)
-            .into()
+            // Editing an existing host: NOTHING. Removing the Save
+            // button was about removing the footer, not about replacing
+            // it with a caption; a standing "changes are saved
+            // automatically" is a label the user reads once and then
+            // has to look past forever. The write happens when the
+            // drawer closes (dispatch_editor/autosave.rs), which is the
+            // same gesture that already means "done", so there is
+            // nothing here to confirm and nothing to press. Enter
+            // saves-and-closes via the fields' on_submit; Esc / X
+            // flush on their way out; only a FAILED write speaks up
+            // (inline error + toast).
+            Space::new().into()
         };
         actions_row
     }

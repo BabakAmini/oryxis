@@ -357,8 +357,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "לא נמצא לקוח שולחן עבודה מרוחק; התקינו אחד מאלה",
         "remote_desktop_tunnel_failed" => "מנהרת שולחן העבודה המרוחק נכשלה",
         "section_compatibility" => "תאימות",
-        "editor_autosave_hint" => "השינויים נשמרים אוטומטית",
-        "editor_autosave_saved" => "נשמר",
         "editor_preset_heading" => "התחל מ",
         "preset_basic_ssh" => "SSH בסיסי",
         "preset_via_bastion" => "דרך בסטיון",

@@ -338,8 +338,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "Uzak masaüstü istemcisi bulunamadı; şunlardan birini kurun",
         "remote_desktop_tunnel_failed" => "Uzak masaüstü tüneli başarısız oldu",
         "section_compatibility" => "Uyumluluk",
-        "editor_autosave_hint" => "Değişiklikler otomatik olarak kaydedilir",
-        "editor_autosave_saved" => "Kaydedildi",
         "editor_preset_heading" => "Şununla başla",
         "preset_basic_ssh" => "Temel SSH",
         "preset_via_bastion" => "Bastion üzerinden",

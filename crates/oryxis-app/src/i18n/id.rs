@@ -338,8 +338,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "Klien desktop jarak jauh tidak ditemukan; pasang salah satu dari",
         "remote_desktop_tunnel_failed" => "Tunnel desktop jarak jauh gagal",
         "section_compatibility" => "Kompatibilitas",
-        "editor_autosave_hint" => "Perubahan disimpan secara otomatis",
-        "editor_autosave_saved" => "Tersimpan",
         "editor_preset_heading" => "Mulai dari",
         "preset_basic_ssh" => "SSH dasar",
         "preset_via_bastion" => "Lewat bastion",

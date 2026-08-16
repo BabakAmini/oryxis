@@ -338,8 +338,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "원격 데스크톱 클라이언트를 찾을 수 없습니다. 다음 중 하나를 설치하세요",
         "remote_desktop_tunnel_failed" => "원격 데스크톱 터널 실패",
         "section_compatibility" => "호환성",
-        "editor_autosave_hint" => "변경 사항은 자동으로 저장됩니다",
-        "editor_autosave_saved" => "저장됨",
         "editor_preset_heading" => "시작 방식",
         "preset_basic_ssh" => "기본 SSH",
         "preset_via_bastion" => "배스천 경유",

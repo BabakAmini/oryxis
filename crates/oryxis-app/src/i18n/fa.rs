@@ -338,8 +338,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "کلاینت دسکتاپ راه دور یافت نشد؛ یکی از این‌ها را نصب کنید",
         "remote_desktop_tunnel_failed" => "تونل دسکتاپ راه دور ناموفق بود",
         "section_compatibility" => "سازگاری",
-        "editor_autosave_hint" => "تغییرات به‌صورت خودکار ذخیره می‌شوند",
-        "editor_autosave_saved" => "ذخیره شد",
         "editor_preset_heading" => "شروع از",
         "preset_basic_ssh" => "SSH ساده",
         "preset_via_bastion" => "از طریق بستیون",

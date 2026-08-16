@@ -357,8 +357,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "Nebyl nalezen žádný klient vzdálené plochy; nainstalujte jeden z",
         "remote_desktop_tunnel_failed" => "Tunel vzdálené plochy selhal",
         "section_compatibility" => "Kompatibilita",
-        "editor_autosave_hint" => "Změny se ukládají automaticky",
-        "editor_autosave_saved" => "Uloženo",
         "editor_preset_heading" => "Začít od",
         "preset_basic_ssh" => "Základní SSH",
         "preset_via_bastion" => "Přes bastion",

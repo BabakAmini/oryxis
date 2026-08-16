@@ -335,8 +335,6 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "remote_desktop_no_client" => "Клиент удалённого рабочего стола не найден; установите один из",
         "remote_desktop_tunnel_failed" => "Сбой туннеля удалённого рабочего стола",
         "section_compatibility" => "Совместимость",
-        "editor_autosave_hint" => "Изменения сохраняются автоматически",
-        "editor_autosave_saved" => "Сохранено",
         "editor_preset_heading" => "Начать с",
         "preset_basic_ssh" => "Базовый SSH",
         "preset_via_bastion" => "Через бастион",

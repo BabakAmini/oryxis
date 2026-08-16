@@ -93,6 +93,10 @@ impl Oryxis {
         ) {
             self.last_user_activity = std::time::Instant::now();
         }
+        // Was the host editor on screen before this message? Compared
+        // against the post-dispatch answer below, that is the "the
+        // drawer just left" edge the auto-save writes on.
+        let editor_visible_before = self.host_editor_visible();
         // SFTP async-continuation messages target a specific tab that may no
         // longer be focused. Swap the owning tab's state into `self.sftp` for
         // the duration so the (unchanged) handlers route to the right tab,
@@ -108,6 +112,20 @@ impl Oryxis {
             Some(started) => Task::batch([task, started]),
             None => task,
         };
+        // The host editor writes when it LEAVES THE SCREEN, and this is
+        // what makes that true for every path instead of the ones
+        // someone remembered. The drawer can go away without any
+        // handler mentioning it: navigating to another view, focusing a
+        // terminal tab, or another Dashboard panel taking the slot
+        // ahead of it in the render chain (`side_panel_open`). Those
+        // handlers do not touch `editor_form`, so the edits are still
+        // here to persist. The paths that DO replace or destroy the
+        // form (opening another host, the vault locking, the window
+        // closing) flush inside their own handler, before the reset;
+        // this net then finds the form clean and does nothing.
+        if editor_visible_before && !self.host_editor_visible() {
+            self.editor_flush_on_close();
+        }
         // Keep the unified strip order (terminal + SFTP) in sync with the live
         // tabs after every message: new tabs appended, closed ones dropped,
         // drag-reordered order preserved.
@@ -231,23 +249,12 @@ impl Oryxis {
             Message::Sync(m) => self.handle_sync(m),
             Message::Mcp(m) => self.handle_mcp(m),
             Message::Editor(m) => {
-                // Auto-save watch (dispatch_editor/autosave.rs): any
-                // editor-domain message may have drifted the form of an
-                // open EXISTING host, so re-arm the debounce after
-                // handling. The tick and its flash are excluded or the
-                // tick would re-arm itself forever.
-                let watch = !matches!(
-                    m,
-                    crate::app::EditorMessage::EditorAutoSaveTick(..)
-                        | crate::app::EditorMessage::EditorAutoSaveFlashClear(..)
-                );
+                // Record the auto-save baseline once per opened host
+                // (dispatch_editor/autosave.rs); the write itself
+                // happens when the drawer closes.
                 let task = self.handle_editor(m);
-                if watch {
-                    let kick = self.editor_autosave_kick();
-                    Task::batch([task, kick])
-                } else {
-                    task
-                }
+                self.editor_autosave_kick();
+                task
             }
             Message::Share(m) => self.handle_share(m),
             Message::Tray(m) => self.handle_tray(m),
@@ -260,12 +267,12 @@ impl Oryxis {
             Message::Settings(m) => {
                 // Two settings-domain arms edit the OPEN host editor's
                 // form (the host-scope highlight rules, a login-script
-                // delete clearing its reference), so the auto-save
-                // watch extends here; `editor_autosave_kick` no-ops
-                // unless an existing host is open and drifted.
+                // delete clearing its reference), so the baseline
+                // recording extends here; it no-ops unless an existing
+                // host is open without one.
                 let task = self.handle_settings(m);
-                let kick = self.editor_autosave_kick();
-                Task::batch([task, kick])
+                self.editor_autosave_kick();
+                task
             }
             Message::Keys(m) => self.handle_keys(m),
             Message::Cloud(m) => self.handle_cloud(m),
