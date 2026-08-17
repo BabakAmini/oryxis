@@ -25,6 +25,11 @@ use iced::Task;
 use crate::app::{Message, Oryxis, TerminalMessage};
 use crate::state::{OverlayContent, OverlayState, PasswordSource, PasswordSourceKind};
 
+/// Gap between the caret and the popup, on whichever side it opens.
+/// Shared with the layout's flip so both edges sit the same distance
+/// from the text they belong to.
+pub(crate) const CARET_GAP: f32 = 2.0;
+
 /// Fold this batch's detection into the pane's remembered signature and
 /// answer whether a popup should be raised.
 ///
@@ -195,7 +200,7 @@ impl Oryxis {
         if entries.is_empty() {
             return;
         }
-        let Some((x, y)) = self.password_suggest_anchor(pane_id) else {
+        let Some((x, y, caret_top)) = self.password_suggest_anchor(pane_id) else {
             if let Some(pane) = self.pane_by_id_mut(pane_id) {
                 pane.password_prompt_sig = None;
             }
@@ -206,16 +211,19 @@ impl Oryxis {
                 pane_id,
                 entries,
                 selected: None,
+                caret_top,
             },
             x,
             y,
         });
     }
 
-    /// Window coordinates just under the terminal caret of `pane_id`.
+    /// Window coordinates just under the terminal caret of `pane_id`,
+    /// plus the caret's own top edge (the pivot the layout flips the
+    /// popup over when it does not fit below).
     /// `None` before the pane has ever been drawn (no reported bounds),
     /// which also means the user cannot be looking at it.
-    fn password_suggest_anchor(&self, pane_id: uuid::Uuid) -> Option<(f32, f32)> {
+    fn password_suggest_anchor(&self, pane_id: uuid::Uuid) -> Option<(f32, f32, f32)> {
         let pane = self.pane_by_id(pane_id)?;
         let bounds = pane.bounds.get();
         if bounds.width <= 0.0 || bounds.height <= 0.0 {
@@ -229,7 +237,7 @@ impl Oryxis {
             self.terminal_font_weight.font_weight(),
             cell,
         );
-        Some((caret.x, caret.y + caret.height + 2.0))
+        Some((caret.x, caret.y + caret.height + CARET_GAP, caret.y))
     }
 
     /// The open popup's pane + entries + selection, if one is up.
@@ -239,6 +247,7 @@ impl Oryxis {
                 pane_id,
                 entries,
                 selected,
+                ..
             }) => Some((*pane_id, entries.as_slice(), *selected)),
             _ => None,
         }

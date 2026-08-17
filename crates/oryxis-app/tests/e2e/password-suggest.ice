@@ -120,3 +120,34 @@ expect "Stored passwords"
 type ctrl+c
 wait 800
 absent "Stored passwords"
+
+# 6. A prompt on the LAST terminal row (where a shell prompt lives,
+# so this is the ordinary case) opens the popup ABOVE the caret. The
+# clamp alone only slid the box up until its bottom met the window's,
+# which both clipped the hint line off and covered the prompt line the
+# user is answering.
+#
+# The click coordinate IS the assertion here: it lands on the row only
+# where the flipped box draws it (the clamped placement put that row
+# ~80 px lower, on top of the prompt itself). Text selectors cannot
+# read a clipped box, so the exact geometry is asserted in the unit
+# tests next to `popover_y`; this covers it end to end. It depends on
+# the vault holding exactly ONE credential (the row sits at y=640 only
+# in a 96 px popup): a second one would move the rows and this click
+# would send the wrong password while still reading as a pass.
+type "seq 1 60"
+type enter
+wait 1000
+type "read -s -p 'Password: ' PW5"
+type enter
+wait 1500
+expect "Stored passwords"
+screenshot pwsuggest-flipped
+click (300, 640)
+wait 800
+absent "Stored passwords"
+type "echo [$PW5]"
+type enter
+wait 800
+# Must show `[hunter2]`: the click reached the row, not the terminal.
+screenshot pwsuggest-flipped-sent

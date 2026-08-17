@@ -140,6 +140,13 @@ pub(crate) enum OverlayContent {
         /// secret nobody picked. Mouse users click; the row carries its
         /// own index.
         selected: Option<usize>,
+        /// Window-space top edge of the caret's CELL (`ime_caret_rect`
+        /// is the whole cell box, so this clears the prompt's glyphs,
+        /// not just the bar drawn over them). `x`/`y` place the box
+        /// BELOW the caret; this is the edge it flips over when the box
+        /// does not fit there, which at a shell prompt (last row of the
+        /// terminal) is the ordinary case.
+        caret_top: f32,
     },
 }
 

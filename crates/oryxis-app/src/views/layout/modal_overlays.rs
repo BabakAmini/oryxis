@@ -369,7 +369,9 @@ impl Oryxis {
             overlay.x
         };
         let x = raw_x.min(self.window_size.width - menu_width).max(0.0);
-        let y = overlay.y.min(self.window_size.height - menu_height).max(0.0);
+        // Vertically the box flips over its anchor when it does not fit
+        // under it, and falls back to the clamp; see `overlay_menu_y`.
+        let y = self.overlay_menu_y(overlay, menu_height);
         let positioned_menu: Element<'_, Message> = column![
             Space::new().height(y),
             row![

@@ -2,6 +2,38 @@
 
 use super::*;
 use iced::widget::column;
+
+/// Min-height compromise for the popover chrome (see
+/// `render_overlay_menu`), at module scope because the password
+/// popup's exact height has to add the same padding it is drawn with.
+pub(super) const MENU_CHROME_PAD_V: f32 = 6.0;
+
+/// Top edge of a popover of `menu_height` hanging from `anchor_y`, in a
+/// window `window_h` tall.
+///
+/// It stays below the anchor whenever it fits there. When it does not
+/// and the caller supplied `flip_pivot` (the TOP edge of the thing the
+/// popover hangs from), the box flips over that edge instead. Sliding
+/// it up until its bottom meets the window's, which is all a clamp can
+/// do, would park it over what it points at: the password popup hangs
+/// from the terminal caret, and a shell prompt sits on the LAST row, so
+/// "no room below" is the ordinary case there, not an edge one.
+///
+/// When neither side has room the clamp still wins: a popover that fits
+/// nowhere is better half-covered than half off-screen.
+fn popover_y(anchor_y: f32, menu_height: f32, window_h: f32, flip_pivot: Option<f32>) -> f32 {
+    let max_y = window_h - menu_height;
+    if anchor_y > max_y
+        && let Some(pivot) = flip_pivot
+    {
+        let above = pivot - menu_height - crate::dispatch_password_suggest::CARET_GAP;
+        if above >= 0.0 {
+            return above;
+        }
+    }
+    anchor_y.min(max_y).max(0.0)
+}
+
 impl Oryxis {
     /// Resolve the on-screen width of an overlay popover. Group
     /// pickers track their associated combo's measured bounds (so
@@ -74,6 +106,12 @@ impl Oryxis {
     /// window's bottom edge where the real height matters.
     pub(crate) fn overlay_menu_height(&self, overlay: &OverlayState) -> f32 {
         const ITEM_H: f32 = 30.0;
+        // The one variant that is measured rather than estimated: its
+        // rows are two lines tall only when the credential carries a
+        // username, and the number decides a flip, not just a nudge.
+        if let OverlayContent::PasswordSuggest { entries, .. } = &overlay.content {
+            return super::menu_password_suggest::password_suggest_menu_height(entries);
+        }
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,
             OverlayContent::HostTagFilter | OverlayContent::HistoryTagFilter => {
@@ -126,12 +164,26 @@ impl Oryxis {
                 // Copy (only with a selection) + Copy All.
                 if sel.is_some() { 2.0 } else { 1.0 }
             }
-            // One row per credential, plus the title and hint lines
-            // (both shorter than a row, hence the halves).
-            OverlayContent::PasswordSuggest { entries, .. } => entries.len() as f32 + 1.0,
             _ => 2.5,
         };
         items * ITEM_H + 10.0
+    }
+
+    /// Where the top edge of an overlay popover goes: [`popover_y`]
+    /// fed with the anchor's flip pivot, which only the caret-anchored
+    /// password popup publishes (every other menu hangs off a widget
+    /// whose height this layer never learns).
+    pub(crate) fn overlay_menu_y(&self, overlay: &OverlayState, menu_height: f32) -> f32 {
+        let pivot = match &overlay.content {
+            OverlayContent::PasswordSuggest { caret_top, .. } => Some(*caret_top),
+            _ => None,
+        };
+        popover_y(
+            overlay.y,
+            menu_height,
+            self.window_size.height,
+            pivot,
+        )
     }
 
     /// Multi-select tag-filter dropdown shared by the Hosts and
@@ -752,5 +804,51 @@ impl Oryxis {
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // A 750 px window, a popup 96 px tall (one credential with a
+    // username, measured through the harness) and a caret 20 px tall:
+    // the shape the bug was reported in.
+    const WINDOW_H: f32 = 750.0;
+    const POPUP_H: f32 = 96.0;
+
+    #[test]
+    fn a_popover_with_room_below_stays_below() {
+        assert_eq!(popover_y(300.0, POPUP_H, WINDOW_H, Some(280.0)), 300.0);
+    }
+
+    #[test]
+    fn a_caret_at_the_last_row_flips_the_popover_above_it() {
+        // The failure this guards: the clamp alone slid the box up to
+        // 654 (window minus height), covering the prompt line the user
+        // is being asked to answer.
+        let caret_top = 700.0;
+        let below = caret_top + 20.0 + crate::dispatch_password_suggest::CARET_GAP;
+        let y = popover_y(below, POPUP_H, WINDOW_H, Some(caret_top));
+        assert_eq!(y, caret_top - POPUP_H - crate::dispatch_password_suggest::CARET_GAP);
+        assert!(y + POPUP_H < caret_top, "the caret line must stay visible");
+    }
+
+    #[test]
+    fn an_anchor_without_a_pivot_still_clamps() {
+        // Every menu but the password popup hangs off a widget whose
+        // height this layer never learns, so it has nothing to flip
+        // over and must keep the old behaviour.
+        assert_eq!(popover_y(740.0, POPUP_H, WINDOW_H, None), WINDOW_H - POPUP_H);
+    }
+
+    #[test]
+    fn a_popover_that_fits_neither_side_clamps_instead_of_hanging_off() {
+        // A vault with many identities: taller than the room above the
+        // caret AND below it. Half-covered beats half off-screen.
+        let tall = 700.0;
+        assert_eq!(popover_y(600.0, tall, WINDOW_H, Some(580.0)), WINDOW_H - tall);
+        // ... and never above the window's own top edge.
+        assert_eq!(popover_y(600.0, 800.0, WINDOW_H, Some(580.0)), 0.0);
     }
 }
