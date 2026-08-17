@@ -1194,6 +1194,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Pole Host obsahuje uživatelské jméno. Zadejte sem pouze název hostitele nebo IP adresu a uživatelské jméno do pole Uživatelské jméno.",
         "connect_host_invalid" => "Pole Host není název hostitele. Zadejte sem pouze název hostitele nebo IP adresu.",
         "editor_host_user_dropped" => "Pole Host neslo také uživatele „{dropped}“, který byl vynechán: Uživatelské jméno je již nastaveno na „{kept}“.",
+        "editor_host_password_moved" => "Heslo z pole Hostitel bylo přesunuto do pole Heslo.",
+        "editor_host_password_dropped" => "Heslo z pole Hostitel bylo zahozeno: pole Heslo už jedno obsahuje.",
         "editor_autosave_failed" => "Automatické uložení se nezdařilo",
         "apply_sudo_password" => "Použít sudo heslo",
         "sudo_password_sent" => "Heslo odesláno",

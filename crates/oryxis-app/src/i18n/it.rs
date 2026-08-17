@@ -994,6 +994,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Il campo Host contiene un nome utente. Inserisci lì solo il nome host o l'indirizzo IP, e il nome utente nel campo Nome utente.",
         "connect_host_invalid" => "Il campo Host non è un nome host. Inserisci lì solo un nome host o un indirizzo IP.",
         "editor_host_user_dropped" => "Il campo Host conteneva anche l'utente «{dropped}», che è stato ignorato: Nome utente è già impostato su «{kept}».",
+        "editor_host_password_moved" => "Una password nel campo Host è stata spostata nel campo Password.",
+        "editor_host_password_dropped" => "Una password nel campo Host è stata scartata: il campo Password ne contiene già una.",
         "editor_autosave_failed" => "Salvataggio automatico non riuscito",
         "apply_sudo_password" => "Applica password sudo",
         "sudo_password_sent" => "Password inviata",

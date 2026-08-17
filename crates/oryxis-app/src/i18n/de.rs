@@ -994,6 +994,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Das Feld Host enthält einen Benutzernamen. Tragen Sie dort nur den Hostnamen oder die IP-Adresse ein und den Benutzernamen im Feld Benutzername.",
         "connect_host_invalid" => "Das Feld Host ist kein Hostname. Tragen Sie dort nur einen Hostnamen oder eine IP-Adresse ein.",
         "editor_host_user_dropped" => "Das Feld Host enthielt außerdem den Benutzer „{dropped}“, der verworfen wurde: Benutzername ist bereits auf „{kept}“ gesetzt.",
+        "editor_host_password_moved" => "Ein Passwort im Feld Host wurde in das Feld Passwort verschoben.",
+        "editor_host_password_dropped" => "Ein Passwort im Feld Host wurde verworfen: Das Feld Passwort enthält bereits eines.",
         "editor_autosave_failed" => "Automatisches Speichern fehlgeschlagen",
         "apply_sudo_password" => "Sudo-Passwort anwenden",
         "sudo_password_sent" => "Passwort gesendet",

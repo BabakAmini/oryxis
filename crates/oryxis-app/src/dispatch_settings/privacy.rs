@@ -39,8 +39,17 @@ impl Oryxis {
     /// override (`Connection.privacy_mode`) wins over the global
     /// setting; `None` inherits the global default.
     pub(crate) fn privacy_active(&self, conn: &oryxis_core::models::Connection) -> bool {
+        self.privacy_active_for_override(conn.privacy_mode)
+    }
+
+    /// The same resolution against a bare per-host override, for
+    /// surfaces that hold one without a `Connection` behind it (the
+    /// host editor's form, which is describing a row it has not
+    /// written yet). Single authority: `privacy_active` delegates here
+    /// so the precedence cannot be stated twice and drift.
+    pub(crate) fn privacy_active_for_override(&self, over: Option<bool>) -> bool {
         self.privacy.session_override
-            .unwrap_or_else(|| conn.privacy_mode.unwrap_or(self.privacy.mode))
+            .unwrap_or_else(|| over.unwrap_or(self.privacy.mode))
     }
 
     /// Strings Privacy Mode masks literally wherever they appear (live

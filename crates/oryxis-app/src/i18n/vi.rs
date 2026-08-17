@@ -1188,6 +1188,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Trường Máy chủ chứa một tên người dùng. Chỉ nhập tên máy chủ hoặc địa chỉ IP ở đó, còn tên người dùng nhập vào trường Tên người dùng.",
         "connect_host_invalid" => "Trường Máy chủ không phải là tên máy chủ. Chỉ nhập tên máy chủ hoặc địa chỉ IP ở đó.",
         "editor_host_user_dropped" => "Trường Máy chủ còn mang theo người dùng «{dropped}» và đã bị bỏ qua: Tên người dùng đã được đặt thành «{kept}».",
+        "editor_host_password_moved" => "Mật khẩu trong trường Máy chủ đã được chuyển sang trường Mật khẩu.",
+        "editor_host_password_dropped" => "Mật khẩu trong trường Máy chủ đã bị bỏ qua: trường Mật khẩu đã có sẵn.",
         "editor_autosave_failed" => "Tự động lưu thất bại",
         "apply_sudo_password" => "Áp dụng mật khẩu sudo",
         "sudo_password_sent" => "Đã gửi mật khẩu",

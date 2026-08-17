@@ -1007,6 +1007,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "主机字段中包含用户名。此处只填主机名或 IP 地址，用户名请填入用户名字段。",
         "connect_host_invalid" => "主机字段不是主机名。此处只能填写主机名或 IP 地址。",
         "editor_host_user_dropped" => "主机字段中还带有用户「{dropped}」，已忽略：用户名已设置为「{kept}」。",
+        "editor_host_password_moved" => "主机字段中的密码已移至密码字段。",
+        "editor_host_password_dropped" => "主机字段中的密码已丢弃：密码字段中已有密码。",
         "editor_autosave_failed" => "自动保存失败",
         "apply_sudo_password" => "应用 sudo 密码",
         "sudo_password_sent" => "密码已发送",

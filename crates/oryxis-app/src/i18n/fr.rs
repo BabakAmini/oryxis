@@ -1007,6 +1007,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Le champ Hôte contient un nom d'utilisateur. N'y mettez que le nom d'hôte ou l'adresse IP, et le nom d'utilisateur dans le champ Nom d'utilisateur.",
         "connect_host_invalid" => "Le champ Hôte n'est pas un nom d'hôte. N'y mettez qu'un nom d'hôte ou une adresse IP.",
         "editor_host_user_dropped" => "Le champ Hôte contenait aussi l'utilisateur « {dropped} », qui a été ignoré : Nom d'utilisateur vaut déjà « {kept} ».",
+        "editor_host_password_moved" => "Un mot de passe présent dans le champ Hôte a été déplacé vers le champ Mot de passe.",
+        "editor_host_password_dropped" => "Un mot de passe présent dans le champ Hôte a été ignoré : le champ Mot de passe en contient déjà un.",
         "editor_autosave_failed" => "Échec de l'enregistrement automatique",
         "apply_sudo_password" => "Appliquer le mot de passe sudo",
         "sudo_password_sent" => "Mot de passe envoyé",

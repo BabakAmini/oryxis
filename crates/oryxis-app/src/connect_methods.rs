@@ -248,6 +248,9 @@ impl Oryxis {
         };
         let target = oryxis_core::ssh_target::SshTarget {
             username,
+            // A shareable URL never carries the stored password, and
+            // `canonical` would not render one anyway.
+            password: None,
             host: conn.hostname.clone(),
             port: (conn.port != default_port).then_some(conn.port),
         };

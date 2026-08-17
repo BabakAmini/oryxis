@@ -1007,6 +1007,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "主機欄位中包含使用者名稱。此處只填主機名稱或 IP 位址，使用者名稱請填入使用者名稱欄位。",
         "connect_host_invalid" => "主機欄位不是主機名稱。此處只能填寫主機名稱或 IP 位址。",
         "editor_host_user_dropped" => "主機欄位中還帶有使用者「{dropped}」，已忽略：使用者名稱已設定為「{kept}」。",
+        "editor_host_password_moved" => "主機欄位中的密碼已移至密碼欄位。",
+        "editor_host_password_dropped" => "主機欄位中的密碼已捨棄：密碼欄位已有密碼。",
         "editor_autosave_failed" => "自動儲存失敗",
         "apply_sudo_password" => "套用 sudo 密碼",
         "sudo_password_sent" => "密碼已傳送",

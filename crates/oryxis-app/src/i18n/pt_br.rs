@@ -1162,6 +1162,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "O campo Host contém um nome de usuário. Coloque ali apenas o nome do host ou o endereço IP, e o nome de usuário no campo Usuário.",
         "connect_host_invalid" => "O campo Host não é um nome de host. Coloque ali apenas um nome de host ou endereço IP.",
         "editor_host_user_dropped" => "O campo Host também trazia o usuário «{dropped}», que foi ignorado: Usuário já está definido como «{kept}».",
+        "editor_host_password_moved" => "Uma senha no campo Host foi movida para o campo Senha.",
+        "editor_host_password_dropped" => "Uma senha no campo Host foi descartada: o campo Senha já tem uma.",
         "editor_autosave_failed" => "Falha no salvamento automático",
         "apply_sudo_password" => "Aplicar senha do sudo",
         "sudo_password_sent" => "Senha enviada",

@@ -1188,6 +1188,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Kolom Host berisi nama pengguna. Isi di sana hanya nama host atau alamat IP, dan nama pengguna di kolom Nama pengguna.",
         "connect_host_invalid" => "Kolom Host bukan nama host. Isi di sana hanya nama host atau alamat IP.",
         "editor_host_user_dropped" => "Kolom Host juga membawa pengguna «{dropped}» yang diabaikan: Nama pengguna sudah disetel ke «{kept}».",
+        "editor_host_password_moved" => "Kata sandi pada kolom Host dipindahkan ke kolom Kata Sandi.",
+        "editor_host_password_dropped" => "Kata sandi pada kolom Host diabaikan: kolom Kata Sandi sudah terisi.",
         "editor_autosave_failed" => "Penyimpanan otomatis gagal",
         "apply_sudo_password" => "Terapkan kata sandi sudo",
         "sudo_password_sent" => "Kata sandi terkirim",

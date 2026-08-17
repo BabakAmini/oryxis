@@ -1195,6 +1195,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "connect_host_has_user" => "The Host field contains a user name. Put only the host name or IP address there, and the user name in the Username field.",
         "connect_host_invalid" => "The Host field is not a host name. Put only a host name or IP address there.",
         "editor_host_user_dropped" => "The Host field also carried the user \"{dropped}\", which was ignored: Username is already set to \"{kept}\".",
+        "editor_host_password_moved" => "A password in the Host field was moved to the Password field.",
+        "editor_host_password_dropped" => "A password in the Host field was discarded: the Password field already has one.",
         "editor_autosave_failed" => "Auto-save failed",
         "apply_sudo_password" => "Apply sudo password",
         "sudo_password_sent" => "Password sent",

@@ -1188,6 +1188,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "호스트 필드에 사용자 이름이 들어 있습니다. 여기에는 호스트 이름이나 IP 주소만 입력하고 사용자 이름은 사용자 이름 필드에 입력하세요.",
         "connect_host_invalid" => "호스트 필드가 호스트 이름이 아닙니다. 여기에는 호스트 이름이나 IP 주소만 입력하세요.",
         "editor_host_user_dropped" => "호스트 필드에 사용자 「{dropped}」도 함께 있었지만 무시했습니다. 사용자 이름이 이미 「{kept}」(으)로 설정되어 있습니다.",
+        "editor_host_password_moved" => "호스트 필드에 있던 비밀번호를 비밀번호 필드로 옮겼습니다.",
+        "editor_host_password_dropped" => "호스트 필드에 있던 비밀번호를 버렸습니다. 비밀번호 필드에 이미 값이 있습니다.",
         "editor_autosave_failed" => "자동 저장 실패",
         "apply_sudo_password" => "sudo 비밀번호 적용",
         "sudo_password_sent" => "비밀번호 전송됨",

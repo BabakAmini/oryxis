@@ -1188,6 +1188,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Ana bilgisayar alanı bir kullanıcı adı içeriyor. Buraya yalnızca ana bilgisayar adını veya IP adresini, kullanıcı adını ise Kullanıcı adı alanına yazın.",
         "connect_host_invalid" => "Ana bilgisayar alanı bir ana bilgisayar adı değil. Buraya yalnızca bir ana bilgisayar adı veya IP adresi yazın.",
         "editor_host_user_dropped" => "Ana bilgisayar alanı ayrıca «{dropped}» kullanıcısını taşıyordu ve yok sayıldı: Kullanıcı adı zaten «{kept}» olarak ayarlı.",
+        "editor_host_password_moved" => "Sunucu alanındaki parola, Parola alanına taşındı.",
+        "editor_host_password_dropped" => "Sunucu alanındaki parola yok sayıldı: Parola alanı zaten dolu.",
         "editor_autosave_failed" => "Otomatik kaydetme başarısız oldu",
         "apply_sudo_password" => "Sudo parolasını uygula",
         "sudo_password_sent" => "Parola gönderildi",

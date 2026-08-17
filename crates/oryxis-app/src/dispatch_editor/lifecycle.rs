@@ -236,6 +236,9 @@ impl Oryxis {
                 if conn.label.is_empty() {
                     conn.label = oryxis_core::ssh_target::SshTarget {
                         username: conn.username.clone(),
+                        // The label is a plaintext column; the typed
+                        // password rides the ephemeral entry below.
+                        password: None,
                         host: conn.hostname.clone(),
                         port: (conn.port != 22).then_some(conn.port),
                     }
@@ -477,11 +480,17 @@ impl Oryxis {
     /// VNC kind picker and Serial has no port at all, so those two get
     /// the hostname cleaned and their field left alone.
     fn editor_split_host_field(&mut self) {
+        // "The form already has a password" is both halves of the
+        // tri-state that mean one: a secret typed this session and one
+        // already in the vault column.
+        let has_password = !self.editor_form.password.as_str().is_empty()
+            || self.editor_form.has_existing_password;
         let Some(split) = host_field_split(
             &self.editor_form.hostname,
             &self.editor_form.username,
             &self.editor_form.port,
             self.editor_form.protocol,
+            has_password,
         ) else {
             return;
         };
@@ -492,22 +501,68 @@ impl Oryxis {
         if let Some(port) = split.port {
             self.editor_form.port = port;
         }
-        if let Some(dropped) = split.dropped_user {
+        let moved_password = split.password.is_some();
+        if let Some(pw) = split.password {
+            // `set` marks the field touched, which is what makes the
+            // persist write it to the ENCRYPTED column. It is also the
+            // only place the value is allowed to land: it came out of a
+            // plaintext field and must not go back into one.
+            self.editor_form.password.set(pw);
+        }
+        if split.dropped_user.is_some() || split.dropped_password || moved_password {
             // A TOAST, not the inline panel error: the flush that
             // reaches here most often is the one the drawer's own close
             // fires, and every close path clears `host_panel_error` on
             // its way out, so the inline slot would report a dropped
             // value to a surface already leaving the screen.
-            //
+            let warning = self.host_field_split_warning(
+                split.dropped_user.as_deref(),
+                moved_password,
+                split.dropped_password,
+            );
+            self.set_toast(warning);
+        }
+    }
+
+    /// The user-facing sentence for a split that moved or dropped
+    /// something. Credentials are named, never printed: the password is
+    /// only ever reported as "a password", and the usernames go through
+    /// Privacy Mode, since a toast is exactly the kind of thing that
+    /// lands on a screen being shared.
+    fn host_field_split_warning(
+        &self,
+        dropped_user: Option<&str>,
+        moved_password: bool,
+        dropped_password: bool,
+    ) -> String {
+        let mask = |value: &str| -> String {
+            // The host being edited may carry its own override, so the
+            // gate is the per-host one, not the global default.
+            if self.privacy_active_for_override(self.editor_form.privacy_mode) {
+                crate::widgets::mask_blocks(value)
+            } else {
+                value.to_string()
+            }
+        };
+        let mut lines: Vec<String> = Vec::new();
+        if let Some(dropped) = dropped_user {
             // Distinct placeholder names, not `{user}`/`{username}`:
             // the first is a PREFIX of the second, so substituting it
             // first would eat the head of the other and leave a
             // dangling `name}` in the message.
-            let warning = crate::i18n::t("editor_host_user_dropped")
-                .replace("{dropped}", &dropped)
-                .replace("{kept}", &self.editor_form.username);
-            self.set_toast(warning);
+            lines.push(
+                crate::i18n::t("editor_host_user_dropped")
+                    .replace("{dropped}", &mask(dropped))
+                    .replace("{kept}", &mask(&self.editor_form.username)),
+            );
         }
+        if moved_password {
+            lines.push(crate::i18n::t("editor_host_password_moved").to_string());
+        }
+        if dropped_password {
+            lines.push(crate::i18n::t("editor_host_password_dropped").to_string());
+        }
+        lines.join(" ")
     }
 
     /// The vault-write half of `EditorSave`, shared with the auto-save
@@ -673,6 +728,15 @@ pub(super) struct HostFieldSplit {
     pub username: Option<String>,
     pub port: Option<String>,
     pub dropped_user: Option<String>,
+    /// A `user:secret@host` password, to be written to the ENCRYPTED
+    /// password column and nowhere else. `None` both when the value
+    /// carried none and when the form already holds one.
+    pub password: Option<String>,
+    /// A password was present and is NOT being applied, because the
+    /// form already has one. The value is dropped here rather than
+    /// carried: the caller has no use for it and every place it could
+    /// be shown or stored is plaintext.
+    pub dropped_password: bool,
 }
 
 /// The decision half of `editor_split_host_field`, pure so the rules
@@ -691,6 +755,7 @@ pub(super) fn host_field_split(
     username: &str,
     port: &str,
     protocol: oryxis_core::models::connection::ConnectionProtocol,
+    has_password: bool,
 ) -> Option<HostFieldSplit> {
     use oryxis_core::models::connection::ConnectionProtocol;
 
@@ -707,12 +772,27 @@ pub(super) fn host_field_split(
         username: None,
         port: None,
         dropped_user: None,
+        password: None,
+        dropped_password: false,
     };
     if let Some(user) = target.username {
         if username.trim().is_empty() {
             split.username = Some(user);
         } else if username != user {
             split.dropped_user = Some(user);
+        }
+    }
+    // The password is the one part that CANNOT stay where it was: the
+    // host field is a plaintext column, so leaving it there is the leak.
+    // It moves to the encrypted field when that is free, and is dropped
+    // outright otherwise, on the same "the dedicated field wins" rule as
+    // the username. Dropping loses a value the user can retype; keeping
+    // it would overwrite a stored credential from a paste.
+    if target.password.is_some() {
+        if has_password {
+            split.dropped_password = true;
+        } else {
+            split.password = target.password;
         }
     }
     if let Some(p) = target.port
@@ -739,24 +819,58 @@ mod tests {
 
     #[test]
     fn a_plain_host_is_left_alone() {
-        assert!(host_field_split("web01", "", "22", Ssh).is_none());
-        assert!(host_field_split("10.0.0.7", "root", "22", Ssh).is_none());
+        assert!(host_field_split("web01", "", "22", Ssh, false).is_none());
+        assert!(host_field_split("10.0.0.7", "root", "22", Ssh, false).is_none());
         // Already-bracketed IPv6 canonicalises rather than reporting a
         // change nobody asked for; a bare one is untouched.
-        assert!(host_field_split("::1", "", "22", Ssh).is_none());
+        assert!(host_field_split("::1", "", "22", Ssh, false).is_none());
+    }
+
+    #[test]
+    fn a_pasted_password_lands_in_the_encrypted_field_not_the_host() {
+        // `sftp://user:pass@host` is how much of the world's
+        // documentation writes a connect string. Before the split it
+        // rode into `username`, which is a PLAINTEXT column.
+        let s = host_field_split("ssh://root:hunter2@web01", "", "22", Ssh, false).unwrap();
+        assert_eq!(s.hostname, "web01");
+        assert_eq!(s.username.as_deref(), Some("root"));
+        assert_eq!(s.password.as_deref(), Some("hunter2"));
+        assert!(!s.dropped_password);
+        // Nothing of the secret may survive in a field that is not the
+        // password one.
+        assert!(!s.hostname.contains("hunter2"));
+        assert!(!s.username.as_deref().unwrap_or_default().contains("hunter2"));
+    }
+
+    #[test]
+    fn a_filled_password_field_outranks_the_pasted_one() {
+        // Same "the dedicated field wins" rule as the username, and the
+        // dropped value is not carried anywhere: overwriting a stored
+        // credential from a paste is the worse of the two losses.
+        let s = host_field_split("root:hunter2@web01", "", "22", Ssh, true).unwrap();
+        assert_eq!(s.username.as_deref(), Some("root"));
+        assert_eq!(s.password, None);
+        assert!(s.dropped_password);
+    }
+
+    #[test]
+    fn a_host_without_a_password_reports_neither() {
+        let s = host_field_split("root@web01", "", "22", Ssh, true).unwrap();
+        assert_eq!(s.password, None);
+        assert!(!s.dropped_password);
     }
 
     #[test]
     fn an_unreadable_value_is_left_alone() {
         // The case the connect-time hint exists for: guessing here
         // would corrupt a row the user can still fix by hand.
-        assert!(host_field_split("root@10.0.0.7/srv", "", "22", Ssh).is_none());
-        assert!(host_field_split("root@", "", "22", Ssh).is_none());
+        assert!(host_field_split("root@10.0.0.7/srv", "", "22", Ssh, false).is_none());
+        assert!(host_field_split("root@", "", "22", Ssh, false).is_none());
     }
 
     #[test]
     fn a_whole_connect_string_lands_in_three_fields() {
-        let s = host_field_split("root@10.0.0.7:2222", "", "22", Ssh).unwrap();
+        let s = host_field_split("root@10.0.0.7:2222", "", "22", Ssh, false).unwrap();
         assert_eq!(s.hostname, "10.0.0.7");
         assert_eq!(s.username.as_deref(), Some("root"));
         assert_eq!(s.port.as_deref(), Some("2222"));
@@ -767,7 +881,7 @@ mod tests {
     fn a_filled_username_keeps_its_value_and_reports_the_loss() {
         // Silently overwriting what the user typed into the dedicated
         // field would be the worse of the two data losses.
-        let s = host_field_split("root@10.0.0.7", "deploy", "22", Ssh).unwrap();
+        let s = host_field_split("root@10.0.0.7", "deploy", "22", Ssh, false).unwrap();
         assert_eq!(s.hostname, "10.0.0.7");
         assert_eq!(s.username, None);
         assert_eq!(s.dropped_user.as_deref(), Some("root"));
@@ -775,24 +889,24 @@ mod tests {
 
     #[test]
     fn the_same_username_on_both_sides_is_not_a_loss() {
-        let s = host_field_split("root@10.0.0.7", "root", "22", Ssh).unwrap();
+        let s = host_field_split("root@10.0.0.7", "root", "22", Ssh, false).unwrap();
         assert_eq!(s.hostname, "10.0.0.7");
         assert_eq!(s.dropped_user, None);
     }
 
     #[test]
     fn a_hand_typed_port_outranks_the_host_string() {
-        let s = host_field_split("root@10.0.0.7:2222", "", "2022", Ssh).unwrap();
+        let s = host_field_split("root@10.0.0.7:2222", "", "2022", Ssh, false).unwrap();
         assert_eq!(s.hostname, "10.0.0.7");
         assert_eq!(s.port, None);
     }
 
     #[test]
     fn telnet_moves_its_port_off_its_own_default() {
-        let s = host_field_split("admin@10.0.0.9:2323", "", "23", Telnet).unwrap();
+        let s = host_field_split("admin@10.0.0.9:2323", "", "23", Telnet, false).unwrap();
         assert_eq!(s.port.as_deref(), Some("2323"));
         // 22 is not Telnet's default, so it reads as hand-typed.
-        let s = host_field_split("admin@10.0.0.9:2323", "", "22", Telnet).unwrap();
+        let s = host_field_split("admin@10.0.0.9:2323", "", "22", Telnet, false).unwrap();
         assert_eq!(s.port, None);
     }
 
@@ -801,17 +915,17 @@ mod tests {
         // RemoteDesktop's 3389 becomes VNC's 5900 through the kind
         // picker, and Serial has no port at all: both get the hostname
         // cleaned and the numeric field left as it was.
-        let s = host_field_split("admin@10.0.0.9:3390", "", "3389", RemoteDesktop).unwrap();
+        let s = host_field_split("admin@10.0.0.9:3390", "", "3389", RemoteDesktop, false).unwrap();
         assert_eq!(s.hostname, "10.0.0.9");
         assert_eq!(s.username.as_deref(), Some("admin"));
         assert_eq!(s.port, None);
-        let s = host_field_split("admin@10.0.0.9:9600", "", "", Serial).unwrap();
+        let s = host_field_split("admin@10.0.0.9:9600", "", "", Serial, false).unwrap();
         assert_eq!(s.port, None);
     }
 
     #[test]
     fn an_empty_port_field_takes_the_one_from_the_host_string() {
-        let s = host_field_split("10.0.0.7:2222", "", "", Ssh).unwrap();
+        let s = host_field_split("10.0.0.7:2222", "", "", Ssh, false).unwrap();
         assert_eq!(s.port.as_deref(), Some("2222"));
     }
 
@@ -819,7 +933,7 @@ mod tests {
     fn padding_alone_is_enough_to_report_a_change() {
         // The untrimmed value reached the resolver as typed, so the
         // trim has to count as a split even with nothing to move.
-        let s = host_field_split("  web01  ", "", "22", Ssh).unwrap();
+        let s = host_field_split("  web01  ", "", "22", Ssh, false).unwrap();
         assert_eq!(s.hostname, "web01");
         assert_eq!(s.username, None);
         assert_eq!(s.port, None);
@@ -827,7 +941,7 @@ mod tests {
 
     #[test]
     fn a_pasted_url_loses_its_scheme() {
-        let s = host_field_split("ssh://root@web01:2222", "", "22", Ssh).unwrap();
+        let s = host_field_split("ssh://root@web01:2222", "", "22", Ssh, false).unwrap();
         assert_eq!(s.hostname, "web01");
         assert_eq!(s.username.as_deref(), Some("root"));
         assert_eq!(s.port.as_deref(), Some("2222"));

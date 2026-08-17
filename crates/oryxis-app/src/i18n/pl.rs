@@ -1198,6 +1198,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "Pole Host zawiera nazwę użytkownika. Wpisz tam tylko nazwę hosta lub adres IP, a nazwę użytkownika w polu Nazwa użytkownika.",
         "connect_host_invalid" => "Pole Host nie jest nazwą hosta. Wpisz tam tylko nazwę hosta lub adres IP.",
         "editor_host_user_dropped" => "Pole Host zawierało też użytkownika „{dropped}”, który został pominięty: Nazwa użytkownika jest już ustawiona na „{kept}”.",
+        "editor_host_password_moved" => "Hasło z pola Host zostało przeniesione do pola Hasło.",
+        "editor_host_password_dropped" => "Hasło z pola Host zostało odrzucone: pole Hasło już je zawiera.",
         "editor_autosave_failed" => "Automatyczny zapis nie powiódł się",
         "apply_sudo_password" => "Zastosuj hasło sudo",
         "sudo_password_sent" => "Hasło wysłane",

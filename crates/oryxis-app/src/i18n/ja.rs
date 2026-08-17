@@ -1007,6 +1007,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "ホスト欄にユーザー名が含まれています。ここにはホスト名または IP アドレスのみを入力し、ユーザー名はユーザー名欄に入力してください。",
         "connect_host_invalid" => "ホスト欄がホスト名になっていません。ここにはホスト名または IP アドレスのみを入力してください。",
         "editor_host_user_dropped" => "ホスト欄にはユーザー「{dropped}」も含まれていましたが、無視しました。ユーザー名は既に「{kept}」に設定されています。",
+        "editor_host_password_moved" => "ホスト欄にあったパスワードをパスワード欄に移しました。",
+        "editor_host_password_dropped" => "ホスト欄にあったパスワードを破棄しました。パスワード欄には既に設定があります。",
         "editor_autosave_failed" => "自動保存に失敗しました",
         "apply_sudo_password" => "sudo パスワードを適用",
         "sudo_password_sent" => "パスワードを送信しました",

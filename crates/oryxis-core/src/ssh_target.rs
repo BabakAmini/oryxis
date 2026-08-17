@@ -13,9 +13,21 @@ use std::net::{Ipv4Addr, Ipv6Addr};
 
 /// A parsed quick-connect target. `username`/`port` stay `None` when
 /// omitted so callers can apply their own defaults (local OS user, 22).
+///
+/// `password` carries the `user:secret@host` half of an RFC 3986
+/// userinfo. It is parsed OUT rather than tolerated inside the username
+/// because every consumer of `username` writes it to a PLAINTEXT column
+/// (`connections.username`, the connection label) or prints it in the
+/// UI: a pasted `sftp://root:hunter2@web01`, which is how half the
+/// world's documentation writes a connect string, put the password in
+/// all of them. Callers route it to an encrypted field or drop it;
+/// nothing may put it back into a plaintext one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SshTarget {
     pub username: Option<String>,
+    /// Never rendered by [`SshTarget::canonical`] and never persisted by
+    /// a caller except into an encrypted column.
+    pub password: Option<String>,
     pub host: String,
     pub port: Option<u16>,
 }
@@ -32,23 +44,48 @@ impl SshTarget {
 
         // Username splits at the last `@` so `user@part@host` keeps the
         // full `user@part` as the username, matching OpenSSH.
-        let (username, rest) = match input.rfind('@') {
+        let (userinfo, rest) = match input.rfind('@') {
             Some(at) => {
                 let (user, host_part) = (&input[..at], &input[at + 1..]);
                 if user.is_empty() || host_part.is_empty() {
                     return None;
                 }
-                (Some(user.to_string()), host_part)
+                (Some(user), host_part)
             }
             None => (None, input),
         };
+        // Inside the userinfo the FIRST `:` opens the password (RFC 3986
+        // `user:password`), which is the one split that has to happen
+        // here: leaving it in the username hands a credential to every
+        // plaintext sink `username` feeds. A `:` is not legal in a POSIX
+        // user name, so nothing legitimate is being taken apart.
+        let (username, password) = match userinfo {
+            Some(info) => match info.split_once(':') {
+                // `:secret@host` names no user; not a target.
+                Some(("", _)) => return None,
+                // `user:@host` is a user with an empty secret, which is
+                // nothing to carry.
+                Some((user, pw)) => (
+                    Some(user.to_string()),
+                    (!pw.is_empty()).then(|| pw.to_string()),
+                ),
+                None => (Some(info.to_string()), None),
+            },
+            None => (None, None),
+        };
 
         let (host, port) = parse_host_port(rest)?;
-        Some(Self { username, host, port })
+        Some(Self { username, password, host, port })
     }
 
     /// Render the target back as `user@host:port`, bracketing IPv6
     /// hosts. Used as the ephemeral connection's label.
+    ///
+    /// **Never renders `password`**, and that is load-bearing rather
+    /// than tidy: the result becomes `Connection.label` (a plaintext
+    /// column shown on every card), the `ssh://` URL the Copy action
+    /// puts on the clipboard, and the deep-link target. Pinned by
+    /// `canonical_never_renders_the_password`.
     pub fn canonical(&self) -> String {
         let mut out = String::new();
         if let Some(user) = &self.username {
@@ -250,8 +287,18 @@ mod tests {
     fn t(username: Option<&str>, host: &str, port: Option<u16>) -> SshTarget {
         SshTarget {
             username: username.map(str::to_string),
+            password: None,
             host: host.to_string(),
             port,
+        }
+    }
+
+    fn with_pw(username: &str, password: &str, host: &str) -> SshTarget {
+        SshTarget {
+            username: Some(username.to_string()),
+            password: Some(password.to_string()),
+            host: host.to_string(),
+            port: None,
         }
     }
 
@@ -281,6 +328,51 @@ mod tests {
             SshTarget::parse("user@corp@web01"),
             Some(t(Some("user@corp"), "web01", None))
         );
+    }
+
+    #[test]
+    fn userinfo_password_is_split_out_of_the_username() {
+        // The bug this exists for: `username` feeds plaintext columns
+        // (the stored user, the label) and the UI, so a userinfo
+        // password must never survive inside it.
+        assert_eq!(
+            SshTarget::parse("root:hunter2@web01"),
+            Some(with_pw("root", "hunter2", "web01"))
+        );
+        assert_eq!(
+            SshTarget::from_host_field("ssh://root:hunter2@web01"),
+            Some(with_pw("root", "hunter2", "web01"))
+        );
+        // Only the FIRST colon opens the password; the rest is the
+        // secret, punctuation included.
+        assert_eq!(
+            SshTarget::parse("root:a:b@web01"),
+            Some(with_pw("root", "a:b", "web01"))
+        );
+        // An `@` in the password still splits the host at the LAST `@`.
+        assert_eq!(
+            SshTarget::parse("root:p@ss@web01"),
+            Some(with_pw("root", "p@ss", "web01"))
+        );
+        // An empty secret is nothing to carry; the user still stands.
+        assert_eq!(SshTarget::parse("root:@web01"), Some(t(Some("root"), "web01", None)));
+        // No user is no target.
+        assert_eq!(SshTarget::parse(":hunter2@web01"), None);
+    }
+
+    #[test]
+    fn canonical_never_renders_the_password() {
+        // `canonical` becomes the connection LABEL, the copied `ssh://`
+        // URL and the deep-link target, all of them plaintext and all of
+        // them on screen. A password reaching any of those is the leak
+        // this whole split exists to prevent.
+        let target = SshTarget::parse("root:hunter2@web01:2222").expect("parses");
+        let canon = target.canonical();
+        assert_eq!(canon, "root@web01:2222");
+        assert!(!canon.contains("hunter2"), "canonical leaked the password: {canon}");
+        // And the round trip stays lossless for everything it DOES
+        // render, so re-parsing a canonical form never resurrects one.
+        assert_eq!(SshTarget::parse(&canon).and_then(|t| t.password), None);
     }
 
     #[test]

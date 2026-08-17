@@ -1210,6 +1210,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "يحتوي حقل المضيف على اسم مستخدم. ضع فيه اسم المضيف أو عنوان IP فقط، واسم المستخدم في حقل اسم المستخدم.",
         "connect_host_invalid" => "حقل المضيف ليس اسم مضيف. ضع فيه اسم مضيف أو عنوان IP فقط.",
         "editor_host_user_dropped" => "كان حقل المضيف يحمل أيضًا المستخدم «{dropped}» وتم تجاهله: اسم المستخدم مضبوط بالفعل على «{kept}».",
+        "editor_host_password_moved" => "تم نقل كلمة مرور من حقل المضيف إلى حقل كلمة المرور.",
+        "editor_host_password_dropped" => "تم تجاهل كلمة مرور في حقل المضيف: حقل كلمة المرور يحتوي على واحدة بالفعل.",
         "editor_autosave_failed" => "فشل الحفظ التلقائي",
         "apply_sudo_password" => "تطبيق كلمة مرور sudo",
         "sudo_password_sent" => "تم إرسال كلمة المرور",

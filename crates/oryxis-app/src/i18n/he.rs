@@ -1194,6 +1194,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "connect_host_has_user" => "שדה המארח מכיל שם משתמש. הזינו כאן רק שם מארח או כתובת IP, ואת שם המשתמש בשדה שם המשתמש.",
         "connect_host_invalid" => "שדה המארח אינו שם מארח. הזינו כאן רק שם מארח או כתובת IP.",
         "editor_host_user_dropped" => "שדה המארח נשא גם את המשתמש «{dropped}», שנזנח: שם המשתמש כבר מוגדר כ־«{kept}».",
+        "editor_host_password_moved" => "סיסמה שהופיעה בשדה המארח הועברה לשדה הסיסמה.",
+        "editor_host_password_dropped" => "סיסמה שהופיעה בשדה המארח נזרקה: בשדה הסיסמה כבר יש ערך.",
         "editor_autosave_failed" => "השמירה האוטומטית נכשלה",
         "apply_sudo_password" => "החלת סיסמת sudo",
         "sudo_password_sent" => "הסיסמה נשלחה",
