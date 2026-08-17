@@ -14,11 +14,17 @@ tracing = { workspace = true }
 # Linux (and other unixes that aren't macOS): the login keyring via the
 # freedesktop Secret Service. No fingerprint API is standard on Linux, so
 # this is "OS keystore gated by the login session", not real biometry; the
-# app surfaces that honestly. `sync-secret-service` is the blocking zbus
-# backend (no async runtime needed) and `crypto-rust` keeps the transport
-# encryption pure-Rust (no system libgcrypt/libdbus C deps).
+# app surfaces that honestly.
+#
+# 4.x split the crate into keyring-core plus pluggable stores; the `v1`
+# feature is the same `Entry` API 3.x had, over the store this platform
+# needs. Two reasons to be on it: 3.x reaches the Secret Service through
+# zbus 4, the last thing in the tree pinning windows-sys 0.52, and the
+# 4.x store is `secret_service::blocking`, the same no-async-runtime
+# backend `sync-secret-service` gave us. Transport encryption stays
+# pure-Rust (the store declares `crypto-rust` itself, so no libgcrypt).
 [target.'cfg(all(unix, not(target_os = "macos")))'.dependencies]
-keyring = { version = "3", default-features = false, features = ["sync-secret-service", "crypto-rust"] }
+keyring = { version = "4", default-features = false, features = ["v1"] }
 
 # Windows: Windows Hello (UserConsentVerifier) for the presence prompt +
 # Credential Manager (per-user, DPAPI-backed) for the secret at rest.

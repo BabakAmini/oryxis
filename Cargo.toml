@@ -208,11 +208,3 @@ arboard = { git = "https://github.com/1Password/arboard" }
 # 0.61 out of the lock the wrong answer stops existing, which beats
 # detecting it after the fact.
 tauri-winrt-notification = { git = "https://github.com/wilsonglasser/winrt-notification", branch = "windows-0.62" }
-
-# xdg-home is one function (`home_dir()`), reached through zbus under
-# secret-service under keyring, and published 1.3.0 pins windows-sys 0.59,
-# which is the only thing keeping that line in the build. Upstream bumped it
-# to 0.61 and simply has not released since (last commit 2026-07), so this
-# points straight at them rather than forking, same arrangement as arboard
-# above. Drops out the moment they publish.
-xdg-home = { git = "https://github.com/zeenix/xdg-home" }
