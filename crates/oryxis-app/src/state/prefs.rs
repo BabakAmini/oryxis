@@ -663,6 +663,25 @@ impl Default for AppPrefs {
     }
 }
 
+/// Where downloads land (and where a download's file picker opens):
+/// the `zmodem_download_dir` setting when set, else the OS Downloads
+/// dir, else `~/.oryxis/downloads`.
+///
+/// A free function rather than a method so the resolution order itself
+/// is testable; `Oryxis::default_download_dir` is how the app reads it.
+pub(crate) fn resolve_download_dir(configured: &str) -> std::path::PathBuf {
+    let configured = configured.trim();
+    if !configured.is_empty() {
+        return std::path::PathBuf::from(configured);
+    }
+    if let Some(dir) = dirs::download_dir() {
+        return dir;
+    }
+    oryxis_core::paths::oryxis_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from(".").join(".oryxis"))
+        .join("downloads")
+}
+
 impl AppPrefs {
     /// A sidebar tab's placement: the user's explicit choice when one
     /// exists, the tab's own default otherwise.
@@ -715,5 +734,28 @@ impl AppPrefs {
                 ))
             })
             .collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_download_dir;
+
+    #[test]
+    fn configured_download_dir_wins_over_the_os_default() {
+        assert_eq!(
+            resolve_download_dir("/srv/incoming"),
+            std::path::PathBuf::from("/srv/incoming")
+        );
+        // Settings stores the raw input, so a path typed with stray
+        // whitespace must not become a directory nobody has.
+        assert_eq!(
+            resolve_download_dir("  /srv/incoming  "),
+            std::path::PathBuf::from("/srv/incoming")
+        );
+        // Unset falls through to the OS Downloads dir (or the vault's
+        // own), which is environment-dependent; all that is promised
+        // here is that it never answers with the empty path.
+        assert!(!resolve_download_dir("").as_os_str().is_empty());
     }
 }

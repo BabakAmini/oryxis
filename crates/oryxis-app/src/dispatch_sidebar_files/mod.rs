@@ -88,6 +88,26 @@ pub(crate) fn files_basename(path: &str) -> String {
         .to_string()
 }
 
+/// Size of `path` according to `entries`, the listing of `dir`, or
+/// `None` when no file there IS that path.
+///
+/// The match rejoins each listed name onto the directory it was listed
+/// in, because a name is only meaningful next to its directory: matching
+/// `path.ends_with(&entry.name)` instead also accepted any sibling whose
+/// name is a suffix of the target's (`content.zip` for `wp-content.zip`),
+/// and the first such row in the listing won. Only a progress total
+/// depends on it, so being wrong was quiet.
+pub(crate) fn listed_size(
+    entries: &[oryxis_ssh::SftpEntry],
+    dir: &str,
+    path: &str,
+) -> Option<u64> {
+    entries
+        .iter()
+        .find(|e| !e.is_dir && files_join(dir, &e.name) == path)
+        .map(|e| e.size)
+}
+
 /// A `C:\...` / `\\server\share` shape, i.e. a Windows filesystem path
 /// the local browser can show. Remote SFTP paths are always POSIX, so
 /// this never misfires on them.
@@ -245,6 +265,7 @@ impl Oryxis {
             ) => self.handle_sidebar_files_entries(m),
             m @ (
                 SidebarFilesMessage::SidebarFilesDownload(..)
+                | SidebarFilesMessage::SidebarFilesDownloadPicked(..)
                 | SidebarFilesMessage::SidebarFilesUploadInto(..)
                 | SidebarFilesMessage::SidebarFilesUploadPicked(..)
                 | SidebarFilesMessage::SidebarFilesEdit(..)
@@ -490,6 +511,40 @@ pub(crate) fn list_dir_task(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn entry(name: &str, size: u64) -> oryxis_ssh::SftpEntry {
+        oryxis_ssh::SftpEntry {
+            name: name.to_string(),
+            is_dir: false,
+            is_symlink: false,
+            size,
+            mtime: None,
+            permissions: None,
+            uid: None,
+            gid: None,
+        }
+    }
+
+    #[test]
+    fn listed_size_matches_the_whole_name_not_a_suffix() {
+        let entries = vec![entry("content.zip", 10), entry("wp-content.zip", 999)];
+        // The suffix sibling comes FIRST in the listing, which is what
+        // made the old `ends_with` match report 10 bytes here.
+        assert_eq!(
+            listed_size(&entries, "/srv", "/srv/wp-content.zip"),
+            Some(999)
+        );
+        assert_eq!(listed_size(&entries, "/srv", "/srv/content.zip"), Some(10));
+        // A name that only LOOKS listed (another directory, a directory
+        // row, an unknown file) has no size to report.
+        assert_eq!(listed_size(&entries, "/srv", "/other/content.zip"), None);
+        assert_eq!(listed_size(&entries, "/srv", "/srv/missing.zip"), None);
+        let dirs = vec![oryxis_ssh::SftpEntry {
+            is_dir: true,
+            ..entry("backups", 4096)
+        }];
+        assert_eq!(listed_size(&dirs, "/srv", "/srv/backups"), None);
+    }
 
     #[test]
     fn title_cwd_extracts_stock_ps1_titles() {

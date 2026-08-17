@@ -27,22 +27,6 @@ use crate::app::{TerminalMessage, ZmodemMessage, Message, Oryxis};
 use crate::state::{TerminalTransport, ZmodemPane};
 
 impl Oryxis {
-    /// Directory downloads land in: the `zmodem_download_dir` setting
-    /// when set and non-empty, else the OS Downloads dir, else
-    /// `~/.oryxis/downloads`. Created on demand.
-    fn zmodem_download_dir(&self) -> std::path::PathBuf {
-        let configured = self.prefs.zmodem_download_dir.trim();
-        if !configured.is_empty() {
-            return std::path::PathBuf::from(configured);
-        }
-        if let Some(dir) = dirs::download_dir() {
-            return dir;
-        }
-        oryxis_core::paths::oryxis_dir()
-            .unwrap_or_else(|| std::path::PathBuf::from(".").join(".oryxis"))
-            .join("downloads")
-    }
-
     /// Open / close the Telnet inbound raw window for a ZMODEM transfer
     /// on `pane_id`. No-op for SSH (8-bit clean) and serial (already the
     /// raw wire); Telnet needs both halves of the raw contract, or a
@@ -135,7 +119,7 @@ impl Oryxis {
             return Task::none();
         }
 
-        let dest_dir = self.zmodem_download_dir();
+        let dest_dir = self.default_download_dir();
         let io = TransferIo {
             wire_in,
             wire_out: wire_out.clone(),

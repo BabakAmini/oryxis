@@ -19,6 +19,7 @@ mod chat_persist;
 mod command_capture;
 mod connect_methods;
 mod deep_link;
+mod dialog_warmup;
 mod dispatch;
 mod dispatch_ai;
 mod dispatch_editor;
@@ -633,6 +634,16 @@ fn main() -> iced::Result {
             tray_ipc::Child::register("Oryxis");
             tracing::info!("running as tray IPC child (primary already up)");
         }
+    }
+
+    // Warm the OS file dialog up now, so the first Download / Upload /
+    // Import does not also pay for loading the shell's COM server. Off
+    // the main thread and after the `set_var` blocks above, whose
+    // soundness argument is that the process is still single-threaded.
+    // Skipped under the harness: it opens no dialogs, and a headless run
+    // has no business touching the shell.
+    if !harness_active {
+        dialog_warmup::spawn();
     }
 
     // Load window icon from PNG

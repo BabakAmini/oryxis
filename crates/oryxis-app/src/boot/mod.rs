@@ -372,6 +372,7 @@ impl Oryxis {
                 tab_cycle: None,
                 routing_sftp: None,
                 pending_sftp_close: None,
+                last_download_dir: None,
                 mouse_position: Point::ORIGIN,
                 window_size: restored_window_size,
                 window_windowed_size: restored_window_size,

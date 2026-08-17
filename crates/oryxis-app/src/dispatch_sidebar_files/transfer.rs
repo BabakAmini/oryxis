@@ -19,36 +19,72 @@ impl Oryxis {
                 };
                 // Transfers only mean something over a session; a local
                 // browser's row menu never offers them (issue #145).
+                if pane.files.client.as_ref().and_then(|c| c.sftp()).is_none() {
+                    return Task::none();
+                }
+                let pane_id = pane.id;
+                let basename = files_basename(&path);
+                // Size hint for the progress total, read HERE because the
+                // row that was clicked belongs to THIS listing: the
+                // browser is free to navigate while the dialog is open.
+                let size = listed_size(&pane.files.entries, &pane.files.path, &path);
+                // The dialog is the whole step here (the channel pool is
+                // built once a destination exists), and it needs a
+                // starting folder: with none, the shell reopens on
+                // whatever it last cached for the PROCESS, which is also
+                // the one case where opening is slow, since a mapped
+                // drive or UNC path is enumerated before the dialog can
+                // draw. Ours is the folder the last download landed in,
+                // else the configured default download folder.
+                let start = self
+                    .last_download_dir
+                    .clone()
+                    .unwrap_or_else(|| self.default_download_dir());
+                Task::perform(
+                    async move {
+                        rfd::AsyncFileDialog::new()
+                            .set_file_name(&basename)
+                            .set_directory(&start)
+                            .save_file()
+                            .await
+                            .map(|f| f.path().to_path_buf())
+                    },
+                    move |dest| match dest {
+                        Some(dest) => Message::SidebarFiles(
+                            SidebarFilesMessage::SidebarFilesDownloadPicked(
+                                pane_id,
+                                path.clone(),
+                                dest,
+                                size,
+                            ),
+                        ),
+                        None => Message::NoOp,
+                    },
+                )
+            }
+            SidebarFilesMessage::SidebarFilesDownloadPicked(pane_id, path, dest, size) => {
+                // The dialog resolved later, so the pane is resolved by
+                // id like any completion: the user is free to switch tabs
+                // while it is open.
+                let Some(pane) = self.pane_by_id_any_tab(pane_id) else {
+                    return Task::none();
+                };
                 let Some(client) = pane.files.client.as_ref().and_then(|c| c.sftp().cloned())
                 else {
                     return Task::none();
                 };
-                let pane_id = pane.id;
-                let basename = path
-                    .rsplit('/')
-                    .find(|s| !s.is_empty())
-                    .unwrap_or(&path)
-                    .to_string();
+                let basename = files_basename(&path);
+                // Seed the next dialog with the folder this one landed
+                // in (see `SidebarFilesDownload`).
+                self.last_download_dir = dest.parent().map(std::path::Path::to_path_buf);
                 // This used to be a one-shot `download_to` with a toast:
                 // no progress, no cancel, and an error that vanished after
                 // three seconds. A 3 GB file took all three defects at
                 // once. It now enqueues on the SAME runner the dual-pane
                 // surface uses, owned by this pane.
-                let size = pane
-                    .files
-                    .entries
-                    .iter()
-                    .find(|e| !e.is_dir && path.ends_with(&e.name))
-                    .map(|e| e.size);
                 let concurrency = self.sftp_concurrency();
                 Task::perform(
                     async move {
-                        let dest = rfd::AsyncFileDialog::new()
-                            .set_file_name(&basename)
-                            .save_file()
-                            .await?
-                            .path()
-                            .to_path_buf();
                         let mut queue = std::collections::VecDeque::new();
                         queue.push_back(crate::state::TransferItem {
                             src: path.clone(),

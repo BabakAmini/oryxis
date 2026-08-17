@@ -634,6 +634,14 @@ pub struct Oryxis {
     /// transfer or an unsaved edit-session. Drives the close-guard modal;
     /// `None` when no confirmation is pending.
     pub(crate) pending_sftp_close: Option<crate::state::PendingSftpClose>,
+    /// Folder the last picked download destination lived in, for this
+    /// run only. `rfd` applies a starting directory with
+    /// `IFileDialog::SetFolder`, which OVERRIDES the shell's own
+    /// last-used memory, so a surface that names a starting folder has
+    /// to carry that memory itself or every dialog reopens on the
+    /// configured default. `None` until the first pick, where the
+    /// default download folder is used instead.
+    pub(crate) last_download_dir: Option<std::path::PathBuf>,
     pub(crate) mouse_position: Point,
     pub(crate) window_size: iced::Size,
     /// The last size the window had while plain-windowed (not maximized,

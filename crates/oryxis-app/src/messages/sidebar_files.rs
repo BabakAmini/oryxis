@@ -76,7 +76,14 @@ pub enum SidebarFilesMessage {
     SidebarFilesDelete(String, bool),
     SidebarFilesDeleteConfirmed(String, bool),
     /// Download a file to a local destination picked via the OS dialog.
+    /// Only opens the dialog; a cancelled one ends the flow untouched.
     SidebarFilesDownload(String),
+    /// The save dialog returned a destination: enqueue the download on
+    /// the pane's own runner. Payload: pane id, remote path, local
+    /// destination file, and the size the listing reported when the row
+    /// was clicked (a progress-total hint; the browser may have
+    /// navigated away while the dialog was open).
+    SidebarFilesDownloadPicked(Uuid, String, std::path::PathBuf, Option<u64>),
     /// One-shot op finished (download / upload): toast the outcome.
     SidebarFilesOpToast(String),
     /// Upload local file(s) picked via the OS dialog into a directory.

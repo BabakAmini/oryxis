@@ -64,7 +64,7 @@ pub(crate) use cloud_discover::CloudDiscoverUi;
 pub(crate) use snippet_form::SnippetForm;
 pub(crate) use keys_ui::KeysUi;
 pub(crate) use sftp_chrome::SftpChrome;
-pub(crate) use prefs::AppPrefs;
+pub(crate) use prefs::{resolve_download_dir, AppPrefs};
 pub(crate) use sftp::*;
 pub(crate) use sync::*;
 pub(crate) use tabs::*;

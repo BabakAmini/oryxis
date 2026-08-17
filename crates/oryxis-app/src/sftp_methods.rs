@@ -122,6 +122,15 @@ impl Oryxis {
             .clamp(1, 8)
     }
 
+    /// Where a download lands when nothing else names a destination:
+    /// the Settings > SFTP "Default download folder" row, resolved
+    /// through [`crate::state::resolve_download_dir`]. Serves the ZMODEM
+    /// landing dir and the sidebar browser's save dialog alike, which is
+    /// what that setting promises.
+    pub(crate) fn default_download_dir(&self) -> std::path::PathBuf {
+        crate::state::resolve_download_dir(&self.prefs.zmodem_download_dir)
+    }
+
     fn parse_secs(input: &str, default: u64) -> std::time::Duration {
         let v = input.parse::<u64>().unwrap_or(default).max(1);
         std::time::Duration::from_secs(v)
