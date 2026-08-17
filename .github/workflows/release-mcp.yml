@@ -228,7 +228,12 @@ jobs:
           mkdir -p "$RUNNER_TEMP/catalog/plugins"
           cp mcp.json "$RUNNER_TEMP/catalog/plugins/mcp.json"
           cd "$RUNNER_TEMP/catalog"
-          if git diff --quiet -- "plugins/mcp.json"; then
+          # `git status`, not `git diff`: on the FIRST release of a
+          # provider the catalog file is untracked in main, and
+          # `git diff` reports no change for a path git does not know,
+          # so the commit was skipped and every install of that plugin
+          # stayed on the slow release-API fallback.
+          if [ -z "$(git status --porcelain -- "plugins/mcp.json")" ]; then
             echo "catalog already current"
             exit 0
           fi

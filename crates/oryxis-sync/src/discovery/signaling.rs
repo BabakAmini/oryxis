@@ -44,6 +44,15 @@ pub struct SignalingClient {
 
 impl SignalingClient {
     pub fn new(base_url: &str, token: &str) -> Self {
+        // Same guarantee `RelayClient::new` makes, and for the same
+        // reason: reqwest carries no bundled crypto backend, so it takes
+        // the process-level provider and panics with "No provider set"
+        // when none was installed. `join_pairing` installs one, but only
+        // AFTER building this client and issuing its lookup, so the
+        // install there could never have protected the call it was
+        // written for. Idempotent: `install_default` only errors when a
+        // provider is already set.
+        let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
         Self {
             base_url: base_url.trim_end_matches('/').into(),
             token: token.into(),

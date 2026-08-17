@@ -184,18 +184,25 @@ impl Oryxis {
         // have nothing mirror-shaped to probe.
         let testable = matches!(selected_token, "custom" | "project");
         if testable {
-            let test_btn: Element<'_, Message> = if ui.testing {
-                styled_button_opt(t("download_mirror_test_running"), None, OryxisColors::t().bg_selected)
-            } else {
-                self.settings_nav_slot(
-                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::DownloadMirrorTest)),
-                    6.0,
-                    styled_button(
-                        t("download_mirror_test"),
-                        Message::Settings(SettingsMessage::DownloadMirrorTest),
-                        OryxisColors::t().bg_selected,
-                    ),
-                )
+            // Built where it is DRAWN, not hoisted: `settings_nav_slot`
+            // records the keyboard row as a side effect of building, and
+            // the ring walks in record order. Constructed before the URL
+            // field, Test claimed the first slot while sitting last in
+            // the row, so Tab went Test -> URL -> Save.
+            let make_test_btn = |app: &Self| -> Element<'_, Message> {
+                if ui.testing {
+                    styled_button_opt(t("download_mirror_test_running"), None, OryxisColors::t().bg_selected)
+                } else {
+                    app.settings_nav_slot(
+                        crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::DownloadMirrorTest)),
+                        6.0,
+                        styled_button(
+                            t("download_mirror_test"),
+                            Message::Settings(SettingsMessage::DownloadMirrorTest),
+                            OryxisColors::t().bg_selected,
+                        ),
+                    )
+                }
             };
             if selected_token == "custom" {
                 // Keyboard rows: the URL field (Enter commits), then
@@ -224,6 +231,7 @@ impl Oryxis {
                         OryxisColors::t().accent,
                     ),
                 );
+                let test_btn = make_test_btn(self);
                 rows = rows
                     .push(Space::new().height(10))
                     .push(
@@ -248,7 +256,7 @@ impl Oryxis {
                 // is the app's own, so Test is the whole control.
                 rows = rows
                     .push(Space::new().height(10))
-                    .push(dir_row(vec![test_btn]).align_y(iced::Alignment::Center));
+                    .push(dir_row(vec![make_test_btn(self)]).align_y(iced::Alignment::Center));
             }
             match &ui.test_result {
                 Some(Ok(ms)) => {
