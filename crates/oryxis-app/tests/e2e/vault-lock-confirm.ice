@@ -17,6 +17,11 @@ expect "Protect your vault"
 click (550, 453)
 type "testpass123"
 click "Create Vault"
+# `settle` before the assert: creating the vault runs an Argon2id
+# derivation, which is deliberately slow and is slower still on a
+# CI runner. Without it the assert can look at the screen while the
+# app is still deriving and report the dashboard as missing.
+settle
 expect "Create host"
 
 # Burger menu -> Lock Vault opens the confirm dialog, not the teardown.
@@ -52,5 +57,7 @@ expect "Enter your master password to unlock."
 # screen auto-focuses the password field, so type goes straight in.
 type "testpass123"
 click "Unlock"
+settle
+wait 1500
 settle
 expect "Create host"

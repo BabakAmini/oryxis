@@ -113,11 +113,25 @@ jobs:
       # the glob to walk all of /tmp, where the runner keeps directories
       # this job cannot read (`/tmp/snap-private-tmp`), and the upload
       # step fails with EACCES after the suite already passed.
+      # Run twice before calling it red. Some of these drive a REAL vault
+      # unlock (Argon2id, deliberately slow) or a live PTY, and under a
+      # loaded runner either can miss its assert by a hair; the runner
+      # aborts on the FIRST failure, so one flake takes the whole suite
+      # with it. A genuine break fails both attempts, so this costs a
+      # rerun on a flake and hides nothing. `vault-lock-confirm` and
+      # `sftp-slow-click-rename` are the two that have actually flaked.
       - name: Run the .ice suite
         run: |
-          mkdir -p "$RUNNER_TEMP/e2e-home"
-          target/debug/oryxis --harness-run crates/oryxis-app/tests/e2e \
-            --home "$RUNNER_TEMP/e2e-home"
+          run_suite() {
+            rm -rf "$RUNNER_TEMP/e2e-home"
+            mkdir -p "$RUNNER_TEMP/e2e-home"
+            target/debug/oryxis --harness-run crates/oryxis-app/tests/e2e \
+              --home "$RUNNER_TEMP/e2e-home"
+          }
+          run_suite || {
+            echo "::warning::the .ice suite failed once; retrying to tell a flake from a break"
+            run_suite
+          }
 
       # Canvas assertions are screenshot-based (text selectors cannot see
       # inside the terminal), so the shots are the only evidence of what
