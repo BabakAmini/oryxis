@@ -4,6 +4,150 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.14.0] - 2026-08-17
+
+The host editor and terminal typography release. The editor that every
+saved host goes through was rebuilt as two tiers, with the rarely-used
+fields folded behind headers that summarize what is inside them, an
+edge you can drag, starting-point chips on creation, and no Save button
+at all: closing the drawer is the write. The terminal font gained a
+weight and a stroke-thickness control, which is the honest answer to
+text that reads lighter here than in terminals that rasterize through
+the OS. The sidebar file browser serves local shells, drags files out
+to the desktop, and asks where a download should land. Plugin manifests
+now come from a file tracked in this repo instead of a 1 MB release
+listing that had grown past its own read ceiling and broken every
+install.
+
+### Added
+- **A two-tier host editor.** The form starts with what every host
+  needs and folds the rest behind section headers that summarize their
+  own contents, so a jump chain or a proxy is one line of text until
+  you open it. Creation offers starting-point chips (Basic SSH, via
+  bastion, cloud) that prepare the form instead of making you find the
+  fields. The drawer's edge is a drag handle and the width persists.
+- **Edits save when the editor closes.** An existing host has no Save
+  button: closing the drawer is the write, on every path that takes it
+  off screen, including the ones no handler mentions (navigating away,
+  focusing a tab, another panel taking the slot). A new host keeps the
+  explicit Save/Connect pair, because a half-typed host must never
+  enter the vault by itself. An earlier revision of this persisted on a
+  700 ms debounce while you typed; one write per editing session
+  removes a whole class of bug instead of guarding each of its sites,
+  since every mid-typing save re-sorted the host list under whatever
+  was holding a position into it.
+- **Terminal font weight, and a stroke thickness control.** The font
+  picker gained a weight, and it says so when the family you picked has
+  no face at that weight rather than silently drawing the nearest one.
+  Text Thickness (Settings > Terminal) widens every stroke a fraction
+  of a pixel, which is what macOS and Windows do before drawing text:
+  Oryxis rasterizes the raw glyph, which is why the same font at the
+  same size read lighter here than in other terminals (#155).
+- **The sidebar file browser serves local shells** (#145). The same
+  browser, over the app's own filesystem when the pane is a local
+  shell, with listing, navigation, rename, create and delete unchanged;
+  the transfer-shaped actions stay SSH-only and hide themselves.
+- **Drag files out of the sidebar browser** (#167), onto the desktop or
+  any application that takes a file drop. Windows first.
+- **Downloads pick a destination.** The sidebar's download action opens
+  a save dialog seeded with the last folder used, and the OS dialog is
+  warmed at boot so the first one does not stall on the shell's COM
+  server (Windows).
+- **A running-command indicator on the tab strip** (#146), so a tab
+  still working is visible without switching to it.
+- **Snippets can install scripts, with shipped presets** (#147).
+- **The fleet dashboard can be paused**, and a paused dashboard holds
+  no connection open.
+- **Ubuntu, the GNOME Terminal classic**, as a built-in terminal theme,
+  asked for in #118.
+- **A confirm before the manual lock**, by @shideqin (#152). It grew a
+  Sleep option and a "remember this" choice on top (#169).
+- **The download mirror can be picked outright.** "Project mirror"
+  reverses the order instead of only serving as a fallback, for a
+  network where GitHub never answers at all.
+
+### Fixed
+- **Plugin installs, which were broken outright** (#163). The manifest
+  came from listing the repository's releases and filtering them, which
+  cost ~1 MB per lookup to read three fields and had grown past its own
+  read ceiling. It now comes from a file tracked in this repo, with the
+  asset host as the second leg and the old path surviving only as a
+  last resort.
+- **A host deleted from the open editor came back**, and survived a
+  restart, because it really was written back. Any host in a group hit
+  this on every delete.
+- **A single-message edit made after the editor drawer reappeared was
+  silently dropped** (one toggle, one keystroke).
+- **A password pasted into the Host field landed in a plaintext
+  column.** `user:secret@host` is how much of the world's documentation
+  writes a connect string; the secret now goes to the encrypted
+  password field or is dropped, and is never printed.
+- **The Host field stopped carrying the whole connect string** (#171).
+  A pasted `user@host:port` is split across the three fields it
+  belongs in, and a stored value that cannot resolve says what is wrong
+  with it instead of failing with a bare resolver error.
+- **A high-resolution wheel scrolls again** (#150), including inside a
+  TUI holding mouse tracking, where the fragments were being counted
+  twice.
+- **The numpad Enter types a newline**, not an interrupt (#162), and
+  idle arrow keys no longer get eaten by the keyboard navigation ring
+  (#168).
+- **Four field reports on the 0.13 tmux manager** (#157, #158, #159,
+  #160), including switching sessions while the shell is busy and a
+  listing that raced the attach.
+- **A lock could leave the burger menu armed behind the lock screen**,
+  and now sweeps the paste confirms with it (#169).
+- **The AI tool result is the command's output**, not whatever the
+  screen showed when it ran.
+- **The self-replacing updater stops failing in ways that look like
+  success**, refuses while another window is live, and Windows toasts
+  say Oryxis rather than Windows PowerShell.
+- **The window's maximized state follows the OS**, by @shideqin (#142).
+  Windowed geometry is judged against the OS truth rather than the
+  app's own memory.
+- **A dropped port forward keeps retrying under auto-reconnect**, by
+  @latent-9 (#149), and pending retries are kicked when another
+  connection proves the network is back.
+- **The debug log clears on Windows**, by @shideqin (#154), reworked to
+  truncate through a second handle since delete-then-recreate hits the
+  delete-pending trap.
+- **The import hub's `.oryxis` handoff reaches a visible dialog**, and
+  export/import decline loudly on a vault that cannot decrypt rather
+  than failing silently.
+- **Monitoring prefers a live tab's session** on every path that
+  establishes one, instead of redialing a stored credential that is
+  already known to fail, and the sample window belongs to the machine
+  rather than to the row (#156).
+- **The sync passphrase field drifted, in two ways that could leave a
+  snapshot nobody can open**, by @shideqin (#170). The field never
+  pre-fills the stored value (a masked pre-fill turned every later
+  keystroke into an append that silently swapped the group key) and
+  typing never writes through: the key changes only when a round
+  succeeds with the typed value. On top of that, only a MANUAL round is
+  allowed to read the typed buffer at all, so the 5-minute tick can no
+  longer seal a snapshot with a half-typed passphrase, and a round
+  carries its key by value so typing while one is in flight cannot
+  store a value the snapshot was not sealed with. A failed round now
+  shows the recovery path under the error.
+- **Git sync hung, and a restart could fail to decrypt**, by @shideqin,
+  who also moved the blocking sync work off the UI thread.
+- **Settings fields keep Tab and the arrow keys**, by @shideqin: the
+  keyboard-navigation ring was claiming keys a focused input needed.
+- **The harness sandboxes the vault on Windows**, by @shideqin (#153),
+  so a test run can never touch the real `~/.oryxis`.
+- **Four committed E2E tests had gone stale**, each hiding the next,
+  and the suite now runs in CI so a UI change that invalidates one is
+  visible immediately.
+
+### Changed
+- **One crypto backend in the binary, and it is aws-lc-rs.** `ring` is
+  gone from the app's dependency graph; the whole `windows` crate
+  family resolves to a single version on every target.
+- **keyring 4** for the OS keychain integration.
+- The `~/.oryxis` tree resolves through one `ORYXIS_HOME`-aware path
+  resolver instead of each caller rebuilding it, following the harness
+  vault sandbox by @shideqin (#153).
+
 ## [0.13.0] - 2026-08-10
 
 The sync-anywhere and organization release. The encrypted vault

@@ -154,7 +154,7 @@ ChaCha20-Poly1305), 호스트 키는 TOFU로 고정되며, 동기화 페이로�
 ## 로드맵
 
 Oryxis는 대략 매주 작은 단위로 릴리스하며, 기능은 준비되는 대로
-출시됩니다. 최신 안정 버전은 **v0.13.0**입니다. 전체 이력은
+출시됩니다. 최신 안정 버전은 **v0.14.0**입니다. 전체 이력은
 [CHANGELOG.md](CHANGELOG.md), 인터랙티브 로드맵은
 [로드맵 Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)에서
 볼 수 있습니다. 진행 중인 방향: 네이티브 FIDO2(USB / NFC로 보안

@@ -159,7 +159,7 @@ tmux をお使いですか？**[tmux でのログとコマンド履歴](docs/TMU
 ## ロードマップ
 
 Oryxis はおよそ週次で小さくリリースし、機能は準備ができ次第出荷
-されます。最新の安定版は **v0.13.0**。履歴は
+されます。最新の安定版は **v0.14.0**。履歴は
 [CHANGELOG.md](CHANGELOG.md)、インタラクティブなロードマップは
 [ロードマップ Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 にあります。進行中の方向性：ネイティブ FIDO2（USB / NFC でセキュ

@@ -162,7 +162,7 @@ vulnerabilidades por canal privado.
 
 O Oryxis lança pequeno e com frequência (aproximadamente semanal), e
 as funcionalidades entram assim que ficam prontas. A última versão
-estável é a **v0.13.0**; o histórico completo está no
+estável é a **v0.14.0**; o histórico completo está no
 [CHANGELOG.md](CHANGELOG.md) e o roadmap interativo na
 [discussão de roadmap](https://github.com/wilsonglasser/oryxis/discussions/67).
 Entre as frentes em andamento: FIDO2 nativo (falar direto com a chave

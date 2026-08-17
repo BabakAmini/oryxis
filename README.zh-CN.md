@@ -149,7 +149,7 @@ Big5 编码。
 ## 路线图
 
 Oryxis 以大约每周一次的节奏持续发布，功能就绪即上线。最新稳定版为
-**v0.13.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
+**v0.14.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
 [路线图讨论](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推进的方向包括：原生 FIDO2（通过 USB / NFC 直接与安全密钥通信）、
 原生 Mosh 客户端、多保险库，
