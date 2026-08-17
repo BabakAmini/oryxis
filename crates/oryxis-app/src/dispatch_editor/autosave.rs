@@ -70,8 +70,22 @@ impl Oryxis {
     /// an existing host opens and dropped when the session closes out.
     /// That also makes a stale form inert: after the drawer is gone,
     /// nothing can re-persist it over a row that sync has moved on.
+    ///
+    /// The id must still RESOLVE, which is what keeps a delete deleted.
+    /// `DeleteConnection` closes the drawer without clearing the form
+    /// (it deliberately skips its own flush, so resurrecting the row it
+    /// just removed would be worse), and the post-update net then sees
+    /// the visibility edge and flushes. With only an `is_some()` test
+    /// here, that flush upserted the deleted id straight back into the
+    /// vault: `editor_group_pending` reads the vanished row's group as
+    /// `""`, so a host in ANY group was dirty by construction and came
+    /// back on every delete-from-the-editor. Reproduced in the harness
+    /// before this guard, gone after.
     fn editor_owns_write(&self) -> bool {
-        self.editor_form.editing_id.is_some() && self.editor_saved_snapshot.is_some()
+        self.editor_form
+            .editing_id
+            .is_some_and(|id| self.connections.iter().any(|c| c.id == id))
+            && self.editor_saved_snapshot.is_some()
     }
 
     /// Whether the host editor is ACTUALLY on screen, which is what the

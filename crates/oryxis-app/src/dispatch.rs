@@ -126,6 +126,21 @@ impl Oryxis {
         if editor_visible_before && !self.host_editor_visible() {
             self.editor_flush_on_close();
         }
+        // And the RISING edge re-arms it. The closing flush drops the
+        // baseline (that is what makes a form nobody can see inert), but
+        // the paths above only HIDE the drawer: focusing a terminal tab,
+        // changing view, a cloud panel taking the slot. None of them
+        // touch `editor_form`, so coming back re-renders the same live
+        // form with no baseline to compare against, and
+        // `editor_autosave_kick` alone never fires again (it only runs on
+        // Editor / Settings messages, and it runs AFTER the handler, so
+        // the first field change would be folded into the baseline it
+        // records: that edit is then equal to its own baseline and never
+        // written). Re-recording here, on the edge, is what makes the
+        // second visit save exactly like the first.
+        else if !editor_visible_before && self.host_editor_visible() {
+            self.editor_autosave_kick();
+        }
         // Keep the unified strip order (terminal + SFTP) in sync with the live
         // tabs after every message: new tabs appended, closed ones dropped,
         // drag-reordered order preserved.
