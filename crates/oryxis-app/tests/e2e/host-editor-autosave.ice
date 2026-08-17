@@ -2,51 +2,56 @@ viewport: 1400x900
 mode: Zen
 -----
 # Two-tier host editor, P3 + P4: the create flow carries the preset
-# chips, an EXISTING host has no Save button (the footer states the
-# auto-save contract instead), a debounced edit persists on its own
-# (the grid card renames while the panel is still open), and the X
-# close flushes an edit still inside the debounce window. Input VALUES
-# are invisible to text selectors, so the evidence is the CARD label
-# in the grid, which only changes when the vault row did.
-expect "Welcome to Oryxis"
+# chips, and an EXISTING host is saved by CLOSING it.
+#
+# Rewritten for the close-only contract. The earlier revision persisted
+# on a 700 ms debounce and this test asserted that: the footer legend
+# ("Changes are saved automatically") and a card that renamed itself
+# while the panel was still open. Both are gone on purpose. The debounce
+# was the origin of a whole bug class, because every mid-typing save
+# re-sorts the host list under whatever is holding a position into it;
+# one write per editing session removes the class instead of guarding
+# each site, and the footer says nothing because there is nothing left
+# to explain.
+#
+# So the assertions INVERT: after the rename the card still reads the
+# OLD name (nothing was written yet), and only the X close makes the
+# new one appear. Input VALUES are invisible to text selectors, so the
+# card label in the grid is the evidence either way: it only changes
+# when the vault row did.
+#
+# The host is deliberately not named "...Save...": selectors match by
+# SUBSTRING, so `absent "Save"` would hit the card, not the button.
 click "Skip"
 click "Continue without password"
 expect "Create host"
 click "Continue"
 expect "New Host"
-# P3: the one-shot starting-point chips, create flow only.
 expect "Start from"
 expect "Basic SSH"
 expect "Via bastion"
 click "IP or Hostname"
 type "10.9.8.7"
-click (1190, 219)
-type "AutoSaveHost"
+click (1190.00, 219.00)
+type "PanelHost"
 click "Save"
 settle 500
-expect "AutoSaveHost"
-# Edit the saved host: the drawer footer states auto-save, no Save.
-click right "AutoSaveHost"
+expect "PanelHost"
+click right "PanelHost"
 settle 300
 click "Edit"
 settle 400
 expect "Edit Host"
-expect "Changes are saved automatically"
 absent "Start from"
-# Rename and WAIT past the 700 ms debounce: the grid card renames
-# while the panel is still open, which is the persist itself.
-click (1190, 182)
+absent "Changes are saved automatically"
+absent "Save"
+click (1190.00, 182.00)
 type ctrl+a
-type "RenamedLive"
+type "RenamedOnClose"
 wait 1100
 settle 300
-expect "RenamedLive"
-# Rename again and close through the X inside the debounce window:
-# the close flushes, so the card shows the newest name.
-click (1190, 182)
-type ctrl+a
-type "FlushOnClose"
-click (1369, 72)
+expect "PanelHost"
+absent "RenamedOnClose"
+click (1369.00, 72.00)
 settle 400
-expect "FlushOnClose"
-screenshot host-editor-autosave
+expect "RenamedOnClose"

@@ -30,13 +30,19 @@ click "Terminal Settings"
 settle
 expect "Terminal Font Weight"
 # The picker sits ~45 px under its label (label 17 high + 8 gap + the
-# 40 px row). Read the label's own bounds with `texts` if the card
-# above it grows and these drift.
-click (300, 1250)
+# 40 px row), which puts its centre at label_y + 45. Read the label's
+# own bounds with `find "Terminal Font Weight"` and recompute BOTH
+# clicks below when the cards above it grow: the row drifted 48 px once
+# already, and a miss lands on the card instead of the picker, leaves
+# the dropdown shut, and fails at the assertion rather than at the
+# click that actually went wrong.
+click (300, 1202)
 settle 300
 # Dropdown options, top to bottom: Regular / Medium / SemiBold / Bold.
-# It opens UPWARDS over the label, so SemiBold lands above the picker.
-click (300, 1170)
+# It opens UPWARDS over the label, so SemiBold lands above the picker
+# (~82 px up from the picker's centre). They live in an overlay no text
+# selector can see, hence the coordinate.
+click (300, 1120)
 settle 300
 expect "This font has no face at the selected weight, so the terminal uses the closest one it has."
 # The stroke-widening row lives in the same block, right under the

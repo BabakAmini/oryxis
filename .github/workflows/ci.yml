@@ -62,3 +62,65 @@ jobs:
 
       - name: Clippy
         run: cargo clippy --locked --workspace -- -D warnings
+
+  # The headless E2E suite (docs/HARNESS.md): the real app, real vault,
+  # real subscriptions, no window. Its own job because it is long
+  # (~45 s per file) and because a red UI test must be readable as
+  # "the UI moved", not mixed into the compile gate.
+  #
+  # It exists as a job at all because four committed `.ice` files had
+  # silently rotted: the runner aborts on the FIRST failure, so each
+  # stale test hid the next one, and nothing compiles these files, so a
+  # UI change that invalidates one is invisible until somebody runs the
+  # suite by hand. Three of the four broke in commits that had already
+  # passed two rounds of diff review.
+  #
+  # No network by design (see the note in font-pack.ice), and every test
+  # runs on a freshly wiped sandbox HOME, never the runner's own.
+  e2e:
+    name: Headless E2E
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential pkg-config libssl-dev \
+            libgtk-3-dev libwayland-dev libxkbcommon-dev \
+            lrzsz
+
+      - name: Cache cargo
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-e2e-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Build with the harness feature
+        run: cargo build --locked -p oryxis-app --features harness
+
+      - name: Run the .ice suite
+        run: |
+          target/debug/oryxis --harness-run crates/oryxis-app/tests/e2e \
+            --home "$(mktemp -d)"
+
+      # Canvas assertions are screenshot-based (text selectors cannot see
+      # inside the terminal), so the shots are the only evidence of what
+      # a failing run actually drew.
+      - name: Collect screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-screenshots
+          path: /tmp/**/shots/*.png
+          if-no-files-found: ignore
+          retention-days: 7
