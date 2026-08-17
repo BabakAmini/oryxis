@@ -31,6 +31,12 @@ mod menus;
 mod toolbar;
 pub(crate) use chrome::*;
 pub(crate) use main_layout::TAB_RENAME_INPUT_ID;
+// The password popup's geometry, so `dispatch_password_suggest` can
+// drive its scroll from the same numbers the popup is drawn by.
+pub(crate) use menu_password_suggest::{
+    password_suggest_layout, password_suggest_row_height, password_suggest_row_top,
+    password_suggest_rows_height, SCROLL_ID as PASSWORD_SUGGEST_SCROLL_ID,
+};
 
 impl Oryxis {
     /// Wrap a card in the shared accent wash when the

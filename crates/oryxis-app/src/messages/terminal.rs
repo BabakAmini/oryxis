@@ -51,6 +51,11 @@ pub enum TerminalMessage {
     /// pointer sits) plus an Enter aimed at the prompt would send a
     /// secret nobody picked.
     PasswordSuggestDismiss,
+    /// New scroll offset of the popup's row list, reported by its own
+    /// `on_scroll`. Tracked so keyboard navigation scrolls only when the
+    /// selection would leave the viewport, instead of yanking the list
+    /// on every arrow press (same contract as the SFTP row list).
+    PasswordSuggestScrolled(f32),
     /// Broadcast input (C2): arm / disarm fan-out of keystrokes, pastes and
     /// snippets to every pane of the tab at `usize`. Toggled by the status
     /// segment, the tab context menu and the `ToggleBroadcastInput` hotkey.

@@ -212,6 +212,7 @@ impl Oryxis {
                 entries,
                 selected: None,
                 caret_top,
+                scroll: 0.0,
             },
             x,
             y,
@@ -238,6 +239,55 @@ impl Oryxis {
             cell,
         );
         Some((caret.x, caret.y + caret.height + CARET_GAP, caret.y))
+    }
+
+    /// Keep the keyboard selection inside the popup's viewport, and
+    /// scroll ONLY when it would otherwise leave it: a list that yanks
+    /// on every arrow press is unreadable (same contract as the SFTP
+    /// row list). A no-op while the whole list fits, where there is no
+    /// scrollable mounted at all.
+    ///
+    /// Rows are not uniform here (a credential with a username is two
+    /// lines tall), so the offsets come from the same metrics the popup
+    /// is drawn by rather than from `idx * ROW_H`.
+    fn password_suggest_scroll_into_view(&mut self, idx: usize) -> Task<Message> {
+        use crate::views::layout::{
+            password_suggest_layout, password_suggest_row_height, password_suggest_row_top,
+            password_suggest_rows_height, PASSWORD_SUGGEST_SCROLL_ID,
+        };
+        let window_h = self.window_size.height;
+        let Some(OverlayContent::PasswordSuggest {
+            entries, scroll, ..
+        }) = self.overlay.as_mut().map(|o| &mut o.content)
+        else {
+            return Task::none();
+        };
+        let Some(viewport) = password_suggest_layout(entries, window_h).rows_viewport else {
+            return Task::none();
+        };
+        let Some(row_h) = entries.get(idx).map(password_suggest_row_height) else {
+            return Task::none();
+        };
+        let max_scroll = (password_suggest_rows_height(entries) - viewport).max(0.0);
+        let row_top = password_suggest_row_top(entries, idx);
+        let at = scroll.clamp(0.0, max_scroll);
+        let next = if row_top < at {
+            row_top
+        } else if row_top + row_h > at + viewport {
+            row_top + row_h - viewport
+        } else {
+            // Already fully visible: leave the list where the user
+            // (or the previous move) put it.
+            return Task::none();
+        };
+        let next = next.clamp(0.0, max_scroll);
+        // Optimistic, because a burst of arrow presses lands before the
+        // scrollable's own `on_scroll` reports back.
+        *scroll = next;
+        iced::widget::operation::scroll_to(
+            iced::widget::Id::new(PASSWORD_SUGGEST_SCROLL_ID),
+            iced::widget::scrollable::AbsoluteOffset { x: 0.0, y: next },
+        )
     }
 
     /// The open popup's pane + entries + selection, if one is up.
@@ -302,6 +352,14 @@ impl Oryxis {
                     self.overlay.as_mut().map(|o| &mut o.content)
                 {
                     *selected = Some(next);
+                }
+                return self.password_suggest_scroll_into_view(next);
+            }
+            TerminalMessage::PasswordSuggestScrolled(offset) => {
+                if let Some(OverlayContent::PasswordSuggest { scroll, .. }) =
+                    self.overlay.as_mut().map(|o| &mut o.content)
+                {
+                    *scroll = offset;
                 }
             }
             TerminalMessage::PasswordSuggestDismiss => {

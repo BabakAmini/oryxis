@@ -466,7 +466,8 @@ impl Oryxis {
             // ── Password-suggest popup (issue #117) ──
             m @ (TerminalMessage::PasswordSuggestNavigate(_)
             | TerminalMessage::PasswordSuggestPick(_)
-            | TerminalMessage::PasswordSuggestDismiss) => {
+            | TerminalMessage::PasswordSuggestDismiss
+            | TerminalMessage::PasswordSuggestScrolled(_)) => {
                 return self.handle_password_suggest(m);
             }
             // ── Broadcast input (C2) ──

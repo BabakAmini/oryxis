@@ -108,9 +108,14 @@ impl Oryxis {
         const ITEM_H: f32 = 30.0;
         // The one variant that is measured rather than estimated: its
         // rows are two lines tall only when the credential carries a
-        // username, and the number decides a flip, not just a nudge.
+        // username, the list is capped at a share of the window, and
+        // the number decides a flip, not just a nudge.
         if let OverlayContent::PasswordSuggest { entries, .. } = &overlay.content {
-            return super::menu_password_suggest::password_suggest_menu_height(entries);
+            return super::menu_password_suggest::password_suggest_layout(
+                entries,
+                self.window_size.height,
+            )
+            .total;
         }
         let items: f32 = match &overlay.content {
             OverlayContent::TabActions(_) => 12.0,

@@ -147,6 +147,12 @@ pub(crate) enum OverlayContent {
         /// does not fit there, which at a shell prompt (last row of the
         /// terminal) is the ordinary case.
         caret_top: f32,
+        /// Scroll offset of the row list, which only exists once the
+        /// list overflows the popup's cap. Fed by the scrollable's own
+        /// `on_scroll` AND written optimistically by keyboard
+        /// navigation, so a burst of arrow presses before the next
+        /// event arrives still computes against a fresh position.
+        scroll: f32,
     },
 }
 

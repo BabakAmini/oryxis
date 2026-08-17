@@ -41,6 +41,12 @@ const HINT_PAD: Padding = Padding {
     left: 12.0,
 };
 const COLUMN_SPACING: f32 = 2.0;
+/// The popup never eats more than this much of the window. A vault with
+/// a dozen identities would otherwise cover the terminal the prompt it
+/// is answering lives in; past this the list scrolls instead of growing.
+const MAX_WINDOW_FRACTION: f32 = 0.6;
+/// Scrollable id of the row list, so keyboard navigation can drive it.
+pub(crate) const SCROLL_ID: &str = "password-suggest-scroll";
 
 /// Drawn height of one text line. iced's default line height is 1.3x
 /// the font size, which the harness measures back exactly (size 12
@@ -49,33 +55,81 @@ fn line_height(size: f32) -> f32 {
     size * 1.3
 }
 
-/// On-screen height of the whole popup, chrome included.
-///
-/// Measured instead of estimated, because two placements ride on it:
-/// the clamp that keeps the box inside the window, and the flip over
-/// the caret. The generic per-item guess in `overlay_menu_height` has
-/// no way to express a row that is two lines tall only when the
-/// credential carries a username, and it came out 26 px short on a
-/// one-row popup, which is exactly the hint line plus the bottom
-/// padding that a prompt on the last terminal row rendered off the
-/// bottom edge of the window.
-pub(super) fn password_suggest_menu_height(entries: &[PasswordSource]) -> f32 {
-    let rows: f32 = entries
+/// Drawn height of one credential row. Two lines when the credential
+/// carries a username, and never shorter than the key glyph beside it.
+pub(crate) fn password_suggest_row_height(entry: &PasswordSource) -> f32 {
+    let labels = if entry.sublabel.is_empty() {
+        line_height(LABEL_SIZE)
+    } else {
+        line_height(LABEL_SIZE) + line_height(SUBLABEL_SIZE)
+    };
+    ROW_PAD.top + labels.max(line_height(ICON_SIZE)) + ROW_PAD.bottom
+}
+
+/// Height of the row list itself: every row plus the gaps between them.
+/// This is the scrollable's CONTENT height when the list overflows.
+pub(crate) fn password_suggest_rows_height(entries: &[PasswordSource]) -> f32 {
+    let rows: f32 = entries.iter().map(password_suggest_row_height).sum();
+    rows + (entries.len().saturating_sub(1)) as f32 * COLUMN_SPACING
+}
+
+/// Distance from the top of the row list to the top of row `idx`.
+pub(crate) fn password_suggest_row_top(entries: &[PasswordSource], idx: usize) -> f32 {
+    entries
         .iter()
-        .map(|e| {
-            let labels = if e.sublabel.is_empty() {
-                line_height(LABEL_SIZE)
-            } else {
-                line_height(LABEL_SIZE) + line_height(SUBLABEL_SIZE)
-            };
-            ROW_PAD.top + labels.max(line_height(ICON_SIZE)) + ROW_PAD.bottom
-        })
-        .sum();
+        .take(idx)
+        .map(|e| password_suggest_row_height(e) + COLUMN_SPACING)
+        .sum()
+}
+
+/// Everything in the box that is NOT a row: the outer padding, the
+/// title, the hint and the two gaps around the list.
+fn chrome_height() -> f32 {
     let title = TITLE_PAD.top + line_height(TITLE_SIZE) + TITLE_PAD.bottom;
     let hint = HINT_PAD.top + line_height(HINT_SIZE) + HINT_PAD.bottom;
-    // One gap per sibling pair in the column: title, the rows, hint.
-    let gaps = entries.len() as f32 * COLUMN_SPACING + COLUMN_SPACING;
-    2.0 * super::menus::MENU_CHROME_PAD_V + title + rows + hint + gaps
+    2.0 * super::menus::MENU_CHROME_PAD_V + title + hint + 2.0 * COLUMN_SPACING
+}
+
+/// Resolved vertical layout of the popup for the current window.
+pub(crate) struct PopupLayout {
+    /// On-screen height of the whole box.
+    pub total: f32,
+    /// Height handed to the row list, when the list has to scroll.
+    /// `None` means every row fits and no scrollable is mounted at all.
+    pub rows_viewport: Option<f32>,
+}
+
+/// Measure the popup instead of estimating it, because three things
+/// ride on the number: the clamp that keeps the box inside the window,
+/// the flip over the caret, and now the scroll. The generic per-item
+/// guess in `overlay_menu_height` had no way to express a row that is
+/// two lines tall only when the credential carries a username, and it
+/// came out 26 px short on a one-row popup, which is exactly the hint
+/// line plus the bottom padding that a prompt on the last terminal row
+/// rendered off the bottom edge of the window.
+///
+/// The cap is a share of the WINDOW, with one floor: a full row always
+/// fits, however short the window gets. A box showing its title and its
+/// hint around a sliver of a row offers nothing to pick.
+pub(crate) fn password_suggest_layout(entries: &[PasswordSource], window_h: f32) -> PopupLayout {
+    let chrome = chrome_height();
+    let natural = chrome + password_suggest_rows_height(entries);
+    let tallest = entries
+        .iter()
+        .map(password_suggest_row_height)
+        .fold(0.0_f32, f32::max);
+    let cap = (window_h * MAX_WINDOW_FRACTION).max(chrome + tallest);
+    if natural <= cap {
+        return PopupLayout {
+            total: natural,
+            rows_viewport: None,
+        };
+    }
+    let viewport = cap - chrome;
+    PopupLayout {
+        total: chrome + viewport,
+        rows_viewport: Some(viewport),
+    }
 }
 
 impl Oryxis {
@@ -87,17 +141,22 @@ impl Oryxis {
         entries: &[crate::state::PasswordSource],
         selected: Option<usize>,
     ) -> Element<'static, Message> {
-        let mut col = column![
-            container(
-                text(crate::i18n::t("password_suggest_title"))
-                    .size(TITLE_SIZE)
-                    .color(OryxisColors::t().text_muted)
-            )
-            .padding(TITLE_PAD)
-            .width(Length::Fill)
-            .align_x(dir_align_x()),
-        ]
-        .spacing(COLUMN_SPACING);
+        let title = container(
+            text(crate::i18n::t("password_suggest_title"))
+                .size(TITLE_SIZE)
+                .color(OryxisColors::t().text_muted),
+        )
+        .padding(TITLE_PAD)
+        .width(Length::Fill)
+        .align_x(dir_align_x());
+
+        // The rows are their own column so the list can be handed a
+        // viewport when it overflows; the title and the hint stay
+        // OUTSIDE it, because scrolling away the box's own labels would
+        // leave a floating stack of credentials with nothing naming it.
+        let mut list = iced::widget::Column::new()
+            .spacing(COLUMN_SPACING)
+            .width(Length::Fill);
 
         for (idx, entry) in entries.iter().enumerate() {
             let is_selected = selected == Some(idx);
@@ -111,7 +170,7 @@ impl Oryxis {
                         .color(OryxisColors::t().text_muted),
                 );
             }
-            let row: Element<'_, Message> = button(
+            let row: Element<'static, Message> = button(
                 container(
                     dir_row(vec![
                         iced_fonts::lucide::key_round()
@@ -166,20 +225,41 @@ impl Oryxis {
             // hover must never reach `selected`: that would arm Enter,
             // and the popup opens at the caret, right where the pointer
             // usually sits. `selected` is the KEYBOARD's, exclusively.
-            col = col.push(row);
+            list = list.push(row);
         }
 
-        col.push(
-            container(
-                text(crate::i18n::t("password_suggest_hint"))
-                    .size(HINT_SIZE)
-                    .color(OryxisColors::t().text_muted),
-            )
-            .padding(HINT_PAD)
-            .width(Length::Fill)
-            .align_x(dir_align_x()),
+        let hint = container(
+            text(crate::i18n::t("password_suggest_hint"))
+                .size(HINT_SIZE)
+                .color(OryxisColors::t().text_muted),
         )
-        .into()
+        .padding(HINT_PAD)
+        .width(Length::Fill)
+        .align_x(dir_align_x());
+
+        // A list that fits is laid out unbounded, so no scrollbar eats
+        // width and no gutter shows on the common one-or-two-credential
+        // popup. Past the cap it gets a fixed viewport and scrolls, and
+        // reports its offset so the keyboard can scroll only when the
+        // selection would leave it.
+        let layout = password_suggest_layout(entries, self.window_size.height);
+        let list: Element<'static, Message> = match layout.rows_viewport {
+            Some(h) => iced::widget::scrollable(list)
+                .id(iced::widget::Id::new(SCROLL_ID))
+                .width(Length::Fill)
+                .height(Length::Fixed(h))
+                .on_scroll(|vp| {
+                    Message::Terminal(TerminalMessage::PasswordSuggestScrolled(
+                        vp.absolute_offset().y,
+                    ))
+                })
+                .into(),
+            None => list.into(),
+        };
+
+        column![title, list, hint]
+            .spacing(COLUMN_SPACING)
+            .into()
     }
 }
 
@@ -196,6 +276,13 @@ mod tests {
         }
     }
 
+    /// A window tall enough that the cap never bites.
+    const ROOMY: f32 = 750.0;
+
+    fn list(n: usize) -> Vec<PasswordSource> {
+        (0..n).map(|_| entry("wilson")).collect()
+    }
+
     #[test]
     fn one_credential_with_a_username_measures_what_the_harness_drew() {
         // Measured through the harness at 1200x750: chrome 6+6, title
@@ -203,19 +290,21 @@ mod tests {
         // per-item estimate answered 70 for this popup, and the 26 px
         // it was short is exactly the hint line and the bottom padding
         // that rendered off the window at a prompt on the last row.
-        let h = password_suggest_menu_height(&[entry("wilson")]);
+        let l = password_suggest_layout(&[entry("wilson")], ROOMY);
         assert!(
-            (h - 96.0).abs() < 1.0,
-            "expected ~96 px for a one-line-subtitle row, got {h}"
+            (l.total - 96.0).abs() < 1.0,
+            "expected ~96 px for a one-line-subtitle row, got {}",
+            l.total
         );
+        assert!(l.rows_viewport.is_none(), "one row must not scroll");
     }
 
     #[test]
     fn a_credential_without_a_username_is_a_shorter_row() {
         // A host saved with no username prints no subtitle, so a flat
         // per-entry constant would be wrong in both directions.
-        let with = password_suggest_menu_height(&[entry("wilson")]);
-        let without = password_suggest_menu_height(&[entry("")]);
+        let with = password_suggest_layout(&[entry("wilson")], ROOMY).total;
+        let without = password_suggest_layout(&[entry("")], ROOMY).total;
         let delta = with - without;
         // It does not shrink by the whole subtitle line: with only one
         // label left the row bottoms out on the 14 px key glyph, which
@@ -227,8 +316,59 @@ mod tests {
 
     #[test]
     fn every_extra_credential_adds_its_own_row() {
-        let one = password_suggest_menu_height(&[entry("wilson")]);
-        let two = password_suggest_menu_height(&[entry("wilson"), entry("root")]);
+        let one = password_suggest_layout(&list(1), ROOMY).total;
+        let two = password_suggest_layout(&list(2), ROOMY).total;
         assert!((two - one - (41.0 + COLUMN_SPACING)).abs() < 1.0);
+    }
+
+    #[test]
+    fn a_long_list_stops_growing_at_the_cap_and_scrolls_instead() {
+        // 20 identities with passwords is an ordinary vault, and at
+        // ~43 px each they would otherwise bury the terminal the prompt
+        // lives in.
+        let l = password_suggest_layout(&list(20), ROOMY);
+        assert!((l.total - ROOMY * MAX_WINDOW_FRACTION).abs() < 0.01);
+        let vp = l.rows_viewport.expect("a capped list must scroll");
+        assert!((l.total - chrome_height() - vp).abs() < 0.01);
+        // The viewport is what the scroll math measures against, so it
+        // must be short of the content it is scrolling.
+        assert!(vp < password_suggest_rows_height(&list(20)));
+    }
+
+    #[test]
+    fn a_full_row_survives_however_short_the_window_is() {
+        // The floor beats the fraction: 60% of a 200 px window is less
+        // than this popup's own chrome, and a box showing a title and a
+        // hint around a sliver of a row offers nothing to pick.
+        let l = password_suggest_layout(&list(20), 200.0);
+        let vp = l.rows_viewport.expect("still scrolling");
+        assert!(
+            vp >= password_suggest_row_height(&entry("wilson")),
+            "one whole row must fit, got {vp}"
+        );
+        assert!(l.total > 200.0 * MAX_WINDOW_FRACTION);
+    }
+
+    #[test]
+    fn row_tops_stack_by_their_own_heights() {
+        // Rows are not uniform, so the scroll offset cannot be
+        // `idx * ROW_H` the way the SFTP list computes it.
+        let mixed = vec![entry(""), entry("wilson"), entry("")];
+        assert_eq!(password_suggest_row_top(&mixed, 0), 0.0);
+        assert_eq!(
+            password_suggest_row_top(&mixed, 1),
+            password_suggest_row_height(&mixed[0]) + COLUMN_SPACING
+        );
+        assert_eq!(
+            password_suggest_row_top(&mixed, 2),
+            password_suggest_row_height(&mixed[0])
+                + password_suggest_row_height(&mixed[1])
+                + 2.0 * COLUMN_SPACING
+        );
+        // The content height is the last row's bottom.
+        assert_eq!(
+            password_suggest_rows_height(&mixed),
+            password_suggest_row_top(&mixed, 2) + password_suggest_row_height(&mixed[2])
+        );
     }
 }
