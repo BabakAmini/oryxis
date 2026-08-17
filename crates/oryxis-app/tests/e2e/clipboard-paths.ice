@@ -41,10 +41,17 @@ click (333, 20)
 expect "Local Shell"
 click "Local Shell"
 timeout 500
-wait 2500
+# Generous on purpose. The selection below is a PIXEL range over the
+# grid, so it only copies anything once the shell has actually drawn
+# its prompt and the echoed line; on a cold CI runner both take longer
+# than on a warm dev box. When the draw has not landed the selection
+# comes back EMPTY, which leaves the clipboard holding the "/tmp" the
+# SFTP step above put there, so the assert reports a value from the
+# WRONG STEP rather than saying it was too early.
+wait 6000
 type "echo HELLO_CLIP"
 type enter
-wait 1500
+wait 4000
 press (8, 123)
 move (60, 123)
 move (95, 123)

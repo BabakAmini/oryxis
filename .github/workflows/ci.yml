@@ -108,10 +108,16 @@ jobs:
       - name: Build with the harness feature
         run: cargo build --locked -p oryxis-app --features harness
 
+      # The sandbox HOME lives in the workspace, not under /tmp, purely so
+      # the artifact glob below can name it. A `mktemp -d` sandbox forces
+      # the glob to walk all of /tmp, where the runner keeps directories
+      # this job cannot read (`/tmp/snap-private-tmp`), and the upload
+      # step fails with EACCES after the suite already passed.
       - name: Run the .ice suite
         run: |
+          mkdir -p "$RUNNER_TEMP/e2e-home"
           target/debug/oryxis --harness-run crates/oryxis-app/tests/e2e \
-            --home "$(mktemp -d)"
+            --home "$RUNNER_TEMP/e2e-home"
 
       # Canvas assertions are screenshot-based (text selectors cannot see
       # inside the terminal), so the shots are the only evidence of what
@@ -121,6 +127,8 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: e2e-screenshots
-          path: /tmp/**/shots/*.png
+          # `--home X` puts the shots in `X/shots`; the glob stays broad
+          # so a run that relocates them still uploads something.
+          path: ${{ runner.temp }}/e2e-home/**/*.png
           if-no-files-found: ignore
           retention-days: 7
