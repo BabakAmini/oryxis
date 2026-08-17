@@ -15,10 +15,15 @@ click (92, 20)
 settle
 click "Local Shell"
 timeout 500
-wait 2500
-type "echo HELLO_PRIMARY"
+wait 4000
+# Filling the screen with the same line keeps the pixel selection
+# below independent of how many rows the shell drew before it: a CI
+# runner's prompt is a different height from a dev box's, and an
+# empty selection does not clear the clipboard, so a mis-aimed grab
+# reports the PREVIOUS clipboard value instead of saying it missed.
+type "clear; yes HELLO_PRIMARY | head -20"
 type enter
-wait 1500
+wait 4000
 
 # Select the echoed word. Copy-on-select puts it on the clipboard, which
 # is the assertable half of the gesture.
