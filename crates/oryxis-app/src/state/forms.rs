@@ -695,8 +695,6 @@ pub(crate) struct SyncPairingForm {
 pub(crate) struct GitSyncForm {
     /// Remote URL, anything `git clone` accepts.
     pub remote: String,
-    /// Same group passphrase as the other snapshot transports.
-    pub passphrase: String,
     pub in_progress: bool,
     pub status: Option<Result<String, String>>,
     /// Whether a usable `git` is on PATH. `None` = probe in flight (boot,
@@ -724,10 +722,9 @@ pub(crate) struct WebdavSyncForm {
     /// Account name on the server.
     pub user: String,
     /// Account password, ideally an app password. Stored encrypted and
-    /// deliberately NOT the group passphrase below.
+    /// deliberately NOT the group passphrase (which lives on
+    /// `SyncState.passphrase_input`).
     pub password: String,
-    /// Same group passphrase as the other snapshot transports.
-    pub passphrase: String,
     pub in_progress: bool,
     pub status: Option<Result<String, String>>,
 }
@@ -743,9 +740,6 @@ pub(crate) struct WebdavSyncForm {
 pub(crate) struct FolderSyncForm {
     /// Directory (or full file path) the snapshot lives in.
     pub path: String,
-    /// Group passphrase, same derivation as the SFTP transport, so the
-    /// two can point at the same blob.
-    pub passphrase: String,
     pub in_progress: bool,
     pub status: Option<Result<String, String>>,
 }
@@ -758,7 +752,6 @@ pub(crate) struct SftpSyncForm {
     /// Host the vault blob is synced through, `None` until picked.
     pub host_id: Option<uuid::Uuid>,
     pub remote_path: String,
-    pub passphrase: String,
     pub picker_open: bool,
     pub picker_search: String,
     /// True while the SFTP sync task is in flight.

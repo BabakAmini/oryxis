@@ -263,6 +263,30 @@ where
                 }
                 Err(_) => Some("timeout wants milliseconds".to_owned()),
             },
+            // Restart the app mid-test, the way the interactive front
+            // ends do. `reset` keeps the sandbox vault, which is the
+            // only way to assert what a SECOND session sees (a field
+            // hydrated from storage, a setting that survived); `reset
+            // wipe` returns to first-run inside a test that already
+            // moved past it. The batch runner still wipes before every
+            // test, so this is about the boundary WITHIN one.
+            "reset" => {
+                let wipe = rest == "wipe";
+                if !rest.is_empty() && !wipe {
+                    Some("reset takes nothing or `wipe`".to_owned())
+                } else {
+                    match session.reset(program, wipe) {
+                        Ok(Pump::Ready | Pump::Timeout) => None,
+                        Ok(Pump::Failed(instruction)) => {
+                            Some(format!("reset: boot failure: {instruction}"))
+                        }
+                        Ok(Pump::Closed) => {
+                            Some("reset: emulator channel closed".to_owned())
+                        }
+                        Err(reason) => Some(format!("reset: {reason}")),
+                    }
+                }
+            }
             "screenshot" => match session.screenshot(program, rest) {
                 Ok((path, _png)) => {
                     println!("== shot {}", path.display());

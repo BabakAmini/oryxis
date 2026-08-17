@@ -28,6 +28,7 @@ use iced::Task;
 use oryxis_vault::VaultStore;
 
 use crate::app::{Message, Oryxis, SyncMessage};
+use crate::dispatch_sync::SyncRoundTrigger;
 use crate::i18n::t;
 
 /// Snapshot filename appended when the URL names a collection. Same
@@ -90,7 +91,7 @@ impl Oryxis {
     ///
     /// Validates config while holding `&self`, then does the network and
     /// vault work off-thread, so the caller can fire it blindly.
-    pub(crate) fn run_webdav_sync_round(&mut self) -> Task<Message> {
+    pub(crate) fn run_webdav_sync_round(&mut self, trigger: SyncRoundTrigger) -> Task<Message> {
         if self.sync.webdav.in_progress {
             return Task::none();
         }
@@ -107,21 +108,11 @@ impl Oryxis {
         let Some(vault) = &self.vault else {
             return Task::none();
         };
-        // Group key from STORAGE, not the form field: the four snapshot
-        // transports share one `sync_sftp_passphrase` row, and a sibling
-        // transport's edit can leave this form stale. Sealing with a
-        // stale value pushes a snapshot the next session cannot decrypt
-        // (see `run_git_sync_round`).
-        let passphrase = match vault.get_sync_sftp_passphrase() {
-            Ok(Some(p)) => p,
-            Ok(None) => {
-                self.sync.webdav.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
-                return Task::none();
-            }
-            Err(e) => {
-                self.sync.webdav.status = Some(Err(e.to_string()));
-                return Task::none();
-            }
+        // Group key: the typed buffer for a manual round, else the
+        // stored value.
+        let Some(key) = self.sync_round_passphrase(trigger) else {
+            self.sync.webdav.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
+            return Task::none();
         };
         // Argon2id derivation (~0.4 s) runs on a worker thread, not on
         // the UI thread (same reason as the Git transport).
@@ -134,6 +125,9 @@ impl Oryxis {
 
         self.sync.webdav.in_progress = true;
         self.sync.webdav.status = None;
+        // Remember what seals this snapshot, so the commit at the end
+        // writes that key and not whatever the field holds by then.
+        let passphrase = self.arm_round_passphrase(key);
         Task::perform(
             async move {
                 let secret = tokio::task::spawn_blocking(move || {

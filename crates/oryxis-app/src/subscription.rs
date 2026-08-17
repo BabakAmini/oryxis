@@ -173,6 +173,22 @@ impl Oryxis {
         });
         let mut subs = vec![events];
 
+        // While a passphrase edit is open, any left click is a candidate
+        // for "focus left the field": probe the click position against the
+        // field's last drawn bounds, and fall back to a focus query when
+        // the geometry is inconclusive or the buffer is stale (a
+        // select-all delete clears the display without firing on_input).
+        if self.sync.passphrase_editing {
+            subs.push(iced::event::listen_with(|event, _status, _window| {
+                match event {
+                    iced::event::Event::Mouse(iced::mouse::Event::ButtonPressed(
+                        iced::mouse::Button::Left,
+                    )) => Some(Message::Sync(SyncMessage::PassphraseBlurCheck)),
+                    _ => None,
+                }
+            }));
+        }
+
         // Stall-watchdog pacemaker (#104): while debug logging is on, a
         // 500 ms NoOp keeps the update heartbeat beating on an idle app,
         // which is what lets the watchdog thread tell "idle" from "the

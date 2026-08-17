@@ -111,6 +111,11 @@ impl Oryxis {
                 // toggle — and scrolling the page away mid-typing. The
                 // fall-through keeps the zone cycle (Tab from the search
                 // field enters Content at its first row).
+                // Leaving the sync passphrase field by Tab is a deliberate
+                // walk-away: an open edit is abandoned, empty or not.
+                if self.sync.passphrase_editing {
+                    self.exit_passphrase_edit();
+                }
                 if let Some(task) = self.settings_ring_idle_resolve(*named, modifiers.shift()) {
                     return Some(task);
                 }
@@ -131,7 +136,14 @@ impl Oryxis {
             // `util.rs` PTY routing); same rule as the Character
             // guard above.
             Named::Space if self.keynav.focus.is_some() => self.keynav_activate(),
-            Named::Escape => self.keynav_escape(),
+            Named::Escape => {
+                // An open sync passphrase edit is cancelled by Esc like
+                // any other cancel: back to the read-only mask.
+                if self.sync.passphrase_editing {
+                    self.exit_passphrase_edit();
+                }
+                self.keynav_escape()
+            }
             Named::ArrowUp
             | Named::ArrowDown
             | Named::ArrowLeft

@@ -611,6 +611,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "model" => "モデル",
         "api_key_saved" => "APIキーを保存しました",
         "ai_key_saved_placeholder" => "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} 保存済み、入力すると置き換え",
+        "sync_passphrase_new_placeholder" => "新しいパスフレーズを入力",
+        "sync_passphrase_match_hint" => "保存済みのパスフレーズと一致",
+        "sync_passphrase_mismatch_hint" => "保存済みのパスフレーズと異なります",
+        "sync_passphrase_forgot_hint" => "パスフレーズを忘れましたか？リモートのスナップショットを削除して再同期してください",
 
         "welcome" => "Oryxisへようこそ",
         "create_vault" => "ボールトを作成",

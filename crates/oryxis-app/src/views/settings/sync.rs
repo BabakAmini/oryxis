@@ -4,6 +4,169 @@ use super::*;
 use iced::widget::column;
 
 impl Oryxis {
+    /// Placeholder for the shared sync passphrase field. First-time
+    /// setup asks what the field is ("shared secret for this sync
+    /// group"); edit mode (the user just clicked the masked "saved"
+    /// box, so they know a passphrase exists) asks for the replacement
+    /// ("enter new passphrase"), the standard change-password wording.
+    fn sync_passphrase_placeholder(&self) -> &'static str {
+        if self.sync.passphrase_known {
+            crate::i18n::t("sync_passphrase_new_placeholder")
+        } else {
+            crate::i18n::t("sftp_sync_passphrase_placeholder")
+        }
+    }
+
+    /// The live passphrase-match hint, shown only while the user is
+    /// editing the shared group passphrase and a stored one exists:
+    /// green when the typed value matches (re-entering the saved key
+    /// keeps the group working), warning when it differs. The
+    /// comparison itself lives in `set_sync_passphrase`; this only
+    /// renders its outcome.
+    fn sync_passphrase_hint(&self) -> Option<Element<'_, Message>> {
+        match self.sync.passphrase_matches {
+            Some(true) => Some(
+                text(crate::i18n::t("sync_passphrase_match_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().success)
+                    .into(),
+            ),
+            Some(false) => Some(
+                text(crate::i18n::t("sync_passphrase_mismatch_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().warning)
+                    .into(),
+            ),
+            None => None,
+        }
+    }
+
+    /// Recovery hint under a round that failed with a passphrase
+    /// mismatch ("Decryption failed (wrong key?)"): the stored key no
+    /// longer opens the remote snapshot, and the only way forward is
+    /// to discard that snapshot and rebuild it with the passphrase
+    /// typed now. Matched on the error text because the failure
+    /// arrives as an engine `String`; "Decryption failed" is stable
+    /// (pinned by the vault tests).
+    fn sync_passphrase_recovery_hint(
+        &self,
+        status: &Result<String, String>,
+    ) -> Option<Element<'_, Message>> {
+        let Err(e) = status else {
+            return None;
+        };
+        if !e.contains("Decryption failed") {
+            return None;
+        }
+        Some(
+            text(crate::i18n::t("sync_passphrase_forgot_hint"))
+                .size(11)
+                .color(OryxisColors::t().text_muted)
+                .into(),
+        )
+    }
+
+    /// The shared group-passphrase field block for a snapshot-transport
+    /// card. With a stored passphrase the field is READ-ONLY: a plain
+    /// masked box with the same geometry as the real input (radius, 1px
+    /// border, 10px padding) so the row keeps its shape when it flips to
+    /// edit mode, because free typing is what let a mistyped re-entry
+    /// swap the group key under the existing snapshot ("Decryption
+    /// failed (wrong key?)" on the next round). The box is still a
+    /// button: hover border + pointer cursor carry the clickability, and
+    /// clicking opens the input, already focused, with the live match
+    /// hint; clearing the field abandons the edit (there is no separate
+    /// cancel button). The input is also the plain first-time form when
+    /// no passphrase is stored yet. The keynav slot covers the whole
+    /// read-only row (activate = change); in edit mode the field is the
+    /// only stop.
+    fn sync_passphrase_block(
+        &self,
+        id: &'static str,
+        width: Length,
+    ) -> Element<'_, Message> {
+        if self.sync.passphrase_known && !self.sync.passphrase_editing {
+            let change = Message::Sync(SyncMessage::PassphraseChangeRequested(id));
+            // The display IS the button: no pencil, no tooltip, so it
+            // reads exactly like the other fields on the card: a masked
+            // value that happens to be clickable. Hover/press are carried
+            // by the border and a whisper of background, per the button
+            // feedback convention.
+            let display = button(
+                container(
+                    text("\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}")
+                        .color(OryxisColors::t().text_muted),
+                )
+                .width(Length::Fill)
+                .padding(10)
+                .align_x(dir_align_x()),
+            )
+            .on_press(change.clone())
+            .width(width)
+            .padding(0)
+            .style(|_t, status| {
+                let c = OryxisColors::t();
+                let border = match status {
+                    BtnStatus::Hovered => c.accent_hover,
+                    BtnStatus::Pressed => c.accent,
+                    _ => c.border,
+                };
+                let bg = match status {
+                    BtnStatus::Hovered => Color { a: 0.06, ..c.bg_surface },
+                    BtnStatus::Pressed => Color { a: 0.10, ..c.bg_surface },
+                    _ => c.bg_surface,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    text_color: c.text_muted,
+                    border: Border {
+                        radius: Radius::from(crate::widgets::INPUT_RADIUS),
+                        width: 1.0,
+                        color: border,
+                    },
+                    ..Default::default()
+                }
+            });
+            self.settings_nav_slot_labeled(
+                t("sftp_sync_passphrase"),
+                crate::keynav::RowAction::activate(change),
+                8.0,
+                display.into(),
+            )
+        } else {
+            // Editable: the input with the live match hint below it.
+            // Clearing the field keeps the edit open (the cursor is
+            // still in it); a click outside the field abandons it, so
+            // there is no separate cancel button. The same form serves
+            // first-time setup. The bounds reporter feeds the blur
+            // probe (`PassphraseBlurCheck`) with the field's position.
+            let field = self.settings_nav_slot_labeled(
+                t("sftp_sync_passphrase"),
+                crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+                crate::widgets::INPUT_RADIUS,
+                crate::widgets::bounds_reporter(
+                    text_input(
+                        self.sync_passphrase_placeholder(),
+                        self.sync.passphrase_input.as_str(),
+                    )
+                    .id(iced::widget::Id::new(id))
+                    .on_input(|v| Message::Sync(SyncMessage::PassphraseChanged(v.into())))
+                    .secure(true)
+                    .padding(10)
+                    .width(width)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x()),
+                    self.sync.passphrase_field_bounds.clone(),
+                ),
+            );
+            let mut col = column![field];
+            if let Some(hint) = self.sync_passphrase_hint() {
+                col = col.push(Space::new().height(6)).push(hint);
+            }
+            col.into()
+        }
+    }
+
     /// Engine-state card at the top of the section. Keyboard slots
     /// record during construction, so `view_settings_sync` must call
     /// the per-card builders in on-screen order.
@@ -134,25 +297,6 @@ impl Oryxis {
             .align_x(dir_align_x())
             .into(),
         );
-        let passphrase_input = self.settings_nav_slot_labeled(
-            t("sftp_sync_passphrase"),
-            crate::keynav::RowAction::input(iced::widget::Id::new(
-                "set-sync-sftp-passphrase",
-            )),
-            10.0,
-            text_input(
-                crate::i18n::t("sftp_sync_passphrase_placeholder"),
-                &self.sync.sftp.passphrase,
-            )
-            .id(iced::widget::Id::new("set-sync-sftp-passphrase"))
-            .on_input(|v| Message::Sync(SyncMessage::SftpPassphraseChanged(v.into())))
-            .secure(true)
-            .padding(10)
-            .width(300)
-            .style(crate::widgets::rounded_input_style)
-            .align_x(dir_align_x())
-            .into(),
-        );
         let mut sftp_section_col = column![
             text(crate::i18n::t("sftp_sync_title"))
                 .size(13)
@@ -164,7 +308,7 @@ impl Oryxis {
             Space::new().height(8),
             panel_field(
                 crate::i18n::t("sftp_sync_passphrase"),
-                passphrase_input,
+                self.sync_passphrase_block("set-sync-sftp-passphrase", Length::Fixed(300.0)),
             ),
         ];
         // (The round status lives under the Sync Now button in the
@@ -358,14 +502,6 @@ impl Oryxis {
                 |v| Message::Sync(SyncMessage::WebdavPasswordChanged(v.into())),
                 None,
             ),
-            (
-                "sftp_sync_passphrase",
-                "sync-webdav-passphrase",
-                self.sync.webdav.passphrase.as_str(),
-                true,
-                |v| Message::Sync(SyncMessage::WebdavPassphraseChanged(v.into())),
-                None,
-            ),
         ] {
             col = col
                 .push(
@@ -382,6 +518,19 @@ impl Oryxis {
             }
             col = col.push(Space::new().height(10));
         }
+        // The group passphrase is deliberately NOT a webdav_field: with
+        // a stored passphrase it is a read-only masked box until the
+        // user clicks it to edit (same shared block as the other three
+        // transports).
+        col = col
+            .push(
+                text(t("sftp_sync_passphrase"))
+                    .size(12)
+                    .color(OryxisColors::t().text_secondary),
+            )
+            .push(Space::new().height(4))
+            .push(self.sync_passphrase_block("sync-webdav-passphrase", Length::Fill))
+            .push(Space::new().height(10));
 
         col = col.push(Space::new().height(2)).push(
             self.settings_nav_slot_labeled(
@@ -420,6 +569,9 @@ impl Oryxis {
             col = col
                 .push(Space::new().height(8))
                 .push(text(msg).size(11).color(color));
+            if let Some(hint) = self.sync_passphrase_recovery_hint(status) {
+                col = col.push(Space::new().height(4)).push(hint);
+            }
         }
 
         col = col.push(Space::new().height(10)).push(
@@ -490,19 +642,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
             )
             .push(Space::new().height(4))
-            .push(self.settings_nav_slot_labeled(
-                t("sftp_sync_passphrase"),
-                crate::keynav::RowAction::input(iced::widget::Id::new("sync-git-pass")),
-                crate::widgets::INPUT_RADIUS,
-                text_input(t("sftp_sync_passphrase"), &self.sync.git.passphrase)
-                    .id(iced::widget::Id::new("sync-git-pass"))
-                    .on_input(|v| Message::Sync(SyncMessage::GitPassphraseChanged(v.into())))
-                    .secure(true)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
-            ))
+            .push(self.sync_passphrase_block("sync-git-pass", Length::Fill))
             .push(Space::new().height(12));
 
         col = col.push(self.settings_nav_slot_labeled(
@@ -524,6 +664,9 @@ impl Oryxis {
             col = col
                 .push(Space::new().height(8))
                 .push(text(msg).size(11).color(color));
+            if let Some(hint) = self.sync_passphrase_recovery_hint(status) {
+                col = col.push(Space::new().height(4)).push(hint);
+            }
         }
 
         col = col.push(Space::new().height(10)).push(
@@ -592,21 +735,7 @@ impl Oryxis {
                     .color(OryxisColors::t().text_secondary),
             )
             .push(Space::new().height(4))
-            .push(self.settings_nav_slot_labeled(
-                t("sftp_sync_passphrase"),
-                crate::keynav::RowAction::input(iced::widget::Id::new("sync-folder-pass")),
-                crate::widgets::INPUT_RADIUS,
-                text_input(t("sftp_sync_passphrase"), &self.sync.folder.passphrase)
-                    .id(iced::widget::Id::new("sync-folder-pass"))
-                    .on_input(|v| {
-                        Message::Sync(SyncMessage::FolderPassphraseChanged(v.into()))
-                    })
-                    .secure(true)
-                    .padding(10)
-                    .style(crate::widgets::rounded_input_style)
-                    .align_x(dir_align_x())
-                    .into(),
-            ))
+            .push(self.sync_passphrase_block("sync-folder-pass", Length::Fill))
             .push(Space::new().height(12));
 
         col = col.push(self.settings_nav_slot_labeled(
@@ -628,6 +757,9 @@ impl Oryxis {
             col = col
                 .push(Space::new().height(8))
                 .push(text(msg).size(11).color(color));
+            if let Some(hint) = self.sync_passphrase_recovery_hint(status) {
+                col = col.push(Space::new().height(4)).push(hint);
+            }
         }
 
         // Stated in the UI rather than buried in docs: a user pointing
@@ -794,6 +926,11 @@ impl Oryxis {
                 options_section = options_section
                     .push(Space::new().height(8))
                     .push(text(txt).size(12).color(color));
+                if let Some(hint) = self.sync_passphrase_recovery_hint(status) {
+                    options_section = options_section
+                        .push(Space::new().height(4))
+                        .push(hint);
+                }
             }
         } else if is_p2p
             && let Some(status) = &self.sync.status

@@ -9,13 +9,8 @@ pub enum SyncMessage {
     /// only failures are a bad path, a wrong passphrase, or a snapshot
     /// that will not decrypt.
     FolderRoundFinished(Result<usize, String>),
-    /// Settings > Sync: the folder transport's path and passphrase.
+    /// Settings > Sync: the folder transport's path.
     FolderPathChanged(String),
-    /// `Redacted` like every other secret-bearing variant: a plain
-    /// `String` here would print the group passphrase into any log line
-    /// or panic that formats a message (enforced by
-    /// `secret_bearing_variants_carry_redacted`).
-    FolderPassphraseChanged(super::Redacted),
     /// "Sync now" for the folder transport.
     FolderSyncNow,
     /// Open the OS folder picker for the snapshot directory.
@@ -32,20 +27,14 @@ pub enum SyncMessage {
     /// The account's password on that server, `Redacted` like every
     /// other secret-bearing variant
     /// (`secret_bearing_variants_carry_redacted`). A DIFFERENT secret
-    /// from the passphrase below.
+    /// from the group passphrase.
     WebdavPasswordChanged(super::Redacted),
-    /// The group passphrase the snapshot is encrypted with, shared with
-    /// the other snapshot transports.
-    WebdavPassphraseChanged(super::Redacted),
     /// "Sync now" for the WebDAV transport.
     WebdavSyncNow,
     /// A Git-sync round finished: `Ok(records pulled)` or the failure.
     GitRoundFinished(Result<usize, String>),
-    /// Settings > Sync: the Git transport's remote URL and passphrase.
+    /// Settings > Sync: the Git transport's remote URL.
     GitRemoteChanged(String),
-    /// `Redacted` for the same reason every other secret-bearing
-    /// variant is (`secret_bearing_variants_carry_redacted`).
-    GitPassphraseChanged(super::Redacted),
     /// "Sync now" for the Git transport.
     GitSyncNow,
     /// Result of the off-thread `git --version` probe, cached in
@@ -131,9 +120,34 @@ pub enum SyncMessage {
     SftpHostPickerSearch(String),
     /// Text-input change for the SFTP-sync remote path.
     SftpPathChanged(String),
-    /// Text-input change for the SFTP-sync passphrase (persisted
-    /// encrypted on change).
-    SftpPassphraseChanged(super::Redacted),
+    /// Text-input change for the shared snapshot-transport group
+    /// passphrase (SFTP / folder / Git / WebDAV all derive one key from
+    /// the same stored row). `Redacted` like every other secret-bearing
+    /// variant: a plain `String` would print the group passphrase into
+    /// any log line or panic that formats a message (enforced by
+    /// `secret_bearing_variants_carry_redacted`). The typed value is the
+    /// round's key candidate only; it is NOT persisted until a round
+    /// succeeds with it (`commit_sync_passphrase`), so an accidental
+    /// keystroke can't swap the group key under the existing snapshot.
+    PassphraseChanged(super::Redacted),
+    /// Enter the "change passphrase" edit mode for the shared group
+    /// secret. With a stored passphrase the field is READ-ONLY (a masked
+    /// box): free typing is what let a mistyped re-entry swap the group
+    /// key under the existing snapshot. Carries the input's id so the
+    /// handler can focus it the moment the editable field appears.
+    PassphraseChangeRequested(&'static str),
+    /// A mouse press landed while a passphrase edit was open. The handler
+    /// first probes the click position against the field's last drawn
+    /// bounds (iced does not blur a text input on a button/blank click,
+    /// so geometry is the primary signal); when that is inconclusive it
+    /// falls back to asking where focus actually went. Only an EMPTY edit
+    /// is abandoned, so the subscription can stay mounted for the whole
+    /// edit without a condition race.
+    PassphraseBlurCheck,
+    /// The focus-probe fallback answered: `true` when the passphrase
+    /// field still holds iced focus. An empty edit whose field lost
+    /// focus is abandoned and the read-only mask returns.
+    PassphraseBlurChecked(bool),
     /// Auto-cadence timer fired (any snapshot transport, mode `auto`):
     /// run a round on whichever one is selected, if none is already in
     /// flight. One variant for all of them, because exactly one

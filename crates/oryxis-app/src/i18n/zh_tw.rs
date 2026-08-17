@@ -611,6 +611,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "model" => "模型",
         "api_key_saved" => "API 金鑰已儲存",
         "ai_key_saved_placeholder" => "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} 已儲存，輸入以取代",
+        "sync_passphrase_new_placeholder" => "輸入新口令",
+        "sync_passphrase_match_hint" => "與已儲存的口令一致",
+        "sync_passphrase_mismatch_hint" => "與已儲存的口令不同",
+        "sync_passphrase_forgot_hint" => "忘記口令了？刪除遠端快照後重新同步",
 
         "welcome" => "歡迎使用 Oryxis",
         "create_vault" => "建立保險庫",

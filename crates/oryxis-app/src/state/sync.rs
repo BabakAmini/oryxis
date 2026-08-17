@@ -8,8 +8,8 @@ use tokio::sync::oneshot;
 use oryxis_vault::SyncPeerRow;
 
 use super::{
-    DiscoveredPeerInfo, FolderSyncForm, GitSyncForm, SftpSyncForm, SyncPairingForm,
-    WebdavSyncForm,
+    DiscoveredPeerInfo, FolderSyncForm, GitSyncForm, SecretInput, SftpSyncForm,
+    SyncPairingForm, WebdavSyncForm,
 };
 use crate::sync_runtime::SyncRuntime;
 
@@ -73,15 +73,69 @@ pub(crate) struct SyncState {
     /// device runs one transport at a time; the two don't bridge.
     pub(crate) transport: String,
     /// Transient state for the SFTP sync transport (snapshot host, remote
-    /// path, group passphrase, host picker) plus the in-flight round's
-    /// progress + last outcome.
+    /// path, host picker) plus the in-flight round's progress + last
+    /// outcome.
     pub(crate) sftp: SftpSyncForm,
-    /// Transient state for the folder sync transport (path, group
-    /// passphrase) plus the in-flight round's progress + last outcome.
+    /// Transient state for the folder sync transport (path) plus the
+    /// in-flight round's progress + last outcome.
     pub(crate) folder: FolderSyncForm,
     pub(crate) webdav: WebdavSyncForm,
-    /// Transient state for the Git sync transport.
+    /// Transient state for the Git sync transport (remote URL) plus the
+    /// in-flight round's progress + last outcome.
     pub(crate) git: GitSyncForm,
+    /// Edit buffer for the shared snapshot-transport group passphrase
+    /// (SFTP / folder / Git / WebDAV all derive one key from the same
+    /// `sync_sftp_passphrase` row). NEVER pre-filled with the stored
+    /// value and NEVER written through on typing: a masked pre-filled
+    /// field silently APPENDS when the user types into it, and a
+    /// write-through on keystrokes lets an accidental edit swap the
+    /// group key under the existing snapshot ("Decryption failed (wrong
+    /// key?)" on the next round). Starts empty; untouched = preserve
+    /// the stored value, typed = the round's key candidate (committed
+    /// to storage only when a round succeeds with it), cleared = no
+    /// passphrase.
+    pub(crate) passphrase_input: SecretInput,
+    /// Whether a group passphrase is stored. Drives the read-only
+    /// masked display (no stored value, no mask) and the edit mode's
+    /// match hint. Hydrated at boot from `get_sync_sftp_passphrase`;
+    /// the value itself never reaches state.
+    pub(crate) passphrase_known: bool,
+    /// "Change passphrase" edit mode: with a stored passphrase the field
+    /// is READ-ONLY until the user asks to change it, so a mistyped
+    /// re-entry can't swap the group key under the existing snapshot.
+    /// While editing, the input is live and the match hint below it
+    /// compares against the stored value.
+    pub(crate) passphrase_editing: bool,
+    /// The editable field's id while an edit is open, so the blur probe
+    /// can tell "still on the field" from "focus moved away" (an empty
+    /// edit abandoned by a click elsewhere returns to the read-only
+    /// mask). `None` outside edit mode.
+    pub(crate) passphrase_field_id: Option<&'static str>,
+    /// Last drawn bounds of the editable field, so the blur probe can
+    /// decide a click by position: iced does not blur a text input when
+    /// a button or blank is clicked, so "did the click land on the
+    /// field?" is a geometry question, not a focus question. Zeroed
+    /// until the edit field renders once.
+    pub(crate) passphrase_field_bounds: crate::widgets::BoundsCell,
+    /// Live "does the typed value equal the stored passphrase?" state,
+    /// recomputed per keystroke by `set_sync_passphrase`. Powers the
+    /// green / warning hint under the field: re-entering the saved
+    /// passphrase keeps the group working, typing anything else makes
+    /// the existing snapshot undecryptable until it matches again.
+    /// `None` while the field is untouched or no passphrase is stored.
+    pub(crate) passphrase_matches: Option<bool>,
+    /// The key an IN-FLIGHT round sealed its snapshot with, armed at the
+    /// start of the round and spent when it finishes: success stores it
+    /// as the group key, failure drops it. Committing this instead of
+    /// re-reading `passphrase_input` is what makes the stored key equal
+    /// the key the remote snapshot actually carries. Nothing freezes the
+    /// field while a round runs (`in_progress` only disables the button)
+    /// and a round costs an Argon2id derivation plus a network trip, so
+    /// a user still correcting the field would otherwise leave storage
+    /// holding a key the snapshot was never sealed with. `None` outside
+    /// a round, and for any round keyed from storage (nothing to
+    /// commit).
+    pub(crate) passphrase_sealed: Option<zeroize::Zeroizing<String>>,
     /// "Set up your own relay" wizard (Settings > Sync > P2P): inputs,
     /// generated-artifact format, and the reachability test state.
     pub(crate) relay_wizard: RelayWizardForm,
@@ -205,6 +259,13 @@ impl Default for SyncState {
             folder: FolderSyncForm::default(),
             webdav: WebdavSyncForm::default(),
             git: GitSyncForm::default(),
+            passphrase_input: SecretInput::default(),
+            passphrase_known: false,
+            passphrase_editing: false,
+            passphrase_field_id: None,
+            passphrase_field_bounds: crate::widgets::new_bounds_cell(),
+            passphrase_matches: None,
+            passphrase_sealed: None,
             relay_wizard: RelayWizardForm::default(),
             signaling_last: None,
         }

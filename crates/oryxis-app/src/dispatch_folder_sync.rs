@@ -30,6 +30,7 @@ use iced::Task;
 use oryxis_vault::VaultStore;
 
 use crate::app::{Message, Oryxis, SyncMessage};
+use crate::dispatch_sync::SyncRoundTrigger;
 use crate::i18n::t;
 
 /// Snapshot filename appended when the user points at a directory.
@@ -43,12 +44,38 @@ const DEFAULT_SNAPSHOT_NAME: &str = "oryxis-sync.bin";
 /// gets the default filename appended; a path that already names a file
 /// is used as-is. An existing directory is detected on disk rather than
 /// by a trailing separator, because a folder picker rarely returns one.
+///
+/// A leading `~` is expanded: the field is a typed path as often as it
+/// is a picked one, and `~/Dropbox` is what a user writes. Without the
+/// expansion it resolves to a literal `./~` directory that does not
+/// exist, so the round fails with "directory not found" pointing at a
+/// path the user believes is right.
 fn snapshot_path(input: &str) -> PathBuf {
-    let path = Path::new(input.trim());
-    if path.is_dir() || input.ends_with('/') || input.ends_with('\\') {
+    let trimmed = input.trim();
+    let expanded = expand_home(trimmed);
+    let path = expanded.as_path();
+    if path.is_dir() || trimmed.ends_with('/') || trimmed.ends_with('\\') {
         path.join(DEFAULT_SNAPSHOT_NAME)
     } else {
         path.to_path_buf()
+    }
+}
+
+/// `~` / `~/rest` against the OS home directory. Only a LEADING `~` on
+/// its own path segment expands (`~user` is another user's home, which
+/// we cannot resolve portably, and a `~` anywhere else is a literal
+/// character in a filename). Falls through unchanged when there is no
+/// home directory to expand against.
+fn expand_home(input: &str) -> PathBuf {
+    let rest = match input.strip_prefix('~') {
+        Some("") => "",
+        Some(rest) if rest.starts_with(['/', '\\']) => &rest[1..],
+        _ => return PathBuf::from(input),
+    };
+    match dirs::home_dir() {
+        Some(home) if rest.is_empty() => home,
+        Some(home) => home.join(rest),
+        None => PathBuf::from(input),
     }
 }
 
@@ -58,7 +85,7 @@ impl Oryxis {
     /// Validates config while holding `&self`, then does the file work
     /// off-thread. Returns `Task::none()` with an inline status on any
     /// precondition failure, so the caller can fire it blindly.
-    pub(crate) fn run_folder_sync_round(&mut self) -> Task<Message> {
+    pub(crate) fn run_folder_sync_round(&mut self, trigger: SyncRoundTrigger) -> Task<Message> {
         if self.sync.folder.in_progress {
             return Task::none();
         }
@@ -75,21 +102,11 @@ impl Oryxis {
         let Some(vault) = &self.vault else {
             return Task::none();
         };
-        // Group key from STORAGE, not the form field: the four snapshot
-        // transports share one `sync_sftp_passphrase` row, and a sibling
-        // transport's edit can leave this form stale. Sealing with a
-        // stale value pushes a snapshot the next session cannot decrypt
-        // (see `run_git_sync_round`).
-        let passphrase = match vault.get_sync_sftp_passphrase() {
-            Ok(Some(p)) => p,
-            Ok(None) => {
-                self.sync.folder.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
-                return Task::none();
-            }
-            Err(e) => {
-                self.sync.folder.status = Some(Err(e.to_string()));
-                return Task::none();
-            }
+        // Group key: the typed buffer for a manual round, else the
+        // stored value. Resolved once, here, and carried by value.
+        let Some(key) = self.sync_round_passphrase(trigger) else {
+            self.sync.folder.status = Some(Err(t("sftp_sync_no_passphrase").to_string()));
+            return Task::none();
         };
         // Argon2id derivation (~0.4 s) runs inside the blocking task,
         // not on the UI thread (same reason as the Git transport).
@@ -120,6 +137,9 @@ impl Oryxis {
 
         self.sync.folder.in_progress = true;
         self.sync.folder.status = None;
+        // Remember what seals this snapshot, so the commit at the end
+        // writes that key and not whatever the field holds by then.
+        let passphrase = self.arm_round_passphrase(key);
         Task::perform(
             async move {
                 tokio::task::spawn_blocking(move || {
@@ -208,6 +228,32 @@ mod tests {
         let resolved = snapshot_path(dir.path().to_str().unwrap());
         assert_eq!(resolved.file_name().unwrap(), DEFAULT_SNAPSHOT_NAME);
         assert_eq!(resolved.parent().unwrap(), dir.path());
+    }
+
+    /// `~` is the shape a typed path takes, and the field is typed at
+    /// least as often as it is picked. Without expansion it resolves to
+    /// a literal `./~` that no round can write into.
+    #[test]
+    fn a_leading_tilde_expands_to_the_home_directory() {
+        let Some(home) = dirs::home_dir() else {
+            return;
+        };
+        assert_eq!(expand_home("~"), home);
+        assert_eq!(expand_home("~/Dropbox/vault"), home.join("Dropbox/vault"));
+        assert_eq!(
+            snapshot_path("~/Dropbox/team.bin"),
+            home.join("Dropbox/team.bin")
+        );
+    }
+
+    /// Only a LEADING `~` on its own segment is a home reference: `~foo`
+    /// is another user's home (not portably resolvable) and a `~` inside
+    /// a path is an ordinary filename character.
+    #[test]
+    fn a_tilde_anywhere_else_stays_literal() {
+        assert_eq!(expand_home("~user/keys"), PathBuf::from("~user/keys"));
+        assert_eq!(expand_home("/srv/~backup"), PathBuf::from("/srv/~backup"));
+        assert_eq!(expand_home(""), PathBuf::from(""));
     }
 
     /// A path that names a file is honoured as typed, so someone

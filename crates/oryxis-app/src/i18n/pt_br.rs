@@ -606,6 +606,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "model" => "Modelo",
         "api_key_saved" => "Chave da API salva",
         "ai_key_saved_placeholder" => "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022} salva, digite para substituir",
+        "sync_passphrase_new_placeholder" => "Digite a nova senha de sincronização",
+        "sync_passphrase_match_hint" => "Igual à senha de sincronização salva",
+        "sync_passphrase_mismatch_hint" => "Diferente da senha de sincronização salva",
+        "sync_passphrase_forgot_hint" => "Esqueceu a senha de sincronização? Exclua o snapshot remoto e sincronize novamente",
 
         "welcome" => "Bem-vindo ao Oryxis",
         "create_vault" => "Criar Cofre",

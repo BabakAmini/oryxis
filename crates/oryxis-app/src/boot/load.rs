@@ -378,15 +378,19 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_sync_webdav_password() {
                 self.sync.webdav.password = v;
             }
-            if let Ok(Some(v)) = vault.get_sync_sftp_passphrase() {
-                // One group secret, two transports: the folder form
-                // reads the same stored passphrase, so pointing a
-                // device at a folder instead of an SFTP host does not
-                // silently put it in a different sync group.
-                self.sync.folder.passphrase = v.clone();
-                self.sync.git.passphrase = v.clone();
-                self.sync.webdav.passphrase = v.clone();
-                self.sync.sftp.passphrase = v;
+            // The shared group secret: only the KNOWLEDGE flag reaches
+            // state. The field starts empty and the stored value never
+            // pre-fills it: a masked pre-filled passphrase turns every
+            // later keystroke into an append that silently swaps the
+            // group key under the existing snapshot ("Decryption failed
+            // (wrong key?)" on the next round). One secret across every
+            // snapshot transport, so the SFTP / folder / Git / WebDAV
+            // cards share the same placeholder.
+            match vault.get_sync_sftp_passphrase() {
+                Ok(Some(_)) => self.sync.passphrase_known = true,
+                Ok(None) => self.sync.passphrase_known = false,
+                // Locked vault: leave the previous session's flag alone.
+                Err(_) => {}
             }
             self.sync.peers = vault.list_sync_peers().unwrap_or_default();
             if let Ok(Some(v)) = vault.get_setting("ai_system_prompt") {
