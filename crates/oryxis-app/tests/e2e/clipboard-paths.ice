@@ -41,15 +41,19 @@ click (333, 20)
 expect "Local Shell"
 click "Local Shell"
 timeout 500
-# Generous on purpose. The selection below is a PIXEL range over the
-# grid, so it only copies anything once the shell has actually drawn
-# its prompt and the echoed line; on a cold CI runner both take longer
-# than on a warm dev box. When the draw has not landed the selection
-# comes back EMPTY, which leaves the clipboard holding the "/tmp" the
-# SFTP step above put there, so the assert reports a value from the
-# WRONG STEP rather than saying it was too early.
-wait 6000
-type "echo HELLO_CLIP"
+# The selection below is a PIXEL range, so it only copies what is
+# actually drawn at that row. Tying it to a SINGLE echoed line made
+# it depend on where the shell's prompt ended up: a CI runner's
+# `runner@fv-az...` prompt is long enough to wrap at this width and
+# push the output down a row, and an empty selection does not clear
+# the clipboard, so the assert reported the "/tmp" the SFTP step
+# left there instead of saying it grabbed the wrong row.
+#
+# Filling the screen with the SAME line removes the dependency: any
+# row in the block yields the same text, so the test survives a
+# prompt of any length. `clear` puts the block at a known top.
+wait 4000
+type "clear; yes HELLO_CLIP | head -20"
 type enter
 wait 4000
 press (8, 123)
