@@ -86,6 +86,76 @@ impl SshTarget {
     pub fn is_explicit(&self) -> bool {
         self.username.is_some() || self.port.is_some() || self.host_is_ip_literal()
     }
+
+    /// Parse a value typed into a HOST FIELD (the host editor's Host
+    /// box, a foreign config's `HostName`). Same grammar as `parse`,
+    /// plus a tolerated `ssh://` prefix, because the mistake this
+    /// rescues is a whole connect string pasted where only the host
+    /// belongs. `parse` is for a field that MEANS a target; this is
+    /// for a field that means a host and was handed more than one.
+    ///
+    /// `None` is the value the caller must NOT rewrite: it is not a
+    /// target in any reading, so guessing at it would corrupt an entry
+    /// the user can still fix by hand.
+    pub fn from_host_field(value: &str) -> Option<Self> {
+        let value = value.trim();
+        let value = value.strip_prefix("ssh://").unwrap_or(value);
+        Self::parse(value)
+    }
+}
+
+/// What a host field carries beyond the host itself. Drives the
+/// connect-time hint: a dial against a poisoned value fails with a
+/// resolver error that names the symptom (`os error 11003`,
+/// `Name or service not known`) and never the cause.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HostFieldFault {
+    /// `user@host`: the whole connect string went into the host box.
+    Username,
+    /// Embedded whitespace, including a value that is only spaces.
+    Whitespace,
+    /// A URL, not a host (`ssh://host`, `sftp://host`).
+    Scheme,
+    /// Anything else the host grammar rejects (a path, a stray comma).
+    Malformed,
+}
+
+/// Classify a stored hostname that failed to connect. `None` for every
+/// value the dial paths can legitimately resolve, which is what keeps
+/// the hint off hosts that are merely unreachable: an IPv4 or DNS name
+/// (`is_hostname`), a bare or zoned IPv6 literal, and the bracketed
+/// form the engine's `host_port` also accepts.
+///
+/// Order matters. `ssh://user@host` trips both `Scheme` and
+/// `Username`, and the username is the actionable half (the user moves
+/// it to the Username field), so it is reported first.
+pub fn diagnose_host_field(host: &str) -> Option<HostFieldFault> {
+    if is_plain_host(host) {
+        return None;
+    }
+    if host.contains('@') {
+        return Some(HostFieldFault::Username);
+    }
+    if host.chars().any(char::is_whitespace) {
+        return Some(HostFieldFault::Whitespace);
+    }
+    if host.contains("://") {
+        return Some(HostFieldFault::Scheme);
+    }
+    Some(HostFieldFault::Malformed)
+}
+
+/// Whether `host` is a host and nothing else: the exact set the dial
+/// path can hand to the resolver. Goes through the same acceptance
+/// `parse_host_port` uses rather than re-deriving it, so a form one
+/// accepts and the other rejects can't drift into a bogus hint.
+fn is_plain_host(host: &str) -> bool {
+    if let Some(inner) = host.strip_prefix('[') {
+        // `host_port` leaves an already-bracketed literal alone, so the
+        // resolver sees this form too.
+        return matches!(inner.strip_suffix(']'), Some(addr) if is_ipv6_literal(addr));
+    }
+    is_hostname(host) || is_ipv6_literal(host)
 }
 
 /// Split the post-username remainder into host and optional port.
@@ -297,5 +367,86 @@ mod tests {
         assert!(SshTarget::parse("[fe80::1%eth0]").unwrap().is_explicit());
         assert!(SshTarget::parse("[fe80::1%eth0]:22").unwrap().is_explicit());
         assert!(!SshTarget::parse("web01").unwrap().is_explicit());
+    }
+
+    #[test]
+    fn host_field_splits_a_whole_connect_string() {
+        assert_eq!(
+            SshTarget::from_host_field("root@10.0.0.7"),
+            Some(t(Some("root"), "10.0.0.7", None))
+        );
+        assert_eq!(
+            SshTarget::from_host_field("  root@10.0.0.7:2222  "),
+            Some(t(Some("root"), "10.0.0.7", Some(2222)))
+        );
+        // The prefix `parse` cannot take: it would read `ssh://root` as
+        // the username, since the username splits at the LAST `@`.
+        assert_eq!(
+            SshTarget::from_host_field("ssh://root@web01"),
+            Some(t(Some("root"), "web01", None))
+        );
+        // A value that is already just a host stays exactly itself.
+        assert_eq!(
+            SshTarget::from_host_field("web01"),
+            Some(t(None, "web01", None))
+        );
+    }
+
+    #[test]
+    fn host_field_declines_what_it_cannot_read() {
+        // Rewriting any of these would corrupt an entry the user can
+        // still fix by hand, so the rescue declines instead of guessing.
+        for bad in ["root@web01/path", "root@", "@web01", "web01:0", ""] {
+            assert_eq!(
+                SshTarget::from_host_field(bad),
+                None,
+                "should decline {bad:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn diagnose_stays_quiet_on_every_resolvable_host() {
+        // The hint rides a connection FAILURE, so anything the resolver
+        // can legitimately take must classify clean: a host down for
+        // unrelated reasons must not be told its name is malformed.
+        for good in [
+            "web01",
+            "web01.example.com",
+            "10.0.0.7",
+            "::1",
+            "fe80::1%eth0",
+            "[::1]",
+            "[fe80::1%eth0]",
+            "under_score",
+        ] {
+            assert_eq!(diagnose_host_field(good), None, "should accept {good:?}");
+        }
+    }
+
+    #[test]
+    fn diagnose_names_what_the_field_carries() {
+        assert_eq!(
+            diagnose_host_field("root@10.0.0.7"),
+            Some(HostFieldFault::Username)
+        );
+        // Both faults present: the username is the actionable half.
+        assert_eq!(
+            diagnose_host_field("ssh://root@web01"),
+            Some(HostFieldFault::Username)
+        );
+        assert_eq!(
+            diagnose_host_field("ssh://web01"),
+            Some(HostFieldFault::Scheme)
+        );
+        assert_eq!(
+            diagnose_host_field("web 01"),
+            Some(HostFieldFault::Whitespace)
+        );
+        assert_eq!(diagnose_host_field("   "), Some(HostFieldFault::Whitespace));
+        assert_eq!(
+            diagnose_host_field("web01/path"),
+            Some(HostFieldFault::Malformed)
+        );
     }
 }

@@ -168,6 +168,12 @@ pub fn to_connection(host: &SshConfigHost) -> Connection {
         "Imported from ssh_config (alias `{}`)",
         host.alias
     ));
+    // `HostName` is a dedicated directive, so it rarely carries a user,
+    // but the ALIAS falls back into the same field when the block omits
+    // it, and an alias is free text. Runs after `User` / `Port` are
+    // mapped, so the directives keep winning over the host string
+    // (issue #171).
+    crate::importers::split_host_field(&mut conn);
     conn
 }
 

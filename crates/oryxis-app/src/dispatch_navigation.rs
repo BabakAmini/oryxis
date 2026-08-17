@@ -577,10 +577,16 @@ impl Oryxis {
                 let task = self.open_new_host_editor(
                     oryxis_core::models::connection::ConnectionProtocol::Ssh,
                 );
-                if self.quick_host_input.is_empty() {
+                if input.is_empty() {
                     return task;
                 }
-                self.editor_form.hostname = self.quick_host_input.clone();
+                // The TRIMMED value: the raw field kept its whitespace,
+                // which then rode into the Host box and out to the
+                // resolver (issue #171). What the parse REJECTS still
+                // lands here on purpose, so the user sees what they
+                // typed; the editor's own split is what cleans it on
+                // the way to the vault.
+                self.editor_form.hostname = input;
                 // Hostname came in pre-filled, so the cursor belongs on
                 // the one field still required: the label.
                 return crate::widgets::focus_input(iced::widget::Id::new(

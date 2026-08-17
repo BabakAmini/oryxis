@@ -367,6 +367,14 @@ impl Oryxis {
 
                 let conn_host = conn.hostname.clone();
                 let conn_port = conn.port;
+                // What the resolver never says. A host field carrying
+                // more than a host fails as a plain DNS error naming
+                // the symptom ("os error 11003"), so the one thing the
+                // user has to change goes unsaid (issue #171). Resolved
+                // HERE, on the UI thread, so the string follows the
+                // language the session is in rather than whatever it
+                // becomes by the time the dial gives up.
+                let host_hint = host_field_hint(&conn_host);
                 let username = conn.username.clone()
                     .or_else(|| {
                         conn.identity_id.and_then(|iid| {
@@ -739,9 +747,19 @@ impl Oryxis {
                                     if let Some(s) = root.strip_prefix(&addr_prefix) {
                                         root = s;
                                     }
-                                    let _ = sender.send(SshStreamMsg::Error(
-                                        format!("Connection to \"{}\" port {} failed: {}", conn_host, conn_port, root),
-                                    )).await;
+                                    let mut msg = format!("Connection to \"{}\" port {} failed: {}", conn_host, conn_port, root);
+                                    // Additive, never a pre-flight block:
+                                    // the row is already saved and the
+                                    // dial already ran, so this reaches
+                                    // the hosts poisoned before the
+                                    // editor learned to split, without
+                                    // any hostname we failed to foresee
+                                    // becoming unconnectable.
+                                    if let Some(hint) = &host_hint {
+                                        msg.push('\n');
+                                        msg.push_str(hint);
+                                    }
+                                    let _ = sender.send(SshStreamMsg::Error(msg)).await;
                                 }
                                 return;
                             }
@@ -1470,6 +1488,24 @@ impl Oryxis {
             PaneConnMsg::Disconnected => Message::Ssh(SshMessage::SshDisconnected(pane_id)),
             PaneConnMsg::Error(e) => Message::Ssh(SshMessage::PaneConnectError(pane_id, e)),
         })
+    }
+}
+
+/// The plain-language line a resolver failure never carries: what the
+/// stored Host field holds that stopped it from being a host at all.
+/// `None` for every value the dial path can legitimately resolve, so a
+/// host that is merely unreachable is never told its name is wrong.
+///
+/// Two keys, not one per fault: the username case is the one with a
+/// specific instruction (move it to the Username field), and the other
+/// three share the same answer (put only a host there).
+pub(crate) fn host_field_hint(host: &str) -> Option<String> {
+    use oryxis_core::ssh_target::HostFieldFault;
+    match oryxis_core::ssh_target::diagnose_host_field(host)? {
+        HostFieldFault::Username => Some(crate::i18n::t("connect_host_has_user").to_string()),
+        HostFieldFault::Whitespace | HostFieldFault::Scheme | HostFieldFault::Malformed => {
+            Some(crate::i18n::t("connect_host_invalid").to_string())
+        }
     }
 }
 

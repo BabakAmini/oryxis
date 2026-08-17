@@ -217,7 +217,11 @@ impl Oryxis {
                 // Connection from the form but persist nothing. Only the
                 // hostname is required; an empty label defaults to the
                 // canonical user@host[:port].
-                if self.editor_form.hostname.is_empty() {
+                // Nothing persists on this path, so the split runs here
+                // too: the ad-hoc dial reads the same form and would
+                // otherwise hand `user@host` straight to the resolver.
+                self.editor_split_host_field();
+                if self.editor_form.hostname.trim().is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("quick_connect_hostname_required").into());
                     return Task::none();
@@ -449,6 +453,63 @@ impl Oryxis {
         Task::none()
     }
 
+    /// Move everything that is not a host OUT of the Host field, at
+    /// the two points a form becomes a destination: the vault write and
+    /// the ad-hoc connect. Pasting a whole `user@host:port` into a box
+    /// labelled Host is the ordinary way to fill it (every other client
+    /// splits it), and nothing downstream ever did: the dial builds
+    /// `{hostname}:{port}` verbatim, so the resolver got `user@host:22`
+    /// and answered with a DNS error naming the symptom and never the
+    /// cause (issue #171).
+    ///
+    /// Splitting, not rejecting. A reject would have to surface through
+    /// `PersistError::Invalid`, which the auto-save flush swallows
+    /// (`Err(Invalid(_)) => {}`), so refusing the save on a drawer that
+    /// is already leaving the screen would silently discard the whole
+    /// editing session.
+    ///
+    /// The dedicated field always wins, because it is the more specific
+    /// statement: a Username already filled in keeps its value and the
+    /// one riding the Host field is dropped, loudly (`host_panel_error`,
+    /// still on screen for every gesture flush). The port only moves for
+    /// the protocols whose numeric field means a TCP port the user
+    /// typed by hand; RemoteDesktop refines its default through the
+    /// VNC kind picker and Serial has no port at all, so those two get
+    /// the hostname cleaned and their field left alone.
+    fn editor_split_host_field(&mut self) {
+        let Some(split) = host_field_split(
+            &self.editor_form.hostname,
+            &self.editor_form.username,
+            &self.editor_form.port,
+            self.editor_form.protocol,
+        ) else {
+            return;
+        };
+        self.editor_form.hostname = split.hostname;
+        if let Some(user) = split.username {
+            self.editor_form.username = user;
+        }
+        if let Some(port) = split.port {
+            self.editor_form.port = port;
+        }
+        if let Some(dropped) = split.dropped_user {
+            // A TOAST, not the inline panel error: the flush that
+            // reaches here most often is the one the drawer's own close
+            // fires, and every close path clears `host_panel_error` on
+            // its way out, so the inline slot would report a dropped
+            // value to a surface already leaving the screen.
+            //
+            // Distinct placeholder names, not `{user}`/`{username}`:
+            // the first is a PREFIX of the second, so substituting it
+            // first would eat the head of the other and leave a
+            // dangling `name}` in the message.
+            let warning = crate::i18n::t("editor_host_user_dropped")
+                .replace("{dropped}", &dropped)
+                .replace("{kept}", &self.editor_form.username);
+            self.set_toast(warning);
+        }
+    }
+
     /// The vault-write half of `EditorSave`, shared with the auto-save
     /// tick and flush (`dispatch_editor/autosave.rs`): validate, build
     /// the `Connection`, persist the row plus its side-column secrets,
@@ -463,7 +524,8 @@ impl Oryxis {
         groups: super::GroupWrite,
     ) -> Result<oryxis_core::models::Connection, super::PersistError> {
         use super::PersistError;
-        if self.editor_form.label.is_empty() || self.editor_form.hostname.is_empty() {
+        self.editor_split_host_field();
+        if self.editor_form.label.is_empty() || self.editor_form.hostname.trim().is_empty() {
             return Err(PersistError::Invalid(
                 crate::i18n::t("editor_label_host_required").to_string(),
             ));
@@ -599,5 +661,175 @@ impl Oryxis {
         self.load_data_from_vault();
         self.repaint_terminal_palettes_for_label(&host_label);
         Ok(conn)
+    }
+}
+
+/// What the Host field's split decided. Every field is what CHANGES:
+/// `username` / `port` are `Some` only when the host string had one to
+/// give AND the dedicated field was still free to take it, and
+/// `dropped_user` names the one that lost so the caller can say so.
+pub(super) struct HostFieldSplit {
+    pub hostname: String,
+    pub username: Option<String>,
+    pub port: Option<String>,
+    pub dropped_user: Option<String>,
+}
+
+/// The decision half of `editor_split_host_field`, pure so the rules
+/// are testable without an `Oryxis` behind them. `None` means the form
+/// is already correct (a plain host) or unreadable as a target at all,
+/// which are the two cases that must leave it untouched.
+///
+/// The dedicated field always wins, because it is the more specific
+/// statement. The port only moves for the protocols whose numeric
+/// field means a TCP port the user typed by hand: RemoteDesktop
+/// refines its default through the VNC kind picker and Serial has no
+/// port at all, so those two get the hostname cleaned and their field
+/// left exactly as it was.
+pub(super) fn host_field_split(
+    hostname: &str,
+    username: &str,
+    port: &str,
+    protocol: oryxis_core::models::connection::ConnectionProtocol,
+) -> Option<HostFieldSplit> {
+    use oryxis_core::models::connection::ConnectionProtocol;
+
+    // `None` is not a target in any reading. Rewriting it would corrupt
+    // an entry the user can still fix by hand, and the connect-time
+    // hint names the problem either way.
+    let target = oryxis_core::ssh_target::SshTarget::from_host_field(hostname)?;
+    if target.host == hostname && target.username.is_none() && target.port.is_none() {
+        return None;
+    }
+
+    let mut split = HostFieldSplit {
+        hostname: target.host,
+        username: None,
+        port: None,
+        dropped_user: None,
+    };
+    if let Some(user) = target.username {
+        if username.trim().is_empty() {
+            split.username = Some(user);
+        } else if username != user {
+            split.dropped_user = Some(user);
+        }
+    }
+    if let Some(p) = target.port
+        && matches!(
+            protocol,
+            ConnectionProtocol::Ssh | ConnectionProtocol::Telnet
+        )
+    {
+        let field = port.trim();
+        let default = protocol.default_port();
+        if field.is_empty() || default.is_some_and(|d| d.to_string() == field) {
+            split.port = Some(p.to_string());
+        }
+    }
+    Some(split)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::host_field_split;
+    use oryxis_core::models::connection::ConnectionProtocol::{
+        RemoteDesktop, Serial, Ssh, Telnet,
+    };
+
+    #[test]
+    fn a_plain_host_is_left_alone() {
+        assert!(host_field_split("web01", "", "22", Ssh).is_none());
+        assert!(host_field_split("10.0.0.7", "root", "22", Ssh).is_none());
+        // Already-bracketed IPv6 canonicalises rather than reporting a
+        // change nobody asked for; a bare one is untouched.
+        assert!(host_field_split("::1", "", "22", Ssh).is_none());
+    }
+
+    #[test]
+    fn an_unreadable_value_is_left_alone() {
+        // The case the connect-time hint exists for: guessing here
+        // would corrupt a row the user can still fix by hand.
+        assert!(host_field_split("root@10.0.0.7/srv", "", "22", Ssh).is_none());
+        assert!(host_field_split("root@", "", "22", Ssh).is_none());
+    }
+
+    #[test]
+    fn a_whole_connect_string_lands_in_three_fields() {
+        let s = host_field_split("root@10.0.0.7:2222", "", "22", Ssh).unwrap();
+        assert_eq!(s.hostname, "10.0.0.7");
+        assert_eq!(s.username.as_deref(), Some("root"));
+        assert_eq!(s.port.as_deref(), Some("2222"));
+        assert_eq!(s.dropped_user, None);
+    }
+
+    #[test]
+    fn a_filled_username_keeps_its_value_and_reports_the_loss() {
+        // Silently overwriting what the user typed into the dedicated
+        // field would be the worse of the two data losses.
+        let s = host_field_split("root@10.0.0.7", "deploy", "22", Ssh).unwrap();
+        assert_eq!(s.hostname, "10.0.0.7");
+        assert_eq!(s.username, None);
+        assert_eq!(s.dropped_user.as_deref(), Some("root"));
+    }
+
+    #[test]
+    fn the_same_username_on_both_sides_is_not_a_loss() {
+        let s = host_field_split("root@10.0.0.7", "root", "22", Ssh).unwrap();
+        assert_eq!(s.hostname, "10.0.0.7");
+        assert_eq!(s.dropped_user, None);
+    }
+
+    #[test]
+    fn a_hand_typed_port_outranks_the_host_string() {
+        let s = host_field_split("root@10.0.0.7:2222", "", "2022", Ssh).unwrap();
+        assert_eq!(s.hostname, "10.0.0.7");
+        assert_eq!(s.port, None);
+    }
+
+    #[test]
+    fn telnet_moves_its_port_off_its_own_default() {
+        let s = host_field_split("admin@10.0.0.9:2323", "", "23", Telnet).unwrap();
+        assert_eq!(s.port.as_deref(), Some("2323"));
+        // 22 is not Telnet's default, so it reads as hand-typed.
+        let s = host_field_split("admin@10.0.0.9:2323", "", "22", Telnet).unwrap();
+        assert_eq!(s.port, None);
+    }
+
+    #[test]
+    fn the_port_never_moves_for_a_protocol_that_refines_its_own() {
+        // RemoteDesktop's 3389 becomes VNC's 5900 through the kind
+        // picker, and Serial has no port at all: both get the hostname
+        // cleaned and the numeric field left as it was.
+        let s = host_field_split("admin@10.0.0.9:3390", "", "3389", RemoteDesktop).unwrap();
+        assert_eq!(s.hostname, "10.0.0.9");
+        assert_eq!(s.username.as_deref(), Some("admin"));
+        assert_eq!(s.port, None);
+        let s = host_field_split("admin@10.0.0.9:9600", "", "", Serial).unwrap();
+        assert_eq!(s.port, None);
+    }
+
+    #[test]
+    fn an_empty_port_field_takes_the_one_from_the_host_string() {
+        let s = host_field_split("10.0.0.7:2222", "", "", Ssh).unwrap();
+        assert_eq!(s.port.as_deref(), Some("2222"));
+    }
+
+    #[test]
+    fn padding_alone_is_enough_to_report_a_change() {
+        // The untrimmed value reached the resolver as typed, so the
+        // trim has to count as a split even with nothing to move.
+        let s = host_field_split("  web01  ", "", "22", Ssh).unwrap();
+        assert_eq!(s.hostname, "web01");
+        assert_eq!(s.username, None);
+        assert_eq!(s.port, None);
+    }
+
+    #[test]
+    fn a_pasted_url_loses_its_scheme() {
+        let s = host_field_split("ssh://root@web01:2222", "", "22", Ssh).unwrap();
+        assert_eq!(s.hostname, "web01");
+        assert_eq!(s.username.as_deref(), Some("root"));
+        assert_eq!(s.port.as_deref(), Some("2222"));
     }
 }

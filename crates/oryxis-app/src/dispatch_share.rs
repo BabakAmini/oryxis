@@ -1317,8 +1317,19 @@ impl Oryxis {
     /// file full of unimportable sites never opens an empty picker.
     fn open_direct_preview(
         &mut self,
-        parsed: crate::importers::DirectImport,
+        mut parsed: crate::importers::DirectImport,
     ) -> Task<Message> {
+        // Every foreign format hands its host string over verbatim, and
+        // several of them let the user put a whole `user@host` in it:
+        // PuTTY's "Host Name (or IP address)" accepts one and does the
+        // split itself at connect time, and WinSCP / SecureCRT inherit
+        // the habit. Splitting HERE (not per parser) is what keeps the
+        // eight of them from each needing to remember, and it runs
+        // before the preview so the dialog shows what will actually be
+        // saved rather than what the file said (issue #171).
+        for host in &mut parsed.hosts {
+            crate::importers::split_host_field(&mut host.conn);
+        }
         if parsed.hosts.is_empty() {
             let msg = if parsed.skipped.is_empty() {
                 crate::i18n::t("ssh_import_none_found").to_string()
