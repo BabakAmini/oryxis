@@ -951,6 +951,11 @@ impl TerminalState {
     /// At most `max_lines` lines are returned; a longer region drops rows from
     /// the MIDDLE (a `find` puts its answer at the head, a build puts its
     /// error at the tail) and reports how many in [`RegionText::dropped`].
+    ///
+    /// The region also reports which of its lines the cursor sits on
+    /// ([`RegionText::cursor_line`]), because that is the one signal that
+    /// tells a shell prompt from output text: the text alone cannot
+    /// (`➜  ~ ` and `Progress: 100%` are the same shape).
     pub fn text_from_abs(&self, abs_line: i64, max_lines: usize) -> Option<RegionText> {
         use alacritty_terminal::grid::Dimensions;
         use alacritty_terminal::index::{Column, Line};
@@ -987,15 +992,25 @@ impl TerminalState {
         while end > rel as i32 && row_text(end).trim().is_empty() {
             end -= 1;
         }
+        // Where the cursor is, in the same viewport-relative space the rows
+        // are indexed in. It lands OUTSIDE the region whenever the shell has
+        // written a newline it hasn't drawn anything under yet, which is
+        // exactly the state a running command leaves the screen in.
+        let cursor_row = grid.cursor.point.line.0;
+        let mut cursor_line = None;
         let mut lines: Vec<String> = Vec::new();
         let mut li = rel as i32;
         while li <= end {
+            let first = li;
             let mut text = row_text(li);
             let mut rows = 1;
             while wraps(li) && li < end && rows < 64 {
                 li += 1;
                 text.push_str(&row_text(li));
                 rows += 1;
+            }
+            if cursor_row >= first && cursor_row <= li {
+                cursor_line = Some(lines.len());
             }
             lines.push(text.trim_end().to_string());
             li += 1;
@@ -1008,8 +1023,15 @@ impl TerminalState {
             dropped = lines.len() - max_lines;
             lines.drain(head_len..head_len + dropped);
             debug_assert_eq!(lines.len(), head_len + tail_len);
+            // The elision renumbers everything below it, and a cursor inside
+            // the dropped span no longer has a line to point at.
+            cursor_line = cursor_line.and_then(|i| match i {
+                i if i < head_len => Some(i),
+                i if i < head_len + dropped => None,
+                i => Some(i - dropped),
+            });
         }
-        Some(RegionText { lines, head_len, dropped })
+        Some(RegionText { lines, head_len, dropped, cursor_line })
     }
 }
 
@@ -1026,6 +1048,14 @@ pub struct RegionText {
     /// How many lines were removed from the middle. `0` = the region is
     /// complete.
     pub dropped: usize,
+    /// Index into `lines` of the line the cursor sits on, `None` when the
+    /// cursor is outside the region (above the anchor, or on the blank rows
+    /// under the last line) or when its line fell into the elided middle.
+    ///
+    /// A shell that has drawn its prompt parks the cursor on it, so this is
+    /// what distinguishes "the shell is waiting for input" from "a line of
+    /// output that happens to look like a prompt".
+    pub cursor_line: Option<usize>,
 }
 
 #[cfg(test)]
@@ -1122,6 +1152,58 @@ mod tests {
         let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
         assert_eq!(region.lines.len(), 1, "the wrapped echo is one line: {:?}", region.lines);
         assert!(region.lines[0].ends_with("2>/dev/null"));
+    }
+
+    /// The cursor is the only thing that tells a drawn prompt from a line of
+    /// output shaped like one, so the region has to report where it is: on
+    /// the prompt the shell just drew, and nowhere at all while a command is
+    /// still printing (the newline puts it on a blank row the region trims).
+    #[test]
+    fn text_from_abs_reports_the_line_the_cursor_sits_on() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"uptime\r\n 07:55:44 up 3 days\r\n");
+        let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
+        assert_eq!(region.lines.len(), 2);
+        assert_eq!(region.cursor_line, None, "still running: the cursor is under the output");
+
+        state.process(b"admin@db:~$ ");
+        let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
+        assert_eq!(region.cursor_line, Some(2), "the shell drew its prompt: {:?}", region.lines);
+    }
+
+    /// A wrapped prompt is one logical line, and the cursor sits on its LAST
+    /// physical row: the index has to point at the joined line either way.
+    #[test]
+    fn text_from_abs_maps_the_cursor_through_a_wrap() {
+        let mut state = TerminalState::new_no_pty(80, 24).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"echo hi\r\nhi\r\n");
+        state.process(format!("{}$ ", "d".repeat(90)).as_bytes());
+        let region = state.text_from_abs(anchor, 200).expect("anchor still readable");
+        assert_eq!(region.lines.len(), 3, "{:?}", region.lines);
+        assert_eq!(region.cursor_line, Some(2));
+    }
+
+    /// Past the cap the middle goes, and the indices below it shift: a
+    /// cursor line reported against the pre-elision numbering would point at
+    /// an unrelated row.
+    #[test]
+    fn text_from_abs_renumbers_the_cursor_line_after_eliding() {
+        let mut state = TerminalState::new_no_pty(80, 200).expect("headless state");
+        state.process(b"admin@db:~$ ");
+        let anchor = state.abs_cursor_logical_start().expect("primary screen");
+        state.process(b"seq 1 40\r\n");
+        for i in 1..=40 {
+            state.process(format!("line{i}\r\n").as_bytes());
+        }
+        state.process(b"admin@db:~$ ");
+        let region = state.text_from_abs(anchor, 10).expect("anchor still readable");
+        assert_eq!(region.lines.len(), 10);
+        assert_eq!(region.cursor_line, Some(9));
+        assert_eq!(region.lines[9], "admin@db:~$");
     }
 
     /// The alternate screen repaints rows in place, so an anchor into it

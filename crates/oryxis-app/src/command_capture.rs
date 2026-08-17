@@ -244,14 +244,54 @@ pub(crate) fn strip_prompt(line: &str) -> Option<&str> {
     Some(&line[pos + len..])
 }
 
-/// True when `line` reads as a shell prompt, including the empty one a shell
-/// leaves under a finished command. Same markers as [`strip_prompt`], but
-/// tolerant of the trailing space having been trimmed away: a grid read ends
-/// at the last non-blank cell, so the fresh prompt the shell just drew comes
-/// back as `admin@db:~$`, which no marker would match. Used by the AI tool
-/// capture to tell "the command is over" from "the screen is merely quiet".
-pub(crate) fn line_is_prompt(line: &str) -> bool {
-    strip_prompt(line).is_some() || strip_prompt(&format!("{line} ")).is_some()
+/// The AI tool capture's question, in two strengths: is the last line under a
+/// command the prompt the shell drew when it finished, or a line of output
+/// that merely looks like one? Text alone cannot answer it (`\u{279c}  ~ ` is a
+/// prompt, `Progress: 100%` is not, and both are "words then a marker"), so
+/// the caller pairs these with the one fact that does discriminate: whether
+/// the CURSOR is parked on the line. A shell waiting for input parks it
+/// there; a command that printed a line and kept working left it on the row
+/// below.
+///
+/// [`line_could_be_prompt`] is the loose half, safe only behind that gate.
+/// [`line_is_bare_prompt`] is the strict half, for when the cursor is
+/// somewhere else entirely.
+///
+/// Neither may use [`strip_prompt`]'s own rule as-is: it takes the EARLIEST
+/// marker ANYWHERE in the line, which is right for its job (it reads a line
+/// that is prompt + command) and wrong for this one. Under it `# end of file`,
+/// the last line of a `cat`, read as "the shell is back", and the capture
+/// settled on partial output 800 ms later instead of waiting for the rest.
+pub(crate) fn line_could_be_prompt(line: &str) -> bool {
+    // The trailing space is gone by the time a grid read returns the line (it
+    // ends at the last non-blank cell), so the fresh prompt the shell drew
+    // arrives as `admin@db:~$` and has to be matched with the space put back.
+    if strip_prompt(line).is_some() || strip_prompt(&format!("{line} ")).is_some() {
+        return true;
+    }
+    // fish's `wilson@box ~> ` carries no marker at all, and neither does any
+    // number of custom `PS1`s that end the same way. `> ` is refused
+    // everywhere else in this module because it is also bash's PS2 and every
+    // REPL's prompt; here that costs nothing, since a capture that ends on a
+    // shell waiting for continuation input has equally nothing left to wait
+    // for.
+    line.trim_end().ends_with('>')
+}
+
+/// True when `line` is a prompt with nothing typed after it, judged on the
+/// text alone: the marker has to END the line. See [`line_could_be_prompt`]
+/// for why there are two of these.
+pub(crate) fn line_is_bare_prompt(line: &str) -> bool {
+    let trimmed = line.trim_end();
+    // PowerShell is the one legitimate `>` prompt on this side, gated on the
+    // `PS ` prefix exactly as in `strip_prompt`.
+    if trimmed.len() > "PS ".len() && trimmed.starts_with("PS ") && trimmed.ends_with('>') {
+        return true;
+    }
+    matches!(
+        trimmed.chars().next_back(),
+        Some('$' | '#' | '%' | '\u{276f}' | '\u{279c}')
+    )
 }
 
 #[cfg(test)]
@@ -426,6 +466,49 @@ mod tests {
             strip_prompt(r"PS C:\Users\wilson> Get-ChildItem"),
             Some("Get-ChildItem")
         );
+    }
+
+    /// The loose half, used only where the cursor already says the shell is
+    /// waiting. It has to cover the prompts no marker list does, and still
+    /// refuse a line of output the cursor happens to be parked on.
+    #[test]
+    fn a_prompt_under_the_cursor_may_end_on_anything_prompt_shaped() {
+        assert!(line_could_be_prompt("admin@db:~$"));
+        assert!(line_could_be_prompt("\u{279c}  ~"), "oh-my-zsh ends on the path");
+        assert!(line_could_be_prompt("wilson@box ~>"), "fish carries no marker at all");
+        assert!(line_could_be_prompt(">"), "a shell waiting for continuation input");
+        // Output the cursor is sitting on mid-line: a partial write, or a
+        // progress line redrawn in place. Neither is a prompt.
+        assert!(!line_could_be_prompt("Working..."));
+        assert!(!line_could_be_prompt("5eb5b503b376: Downloading 12.4MB/71.9MB"));
+        assert!(!line_could_be_prompt(""));
+    }
+
+    /// The AI capture's half of the marker question, and the reason it is a
+    /// separate function: `strip_prompt` wants the EARLIEST marker (its line
+    /// is prompt + command), this one wants the LAST thing on the line to BE
+    /// the marker (its line is a prompt with nothing typed after it).
+    #[test]
+    fn a_bare_prompt_is_the_marker_at_the_end_of_the_line() {
+        // The trailing space is gone: a grid read ends at the last non-blank
+        // cell, so this is the shape a fresh prompt comes back in.
+        assert!(line_is_bare_prompt("admin@db:~$"));
+        assert!(line_is_bare_prompt("admin@db:~$ "));
+        assert!(line_is_bare_prompt("root@db:/etc#"));
+        assert!(line_is_bare_prompt("box%"));
+        assert!(line_is_bare_prompt("\u{276f}"));
+        assert!(line_is_bare_prompt(r"PS C:\Users\wilson>"));
+        // Output that carries a marker is not a prompt, at the end of the
+        // line or anywhere in it.
+        assert!(!line_is_bare_prompt("# end of file"));
+        assert!(!line_is_bare_prompt("/dev/sda1  47G  19G  26G  41% /run/user"));
+        assert!(!line_is_bare_prompt("admin@db:~$ tail -f app.log"));
+        assert!(!line_is_bare_prompt("export PATH=$PATH:/opt/bin"));
+        // And the `> ` prompts that mean program input keep meaning nothing.
+        assert!(!line_is_bare_prompt(">"));
+        assert!(!line_is_bare_prompt("mysql>"));
+        assert!(!line_is_bare_prompt("PS>"), "the gate needs a path after `PS `");
+        assert!(!line_is_bare_prompt(""));
     }
 
     #[test]

@@ -92,9 +92,29 @@ fn capture_command_output(
     };
     // The first line is the echo (prompt + command); everything under it is
     // this command's own output, and the shell's next prompt closes it.
+    //
+    // Two ways to know the prompt is back, and neither subsumes the other.
+    //
+    // The strong one is the CURSOR parked on that line: a shell waiting for
+    // input sits there, and a command that printed a line and kept working
+    // left the cursor on the row below (which the region trims away). That
+    // gate is what stopped `# end of file`, the last line of a `cat`, from
+    // reading as "the command is over"; behind it the marker test can afford
+    // to be loose enough for prompts no marker list covers, fish's `~> ` and
+    // oh-my-zsh's `\u{279c}  ~ `, which ends on the path rather than the marker.
+    // Loose, but not absent: a progress bar redrawn in place is under the
+    // cursor too, and `Working...` must not read as a prompt.
+    //
+    // The weak one is the line ENDING at a marker, which stands on its own
+    // for the moments the cursor is elsewhere.
     let last_content = region.lines.iter().rposition(|l| !l.trim().is_empty());
-    let finished = last_content
-        .is_some_and(|i| i > 0 && crate::command_capture::line_is_prompt(&region.lines[i]));
+    let finished = last_content.is_some_and(|i| {
+        let line = &region.lines[i];
+        i > 0
+            && ((region.cursor_line == Some(i)
+                && crate::command_capture::line_could_be_prompt(line))
+                || crate::command_capture::line_is_bare_prompt(line))
+    });
     let body_end = if finished { last_content.unwrap_or(0) } else { region.lines.len() };
     let has_output = region
         .lines
@@ -624,6 +644,77 @@ mod tests {
         assert!(cap.finished);
         assert!(!cap.has_output);
         assert!(cap.text.contains("[command completed with no output]"), "{:?}", cap.text);
+    }
+
+    /// Same as [`capture_after`], for a shell whose prompt carries no marker
+    /// this side recognizes (fish, or any custom `PS1`).
+    fn capture_after_under_prompt(prompt: &[u8], echoed: &[u8]) -> super::CommandCapture {
+        let mut term = oryxis_terminal::TerminalState::new_no_pty(80, 24).unwrap();
+        term.process(prompt);
+        let anchor = term
+            .abs_cursor_logical_start()
+            .expect("the prompt row is on the primary screen");
+        term.process(echoed);
+        let term = std::sync::Mutex::new(term);
+        capture_command_output(&term, anchor, None, Default::default())
+            .expect("the anchor is still readable")
+    }
+
+    /// A line of OUTPUT that looks like a prompt is not one. `cat`ing a
+    /// script that ends in a comment used to end the capture 800 ms later,
+    /// so anything the command printed after a pause was reported as
+    /// though it had never been printed.
+    #[test]
+    fn a_marker_inside_the_output_does_not_end_the_capture() {
+        let cap = capture_after(b"cat setup.sh\r\nset -e\r\n# end of file\r\n");
+        assert!(!cap.finished, "no shell prompt has been drawn yet: {:?}", cap.text);
+        assert!(cap.has_output);
+        assert!(cap.text.contains("# end of file"), "and the line is still captured");
+    }
+
+    /// The `% ` in a `df` row, and the `$ ` in a grepped shell script, are
+    /// the same trap one column over.
+    #[test]
+    fn a_marker_mid_line_does_not_end_the_capture_either() {
+        let cap = capture_after(b"df -h\r\n/dev/sda1  47G  19G  26G  41% /run/user\r\n");
+        assert!(!cap.finished, "{:?}", cap.text);
+    }
+
+    /// The cursor is what actually says the shell is waiting: fish's
+    /// `wilson@box ~> ` matches no marker, and before this the poll waited
+    /// out a full silence window on every command and never added the
+    /// no-output note.
+    #[test]
+    fn an_unrecognized_prompt_still_ends_the_capture() {
+        let cap = capture_after_under_prompt(
+            b"wilson@box ~> ",
+            b"touch /tmp/x\r\nwilson@box ~> ",
+        );
+        assert!(cap.finished, "the cursor is parked on the prompt: {:?}", cap.text);
+        assert!(!cap.has_output);
+        assert!(cap.text.contains("[command completed with no output]"), "{:?}", cap.text);
+    }
+
+    /// The cursor is necessary, not sufficient: a command that writes a
+    /// partial line and keeps working leaves the cursor sitting on it, and
+    /// declaring that finished would report a progress bar as the answer.
+    #[test]
+    fn a_partial_line_under_the_cursor_is_not_a_prompt() {
+        let cap = capture_after(b"./deploy.sh\r\nWorking...");
+        assert!(!cap.finished, "{:?}", cap.text);
+        assert!(cap.has_output);
+    }
+
+    /// oh-my-zsh's default prompt ends on the PATH, not on its `➜` marker,
+    /// so it is the same case as fish from this side.
+    #[test]
+    fn a_prompt_whose_marker_is_not_last_still_ends_the_capture() {
+        let cap = capture_after_under_prompt(
+            "\u{279c}  ~ ".as_bytes(),
+            "whoami\r\nadmin\r\n\u{279c}  ~ ".as_bytes(),
+        );
+        assert!(cap.finished, "{:?}", cap.text);
+        assert!(cap.has_output);
     }
 
     /// Convenience builder: Auto mode, everything else off (a plain
