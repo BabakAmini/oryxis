@@ -24,10 +24,18 @@
 //! project's asset host per request (owner decision 2026-07-11:
 //! GitHub stays the default so the mirror only carries traffic that
 //! actually needs it); `GitHubDirect` never falls back;
+//! `ProjectMirror` reverses `Auto` and dials the asset host FIRST,
+//! for a network where GitHub is unreachable rather than slow (the
+//! `Auto` probe would then cost a connect timeout per download);
 //! `Custom(base)` tries the user's prefix proxy first and falls back
 //! to the direct URL (public proxies often cover only the download
 //! hosts and not `api.github.com`, so the fallback keeps metadata
 //! working through whichever leg answers).
+//!
+//! Every mirror-first mode keeps the direct URL as its fallback, so a
+//! URL the bucket layout does not carry (a foreign repo, a gist) is
+//! still fetched rather than failing: `ProjectMirror` is "prefer the
+//! mirror", never "only the mirror".
 //!
 //! The asset host is NOT a prefix proxy: it is a static bucket
 //! (Cloudflare R2 behind `dl.oryxis.app`, fronted for mainland China
@@ -36,6 +44,9 @@
 //! snapshots so release METADATA works without `api.github.com`:
 //!
 //! - `fonts/<file>`: the pinned CJK font files
+//! - `plugins/<provider>.json`: the plugin catalog, mirroring the
+//!   `plugins/` directory tracked in this repo (the app's primary
+//!   discovery source; see `plugins::download::fetch_manifest`)
 //! - `releases/<tag>/<asset>`: release assets (installers, plugin
 //!   binaries, manifests, `.sig` sidecars)
 //! - `releases/latest.json`: snapshot of `repos/.../releases/latest`
@@ -61,24 +72,29 @@ const GITHUB_HOSTS: &[&str] = &[
 ];
 
 /// The user's mirror preference, one settings key (`download_mirror`
-/// = `"auto"` / `"github"` / an https base URL, the token-or-value
-/// precedent of the `language` setting).
+/// = `"auto"` / `"github"` / `"project"` / an https base URL, the
+/// token-or-value precedent of the `language` setting).
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub(crate) enum MirrorChoice {
-    /// Follow the bundled default mirror when one exists.
+    /// GitHub first, the project's asset host as the fallback.
     #[default]
     Auto,
     /// Never rewrite, even when a bundled default exists.
     GitHubDirect,
+    /// The project's asset host first, GitHub as the fallback.
+    ProjectMirror,
     /// Always try the given prefix-proxy base first.
     Custom(String),
 }
 
 impl MirrorChoice {
     pub(crate) fn from_setting(raw: &str) -> Self {
+        // The `url` arm is a catch-all, so every named token has to be
+        // listed above it or a vault holding it boots as a Custom base.
         match raw.trim() {
             "" | "auto" => Self::Auto,
             "github" => Self::GitHubDirect,
+            "project" => Self::ProjectMirror,
             url => Self::Custom(url.to_string()),
         }
     }
@@ -87,7 +103,20 @@ impl MirrorChoice {
         match self {
             Self::Auto => "auto".into(),
             Self::GitHubDirect => "github".into(),
+            Self::ProjectMirror => "project".into(),
             Self::Custom(url) => url.clone(),
+        }
+    }
+
+    /// The settings-picker token this choice renders as. `Custom`
+    /// answers `"custom"` for every base, so the picker never has to
+    /// know the URL.
+    pub(crate) fn token(&self) -> &'static str {
+        match self {
+            Self::Auto => "auto",
+            Self::GitHubDirect => "github",
+            Self::ProjectMirror => "project",
+            Self::Custom(_) => "custom",
         }
     }
 }
@@ -117,10 +146,13 @@ pub(crate) fn consulted_hosts() -> Vec<String> {
     match choice() {
         MirrorChoice::Auto => hosts.push(host_of(AUTO_ASSET_HOST)),
         MirrorChoice::GitHubDirect => {}
+        // Mirror-first modes dial their own host before GitHub, so it
+        // leads the list.
+        MirrorChoice::ProjectMirror => hosts.insert(0, host_of(AUTO_ASSET_HOST)),
         MirrorChoice::Custom(base) => {
             let host = host_of(&base);
             if !host.is_empty() && !hosts.contains(&host) {
-                hosts.push(host);
+                hosts.insert(0, host);
             }
         }
     }
@@ -177,6 +209,15 @@ fn asset_path(url: &str) -> Option<String> {
             let file = url.rsplit('/').next()?;
             (!file.is_empty()).then(|| format!("fonts/{file}"))
         }
+        // The plugin catalog, tracked in this repo under `plugins/`.
+        // Deliberately matched on the FULL prefix rather than the repo
+        // alone: every other raw URL from this repo (a doc, a theme,
+        // a script) has no bucket key, and mapping it would send the
+        // fallback leg to a guaranteed 404.
+        "raw.githubusercontent.com" if path.starts_with(&format!("/{repo}/main/plugins/")) => {
+            let file = url.rsplit('/').next()?;
+            (!file.is_empty()).then(|| format!("plugins/{file}"))
+        }
         // Release metadata: snapshots of the API responses.
         "api.github.com" => {
             let rest = path.strip_prefix(&format!("/repos/{repo}/"))?;
@@ -206,6 +247,10 @@ fn asset_path(url: &str) -> Option<String> {
 /// - `Auto`: GitHub first; when the asset host carries the file, its
 ///   URL is the per-request fallback (owner decision: the mirror only
 ///   serves traffic that actually needs it).
+/// - `ProjectMirror`: the same pair the other way round, so a network
+///   that cannot reach GitHub at all stops paying a connect timeout
+///   per download. A URL outside the published bucket layout has no
+///   mirror leg and stays direct-only.
 /// - `Custom(base)`: the user's prefix proxy first, direct as the
 ///   fallback, so a proxy that only covers the download hosts still
 ///   leaves `api.github.com` reachable on the second leg (and a dead
@@ -219,6 +264,10 @@ pub(crate) fn candidates(url: &str) -> Vec<String> {
         MirrorChoice::Custom(base) => vec![rewrite(url, &base), url.to_string()],
         MirrorChoice::Auto => match asset_path(url) {
             Some(path) => vec![url.to_string(), format!("{AUTO_ASSET_HOST}/{path}")],
+            None => vec![url.to_string()],
+        },
+        MirrorChoice::ProjectMirror => match asset_path(url) {
+            Some(path) => vec![format!("{AUTO_ASSET_HOST}/{path}"), url.to_string()],
             None => vec![url.to_string()],
         },
     }
@@ -235,12 +284,36 @@ pub(crate) fn validate_base(raw: &str) -> Result<String, ()> {
     Ok(raw.to_string())
 }
 
-/// Probe a mirror base for the Settings "Test" button: fetch the
-/// first bytes of the pinned KR font (a real, content-addressed
-/// GitHub raw URL) through the mirror, requiring TLS + HTTP 2xx/206.
-/// Returns the round-trip latency in milliseconds.
-pub(crate) async fn probe(base: String) -> Result<u64, String> {
-    const PROBE_URL: &str = "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf";
+/// A real GitHub URL to route through a mirror when testing it: the
+/// pinned KR font, content-addressed so the bytes never move.
+const PROBE_URL: &str = "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf";
+
+/// What the Settings "Test" button should fetch for a choice, or
+/// `None` when the choice has nothing of its own to test (`Auto` and
+/// `GitHubDirect` dial GitHub first, which is not a mirror).
+///
+/// The two mirror kinds need DIFFERENT targets and conflating them
+/// would ship a Test that always fails: a custom base is a prefix
+/// proxy, so its target is `<base>/<full-github-url>`, while the
+/// project's asset host is a static bucket whose keys are the
+/// published layout (`releases/latest.json`, `fonts/<file>`) and
+/// would answer 404 to a prefixed GitHub URL.
+pub(crate) fn probe_target(choice: &MirrorChoice) -> Option<String> {
+    match choice {
+        MirrorChoice::Auto | MirrorChoice::GitHubDirect => None,
+        MirrorChoice::Custom(base) => Some(rewrite(PROBE_URL, base)),
+        // The release-metadata snapshot: published by
+        // `publish-mirror.yml` on every release, so it is the key
+        // most certain to exist on a freshly seeded bucket.
+        MirrorChoice::ProjectMirror => Some(format!("{AUTO_ASSET_HOST}/releases/latest.json")),
+    }
+}
+
+/// Probe a mirror endpoint for the Settings "Test" button: fetch its
+/// first bytes, requiring TLS + HTTP 2xx/206. Returns the round-trip
+/// latency in milliseconds. Takes the fully-resolved URL from
+/// [`probe_target`], since the two mirror kinds address differently.
+pub(crate) async fn probe(url: String) -> Result<u64, String> {
     let client = reqwest::Client::builder()
         .user_agent(concat!("Oryxis/", env!("CARGO_PKG_VERSION")))
         .connect_timeout(std::time::Duration::from_secs(4))
@@ -250,7 +323,7 @@ pub(crate) async fn probe(base: String) -> Result<u64, String> {
         .map_err(|e| e.to_string())?;
     let started = std::time::Instant::now();
     let resp = client
-        .get(rewrite(PROBE_URL, &base))
+        .get(&url)
         .header(reqwest::header::RANGE, "bytes=0-127")
         .send()
         .await
@@ -347,15 +420,55 @@ mod tests {
         // (a foreign repo's releases, a gist, ...).
         assert_eq!(candidates(url), vec![url.to_string()]);
 
+        // ProjectMirror is Auto's pair the other way round: the asset
+        // host leads for URLs the bucket carries, and a URL outside
+        // the layout still resolves direct rather than failing.
+        set_choice(MirrorChoice::ProjectMirror);
+        assert_eq!(
+            candidates(&latest),
+            vec![
+                format!("{AUTO_ASSET_HOST}/releases/latest.json"),
+                latest.clone(),
+            ]
+        );
+        assert_eq!(
+            candidates(&asset),
+            vec![
+                format!("{AUTO_ASSET_HOST}/releases/v1.0.0/oryxis-setup-x86_64.exe.sig"),
+                asset.clone(),
+            ]
+        );
+        assert_eq!(candidates(url), vec![url.to_string()]);
+
         // The allowlist an error surface shows (discussion #163)
-        // follows the same choice. Asserted inside this test because
-        // it shares the process-wide CHOICE with the cases above.
+        // follows the same choice, in dial order. Asserted inside this
+        // test because it shares the process-wide CHOICE with the
+        // cases above.
+        assert_eq!(consulted_hosts().first().unwrap(), "dl-cn.oryxis.app");
+        set_choice(MirrorChoice::Auto);
         assert!(consulted_hosts().contains(&"dl-cn.oryxis.app".to_string()));
         set_choice(MirrorChoice::GitHubDirect);
         assert_eq!(consulted_hosts().len(), 4);
         set_choice(MirrorChoice::Custom("https://proxy.corp.example/p".into()));
-        assert!(consulted_hosts().contains(&"proxy.corp.example".to_string()));
+        assert_eq!(consulted_hosts().first().unwrap(), "proxy.corp.example");
         set_choice(MirrorChoice::Auto);
+    }
+
+    /// The two mirror kinds address differently, so the Test button's
+    /// target must not be one shape for both: a prefix proxy takes
+    /// the whole GitHub URL appended, the static asset host takes a
+    /// published bucket key (a prefixed GitHub URL there is a 404).
+    #[test]
+    fn probe_targets_match_the_mirror_shape() {
+        assert_eq!(probe_target(&MirrorChoice::Auto), None);
+        assert_eq!(probe_target(&MirrorChoice::GitHubDirect), None);
+        assert_eq!(
+            probe_target(&MirrorChoice::Custom("https://p.example/gh/".into())),
+            Some(format!("https://p.example/gh/{PROBE_URL}"))
+        );
+        let project = probe_target(&MirrorChoice::ProjectMirror).unwrap();
+        assert_eq!(project, format!("{AUTO_ASSET_HOST}/releases/latest.json"));
+        assert!(!project.contains("github"));
     }
 
     #[test]
@@ -371,6 +484,20 @@ mod tests {
             (
                 "https://raw.githubusercontent.com/ryanoasis/nerd-fonts/fa7b859994228a9c8759f99c55a8d31ee92a1b5e/patched-fonts/JetBrainsMono/Ligatures/Regular/JetBrainsMonoNerdFont-Regular.ttf".to_string(),
                 Some("fonts/JetBrainsMonoNerdFont-Regular.ttf"),
+            ),
+            // The plugin catalog: only the `plugins/` directory of THIS
+            // repo maps; any other raw path from it stays direct-only.
+            (
+                format!("https://raw.githubusercontent.com/{repo}/main/plugins/aws.json"),
+                Some("plugins/aws.json"),
+            ),
+            (
+                format!("https://raw.githubusercontent.com/{repo}/main/docs/ARCHITECTURE.md"),
+                None,
+            ),
+            (
+                format!("https://raw.githubusercontent.com/{repo}/dev/plugins/aws.json"),
+                None,
             ),
             (
                 format!("https://api.github.com/repos/{repo}/releases/latest"),
@@ -419,15 +546,31 @@ mod tests {
             ("auto", MirrorChoice::Auto),
             ("", MirrorChoice::Auto),
             ("github", MirrorChoice::GitHubDirect),
+            // Named tokens must resolve BEFORE the url catch-all, or a
+            // vault holding one boots as a Custom base pointed at a
+            // string that is not a URL.
+            ("project", MirrorChoice::ProjectMirror),
             (
                 "https://mirror.example.com",
                 MirrorChoice::Custom("https://mirror.example.com".into()),
             ),
         ] {
             assert_eq!(MirrorChoice::from_setting(raw), choice);
+            assert_eq!(MirrorChoice::from_setting(raw).token(), choice.token());
         }
         assert_eq!(MirrorChoice::Auto.as_setting(), "auto");
         assert_eq!(MirrorChoice::GitHubDirect.as_setting(), "github");
+        assert_eq!(MirrorChoice::ProjectMirror.as_setting(), "project");
+        // The picker's token round-trips through the setting, so a
+        // selected row can never render as a different row.
+        for choice in [
+            MirrorChoice::Auto,
+            MirrorChoice::GitHubDirect,
+            MirrorChoice::ProjectMirror,
+        ] {
+            assert_eq!(choice.token(), choice.as_setting());
+        }
+        assert_eq!(MirrorChoice::Custom("https://m.cn".into()).token(), "custom");
         assert_eq!(
             MirrorChoice::from_setting(&MirrorChoice::Custom("https://m.cn".into()).as_setting()),
             MirrorChoice::Custom("https://m.cn".into())

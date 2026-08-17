@@ -240,7 +240,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Agent, "agent_server_copy_path", "ssh agent socket path copy pipe"),
     e(S::Agent, "agent_server_snippet_ssh_config", "ssh agent identityagent config snippet"),
     // ── Advanced ───────────────────────────────────────────────────
-    e(S::Advanced, "download_mirror", "download mirror china github custom proxy"),
+    e(S::Advanced, "download_mirror", "download mirror china github custom proxy project"),
     e(S::Advanced, "debug_logging", "debug logging enable log file diagnostics"),
     e(S::Advanced, "perf_overlay", "performance hud overlay fps terminal frames"),
     e(S::Advanced, "copy_env_info", "copy environment info report github issue diagnostics"),

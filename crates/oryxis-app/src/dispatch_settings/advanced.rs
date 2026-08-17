@@ -124,10 +124,10 @@ impl Oryxis {
                         }
                     }
                     token => {
-                        let choice = if token == "github" {
-                            MirrorChoice::GitHubDirect
-                        } else {
-                            MirrorChoice::Auto
+                        let choice = match token {
+                            "github" => MirrorChoice::GitHubDirect,
+                            "project" => MirrorChoice::ProjectMirror,
+                            _ => MirrorChoice::Auto,
                         };
                         self.download_mirror.custom_pending = false;
                         self.download_mirror.url_error = false;
@@ -160,18 +160,33 @@ impl Oryxis {
                 }
             }
             SettingsMessage::DownloadMirrorTest => {
-                match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
-                    Ok(base) => {
-                        self.download_mirror.testing = true;
-                        self.download_mirror.test_result = None;
-                        return Ok(iced::Task::perform(
-                            crate::net_mirror::probe(base),
-                            |v| Message::Settings(SettingsMessage::DownloadMirrorTestResult(v)),
-                        ));
+                use crate::net_mirror::MirrorChoice;
+                // Custom is tested against the field's LIVE contents,
+                // which may not be committed yet (testing before
+                // saving is the point of the button); every other mode
+                // owns a fixed endpoint, so the choice resolves it.
+                let editing_custom = self.download_mirror.custom_pending
+                    || matches!(self.download_mirror.choice, MirrorChoice::Custom(_));
+                let target = if editing_custom {
+                    match crate::net_mirror::validate_base(&self.download_mirror.url_input) {
+                        Ok(base) => {
+                            crate::net_mirror::probe_target(&MirrorChoice::Custom(base))
+                        }
+                        Err(()) => {
+                            self.download_mirror.url_error = true;
+                            None
+                        }
                     }
-                    Err(()) => {
-                        self.download_mirror.url_error = true;
-                    }
+                } else {
+                    crate::net_mirror::probe_target(&self.download_mirror.choice)
+                };
+                if let Some(url) = target {
+                    self.download_mirror.testing = true;
+                    self.download_mirror.test_result = None;
+                    return Ok(iced::Task::perform(
+                        crate::net_mirror::probe(url),
+                        |v| Message::Settings(SettingsMessage::DownloadMirrorTestResult(v)),
+                    ));
                 }
             }
             SettingsMessage::DownloadMirrorTestResult(result) => {
