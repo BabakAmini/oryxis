@@ -16,36 +16,127 @@ use sha2::{Digest, Sha256};
 use super::manifest::{self, ManifestEntry, PlatformBinary, PluginManifest};
 use super::{cache, verify, PluginError, RELEASE_REPO};
 
-/// Find the latest `<provider>-v*` release on GitHub and download
-/// the `<provider>.json` manifest from its assets.
+/// Ceiling for the releases listing body.
 ///
-/// The plugin release workflow uploads both the binaries and a
-/// matching `aws.json` (or whatever the provider is) to the same
-/// GitHub Release. There's no separate manifest host: the release
-/// IS the manifest source. The app finds the right release by
-/// listing the repo's releases, filtering by tag prefix, and picking
-/// the highest version that actually carries a manifest asset.
+/// This one is NOT a "a few KB of metadata" payload: the response
+/// carries every asset of every release in the window, so it grows
+/// with the project's own release history, ~59 KB per app release and
+/// ~37 KB per plugin release at the time of writing. The original
+/// 1 MB ceiling was sized from a guess of ~150 KB and the real body
+/// crossed it in August 2026, which broke plugin installs outright
+/// (discussion #163: the modal blamed an unreachable host on a
+/// network where GitHub answered fine). A ceiling this one only
+/// exists to stop a hostile mirror from streaming an endless body
+/// into memory, so it is set far above any plausible listing instead
+/// of near it: 32 MB is ~500 more app releases of headroom and still
+/// a transient allocation smaller than one plugin binary.
+const MAX_RELEASES_JSON: u64 = 32 * 1024 * 1024;
+
+/// Ceiling for a manifest asset. A real manifest is a few hundred
+/// bytes and its size does not track the release history, so this one
+/// stays tight.
+const MAX_MANIFEST_JSON: u64 = 1024 * 1024;
+
+/// The catalog file for a provider, tracked in this repo under
+/// `plugins/` and published to the asset host by `publish-mirror.yml`.
+///
+/// A FIXED address is the whole point: `net_mirror::candidates` turns
+/// it into "git first, asset host second" with no API call in the
+/// path, and the file is the same `<provider>.json` the release
+/// workflow already builds and signs off on.
+fn catalog_url(provider_id: &str) -> String {
+    format!("https://raw.githubusercontent.com/{RELEASE_REPO}/main/plugins/{provider_id}.json")
+}
+
+/// The manifest for a provider: the catalog file first, the release
+/// API only if that fails.
+///
+/// Discovery used to be API-only, and it cost a MEGABYTE per call: the
+/// listing carries every asset of every release in a 30-entry window,
+/// of which the app read three fields. That body outgrew its own read
+/// ceiling in August 2026 and took every plugin install down with it
+/// (discussion #163), it re-downloaded on every boot for each
+/// auto-updating plugin, and its 30-entry window was going to drop
+/// `aws-v0.1.0` off the bottom within a few app releases. The catalog
+/// file answers the same question in ~2 KB from a fixed URL, so none
+/// of those three failure modes has anywhere to live.
+///
+/// The API path stays as the last resort. It covers the window
+/// between a plugin release publishing its binaries and the catalog
+/// commit landing, and it means a broken catalog degrades to the old
+/// behaviour instead of to no plugins at all.
 pub async fn fetch_manifest(provider_id: &str) -> Result<PluginManifest, PluginError> {
-    let client = reqwest::Client::builder()
+    let client = manifest_client()?;
+    match fetch_catalog(&client, provider_id).await {
+        Ok(manifest) => Ok(manifest),
+        Err(catalog_err) => {
+            tracing::debug!(
+                target = "oryxis::plugins",
+                provider = %provider_id,
+                error = %catalog_err,
+                "plugin catalog unavailable, falling back to the release API"
+            );
+            fetch_manifest_via_releases(&client, provider_id).await
+        }
+    }
+}
+
+fn manifest_client() -> Result<reqwest::Client, PluginError> {
+    reqwest::Client::builder()
         .user_agent(concat!("Oryxis/", env!("CARGO_PKG_VERSION")))
         .timeout(std::time::Duration::from_secs(15))
         .https_only(true)
         .build()
-        .map_err(|e| PluginError::Download(e.to_string()))?;
+        .map_err(|e| PluginError::Download(e.to_string()))
+}
 
+/// One GET of a fixed URL. `candidates` supplies the git leg and the
+/// asset-host leg, so a blocked `raw.githubusercontent.com` (the
+/// hardest-blocked GitHub host on mainland-China networks) resolves
+/// through the mirror without a second code path here.
+async fn fetch_catalog(
+    client: &reqwest::Client,
+    provider_id: &str,
+) -> Result<PluginManifest, PluginError> {
+    let body = get_github_capped(client, &catalog_url(provider_id), MAX_MANIFEST_JSON)
+        .await
+        .map_err(|e| PluginError::Manifest(format!("plugin catalog for {provider_id}: {e}")))?;
+    let body = std::str::from_utf8(&body)
+        .map_err(|e| PluginError::Download(format!("catalog not utf-8: {e}")))?;
+    let manifest = PluginManifest::parse(body)?;
+    // A catalog file serving the wrong provider means the layout drifted
+    // (a bad copy, a mis-keyed bucket object). Refusing here sends the
+    // caller to the API fallback instead of installing the wrong plugin.
+    if manifest.provider_id != provider_id {
+        return Err(PluginError::Manifest(format!(
+            "catalog for {provider_id} declares provider_id {}",
+            manifest.provider_id
+        )));
+    }
+    Ok(manifest)
+}
+
+/// Legacy discovery: find the latest `<provider>-v*` release on GitHub
+/// and download the `<provider>.json` manifest from its assets.
+///
+/// The plugin release workflow uploads both the binaries and a
+/// matching `aws.json` (or whatever the provider is) to the same
+/// GitHub Release, so the release IS a manifest source. Kept as the
+/// fallback behind [`fetch_catalog`], never as the first choice: see
+/// that function's note for what this path costs.
+async fn fetch_manifest_via_releases(
+    client: &reqwest::Client,
+    provider_id: &str,
+) -> Result<PluginManifest, PluginError> {
     // Step 1: list releases. 30 entries covers years of plugin
     // releases without paginating.
     let releases_url =
         format!("https://api.github.com/repos/{RELEASE_REPO}/releases?per_page=30");
-    let resp = get_github(&client, &releases_url).await.map_err(|e| {
-        PluginError::Manifest(format!("github releases api for {RELEASE_REPO}: {e}"))
-    })?;
-    // 1 MB cap on the releases listing: 30 entries × ~5 KB of metadata
-    // is ~150 KB in practice; anything past 1 MB is either a server
-    // glitch or hostile data and we'd rather fail clean than OOM.
-    let releases_bytes = read_capped(resp, 1024 * 1024)
+    let releases_bytes = get_github_capped(client, &releases_url, MAX_RELEASES_JSON)
         .await
-        .map_err(|e| PluginError::Download(format!("github releases body: {e}")))?;
+        .map_err(|e| {
+            PluginError::Manifest(format!("github releases api for {RELEASE_REPO}: {e}"))
+        })?;
     let releases: Vec<serde_json::Value> = serde_json::from_slice(&releases_bytes)
         .map_err(|e| PluginError::Download(format!("parse releases json: {e}")))?;
 
@@ -95,14 +186,9 @@ pub async fn fetch_manifest(provider_id: &str) -> Result<PluginManifest, PluginE
             PluginError::Manifest("asset url missing on release payload".into())
         })?;
 
-    let resp = get_github(&client, download_url)
+    let body = get_github_capped(client, download_url, MAX_MANIFEST_JSON)
         .await
         .map_err(PluginError::Download)?;
-    // 1 MB cap mirrors the releases listing above. A real manifest is
-    // a few hundred bytes; anything bigger is broken or hostile.
-    let body = read_capped(resp, 1024 * 1024)
-        .await
-        .map_err(|e| PluginError::Download(format!("manifest body: {e}")))?;
     let body = std::str::from_utf8(&body)
         .map_err(|e| PluginError::Download(format!("manifest not utf-8: {e}")))?;
     PluginManifest::parse(body)
@@ -120,6 +206,35 @@ async fn get_github(
     for candidate in crate::net_mirror::candidates(url) {
         match client.get(&candidate).send().await {
             Ok(resp) if resp.status().is_success() => return Ok(resp),
+            Ok(resp) => last = format!("HTTP {}", resp.status()),
+            Err(e) => last = e.to_string(),
+        }
+    }
+    Err(last)
+}
+
+/// `get_github` plus the body read, so a candidate that answers 200
+/// with an unusable body still falls through to the next one.
+///
+/// Reading outside the candidate loop was its own failure mode: a
+/// captive portal answering 200 with an HTML block page, or a body
+/// over the ceiling, aborted the whole fetch while the mirror leg sat
+/// there untried. `update.rs::fetch_release` already reads inside its
+/// loop for exactly this reason; this is the same contract.
+async fn get_github_capped(
+    client: &reqwest::Client,
+    url: &str,
+    max_bytes: u64,
+) -> Result<Vec<u8>, String> {
+    let mut last = String::new();
+    for candidate in crate::net_mirror::candidates(url) {
+        match client.get(&candidate).send().await {
+            Ok(resp) if resp.status().is_success() => {
+                match read_capped(resp, max_bytes).await {
+                    Ok(body) => return Ok(body),
+                    Err(e) => last = e,
+                }
+            }
             Ok(resp) => last = format!("HTTP {}", resp.status()),
             Err(e) => last = e.to_string(),
         }
@@ -338,5 +453,57 @@ mod tests {
             to_hex(&Sha256::digest(b"")),
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    /// The tracked catalog is what every install now reads, and a
+    /// release workflow writes it unattended. A file that stops
+    /// parsing, or whose `provider_id` stops matching its name, would
+    /// send every user of that plugin down the slow fallback with no
+    /// louder symptom than a debug log line, so CI reads them here.
+    #[test]
+    fn tracked_catalog_files_parse_and_self_identify() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../..")
+            .join("plugins");
+        let mut seen = 0;
+        for entry in std::fs::read_dir(&dir).expect("plugins/ directory") {
+            let path = entry.expect("dir entry").path();
+            if path.extension().and_then(|e| e.to_str()) != Some("json") {
+                continue;
+            }
+            let stem = path.file_stem().unwrap().to_str().unwrap().to_string();
+            let body = std::fs::read_to_string(&path).expect("read catalog");
+            let manifest = PluginManifest::parse(&body)
+                .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+            assert_eq!(
+                manifest.provider_id, stem,
+                "{} declares a different provider_id",
+                path.display()
+            );
+            assert!(
+                !manifest.versions.is_empty(),
+                "{} carries no versions",
+                path.display()
+            );
+            for v in &manifest.versions {
+                assert!(
+                    !v.binaries.is_empty(),
+                    "{} {} carries no binaries",
+                    path.display(),
+                    v.version
+                );
+                assert!(
+                    !v.protocol_versions.is_empty(),
+                    "{} {} declares no protocol version, so the host filter \
+                     can never intersect it",
+                    path.display(),
+                    v.version
+                );
+            }
+            seen += 1;
+        }
+        // A directory that silently empties out would pass every
+        // assertion above.
+        assert!(seen >= 6, "expected one catalog per provider, found {seen}");
     }
 }

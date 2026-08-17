@@ -1,0 +1,54 @@
+{
+  "provider_id": "gif",
+  "versions": [
+    {
+      "version": "0.1.0",
+      "protocol_versions": [
+        1
+      ],
+      "min_app": "0.9.0",
+      "binaries": [
+        {
+          "os": "linux",
+          "arch": "aarch64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/gif-v0.1.0/oryxis-gif-linux-aarch64",
+          "sha256": "011bfad4fc4892010d464feac7f6b813f74b2007c72dda860e4c29329be086fc",
+          "signature": "tkXeRUNQ5bW8LAq9H8u/AQKx9zjIdX5Wm7ZhL3SOZ5P6drlE6GJBjLQtkSNDTXMRzSIu2C0OUyBzYGtpo4WnBw==",
+          "size": 7607064
+        },
+        {
+          "os": "linux",
+          "arch": "x86_64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/gif-v0.1.0/oryxis-gif-linux-x86_64",
+          "sha256": "ca103f34f37c7eb0cf5a41bd2cd0ee4878299961a8629fc0ebff6ca8778cd41d",
+          "signature": "8H9anR3oUEUruxkpgxXA6XoC8IN7GueBsvTStmAT/FOIESEBe7LTg5z3/Vna1yMSakec/Ke59+6pHIj3XhvRDw==",
+          "size": 8234272
+        },
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/gif-v0.1.0/oryxis-gif-macos-aarch64",
+          "sha256": "2158fd88f28b474eb77ecb00e6e986af39b665ac290805550e1574c43e821e24",
+          "signature": "3UkkVGDGRC/fYORmLQKxviXucL/nKZqFJ7pOzVBaUYVVlXdpT6ZyskGmq5efzvT3vhbMDBoxjDGULYfFhYbrDw==",
+          "size": 7347984
+        },
+        {
+          "os": "windows",
+          "arch": "aarch64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/gif-v0.1.0/oryxis-gif-windows-aarch64.exe",
+          "sha256": "ad144452b70341c20c65372b0947d240bdb3e90f0363c10481fb1da300ca1136",
+          "signature": "gTuktWLYBbhSAIOTTArULLfCKE5o86Tga1gtE223z8IpoOcIllvTWLA+PFR61FXEukF/jbFM6r/J81YB2ZyOCA==",
+          "size": 7503360
+        },
+        {
+          "os": "windows",
+          "arch": "x86_64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/gif-v0.1.0/oryxis-gif-windows-x86_64.exe",
+          "sha256": "a5f9475d89f3f73999d08a20856a906289ed691b7a09c22c8fb5e8d4792097c8",
+          "signature": "29QFO2GxZyBqn2ZGrB2BXqRu571Ul1jWmINkvteB/V/pkFWX5bN6YBm6t9Jj5l+hmoW8ftPDUuAuTxaFNRImBA==",
+          "size": 8278528
+        }
+      ]
+    }
+  ]
+}

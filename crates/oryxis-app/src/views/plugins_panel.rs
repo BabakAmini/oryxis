@@ -240,54 +240,86 @@ impl Oryxis {
                 .size(12)
                 .color(OryxisColors::t().text_muted)
                 .into(),
-            // The host never answered. A bare "unavailable" was a dead
+            // The manifest DID arrive and every version in it was
+            // filtered out (min_app / protocol / platform). Nothing
+            // about the network is wrong here, so this must not show
+            // the firewall block: the install button says the same
+            // thing, and claiming an unreachable host sends the user
+            // to debug a proxy that is working fine (#163).
+            None if entry.is_some_and(|e| e.manifest.is_some()) => {
+                text(crate::i18n::t("plugin_err_needs_update"))
+                    .size(12)
+                    .color(OryxisColors::t().warning)
+                    .into()
+            }
+            // The fetch itself failed. A bare "unavailable" was a dead
             // end (discussion #163, a mainland-China network with
             // GitHub blocked), so the error carries its own way out:
-            // the exact hosts a firewall would need to allow, and a
-            // jump to the Download mirror setting.
+            // the exact hosts a firewall would need to allow, the
+            // cause the fetch reported, and a jump to the Download
+            // mirror setting.
             None => {
                 let hosts = crate::net_mirror::consulted_hosts().join("\n");
-                column![
+                let mut block = column![
                     text(crate::i18n::t("plugin_install_modal_unknown_size"))
                         .size(12)
                         .color(OryxisColors::t().warning),
-                    Space::new().height(10),
-                    text(crate::i18n::t("plugin_hosts_hint"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(4),
-                    container(
-                        text(hosts)
+                ];
+                // What the fetch actually reported, verbatim. Without
+                // it every cause reads as "blocked by a firewall",
+                // which is what made #163 undebuggable from the
+                // outside.
+                if let Some(cause) = entry.and_then(|e| e.manifest_error.as_deref()) {
+                    block = block.push(Space::new().height(6)).push(
+                        text(format!("{}: {cause}", crate::i18n::t("plugin_err_cause")))
                             .size(11)
                             .font(iced::Font::MONOSPACE)
                             .color(OryxisColors::t().text_muted),
+                    );
+                }
+                block
+                    .push(Space::new().height(10))
+                    .push(
+                        text(crate::i18n::t("plugin_hosts_hint"))
+                            .size(12)
+                            .color(OryxisColors::t().text_secondary),
                     )
-                    .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
-                    .width(Length::Fill)
-                    .style(|_| iced::widget::container::Style {
-                        background: Some(iced::Background::Color(
-                            OryxisColors::t().bg_primary,
-                        )),
-                        border: iced::Border {
-                            radius: iced::border::Radius::from(6.0),
-                            color: OryxisColors::t().border,
-                            width: 1.0,
-                        },
-                        ..Default::default()
-                    }),
-                    Space::new().height(10),
-                    text(crate::i18n::t("plugin_mirror_hint"))
-                        .size(12)
-                        .color(OryxisColors::t().text_secondary),
-                    Space::new().height(8),
-                    dir_row(vec![pill_button(
+                    .push(Space::new().height(4))
+                    .push(
+                        container(
+                            text(hosts)
+                                .size(11)
+                                .font(iced::Font::MONOSPACE)
+                                .color(OryxisColors::t().text_muted),
+                        )
+                        .padding(Padding { top: 8.0, right: 10.0, bottom: 8.0, left: 10.0 })
+                        .width(Length::Fill)
+                        .style(|_| iced::widget::container::Style {
+                            background: Some(iced::Background::Color(
+                                OryxisColors::t().bg_primary,
+                            )),
+                            border: iced::Border {
+                                radius: iced::border::Radius::from(6.0),
+                                color: OryxisColors::t().border,
+                                width: 1.0,
+                            },
+                            ..Default::default()
+                        }),
+                    )
+                    .push(Space::new().height(10))
+                    .push(
+                        text(crate::i18n::t("plugin_mirror_hint"))
+                            .size(12)
+                            .color(OryxisColors::t().text_secondary),
+                    )
+                    .push(Space::new().height(8))
+                    .push(dir_row(vec![pill_button(
                         crate::i18n::t("download_mirror"),
                         Some(Message::Plugin(PluginMessage::OpenMirrorSetting)),
                         OryxisColors::t().accent,
                         false,
-                    )]),
-                ]
-                .into()
+                    )]))
+                    .into()
             }
         };
 

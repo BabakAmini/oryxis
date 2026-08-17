@@ -6,6 +6,9 @@
 # keep the two in lockstep:
 #
 #   fonts/<file>              pinned CJK fonts (from google/fonts)
+#   plugins/<provider>.json   plugin catalog, the app's PRIMARY manifest
+#                             source (git is the first leg, this the
+#                             second); mirrors the repo's plugins/ dir
 #   releases/<tag>/<asset>    release assets incl. .sig sidecars
 #   releases/latest.json      snapshot of GET repos/.../releases/latest
 #   releases/nightly.json     snapshot of GET repos/.../releases/tags/nightly-latest
@@ -144,6 +147,30 @@ jobs:
             curl -fsSL "${fonts[$key]}" -o "assets/fonts/$key"
             aws s3 cp "assets/fonts/$key" "s3://$BUCKET/fonts/$key"
           done
+
+      - name: Publish the plugin catalog entry
+        run: |
+          set -euo pipefail
+          # A plugin release tag is `<provider>-v<version>` and its own
+          # `<provider>.json` is already among the assets downloaded
+          # above, so the catalog copy needs no checkout of main: the
+          # file here IS the one the manifest job just built and
+          # committed. App-release tags (`v0.14.0`) match nothing and
+          # skip, which is why this greps the tag instead of assuming.
+          provider="${TAG%%-v*}"
+          src="assets/releases/$TAG/$provider.json"
+          if [ "$provider" = "$TAG" ] || [ ! -f "$src" ]; then
+            echo "no catalog entry for $TAG"
+            exit 0
+          fi
+          # Same short TTL as the release snapshots: a catalog entry is
+          # replaced in place on every plugin release, so a long cache
+          # would hide a new version from the mirror leg for hours.
+          aws s3 cp "$src" "s3://$BUCKET/plugins/$provider.json" \
+            --content-type application/json \
+            --cache-control "public, max-age=300"
+          curl -fsS -o /dev/null -w "catalog: HTTP %{http_code}\n" \
+            "https://dl.oryxis.app/plugins/$provider.json"
 
       - name: Upload to the mirror bucket
         run: |

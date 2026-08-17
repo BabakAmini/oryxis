@@ -69,6 +69,7 @@ pub(crate) fn load_plugin_entries(
                 pinned_version,
                 cached_install: cached_install_present(provider_id),
                 manifest: None,
+                manifest_error: None,
             }
         })
         .collect()
@@ -339,6 +340,9 @@ impl Oryxis {
                     self.plugins.iter_mut().find(|p| p.provider_id == id)
                 {
                     entry.status = PluginUiStatus::Checking;
+                    // Stale cause from the previous attempt must not
+                    // sit under a "checking" spinner.
+                    entry.manifest_error = None;
                 }
                 let id_for_task = id.clone();
                 let id_for_msg = id.clone();
@@ -369,6 +373,7 @@ impl Oryxis {
                                 )
                                 .map(|m| m.version.clone());
                             entry.manifest = Some(*manifest);
+                            entry.manifest_error = None;
                             // Re-derive the base status from disk (the
                             // `Checking` placeholder discarded it), then
                             // layer "update available" on top.
@@ -396,7 +401,18 @@ impl Oryxis {
                             // triggered the fetch already surfaces
                             // "Download size unavailable", no need to
                             // also escalate the row badge to error.
-                            let _ = msg;
+                            //
+                            // The cause itself is NOT dropped, though:
+                            // it goes to the log and to the modal, so
+                            // a non-network failure stops reading as
+                            // "your firewall blocked us" (#163).
+                            tracing::warn!(
+                                target = "oryxis::plugins",
+                                provider = %id,
+                                error = %msg,
+                                "plugin manifest fetch failed"
+                            );
+                            entry.manifest_error = Some(msg);
                             entry.status = detect_status(&id);
                         }
                     }
@@ -445,10 +461,9 @@ impl Oryxis {
 
             PluginMessage::PluginInstall(id) => {
                 // Installing needs a manifest entry to download.
-                let (has_versions, best) = self
-                    .plugins
-                    .iter()
-                    .find(|p| p.provider_id == id)
+                let existing = self.plugins.iter().find(|p| p.provider_id == id);
+                let fetch_cause = existing.and_then(|p| p.manifest_error.clone());
+                let (has_versions, best) = existing
                     .and_then(|p| p.manifest.as_ref())
                     .map(|m| {
                         (
@@ -469,16 +484,26 @@ impl Oryxis {
                     // latter means a release exists but this app build
                     // can't run it, so tell the user to update the app
                     // instead of claiming there is no release.
-                    let key = if has_versions {
-                        "plugin_err_needs_update"
+                    let mut message = if has_versions {
+                        crate::i18n::t("plugin_err_needs_update").to_string()
                     } else {
-                        "plugin_err_no_manifest"
+                        crate::i18n::t("plugin_err_no_manifest").to_string()
                     };
+                    // "Could not reach the plugin host" is a guess, and
+                    // it was the wrong one in #163. When the fetch said
+                    // why, the badge carries it too.
+                    if !has_versions
+                        && let Some(cause) = &fetch_cause
+                    {
+                        message = format!(
+                            "{message} {}: {cause}",
+                            crate::i18n::t("plugin_err_cause")
+                        );
+                    }
                     if let Some(entry) =
                         self.plugins.iter_mut().find(|p| p.provider_id == id)
                     {
-                        entry.status =
-                            PluginUiStatus::Failed(crate::i18n::t(key).to_string());
+                        entry.status = PluginUiStatus::Failed(message);
                     }
                     self.plugin_install_modal = None;
                     return Task::none();

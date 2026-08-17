@@ -1,0 +1,54 @@
+{
+  "provider_id": "mcp",
+  "versions": [
+    {
+      "version": "0.1.2",
+      "protocol_versions": [
+        1
+      ],
+      "min_app": "0.8.2",
+      "binaries": [
+        {
+          "os": "linux",
+          "arch": "aarch64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/mcp-v0.1.2/oryxis-mcp-linux-aarch64",
+          "sha256": "023ed8fd5162c66070d9b5b773f6ba64cac4a316c5846268b7ad1a8e89fe7a74",
+          "signature": "QXatZIQXrKQOgylTql53HLPCYQ+V1Qt1lqttuQ68XlOXkJ6je7gPNT037bugpE2GwAZI2+D4v5Pjj0vS/zRDCg==",
+          "size": 7494144
+        },
+        {
+          "os": "linux",
+          "arch": "x86_64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/mcp-v0.1.2/oryxis-mcp-linux-x86_64",
+          "sha256": "9e5a704395864abcbca06833662a5a2f78ce06ca8eccfbfc1bc050db86fe8b51",
+          "signature": "RC34iwExO/6RvDXGtawGzsmMrjPgtZtmJfbXCqL8MZj/fcrF/+dyOkM6hAxaGPQREErG5wwzg5FAaCVmoqspBA==",
+          "size": 8946384
+        },
+        {
+          "os": "macos",
+          "arch": "aarch64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/mcp-v0.1.2/oryxis-mcp-macos-aarch64",
+          "sha256": "1921f8637708255b3852ed91f4b3cdfe7667deb675e62b39aee8cda8e990b564",
+          "signature": "N2TchQ+e7BYfyE4p0eQQ0J9pvhWeaQvcgwDrjYjeUwYnI3Y4f/MYY+WwzSxGzMafqPW+oLVfVdPSfkj4avD5Ag==",
+          "size": 7821656
+        },
+        {
+          "os": "windows",
+          "arch": "aarch64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/mcp-v0.1.2/oryxis-mcp-windows-aarch64.exe",
+          "sha256": "f6c8fe87001073434d69c754f6877bca3c451a10b46fff5450b6619285047728",
+          "signature": "ZS7R+xSgVKcBpVipyHZtd072QuzMVbkIVgPMlRphA2m2E/qJEThNLF62qJegSVnjLUHB1xuF8ODUbTRc188bDA==",
+          "size": 8617472
+        },
+        {
+          "os": "windows",
+          "arch": "x86_64",
+          "url": "https://github.com/wilsonglasser/oryxis/releases/download/mcp-v0.1.2/oryxis-mcp-windows-x86_64.exe",
+          "sha256": "dbfd974e06aa86ea48cb38569b83b9897dafec7e8b245b3c16b0c014f5c02626",
+          "signature": "l5mfGvtFat6UEVVS/PNaSfEoq99waUvsHBCxHDIJY+7h/sV9DL/lvhG6y9VEqbHU4ItuNLg7/aPs1UpT4x0zAw==",
+          "size": 9652224
+        }
+      ]
+    }
+  ]
+}

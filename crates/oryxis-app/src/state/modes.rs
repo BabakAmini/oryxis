@@ -293,6 +293,17 @@ pub struct PluginUiEntry {
     /// size / changelog. `None` until a check runs (and on every
     /// machine until the manifest host exists, see PR 6).
     pub manifest: Option<crate::plugins::PluginManifest>,
+    /// Why the last manifest fetch failed, verbatim from the fetch.
+    ///
+    /// The row badge deliberately stays quiet about a failed check
+    /// (see the `PluginManifestFetched` handler), but the install
+    /// modal has to say something, and "could not reach the host" was
+    /// a lie for every non-network cause: an over-ceiling body, an
+    /// HTTP 403 from the API's unauthenticated rate limit, a release
+    /// window that no longer carries the plugin's tag. Discussion
+    /// #163 cost three round trips to a user whose network was fine,
+    /// so the cause now travels to the surface that shows the error.
+    pub manifest_error: Option<String>,
 }
 
 /// Install / update lifecycle state for a [`PluginUiEntry`].

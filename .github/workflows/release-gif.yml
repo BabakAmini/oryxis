@@ -16,6 +16,14 @@ name: Release GIF plugin
 # the whole reason GIF export is a plugin), so every cargo invocation
 # here goes through --manifest-path and the target dir sits under
 # crates/oryxis-gif/target.
+#
+# The app reads `plugins/gif.json` from a fixed URL (this repo on
+# raw.githubusercontent.com, the download mirror as the second leg),
+# so the manifest job commits the freshly built file into that
+# directory. The release asset stays, and the app's release-API
+# discovery stays as a last-resort fallback, but neither is the
+# normal path any more: the API listing costs ~1 MB per lookup and
+# only shows the newest 30 releases (discussion #163).
 
 on:
   push:
@@ -203,6 +211,38 @@ jobs:
           tag_name: ${{ github.ref_name }}
           make_latest: false
           files: gif.json
+
+      # The catalog file the app actually reads. Pushed over the deploy
+      # key rather than the workflow token because the main ruleset (PR
+      # required, restricted updates, verified signatures) rejects a
+      # push from the Actions bot and cannot list it as a bypass actor.
+      # One write-scoped key serves this and the themes workflow; both
+      # only ever touch their own generated index.
+      - name: Commit gif.json into the plugin catalog
+        run: |
+          set -euo pipefail
+          umask 077
+          key="$(mktemp)"
+          hosts="$(mktemp)"
+          printf '%s\n' "${{ secrets.THEMES_DEPLOY_KEY }}" > "$key"
+          echo "github.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl" > "$hosts"
+          export GIT_SSH_COMMAND="ssh -i $key -o IdentitiesOnly=yes -o UserKnownHostsFile=$hosts"
+          # The tag checkout is detached and predates this run, so the
+          # catalog commit goes onto a fresh clone of main.
+          git clone --depth 1 --branch main \
+            git@github.com:${{ github.repository }}.git "$RUNNER_TEMP/catalog"
+          mkdir -p "$RUNNER_TEMP/catalog/plugins"
+          cp gif.json "$RUNNER_TEMP/catalog/plugins/gif.json"
+          cd "$RUNNER_TEMP/catalog"
+          if git diff --quiet -- "plugins/gif.json"; then
+            echo "catalog already current"
+            exit 0
+          fi
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add "plugins/gif.json"
+          git commit -m "chore(plugins): publish gif ${{ steps.tag.outputs.version }} to the catalog"
+          git push
 
   # Sync the published assets + API snapshots to the download mirror
   # (dl.oryxis.app / dl-cn.oryxis.app), the Auto fallback for networks
