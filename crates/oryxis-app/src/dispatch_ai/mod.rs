@@ -705,6 +705,21 @@ mod tests {
         assert!(cap.has_output);
     }
 
+    /// A command left syntactically incomplete parks the cursor on bash's
+    /// `> ` continuation prompt. The shell is waiting for the rest of the
+    /// command, so reporting "completed with no output" would be a lie about
+    /// the one state where the model most needs the truth.
+    #[test]
+    fn a_continuation_prompt_is_not_a_finished_command() {
+        let cap = capture_after(b"awk '{print $1}\r\n> ");
+        assert!(!cap.finished, "{:?}", cap.text);
+        assert!(
+            !cap.text.contains("[command completed with no output]"),
+            "{:?}",
+            cap.text
+        );
+    }
+
     /// oh-my-zsh's default prompt ends on the PATH, not on its `➜` marker,
     /// so it is the same case as fish from this side.
     #[test]

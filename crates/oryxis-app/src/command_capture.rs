@@ -270,12 +270,14 @@ pub(crate) fn line_could_be_prompt(line: &str) -> bool {
         return true;
     }
     // fish's `wilson@box ~> ` carries no marker at all, and neither does any
-    // number of custom `PS1`s that end the same way. `> ` is refused
-    // everywhere else in this module because it is also bash's PS2 and every
-    // REPL's prompt; here that costs nothing, since a capture that ends on a
-    // shell waiting for continuation input has equally nothing left to wait
-    // for.
-    line.trim_end().ends_with('>')
+    // number of custom `PS1`s that end the same way. A BARE `>` stays out,
+    // for the reason the rest of this module refuses it: it is bash's default
+    // PS2 and node's REPL, so a command left syntactically incomplete would
+    // report "completed with no output" for a shell that is in fact waiting
+    // for the rest of it. A prompt with a host or a path in front of the `>`
+    // is nobody's continuation prompt.
+    let trimmed = line.trim_end();
+    trimmed.len() > 1 && trimmed.ends_with('>')
 }
 
 /// True when `line` is a prompt with nothing typed after it, judged on the
@@ -476,7 +478,11 @@ mod tests {
         assert!(line_could_be_prompt("admin@db:~$"));
         assert!(line_could_be_prompt("\u{279c}  ~"), "oh-my-zsh ends on the path");
         assert!(line_could_be_prompt("wilson@box ~>"), "fish carries no marker at all");
-        assert!(line_could_be_prompt(">"), "a shell waiting for continuation input");
+        // bash's default PS2, left by a command with an unclosed quote. The
+        // shell is waiting for the rest of it, so calling that finished would
+        // report "completed with no output" for a command still being read.
+        assert!(!line_could_be_prompt(">"));
+        assert!(!line_could_be_prompt("> "));
         // Output the cursor is sitting on mid-line: a partial write, or a
         // progress line redrawn in place. Neither is a prompt.
         assert!(!line_could_be_prompt("Working..."));
