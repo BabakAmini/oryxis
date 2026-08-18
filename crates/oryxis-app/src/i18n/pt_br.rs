@@ -868,6 +868,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Senha incorreta",
         "import_done" => "Importado:",
         "import_nothing_new" => "Nada novo para importar: o cofre já contém tudo deste arquivo",
+        "import_forwards_disarmed" => "encaminhamentos importados sem início automático (ative-os aqui)",
         "vault_locked_error" => "O cofre está bloqueado. Desbloqueie e tente novamente.",
         "export_select_what" => "O que exportar",
         "import_select_what" => "O que importar",

@@ -741,6 +741,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "パスワードが違います",
         "import_done" => "インポート済み:",
         "import_nothing_new" => "新しくインポートする項目はありません: このファイルの内容はすべて保管庫に存在します",
+        "import_forwards_disarmed" => "件のポート転送を自動開始なしでインポートしました (ここで有効化してください)",
         "vault_locked_error" => "保管庫はロックされています。ロック解除してからやり直してください。",
         "export_select_what" => "エクスポートする項目",
         "import_select_what" => "インポートする項目",

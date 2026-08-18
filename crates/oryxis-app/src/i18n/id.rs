@@ -893,6 +893,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Kata sandi salah",
         "import_done" => "Diimpor:",
         "import_nothing_new" => "Tidak ada yang baru untuk diimpor: vault sudah berisi semua isi file ini",
+        "import_forwards_disarmed" => "penerusan diimpor tanpa mulai otomatis (aktifkan di sini)",
         "vault_locked_error" => "Vault terkunci. Buka kuncinya dan coba lagi.",
         "export_select_what" => "Apa yang diekspor",
         "import_select_what" => "Apa yang diimpor",

@@ -728,6 +728,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Password errata",
         "import_done" => "Importato:",
         "import_nothing_new" => "Niente di nuovo da importare: la cassaforte contiene già tutto il contenuto di questo file",
+        "import_forwards_disarmed" => "inoltri importati senza avvio automatico (attivali qui)",
         "vault_locked_error" => "La cassaforte è bloccata. Sbloccala e riprova.",
         "export_select_what" => "Cosa esportare",
         "import_select_what" => "Cosa importare",

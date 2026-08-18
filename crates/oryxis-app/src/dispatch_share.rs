@@ -581,11 +581,23 @@ impl Oryxis {
                             // "Imported:" with an empty tail, which reads
                             // as a silent failure; say what happened
                             // instead.
-                            let msg = if body.is_empty() {
+                            let mut msg = if body.is_empty() {
                                 crate::i18n::t("import_nothing_new").to_string()
                             } else {
                                 format!("{} {}", crate::i18n::t("import_done"), body)
                             };
+                            // Auto-start was cleared on the way in (an
+                            // imported rule must not dial on its own at
+                            // the next launch). Say so, or the forwards
+                            // look broken when they don't come up.
+                            if result.port_forward_rules_disarmed > 0 {
+                                msg.push_str(" \u{2022} ");
+                                msg.push_str(&format!(
+                                    "{} {}",
+                                    result.port_forward_rules_disarmed,
+                                    crate::i18n::t("import_forwards_disarmed")
+                                ));
+                            }
                             self.vault_import.status = Some(Ok(msg));
                             self.panels.import_dialog = false;
                             self.vault_import.file_data = None;

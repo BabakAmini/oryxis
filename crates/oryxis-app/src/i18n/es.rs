@@ -734,6 +734,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Contraseña incorrecta",
         "import_done" => "Importado:",
         "import_nothing_new" => "Nada nuevo que importar: la bóveda ya contiene todo lo de este archivo",
+        "import_forwards_disarmed" => "reenvíos importados sin inicio automático (actívalos aquí)",
         "vault_locked_error" => "La bóveda está bloqueada. Desbloquéala e inténtalo de nuevo.",
         "export_select_what" => "Qué exportar",
         "import_select_what" => "Qué importar",

@@ -298,6 +298,40 @@ impl ExportSelection {
 /// `ai_api_key` is deliberately **not** here, it's a portable secret
 /// handled specially (decrypted on export, re-encrypted on import).
 pub(crate) fn is_portable_setting(key: &str) -> bool {
+    // Settings whose VALUE is a trust decision, not a preference. An
+    // export file is untrusted input (a picked file is not a read file),
+    // and the import dialog shows a category count, never a key list, so
+    // nothing on that path gives the user a chance to see one of these
+    // change. They are per-device policy and stay behind.
+    //
+    // The service-activation reasoning below already covers the sync and
+    // MCP listeners; these are the same category, found later:
+    // - `download_mirror` re-points every GitHub-bound request, including
+    //   the updater's release metadata, whose `html_url` the UI offers as
+    //   a link. Mirrors are untrusted by design (`net_mirror`), which is
+    //   exactly why choosing one must stay local.
+    // - `terminal_clipboard_access` at `readwrite` hands every connected
+    //   server an OSC 52 clipboard READ, the default is write-only for
+    //   that reason.
+    // - the `agent_server_*` four activate the local signing service and
+    //   strip its per-signature confirmation.
+    // - `auto_lock_minutes` disarms the idle lock; `update_channel` moves
+    //   the install to another release strand; `ai_api_url` re-points the
+    //   AI requests (which carry the user's own key) at another endpoint;
+    //   `terminal_password_autofill` decides when a stored password is
+    //   typed into a session.
+    const DENY_SECURITY: &[&str] = &[
+        "download_mirror",
+        "terminal_clipboard_access",
+        "agent_server_enabled",
+        "agent_server_confirm",
+        "agent_server_allow_add",
+        "agent_server_openssh_pipe",
+        "auto_lock_minutes",
+        "update_channel",
+        "ai_api_url",
+        "terminal_password_autofill",
+    ];
     const DENY_EXACT: &[&str] = &[
         "sync_device_identity",
         "has_user_password",
@@ -336,7 +370,7 @@ pub(crate) fn is_portable_setting(key: &str) -> bool {
         // preference worth carrying.
         "files_recent_folders",
     ];
-    if DENY_EXACT.contains(&key) {
+    if DENY_EXACT.contains(&key) || DENY_SECURITY.contains(&key) {
         return false;
     }
     // One-time UI hints and one-shot migration / boot markers are
@@ -378,6 +412,10 @@ pub struct ImportResult {
     pub snippets_skipped: usize,
     pub port_forward_rules_added: usize,
     pub port_forward_rules_skipped: usize,
+    /// Imported rules whose `auto_start` was cleared on the way in. They
+    /// are counted separately so the UI can say the forwards landed but
+    /// will not dial on their own until someone enables them here.
+    pub port_forward_rules_disarmed: usize,
     pub known_hosts_added: usize,
     pub known_hosts_skipped: usize,
     pub session_groups_added: usize,
@@ -895,6 +933,7 @@ pub fn import_vault(
         snippets_skipped: 0,
         port_forward_rules_added: 0,
         port_forward_rules_skipped: 0,
+        port_forward_rules_disarmed: 0,
         known_hosts_added: 0,
         known_hosts_skipped: 0,
         session_groups_added: 0,
@@ -1156,19 +1195,47 @@ pub fn import_vault(
         }
     }
 
-    // Port forward rules (skip if exists)
+    // Port forward rules (skip if exists). An imported rule never
+    // self-arms: `auto_start` is what turns a stored rule into a DIAL at
+    // the next launch, with nobody present, and that dial resolves the
+    // rule's host, proxy included. A file the user merely picked must
+    // not be able to schedule that. The rule still imports, disabled,
+    // and the forwards panel is where it gets turned back on by someone
+    // who can see what they are enabling.
+    let mut auto_start_disarmed = 0usize;
     for rule in &payload.port_forward_rules {
         if existing_port_forward_rules.iter().any(|r| r.id == rule.id) {
             result.port_forward_rules_skipped += 1;
         } else {
-            store.save_port_forward_rule(rule)?;
+            let mut rule = rule.clone();
+            if rule.auto_start {
+                rule.auto_start = false;
+                auto_start_disarmed += 1;
+            }
+            store.save_port_forward_rule(&rule)?;
             result.port_forward_rules_added += 1;
         }
     }
+    result.port_forward_rules_disarmed = auto_start_disarmed;
 
-    // Known hosts (skip if exists)
+    // Known hosts. A pin is a trust decision somebody made at a
+    // fingerprint prompt, so an import may only introduce pins for
+    // endpoints this vault has NOT pinned yet (the fresh-device
+    // migration case). Dedup has to be by the SEMANTIC key, not by id:
+    // `save_known_host` keeps one row per (hostname, port, key_type) and
+    // DELETES the others first, so a row carrying a fresh id would not
+    // be "new", it would replace the local pin with the file's
+    // fingerprint (and tombstone the real one on the way out, which
+    // then propagates to sync peers). Silent, and it makes the next
+    // connect to that host trust whatever the file said.
     for kh in &payload.known_hosts {
-        if existing_known_hosts.iter().any(|k| k.id == kh.id) {
+        let already_pinned = existing_known_hosts.iter().any(|k| {
+            k.id == kh.id
+                || (k.hostname == kh.hostname
+                    && k.port == kh.port
+                    && k.key_type == kh.key_type)
+        });
+        if already_pinned {
             result.known_hosts_skipped += 1;
         } else {
             store.save_known_host(kh)?;

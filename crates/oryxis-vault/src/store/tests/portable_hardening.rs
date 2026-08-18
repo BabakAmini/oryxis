@@ -607,3 +607,150 @@ fn a_command_proxy_approval_never_leaves_the_device() {
     );
     assert!(target.list_trusted_proxy_commands().unwrap().is_empty());
 }
+
+/// A pin is a trust decision made at a fingerprint prompt, so a file
+/// must not be able to REPLACE one. Dedup by id alone would let it:
+/// `save_known_host` keeps a single row per (hostname, port, key_type)
+/// and deletes the others first, so a fresh id reads as "new" and the
+/// local fingerprint is gone, silently, with the real row tombstoned on
+/// the way out.
+#[test]
+fn an_imported_pin_never_replaces_one_this_vault_already_made() {
+    use oryxis_core::models::known_host::KnownHost;
+
+    let vault = unlocked_vault_with("alpha");
+    // What the file carries: the same endpoint, a different key, and an
+    // id this vault has never seen.
+    let hostile = KnownHost::new("bastion.corp", 22, "ssh-ed25519", "SHA256:ATTACKER");
+    vault.save_known_host(&hostile).unwrap();
+    let blob = export_vault(&vault, "pack", all_options()).unwrap();
+
+    // What the target already trusts for that endpoint.
+    let target = unlocked_vault_with("beta");
+    let mine = KnownHost::new("bastion.corp", 22, "ssh-ed25519", "SHA256:REAL");
+    target.save_known_host(&mine).unwrap();
+
+    let result = import_vault(&target, &blob, "pack", &ExportSelection::all()).unwrap();
+
+    let pins = target.list_known_hosts().unwrap();
+    let pin = pins
+        .iter()
+        .find(|k| k.hostname == "bastion.corp" && k.port == 22)
+        .expect("the local pin must survive the import");
+    assert_eq!(
+        pin.fingerprint, "SHA256:REAL",
+        "an imported pin must not overwrite a fingerprint this vault accepted"
+    );
+    assert_eq!(pin.id, mine.id, "the local row itself must survive");
+    assert_eq!(pins.len(), 1, "the file's row must not land beside the local one");
+    assert_eq!(result.known_hosts_skipped, 1);
+    assert_eq!(result.known_hosts_added, 0);
+}
+
+/// An endpoint this vault has NOT pinned is the migration case the
+/// category exists for, so it still imports.
+#[test]
+fn an_imported_pin_for_an_unpinned_endpoint_still_lands() {
+    use oryxis_core::models::known_host::KnownHost;
+
+    let vault = unlocked_vault_with("alpha");
+    let pin = KnownHost::new("fresh.corp", 2222, "ssh-ed25519", "SHA256:FRESH");
+    vault.save_known_host(&pin).unwrap();
+    let blob = export_vault(&vault, "pack", all_options()).unwrap();
+
+    let target = unlocked_vault_with("beta");
+    let result = import_vault(&target, &blob, "pack", &ExportSelection::all()).unwrap();
+
+    assert_eq!(result.known_hosts_added, 1);
+    let pins = target.list_known_hosts().unwrap();
+    assert_eq!(pins.len(), 1);
+    assert_eq!(pins[0].fingerprint, "SHA256:FRESH");
+}
+
+/// `auto_start` turns a stored rule into a DIAL at the next launch with
+/// nobody present, and that dial resolves the rule's host (proxy
+/// included). A file the user merely picked must not schedule that, so
+/// the rule imports disarmed and the count says so.
+#[test]
+fn an_imported_forward_never_arms_itself() {
+    use oryxis_core::models::port_forward_rule::{ForwardKind, PortForwardRule};
+
+    let vault = unlocked_vault_with("alpha");
+    let conn = Connection::new("bastion", "10.0.0.9");
+    vault.save_connection(&conn, None).unwrap();
+    let mut rule = PortForwardRule::new("tunnel", ForwardKind::Local, conn.id);
+    rule.listen_port = 8080;
+    rule.target_host = "10.0.0.9".into();
+    rule.target_port = 80;
+    rule.auto_start = true;
+    vault.save_port_forward_rule(&rule).unwrap();
+
+    let blob = export_vault(&vault, "pack", all_options()).unwrap();
+    let target = unlocked_vault_with("beta");
+    let result = import_vault(&target, &blob, "pack", &ExportSelection::all()).unwrap();
+
+    let imported = target
+        .list_port_forward_rules()
+        .unwrap()
+        .into_iter()
+        .find(|r| r.id == rule.id)
+        .expect("the rule itself still imports");
+    assert!(
+        !imported.auto_start,
+        "an imported forward must not dial on its own at the next launch"
+    );
+    assert_eq!(imported.listen_port, 8080, "the rest of the rule is untouched");
+    assert_eq!(result.port_forward_rules_added, 1);
+    assert_eq!(
+        result.port_forward_rules_disarmed, 1,
+        "the count is what lets the UI explain why it will not come up"
+    );
+}
+
+/// Settings whose VALUE is a trust decision stay behind: the import
+/// dialog shows a category count, never a key list, so nothing on that
+/// path would let the user see one of these change.
+#[test]
+fn security_settings_never_ride_a_portable_file() {
+    let vault = unlocked_vault_with("alpha");
+    // Each one re-points something the local user decided: where
+    // GitHub-bound requests go, whether a server may READ the clipboard,
+    // whether the signing service runs and whether it confirms, when the
+    // vault locks itself, which release strand this install follows,
+    // where AI requests (bearing the user's key) go, and when a stored
+    // password gets typed into a session.
+    let planted = [
+        ("download_mirror", "https://attacker.example"),
+        ("terminal_clipboard_access", "readwrite"),
+        ("agent_server_enabled", "true"),
+        ("agent_server_confirm", "false"),
+        ("agent_server_allow_add", "true"),
+        ("agent_server_openssh_pipe", "true"),
+        ("auto_lock_minutes", "0"),
+        ("update_channel", "nightly"),
+        ("ai_api_url", "https://attacker.example/v1"),
+        ("terminal_password_autofill", "true"),
+    ];
+    for (k, v) in planted {
+        vault.set_setting(k, v).unwrap();
+    }
+    // A portable preference, to prove the category still works at all.
+    vault.set_setting("terminal_theme", "dracula").unwrap();
+
+    let blob = export_vault(&vault, "pack", all_options()).unwrap();
+    let target = unlocked_vault_with("beta");
+    import_vault(&target, &blob, "pack", &ExportSelection::all()).unwrap();
+
+    for (k, _) in planted {
+        assert_eq!(
+            target.get_setting(k).unwrap(),
+            None,
+            "{k} must not cross a portable file"
+        );
+    }
+    assert_eq!(
+        target.get_setting("terminal_theme").unwrap().as_deref(),
+        Some("dracula"),
+        "ordinary preferences must still travel"
+    );
+}

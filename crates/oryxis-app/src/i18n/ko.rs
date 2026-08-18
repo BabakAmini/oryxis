@@ -893,6 +893,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "잘못된 비밀번호",
         "import_done" => "가져옴:",
         "import_nothing_new" => "가져올 새 항목이 없습니다: 이 파일의 내용이 이미 볼트에 모두 있습니다",
+        "import_forwards_disarmed" => "개의 포트 포워딩을 자동 시작 없이 가져왔습니다 (여기서 활성화하세요)",
         "vault_locked_error" => "볼트가 잠겨 있습니다. 잠금을 해제한 후 다시 시도하세요.",
         "export_select_what" => "내보낼 항목",
         "import_select_what" => "가져올 항목",

@@ -899,6 +899,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "รหัสผ่านไม่ถูกต้อง",
         "import_done" => "นำเข้าแล้ว:",
         "import_nothing_new" => "ไม่มีรายการใหม่ให้นำเข้า: Vault มีทุกอย่างในไฟล์นี้อยู่แล้ว",
+        "import_forwards_disarmed" => "การส่งต่อพอร์ตถูกนำเข้าโดยไม่เปิดใช้เริ่มอัตโนมัติ (เปิดใช้ที่นี่)",
         "vault_locked_error" => "Vault ถูกล็อกอยู่ ปลดล็อกแล้วลองอีกครั้ง",
         "export_select_what" => "สิ่งที่จะส่งออก",
         "import_select_what" => "สิ่งที่จะนำเข้า",

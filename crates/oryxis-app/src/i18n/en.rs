@@ -900,6 +900,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "import_wrong_password" => "Wrong password",
         "import_done" => "Imported:",
         "import_nothing_new" => "Nothing new to import: the vault already contains everything in this file",
+        "import_forwards_disarmed" => "port forwards imported without auto-start (enable them here)",
         "vault_locked_error" => "The vault is locked. Unlock it and try again.",
         "export_select_what" => "What to export",
         "import_select_what" => "What to import",

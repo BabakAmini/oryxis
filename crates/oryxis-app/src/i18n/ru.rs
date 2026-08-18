@@ -728,6 +728,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "import_wrong_password" => "Неверный пароль",
         "import_done" => "Импортировано:",
         "import_nothing_new" => "Нечего импортировать: хранилище уже содержит всё из этого файла",
+        "import_forwards_disarmed" => "переадресаций импортировано без автозапуска (включите их здесь)",
         "vault_locked_error" => "Хранилище заблокировано. Разблокируйте его и повторите попытку.",
         "export_select_what" => "Что экспортировать",
         "import_select_what" => "Что импортировать",
