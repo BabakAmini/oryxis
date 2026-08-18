@@ -147,7 +147,19 @@ fn peer_cancelled(run: &mut u8, bytes: &[u8]) -> bool {
 pub enum TransferSpec {
     /// Download: save each incoming file into this directory under its
     /// advertised (sanitized) name.
-    Download { dest_dir: PathBuf },
+    ///
+    /// `budget` bounds what the WHOLE session may write, across every
+    /// file in it. The per-file ceiling below cannot do that job: it
+    /// re-arms at each ZFILE, so a sender that loops
+    /// [ZFILE -> ZDATA -> ZEOF] forever stays inside it forever while
+    /// the disk fills. The caller computes the number (free space minus
+    /// headroom, or a configured cap) because the policy belongs with
+    /// the app; `None` means unbounded, which is what the upload side
+    /// and the tests use.
+    Download {
+        dest_dir: PathBuf,
+        budget: Option<u64>,
+    },
     /// Upload: send these local files, in order, in one session.
     /// `streaming_window` is the sender's in-flight subpacket window,
     /// picked by the caller per transport (see [`DEFAULT_STREAMING_WINDOW`]
@@ -274,7 +286,7 @@ async fn run_download(
     first_wire: Vec<u8>,
     io: &mut TransferIo,
 ) -> Result<Outcome, String> {
-    let TransferSpec::Download { dest_dir } = spec else {
+    let TransferSpec::Download { dest_dir, budget } = spec else {
         return Err("download driver given a non-download spec".into());
     };
     // Advertise nonstop I/O (zero buffer length) plus CANOVIO: the pane
@@ -293,6 +305,10 @@ async fn run_download(
     let mut dest_path: Option<PathBuf> = None;
     let mut name = String::new();
     let mut transferred: u64 = 0;
+    // Bytes written across EVERY file of this session. `transferred`
+    // resets at each ZFILE (it drives the per-file progress bar), which
+    // is exactly why it cannot bound a batch.
+    let mut session_written: u64 = 0;
     let mut total: Option<u64> = None;
     let mut aborting = false;
     let mut finished = false;
@@ -342,6 +358,18 @@ async fn run_download(
                         "download exceeded its {ceiling}-byte ceiling; aborting"
                     ));
                 }
+                // Session budget, which the per-file ceiling above cannot
+                // express: it resets at every ZFILE, so an endless batch
+                // of in-spec files walks past it indefinitely. Checked
+                // BEFORE the write, so the last chunk that would cross
+                // the line never lands.
+                let session_after = session_written.saturating_add(n as u64);
+                if budget.is_some_and(|b| session_after > b) {
+                    return Err(format!(
+                        "download exceeded its {}-byte session budget; aborting",
+                        budget.unwrap_or(0)
+                    ));
+                }
                 // `dest == None` (data outside an open file) is absorbed,
                 // not treated as fatal: it is reachable only between files
                 // of a batch from a hostile or broken sender (the receiver
@@ -356,6 +384,7 @@ async fn run_download(
                         .map_err(|e| format!("write: {e}"))?;
                 }
                 transferred += n as u64;
+                session_written = session_after;
                 receiver
                     .file_written(n)
                     .map_err(|e| format!("zmodem file: {e:?}"))?;
@@ -369,6 +398,21 @@ async fn run_download(
             }
             Step::Started { name: raw, size } => {
                 let safe = sanitize_name(&raw);
+                // Refuse on the ANNOUNCED size before opening anything,
+                // when the sender bothered to announce one: the write
+                // guard below would catch it too, but only after the
+                // file exists and most of the budget is already spent on
+                // disk. An unannounced file cannot be pre-checked, which
+                // is what the running guard is for.
+                if let (Some(b), Some(announced)) = (budget, size)
+                    && session_written.saturating_add(announced) > b
+                {
+                    return Err(format!(
+                        "{safe} ({announced} bytes) does not fit in the remaining \
+                         {} bytes of this session's budget; aborting",
+                        b.saturating_sub(session_written)
+                    ));
+                }
                 let part = dest_dir.join(format!("{safe}{PART_SUFFIX}"));
                 // Resume decision, `rz -r` semantics (length based): an
                 // existing part no larger than the advertised total
@@ -1160,6 +1204,7 @@ mod tests {
             let task = tokio::spawn(run(
                 Direction::Download,
                 TransferSpec::Download {
+                    budget: None,
                     dest_dir: dir.clone(),
                 },
                 Vec::new(),
@@ -1232,7 +1277,7 @@ mod tests {
 
             let task = tokio::spawn(run(
                 Direction::Download,
-                TransferSpec::Download { dest_dir: dir.clone() },
+                TransferSpec::Download { budget: None, dest_dir: dir.clone() },
                 Vec::new(),
                 TransferIo {
                     wire_in,
@@ -1430,7 +1475,7 @@ mod tests {
 
             run(
                 Direction::Download,
-                TransferSpec::Download { dest_dir: dir.clone() },
+                TransferSpec::Download { budget: None, dest_dir: dir.clone() },
                 Vec::new(),
                 TransferIo {
                     wire_in,
@@ -1464,6 +1509,106 @@ mod tests {
             let _ = tokio::fs::remove_dir_all(&dir).await;
         });
     }
+
+    /// The per-file ceiling re-arms at every ZFILE, so a sender that
+    /// stays inside it on each file can still write forever across a
+    /// batch. The session budget is what bounds the batch, and it must
+    /// refuse a file whose ANNOUNCED size does not fit, before the file
+    /// is opened, rather than after most of the budget is on disk.
+    #[test]
+    fn a_batch_cannot_outrun_the_session_budget() {
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let dir = std::env::temp_dir()
+                .join(format!("oryxis-zm-budget-{}", std::process::id()));
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+            let dest_dir = dir.join("incoming");
+            tokio::fs::create_dir_all(&dest_dir).await.unwrap();
+            // Two files, each far inside the per-file ceiling; together
+            // they are past a budget sized for roughly one of them.
+            let payload: Vec<u8> = (0..8192u32).map(|i| (i % 251) as u8).collect();
+            let a = dir.join("a.bin");
+            let b = dir.join("b.bin");
+            tokio::fs::write(&a, &payload).await.unwrap();
+            tokio::fs::write(&b, &payload).await.unwrap();
+
+            let (up2down_tx, up2down_rx) = mpsc::unbounded_channel();
+            let (down2up_tx, down2up_rx) = mpsc::unbounded_channel();
+            let (p_up_tx, mut p_up_rx) = mpsc::unbounded_channel();
+            let (p_down_tx, mut p_down_rx) = mpsc::unbounded_channel();
+            let abort = Arc::new(AtomicBool::new(false));
+
+            let up = tokio::spawn(run(
+                Direction::Upload,
+                TransferSpec::Upload {
+                    sources: vec![a, b],
+                    streaming_window: DEFAULT_STREAMING_WINDOW,
+                },
+                Vec::new(),
+                TransferIo {
+                    wire_in: down2up_rx,
+                    wire_out: up2down_tx,
+                    progress: p_up_tx,
+                    abort: abort.clone(),
+                },
+            ));
+            let down = tokio::spawn(run(
+                Direction::Download,
+                TransferSpec::Download {
+                    // Room for the first file and a sliver, never the second.
+                    budget: Some(payload.len() as u64 + 16),
+                    dest_dir: dest_dir.clone(),
+                },
+                Vec::new(),
+                TransferIo {
+                    wire_in: up2down_rx,
+                    wire_out: down2up_tx,
+                    progress: p_down_tx,
+                    abort,
+                },
+            ));
+
+            let both = async {
+                let _ = up.await;
+                let _ = down.await;
+            };
+            tokio::time::timeout(std::time::Duration::from_secs(20), both)
+                .await
+                .expect("transfer deadlocked");
+            while p_up_rx.recv().await.is_some() {}
+
+            let mut errored = false;
+            let mut completed = false;
+            while let Some(p) = p_down_rx.recv().await {
+                match p {
+                    Progress::Error(_) => errored = true,
+                    Progress::Completed { .. } => completed = true,
+                    _ => {}
+                }
+            }
+            assert!(
+                errored && !completed,
+                "the batch must be refused once it crosses the session budget"
+            );
+            // The first file landed; the second never became a file at
+            // all, because the announced size was checked before the open.
+            let mut names: Vec<String> = Vec::new();
+            let mut rd = tokio::fs::read_dir(&dest_dir).await.unwrap();
+            while let Ok(Some(e)) = rd.next_entry().await {
+                names.push(e.file_name().to_string_lossy().into_owned());
+            }
+            assert!(
+                !names.iter().any(|n| n.starts_with("b.bin")),
+                "the over-budget file must never be created, got {names:?}"
+            );
+            let _ = tokio::fs::remove_dir_all(&dir).await;
+        });
+    }
+
 
     /// End-to-end oracle: drive our upload driver and our download
     /// driver against each other over crossed channels (each plays the
@@ -1513,6 +1658,7 @@ mod tests {
             let down = tokio::spawn(run(
                 Direction::Download,
                 TransferSpec::Download {
+                    budget: None,
                     dest_dir: dest_dir.clone(),
                 },
                 Vec::new(),

@@ -23,6 +23,13 @@ use uuid::Uuid;
 
 use oryxis_zmodem::{Direction, Progress, TransferIo, TransferSpec};
 
+/// Free space this never spends, so a download the user did ask for
+/// cannot be the thing that fills the volume to the last byte. The
+/// figure is a snapshot taken once, before the first ZFILE, and the
+/// session runs for as long as the sender keeps sending, so the margin
+/// also absorbs whatever else the machine writes meanwhile.
+const ZMODEM_DISK_HEADROOM: u64 = 256 * 1024 * 1024;
+
 use crate::app::{TerminalMessage, ZmodemMessage, Message, Oryxis};
 use crate::state::{TerminalTransport, ZmodemPane};
 
@@ -151,7 +158,17 @@ impl Oryxis {
                                 .await;
                             return;
                         }
-                        Some(TransferSpec::Download { dest_dir })
+                        // What the whole session may write. A ZMODEM
+                        // download starts from six bytes the SERVER
+                        // printed, and the sender picks both the sizes
+                        // and how many files follow, so the only thing
+                        // standing between a hostile peer and a full
+                        // disk is a number computed here. Measured after
+                        // `create_dir_all` so the probe sees the real
+                        // destination volume.
+                        let budget = oryxis_core::disk::available_space(&dest_dir)
+                            .map(|free| free.saturating_sub(ZMODEM_DISK_HEADROOM));
+                        Some(TransferSpec::Download { dest_dir, budget })
                     }
                     Direction::Upload if preset_sources.is_some() => {
                         // OS drop: the sources were chosen by the drop

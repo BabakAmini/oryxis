@@ -126,6 +126,7 @@ async fn download_from_real_sz() {
     let driver = tokio::spawn(run(
         Direction::Download,
         TransferSpec::Download {
+            budget: None,
             dest_dir: dest_dir.clone(),
         },
         Vec::new(),
@@ -213,6 +214,7 @@ async fn download_multiple_files_from_real_sz() {
     let driver = tokio::spawn(run(
         Direction::Download,
         TransferSpec::Download {
+            budget: None,
             dest_dir: dest_dir.clone(),
         },
         Vec::new(),
@@ -295,6 +297,7 @@ async fn download_resumes_from_a_partial() {
     let driver = tokio::spawn(run(
         Direction::Download,
         TransferSpec::Download {
+            budget: None,
             dest_dir: dest_dir.clone(),
         },
         Vec::new(),
@@ -374,6 +377,7 @@ async fn download_from_sz_with_control_escaping() {
     let driver = tokio::spawn(run(
         Direction::Download,
         TransferSpec::Download {
+            budget: None,
             dest_dir: dest_dir.clone(),
         },
         Vec::new(),
@@ -442,7 +446,7 @@ async fn abort_cancels_a_real_sz_transfer() {
     };
     let driver = tokio::spawn(run(
         Direction::Download,
-        TransferSpec::Download { dest_dir },
+        TransferSpec::Download { dest_dir, budget: None },
         Vec::new(),
         io,
     ));
