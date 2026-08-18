@@ -663,6 +663,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "rename" => "Rename",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Close this SFTP tab?",
+        "sftp_unsafe_entry_name" => "The server sent an unsafe file name",
         "sftp_close_guard_detail" => "A transfer or unsaved edit is in progress. Closing it will be lost.",
         "close_anyway" => "Close anyway",
         "rename_folder" => "Rename folder",

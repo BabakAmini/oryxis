@@ -1917,6 +1917,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auto_reconnect" => "切断時に自動再接続",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "この SFTP タブを閉じますか？",
+        "sftp_unsafe_entry_name" => "サーバーが安全でないファイル名を送信しました",
         "sftp_close_guard_detail" => "転送中または未保存の編集があります。閉じると失われます。",
         "close_anyway" => "閉じる",
         "reconnect" => "再接続",

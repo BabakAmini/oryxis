@@ -663,6 +663,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "rename" => "नाम बदलें",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "यह SFTP टैब बंद करें?",
+        "sftp_unsafe_entry_name" => "सर्वर ने असुरक्षित फ़ाइल नाम भेजा",
         "sftp_close_guard_detail" => "कोई ट्रांसफ़र या बिना सेव किया एडिट चल रहा है। बंद करने पर वह खो जाएगा।",
         "close_anyway" => "फिर भी बंद करें",
         "rename_folder" => "फ़ोल्डर का नाम बदलें",

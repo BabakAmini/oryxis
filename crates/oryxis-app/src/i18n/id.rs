@@ -644,6 +644,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "rename" => "Ganti nama",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Tutup tab SFTP ini?",
+        "sftp_unsafe_entry_name" => "Server mengirim nama berkas yang tidak aman",
         "sftp_close_guard_detail" => "Ada transfer atau editan belum disimpan yang berjalan. Menutup akan menghilangkannya.",
         "close_anyway" => "Tetap tutup",
         "rename_folder" => "Ganti nama folder",

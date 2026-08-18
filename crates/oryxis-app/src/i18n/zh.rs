@@ -1915,6 +1915,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auto_reconnect" => "断开时自动重连",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "关闭此 SFTP 标签页？",
+        "sftp_unsafe_entry_name" => "服务器发送了不安全的文件名",
         "sftp_close_guard_detail" => "有正在进行的传输或未保存的编辑。关闭将丢失。",
         "close_anyway" => "仍然关闭",
         "reconnect" => "重新连接",

@@ -663,6 +663,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "rename" => "Přejmenovat",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Zavřít tuto SFTP kartu?",
+        "sftp_unsafe_entry_name" => "Server poslal nebezpečný název souboru",
         "sftp_close_guard_detail" => "Probíhá přenos nebo neuložená úprava. Zavřením o ně přijdete.",
         "close_anyway" => "Přesto zavřít",
         "rename_folder" => "Přejmenovat složku",

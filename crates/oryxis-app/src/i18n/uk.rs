@@ -644,6 +644,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "rename" => "Перейменувати",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Закрити цю вкладку SFTP?",
+        "sftp_unsafe_entry_name" => "Сервер надіслав небезпечне ім'я файлу",
         "sftp_close_guard_detail" => "Триває передавання або є незбережені зміни. Закриття призведе до їх втрати.",
         "close_anyway" => "Усе одно закрити",
         "rename_folder" => "Перейменувати папку",

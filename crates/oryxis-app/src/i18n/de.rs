@@ -1902,6 +1902,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auto_reconnect" => "Bei Trennung automatisch wiederverbinden",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Diesen SFTP-Tab schließen?",
+        "sftp_unsafe_entry_name" => "Der Server hat einen unsicheren Dateinamen gesendet",
         "sftp_close_guard_detail" => "Eine Übertragung oder ungespeicherte Änderung läuft. Schließen verwirft sie.",
         "close_anyway" => "Trotzdem schließen",
         "reconnect" => "Erneut verbinden",

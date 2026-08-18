@@ -10,8 +10,8 @@ use iced::Task;
 
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
-    parent_path, remote_cp, remote_join, unique_name_in_local_dir,
-    unique_name_in_remote_dir, upload_one, UploadOutcome,
+    is_safe_remote_entry_name, parent_path, remote_cp, remote_join,
+    unique_name_in_local_dir, unique_name_in_remote_dir, upload_one, UploadOutcome,
 };
 use super::SftpSides;
 
@@ -108,6 +108,19 @@ impl Oryxis {
                             .find(|s| !s.is_empty())
                             .unwrap_or(&remote_path)
                             .to_string();
+                        // The name is the SERVER's, and `rsplit('/')` only
+                        // neutralizes `/`. A Windows separator, a `..` or a
+                        // drive prefix survives it and re-roots or escapes
+                        // the join below, writing outside the directory the
+                        // user picked. Same rule the recursive walk applies
+                        // per entry (`walk_remote_for_download`), owed here
+                        // because this arm names the destination itself.
+                        if !is_safe_remote_entry_name(&basename) {
+                            return Err(format!(
+                                "{} ({basename})",
+                                crate::i18n::t("sftp_unsafe_entry_name")
+                            ));
+                        }
                         let target = local_dir.join(&basename);
                         // A name already taken is the user's call, not
                         // ours: same four answers the upload side offers,

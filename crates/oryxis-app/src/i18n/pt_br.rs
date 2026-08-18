@@ -1989,6 +1989,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "duplicate_new_window" => "Duplicar em nova janela",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Fechar esta aba SFTP?",
+        "sftp_unsafe_entry_name" => "O servidor enviou um nome de arquivo inseguro",
         "sftp_close_guard_detail" => "Há uma transferência ou edição não salva em andamento. Fechar vai perdê-la.",
         "close_anyway" => "Fechar mesmo assim",
 

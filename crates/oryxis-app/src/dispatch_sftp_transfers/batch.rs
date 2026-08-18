@@ -11,9 +11,9 @@ use iced::Task;
 
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
-    build_client_pool, parent_path, remote_cp, remote_join, unique_name_in_local_dir,
-    unique_name_in_remote_dir, walk_local_for_duplicate, walk_local_for_upload,
-    walk_remote_for_download,
+    build_client_pool, is_safe_remote_entry_name, parent_path, remote_cp, remote_join,
+    unique_name_in_local_dir, unique_name_in_remote_dir, walk_local_for_duplicate,
+    walk_local_for_upload, walk_remote_for_download,
 };
 use super::SftpSides;
 
@@ -100,6 +100,21 @@ impl Oryxis {
                             .find(|s| !s.is_empty())
                             .unwrap_or(&remote_root)
                             .to_string();
+                        // The folder's own listing name becomes the local
+                        // tree root, so it owes the same one-component rule
+                        // the walk enforces on every child below it. Without
+                        // this the child guard is moot: the children are
+                        // joined onto a root that already escaped.
+                        // `unique_name_in_local_dir` does NOT cover it, it is
+                        // a collision check against `read_dir` output, and a
+                        // separator-bearing name can never appear there, so
+                        // it always reads as "free" and passes through.
+                        if !is_safe_remote_entry_name(&basename) {
+                            return Err(format!(
+                                "{} ({basename})",
+                                crate::i18n::t("sftp_unsafe_entry_name")
+                            ));
+                        }
                         // Pick a non-colliding local name.
                         let unique = unique_name_in_local_dir(&local_dir, &basename);
                         let target_root = local_dir.join(&unique);
@@ -342,6 +357,16 @@ impl Oryxis {
                                 .find(|s| !s.is_empty())
                                 .unwrap_or(remote_path)
                                 .to_string();
+                            // Skip rather than fail: this arm is a multi-row
+                            // selection, so one hostile name must not sink
+                            // the rows the user also picked. Same answer the
+                            // walk gives per entry.
+                            if !is_safe_remote_entry_name(&basename) {
+                                tracing::warn!(
+                                    "sftp download: skipping unsafe entry name {basename:?} in {remote_path}"
+                                );
+                                continue;
+                            }
                             let target = local_dir.join(&basename);
                             if *is_dir {
                                 queue.push_back(crate::state::TransferItem {

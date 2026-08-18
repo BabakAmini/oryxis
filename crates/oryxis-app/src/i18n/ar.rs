@@ -654,6 +654,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "rename" => "إعادة تسمية",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "إغلاق علامة تبويب SFTP هذه؟",
+        "sftp_unsafe_entry_name" => "أرسل الخادم اسم ملف غير آمن",
         "sftp_close_guard_detail" => "هناك نقل أو تعديل غير محفوظ قيد التنفيذ. الإغلاق سيفقده.",
         "close_anyway" => "إغلاق على أي حال",
         "rename_folder" => "إعادة تسمية المجلد",

@@ -1901,6 +1901,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "auto_reconnect" => "Riconnessione automatica alla disconnessione",
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Chiudere questa scheda SFTP?",
+        "sftp_unsafe_entry_name" => "Il server ha inviato un nome di file non sicuro",
         "sftp_close_guard_detail" => "È in corso un trasferimento o una modifica non salvata. Chiudendo andrà persa.",
         "close_anyway" => "Chiudi comunque",
         "reconnect" => "Riconnetti",
