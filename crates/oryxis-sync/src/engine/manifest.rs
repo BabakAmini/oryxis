@@ -711,21 +711,73 @@ pub(crate) fn apply_records(
             EntityType::KnownHost => {
                 match serde_json::from_slice::<oryxis_core::models::KnownHost>(&payload) {
                     Ok(kh) => {
-                        // The pinned identity of a server, replaced by
-                        // someone else's decision: the one write that
-                        // makes a changed key stop prompting.
-                        if overwrites_local {
+                        // A pin is what makes a server's key stop
+                        // prompting, and it is a decision a human made
+                        // at a fingerprint prompt ON THIS DEVICE. A peer
+                        // may INTRODUCE one for an endpoint this vault
+                        // has never pinned (ordinary replication, and
+                        // the reason the category syncs at all), but it
+                        // may not silently REPLACE one.
+                        //
+                        // The check has to be by the semantic key, not
+                        // by entity id: `save_known_host` keeps one row
+                        // per (hostname, port, key_type) and deletes the
+                        // others first, so a record carrying a FRESH id
+                        // is not an insert, it is a replacement. That is
+                        // also why `overwrites_local` cannot see this
+                        // case: it is keyed by entity id, so a forged
+                        // record with a new id reads as brand new and
+                        // never reaches the audit line below.
+                        //
+                        // Refusing costs the fleet automatic propagation
+                        // of a key ROTATION, and what replaces it is the
+                        // ordinary "Changed" prompt on the next connect:
+                        // the one moment a human should be looking at a
+                        // fingerprint anyway. Deletions are deliberately
+                        // NOT gated here, so removing a pin (or clearing
+                        // them all) still propagates.
+                        let replaces_local_pin = v
+                            .list_known_hosts()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .find(|h| {
+                                h.hostname == kh.hostname
+                                    && h.port == kh.port
+                                    && h.key_type == kh.key_type
+                            })
+                            .is_some_and(|h| h.fingerprint != kh.fingerprint);
+                        if replaces_local_pin {
+                            tracing::warn!(
+                                "sync: refusing a peer's key change for {} port {} ({}); \
+                                 the next connect re-verifies",
+                                kh.hostname,
+                                kh.port,
+                                kh.key_type
+                            );
                             log_route_overwrite(
                                 &v,
                                 &kh.hostname,
                                 &kh.hostname,
                                 format!(
-                                    "known host key updated by a sync peer: {} port {} ({})",
+                                    "known host key change from a sync peer REFUSED: {} port {} ({}); \
+                                     the next connect asks",
                                     kh.hostname, kh.port, kh.key_type
                                 ),
                             );
+                        } else {
+                            if overwrites_local {
+                                log_route_overwrite(
+                                    &v,
+                                    &kh.hostname,
+                                    &kh.hostname,
+                                    format!(
+                                        "known host key updated by a sync peer: {} port {} ({})",
+                                        kh.hostname, kh.port, kh.key_type
+                                    ),
+                                );
+                            }
+                            log_save!(v.save_known_host(&kh))
                         }
-                        log_save!(v.save_known_host(&kh))
                     }
                     Err(e) => tracing::warn!(
                         "sync: bad KnownHost payload for {}: {e}",
@@ -1100,6 +1152,109 @@ mod lww_tests {
 
     fn groups_of(vault: &Arc<Mutex<VaultStore>>) -> Vec<oryxis_core::models::Group> {
         vault.lock().unwrap().list_groups().unwrap()
+    }
+
+    /// A sealed known-host record, as a peer would push it.
+    fn known_host_record(
+        kh: &oryxis_core::models::KnownHost,
+    ) -> protocol::SyncRecord {
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let payload = cipher.encrypt(&serde_json::to_vec(kh).unwrap()).unwrap();
+        protocol::SyncRecord {
+            entity_type: EntityType::KnownHost,
+            entity_id: kh.id,
+            updated_at: kh.updated_at,
+            is_deleted: false,
+            payload,
+        }
+    }
+
+    /// A pin is a decision a human made at a fingerprint prompt on THIS
+    /// device. A peer may not silently swap it: with a fresh entity id
+    /// the record reads as brand new to the LWW gate, but
+    /// `save_known_host` keeps one row per (hostname, port, key_type)
+    /// and deletes the others, so applying it would replace the local
+    /// fingerprint and make the next connect trust the peer's key with
+    /// no prompt.
+    #[test]
+    fn a_peer_cannot_swap_a_pin_this_device_accepted() {
+        use oryxis_core::models::known_host::KnownHost;
+
+        let vault = vault();
+        let mine = KnownHost::new("bastion.corp", 22, "ssh-ed25519", "SHA256:REAL");
+        vault.lock().unwrap().save_known_host(&mine).unwrap();
+
+        // Fresh id, future timestamp: passes the LWW gate outright.
+        let mut theirs = KnownHost::new("bastion.corp", 22, "ssh-ed25519", "SHA256:ATTACKER");
+        theirs.updated_at = Utc::now() + Duration::seconds(3600);
+        apply_records(&vault, &[known_host_record(&theirs)], Some(&SECRET)).unwrap();
+
+        let pins = vault.lock().unwrap().list_known_hosts().unwrap();
+        assert_eq!(pins.len(), 1, "the peer's row must not land beside the local one");
+        assert_eq!(
+            pins[0].fingerprint, "SHA256:REAL",
+            "a peer must not replace a fingerprint this device accepted"
+        );
+        assert_eq!(pins[0].id, mine.id, "the local row itself must survive");
+    }
+
+    /// The other half: introducing a pin for an endpoint this vault has
+    /// never pinned is ordinary replication, and the reason the category
+    /// syncs at all. It must still work.
+    #[test]
+    fn a_peer_can_introduce_a_pin_for_an_unpinned_endpoint() {
+        use oryxis_core::models::known_host::KnownHost;
+
+        let vault = vault();
+        let theirs = KnownHost::new("fresh.corp", 2222, "ssh-ed25519", "SHA256:FRESH");
+        apply_records(&vault, &[known_host_record(&theirs)], Some(&SECRET)).unwrap();
+
+        let pins = vault.lock().unwrap().list_known_hosts().unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].fingerprint, "SHA256:FRESH");
+    }
+
+    /// Re-sending the SAME fingerprint is a no-op refresh, not a swap,
+    /// so it must not be refused (that would make every later round warn
+    /// about a host nothing changed on).
+    #[test]
+    fn a_peer_resending_the_same_fingerprint_is_not_refused() {
+        use oryxis_core::models::known_host::KnownHost;
+
+        let vault = vault();
+        let mine = KnownHost::new("bastion.corp", 22, "ssh-ed25519", "SHA256:REAL");
+        vault.lock().unwrap().save_known_host(&mine).unwrap();
+
+        let mut same = mine.clone();
+        same.updated_at = Utc::now() + Duration::seconds(3600);
+        apply_records(&vault, &[known_host_record(&same)], Some(&SECRET)).unwrap();
+
+        let pins = vault.lock().unwrap().list_known_hosts().unwrap();
+        assert_eq!(pins.len(), 1);
+        assert_eq!(pins[0].fingerprint, "SHA256:REAL");
+    }
+
+    /// Deletions are deliberately NOT gated: removing a pin (or the
+    /// "clear all" the UI offers) has to keep propagating, or
+    /// known_hosts becomes a set that only ever grows across the fleet.
+    #[test]
+    fn a_peer_deletion_still_removes_a_pin() {
+        use oryxis_core::models::known_host::KnownHost;
+
+        let vault = vault();
+        let mine = KnownHost::new("bastion.corp", 22, "ssh-ed25519", "SHA256:REAL");
+        vault.lock().unwrap().save_known_host(&mine).unwrap();
+
+        let tombstone = protocol::SyncRecord {
+            entity_type: EntityType::KnownHost,
+            entity_id: mine.id,
+            updated_at: Utc::now() + Duration::seconds(3600),
+            is_deleted: true,
+            payload: Vec::new(),
+        };
+        apply_records(&vault, &[tombstone], Some(&SECRET)).unwrap();
+
+        assert!(vault.lock().unwrap().list_known_hosts().unwrap().is_empty());
     }
 
     /// The exact scenario the repair exists for: two peers concurrently
