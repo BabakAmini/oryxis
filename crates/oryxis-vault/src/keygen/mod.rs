@@ -4,9 +4,11 @@ use oryxis_core::models::key::{KeyAlgorithm, SshKey};
 
 use crate::store::VaultError;
 
+mod disk;
 mod pem;
 mod ppk;
 
+pub use disk::{resolve_disk_key, DiskKey, DiskKeyStatus};
 pub use pem::is_traditional_encrypted;
 
 /// Generated key pair, private PEM + SshKey model.

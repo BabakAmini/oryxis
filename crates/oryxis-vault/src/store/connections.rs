@@ -95,8 +95,8 @@ impl VaultStore {
             "INSERT OR REPLACE INTO connections
              (id, label, hostname, port, username, auth_method, key_id, group_id,
               jump_chain, proxy, tags, notes, color, password, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards,
-              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, target_password, terminal_appearance, highlight_rules, monitor_disks)
-             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51,?52,?53,?54,?55,?56,?57,?58,?59,?60,?61)",
+              detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, proxy_password, totp_secret, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, target_password, terminal_appearance, highlight_rules, monitor_disks, use_disk_key, identity_file)
+             VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16,?17,?18,?19,?20,?21,?22,?23,?24,?25,?26,?27,?28,?29,?30,?31,?32,?33,?34,?35,?36,?37,?38,?39,?40,?41,?42,?43,?44,?45,?46,?47,?48,?49,?50,?51,?52,?53,?54,?55,?56,?57,?58,?59,?60,?61,?62,?63)",
             params![
                 conn.id.to_string(),
                 conn.label,
@@ -174,6 +174,14 @@ impl VaultStore {
                 conn.monitor_disks
                     .as_ref()
                     .map(|d| serde_json::to_string(d).unwrap_or_default()),
+                conn.use_disk_key as i32,
+                // Blank reads as "no explicit path" (scan the defaults),
+                // so an emptied editor field means the same thing as one
+                // that was never filled.
+                conn.identity_file
+                    .as_ref()
+                    .map(|p| p.trim())
+                    .filter(|p| !p.is_empty()),
             ],
         )?;
         // Re-creation clears any stale tombstone for this id (the
@@ -196,12 +204,12 @@ impl VaultStore {
         let query = match mcp_filter {
             Some(true) => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, terminal_appearance, highlight_rules, monitor_disks
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, terminal_appearance, highlight_rules, monitor_disks, use_disk_key, identity_file
                  FROM connections WHERE mcp_enabled = 1 AND (protocol IS NULL OR protocol = 'ssh') ORDER BY label"
             }
             _ => {
                 "SELECT id, label, hostname, port, username, auth_method, key_id, group_id,
-                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, terminal_appearance, highlight_rules, monitor_disks
+                        jump_chain, proxy, tags, notes, color, last_used, created_at, updated_at, identity_id, mcp_enabled, port_forwards, detected_os, custom_icon, custom_color, agent_forwarding, proxy_identity_id, terminal_theme, cloud_ref, initial_command, keepalive_interval, icon_style, customized_fields, env_vars, encoding, session_logging, startup_snippet_id, auto_title, terminal_type, ciphers, kex, macs, host_key_algorithms, privacy_mode, protocol, serial_config, rd_kind, rd_gateway_id, address_family, quirks, rekey_limit_mb, monitor_enabled, sidebar_auto_open, x11_forwarding, sftp_initial_path, mac_address, login_script, terminal_appearance, highlight_rules, monitor_disks, use_disk_key, identity_file
                  FROM connections ORDER BY label"
             }
         };
@@ -460,6 +468,18 @@ impl VaultStore {
                         .ok()
                         .flatten()
                         .and_then(|s| serde_json::from_str(&s).ok()),
+                    use_disk_key: row
+                        .get::<_, Option<i32>>(57)
+                        .unwrap_or(None)
+                        .unwrap_or(0)
+                        != 0,
+                    // Blank reads as "no explicit path", so the scan of
+                    // the default names is what an emptied field means.
+                    identity_file: row
+                        .get::<_, Option<String>>(58)
+                        .ok()
+                        .flatten()
+                        .filter(|s| !s.trim().is_empty()),
                     login_script_id: login_script
                         .as_ref()
                         .and_then(|s| s.get("id"))

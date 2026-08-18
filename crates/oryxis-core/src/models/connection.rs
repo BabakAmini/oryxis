@@ -52,6 +52,26 @@ pub struct Connection {
     pub username: Option<String>,
     pub auth_method: AuthMethod,
     pub key_id: Option<Uuid>,
+    /// Offer a key read from the user's `~/.ssh` directory when this
+    /// host resolves no vault key. Off by default and per-host on
+    /// purpose (same shape as `x11_forwarding`): offering a credential
+    /// the user never named changes who they are to THAT server, so it
+    /// is never a global switch. Only consulted for auth methods that
+    /// use a key at all (`Key` / `Auto` / `Certificate`); an identity
+    /// or a linked `key_id` always wins, the disk is strictly the gap
+    /// filler. `#[serde(default)]` -> false on legacy payloads, and
+    /// sync / portable export ride the serde field.
+    #[serde(default)]
+    pub use_disk_key: bool,
+    /// Which file `use_disk_key` reads, as an absolute path or a
+    /// `~/`-prefixed one (OpenSSH's `IdentityFile`, and what the
+    /// ssh_config importer writes here). `None` scans the default
+    /// OpenSSH names in `~/.ssh` instead. Meaningless while
+    /// `use_disk_key` is false. A PATH, never key material: the file
+    /// stays on disk and is read at connect time, so this column is
+    /// plaintext like `notes`.
+    #[serde(default)]
+    pub identity_file: Option<String>,
     pub identity_id: Option<Uuid>,
     pub group_id: Option<Uuid>,
     pub jump_chain: Vec<Uuid>,
@@ -312,6 +332,8 @@ impl Connection {
             username: None,
             auth_method: AuthMethod::Auto,
             key_id: None,
+            use_disk_key: false,
+            identity_file: None,
             identity_id: None,
             group_id: None,
             jump_chain: Vec::new(),
@@ -616,6 +638,36 @@ mod tests {
         value.as_object_mut().unwrap().remove("keepalive_interval");
         let de: Connection = serde_json::from_value(value).unwrap();
         assert_eq!(de.keepalive_interval, None);
+    }
+
+    /// A peer or export that predates the disk key source carries
+    /// neither key, and must land with the source OFF: the whole point
+    /// of the opt-in is that no host offers a credential the user never
+    /// named, and a sync payload is not consent either.
+    #[test]
+    fn disk_key_legacy_payload_leaves_the_source_off() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        let obj = value.as_object_mut().unwrap();
+        obj.remove("use_disk_key");
+        obj.remove("identity_file");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert!(!de.use_disk_key);
+        assert_eq!(de.identity_file, None);
+    }
+
+    /// Both fields ride sync and portable export on the serde flatten,
+    /// so a round trip has to keep them: the path is plain data, and
+    /// dropping it would move which key the host offers.
+    #[test]
+    fn disk_key_fields_survive_a_serde_round_trip() {
+        let mut conn = Connection::new("h", "10.0.0.1");
+        conn.use_disk_key = true;
+        conn.identity_file = Some("~/.ssh/work_ed25519".into());
+        let de: Connection =
+            serde_json::from_value(serde_json::to_value(&conn).unwrap()).unwrap();
+        assert!(de.use_disk_key);
+        assert_eq!(de.identity_file.as_deref(), Some("~/.ssh/work_ed25519"));
     }
 
     /// A peer or export that predates per-host highlight rules carries

@@ -281,6 +281,7 @@ impl Oryxis {
             self.hp_section(S::Authentication, || {
                 let row_auth_method = self.hp_row_auth_method(true);
                 let ssh_key_row = self.hp_ssh_key_row(true);
+                let disk_key_block = self.hp_disk_key_block(true);
                 let row_agent_fwd = self.hp_row_agent_fwd(true);
                 let row_x11_fwd = self.hp_row_x11_fwd(true);
                 let totp_block = self.hp_totp_block(true);
@@ -291,7 +292,12 @@ impl Oryxis {
                 if let Some(k) = ssh_key_row {
                     col = col.push(Space::new().height(ROW_GAP)).push(k);
                 }
+                // Below the vault-key picker, which is the precedence
+                // the resolver applies: a linked key wins, and the disk
+                // only fills the gap it leaves.
                 col.push(Space::new().height(ROW_GAP))
+                    .push(disk_key_block)
+                    .push(Space::new().height(ROW_GAP))
                     .push(row_agent_fwd)
                     .push(Space::new().height(ROW_GAP))
                     .push(row_x11_fwd)

@@ -6,6 +6,18 @@
 use super::*;
 
 impl Oryxis {
+    /// Re-resolve the host's disk key so the editor hint matches what a
+    /// connect would offer. Called from the arms that can change the
+    /// answer, never from `view()`: it reads (and parses) a file, and
+    /// the view runs every frame.
+    pub(super) fn editor_refresh_disk_key(&mut self) {
+        self.editor_form.disk_key_status = oryxis_vault::resolve_disk_key(
+            self.editor_form.use_disk_key,
+            Some(self.editor_form.identity_file.as_str()),
+        )
+        .status();
+    }
+
     pub(super) fn handle_editor_identity(&mut self, message: EditorMessage) -> Task<Message> {
         match message {
             EditorMessage::EditorLabelChanged(v) => { self.editor_form.label = v; self.editor_form.username_focused = false; }
@@ -32,6 +44,40 @@ impl Oryxis {
             }
             EditorMessage::EditorUseTotpToggled => {
                 self.editor_form.use_totp = !self.editor_form.use_totp;
+            }
+            EditorMessage::EditorUseDiskKeyToggled => {
+                self.editor_form.use_disk_key = !self.editor_form.use_disk_key;
+                self.editor_refresh_disk_key();
+            }
+            EditorMessage::EditorIdentityFileChanged(v) => {
+                self.editor_form.username_focused = false;
+                self.editor_form.identity_file = v;
+                // Resolved per keystroke: the read only happens once the
+                // path names an existing file, and watching the hint
+                // turn into a real path is how the user knows they typed
+                // the right one.
+                self.editor_refresh_disk_key();
+            }
+            EditorMessage::EditorBrowseIdentityFile => {
+                // Starts in `~/.ssh` so the common case is one click.
+                let start = crate::ssh_config::default_config_path()
+                    .and_then(|p| p.parent().map(std::path::Path::to_path_buf));
+                return Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        let mut dialog = rfd::FileDialog::new().set_title("Select private key");
+                        if let Some(dir) = start {
+                            dialog = dialog.set_directory(dir);
+                        }
+                        dialog.pick_file().map(|p| p.display().to_string())
+                    }),
+                    |res| match res {
+                        Ok(Some(path)) => {
+                            Message::Editor(EditorMessage::EditorIdentityFileChanged(path))
+                        }
+                        // A cancelled dialog leaves the field alone.
+                        _ => Message::NoOp,
+                    },
+                );
             }
             EditorMessage::EditorAuthMethodChanged(v) => {
                 // Localized (or English) label -> enum, shared with the

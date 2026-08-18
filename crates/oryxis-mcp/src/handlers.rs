@@ -192,6 +192,28 @@ pub async fn handle_ssh_execute(
     } else {
         (ident_key, ident_cert)
     };
+    // The disk key fills a still-empty slot, exactly as the app's
+    // `resolve_credentials` does: a host that authenticates in the UI
+    // must not fail here for want of a key source. Its certificate is
+    // the `<key>-cert.pub` sibling, so the pair still describes ONE key.
+    let (final_key, final_cert) = match final_key {
+        Some(pem) => (Some(pem), final_cert),
+        None if matches!(
+            conn.auth_method,
+            oryxis_core::models::connection::AuthMethod::Key
+                | oryxis_core::models::connection::AuthMethod::Auto
+                | oryxis_core::models::connection::AuthMethod::Certificate
+        ) =>
+        {
+            match oryxis_vault::resolve_disk_key(conn.use_disk_key, conn.identity_file.as_deref())
+                .material()
+            {
+                Some((pem, disk_cert)) => (Some(pem), disk_cert),
+                None => (None, final_cert),
+            }
+        }
+        None => (None, final_cert),
+    };
     let username = conn.username.clone().unwrap_or_else(|| "root".into());
 
     // Build a temporary Connection with resolved username for auth. The

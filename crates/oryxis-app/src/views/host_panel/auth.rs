@@ -180,7 +180,16 @@ impl Oryxis {
                 )
             } else if !cert_mode {
                 None
-            } else if !self.keys.iter().any(|k| k.certificate.is_some()) {
+            } else if !self.keys.iter().any(|k| k.certificate.is_some())
+                // A disk key with its `<key>-cert.pub` sibling is a
+                // certificate this host can offer, so the "no key in
+                // the vault carries one" warning would contradict the
+                // disk block right below it.
+                && !matches!(
+                    self.editor_form.disk_key_status,
+                    oryxis_vault::DiskKeyStatus::Ready { certificate: true, .. }
+                )
+            {
                 Some(
                     container(
                         text(t("cert_no_keys_hint")).size(11).color(OryxisColors::t().warning),
@@ -265,6 +274,199 @@ impl Oryxis {
             None
         };
         ssh_key_row
+    }
+
+    /// The disk key source (SSH > Authentication): the opt-in toggle,
+    /// the `IdentityFile` path it reads, and what that currently
+    /// resolves to.
+    ///
+    /// Shown for the methods that offer a key at all (`Key` / `Auto` /
+    /// `Certificate`, the same gate `resolve_credentials` applies), and
+    /// not under `Agent`, whose key lives in the agent process. It sits
+    /// below the vault-key picker because that is the precedence: the
+    /// disk fills the gap the vault leaves, never the other way round.
+    ///
+    /// The status line is the half that matters. A key that is present
+    /// but unusable (passphrase-protected, most often) used to be
+    /// indistinguishable from no key at all, which is the failure this
+    /// whole source exists to end, so the hint names the file and the
+    /// obstacle rather than just going quiet.
+    pub(super) fn hp_disk_key_block(&self, is_ssh: bool) -> Element<'_, Message> {
+        use oryxis_vault::DiskKeyStatus as St;
+        let cert_mode = self.editor_form.auth_method == AuthMethod::Certificate;
+        let offers_key = matches!(
+            self.editor_form.auth_method,
+            AuthMethod::Key | AuthMethod::Auto | AuthMethod::Certificate
+        );
+        if !is_ssh || !offers_key || self.editor_form.selected_identity.is_some() {
+            return empty();
+        }
+        let mut items = iced::widget::Column::new().push(self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::Editor(
+                EditorMessage::EditorUseDiskKeyToggled
+            )),
+            8.0,
+            container(
+                dir_row(vec![
+                    iced_fonts::lucide::file_key()
+                        .size(13)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                    Space::new().width(10).into(),
+                    text(t("use_disk_key"))
+                        .size(13)
+                        .color(OryxisColors::t().text_secondary)
+                        .into(),
+                    Space::new().width(Length::Fill).into(),
+                    {
+                        let on = self.editor_form.use_disk_key;
+                        let bg = if on {
+                            OryxisColors::t().success
+                        } else {
+                            OryxisColors::t().bg_hover
+                        };
+                        let fg = crate::theme::contrast_text_for(bg);
+                        button(
+                            text(if on {
+                                crate::i18n::t("toggle_on")
+                            } else {
+                                crate::i18n::t("toggle_off")
+                            })
+                            .size(12)
+                            .color(fg),
+                        )
+                        .on_press(Message::Editor(EditorMessage::EditorUseDiskKeyToggled))
+                        .style(move |_theme, _status| button::Style {
+                            background: Some(Background::Color(bg)),
+                            border: Border {
+                                radius: Radius::from(4.0),
+                                ..Default::default()
+                            },
+                            text_color: fg,
+                            ..Default::default()
+                        })
+                        .into()
+                    },
+                ])
+                .align_y(iced::Alignment::Center)
+            )
+            .padding(Padding {
+                top: 8.0,
+                right: 0.0,
+                bottom: 8.0,
+                left: 0.0,
+            })
+            .into(),
+        ));
+        if !self.editor_form.use_disk_key {
+            return items.into();
+        }
+        // Keyboard rows: the field first (Tab focuses the input by id),
+        // then Browse as its own stop, matching the visual order.
+        self.panel_nav_record(crate::keynav::RowAction::input(iced::widget::Id::new(
+            "editor-identity-file",
+        )));
+        let browse = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::Editor(
+                EditorMessage::EditorBrowseIdentityFile,
+            )),
+            6.0,
+            button(
+                text(t("browse"))
+                    .size(12)
+                    .color(OryxisColors::t().accent),
+            )
+            .on_press(Message::Editor(EditorMessage::EditorBrowseIdentityFile))
+            .padding(Padding {
+                top: 4.0,
+                right: 8.0,
+                bottom: 4.0,
+                left: 8.0,
+            })
+            .style(|_, status| {
+                let bg = match status {
+                    BtnStatus::Hovered => Color {
+                        a: 0.1,
+                        ..OryxisColors::t().accent
+                    },
+                    _ => Color::TRANSPARENT,
+                };
+                button::Style {
+                    background: Some(Background::Color(bg)),
+                    border: Border {
+                        radius: Radius::from(6.0),
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            })
+            .into(),
+        );
+        items = items.push(
+            dir_row(vec![
+                Space::new().width(23).into(),
+                text_input(t("disk_key_path"), &self.editor_form.identity_file)
+                    .id(iced::widget::Id::new("editor-identity-file"))
+                    .on_input(|v| Message::Editor(EditorMessage::EditorIdentityFileChanged(v)))
+                    .on_submit_maybe(self.hp_submit())
+                    .padding(10)
+                    .style(crate::widgets::rounded_input_style)
+                    .align_x(dir_align_x())
+                    .into(),
+                Space::new().width(8).into(),
+                browse,
+            ])
+            .align_y(iced::Alignment::Center),
+        );
+        let (hint, color) = match &self.editor_form.disk_key_status {
+            // The toggle is on, so `Off` cannot happen here; treat it
+            // like "nothing resolved" rather than inventing a state.
+            St::Off | St::NotFound => (
+                t("disk_key_none").to_string(),
+                OryxisColors::t().text_muted,
+            ),
+            // Under `Certificate` the certificate IS the credential, so
+            // a key without its `<key>-cert.pub` sibling resolves fine
+            // and still cannot authenticate. Saying "will use it" there
+            // would be the same silent dead end this source exists to
+            // remove.
+            St::Ready { path, certificate } if cert_mode && !certificate => (
+                t("disk_key_no_cert").replace("{path}", path),
+                OryxisColors::t().warning,
+            ),
+            St::Ready { path, .. } => (
+                t("disk_key_using").replace("{path}", path),
+                OryxisColors::t().text_muted,
+            ),
+            St::Encrypted(path) => (
+                t("disk_key_locked").replace("{path}", path),
+                OryxisColors::t().warning,
+            ),
+            St::Unreadable(path, err) | St::Unusable(path, err) => (
+                t("disk_key_problem")
+                    .replace("{path}", path)
+                    .replace("{error}", err),
+                OryxisColors::t().warning,
+            ),
+        };
+        items = items
+            .push(Space::new().height(4))
+            .push(
+                container(text(hint).size(11).color(color))
+                    .width(Length::Fill)
+                    .align_x(dir_align_x()),
+            )
+            .push(Space::new().height(2))
+            .push(
+                container(
+                    text(t("disk_key_help"))
+                        .size(11)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .width(Length::Fill)
+                .align_x(dir_align_x()),
+            );
+        items.into()
     }
 
     pub(super) fn hp_row_agent_fwd(&self, is_ssh: bool) -> Element<'_, Message> {

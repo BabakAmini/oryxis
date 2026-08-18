@@ -20,7 +20,7 @@ Host bastion
     assert_eq!(h.hostname.as_deref(), Some("bastion.example.com"));
     assert_eq!(h.port, Some(2222));
     assert_eq!(h.user.as_deref(), Some("admin"));
-    assert!(h.identity_file.is_some());
+    assert_eq!(h.identity_files.len(), 1);
 }
 
 #[test]
@@ -141,7 +141,7 @@ fn proxy_command_maps_to_command_proxy_type() {
         hostname: Some("h.example.com".into()),
         port: None,
         user: None,
-        identity_file: None,
+        identity_files: Vec::new(),
         proxy_jump: None,
         proxy_command: Some("nc -X connect -x corp:8080 %h %p".into()),
         forward_agent: false,
@@ -295,6 +295,57 @@ Host srv
 }
 
 #[test]
+fn an_identity_file_becomes_the_hosts_disk_key() {
+    let input = "
+Host srv
+    HostName srv.local
+    IdentityFile ~/.ssh/work_ed25519
+";
+    let conn = to_connection(&parse(input)[0]);
+    // The whole point of carrying the path: before this, the import
+    // flagged the host as Key and dropped the file, so it arrived
+    // unconnectable with nothing on it to explain why.
+    assert!(conn.use_disk_key);
+    let path = conn.identity_file.expect("identity file carried over");
+    assert!(path.ends_with("work_ed25519"), "{path}");
+    // Expanded, not the literal `~/...`, so it resolves the same from
+    // any working directory.
+    assert!(!path.starts_with('~'), "{path}");
+}
+
+#[test]
+fn multiple_identity_files_keep_the_first_and_record_the_rest() {
+    let input = "
+Host srv
+    HostName srv.local
+    IdentityFile ~/.ssh/first_key
+    IdentityFile ~/.ssh/second_key
+";
+    let hosts = parse(input);
+    // OpenSSH accumulates the directive; a single field would have kept
+    // `second_key` and quietly changed which key the host offers.
+    assert_eq!(hosts[0].identity_files.len(), 2);
+    let conn = to_connection(&hosts[0]);
+    assert!(conn.identity_file.as_deref().unwrap_or("").ends_with("first_key"));
+    let notes = conn.notes.unwrap_or_default();
+    assert!(notes.contains("second_key"), "{notes}");
+    assert!(!notes.contains("first_key"), "{notes}");
+}
+
+#[test]
+fn a_host_without_an_identity_file_leaves_the_disk_source_off() {
+    let input = "
+Host srv
+    HostName srv.local
+";
+    let conn = to_connection(&parse(input)[0]);
+    // Importing a config is not consent to offer whatever sits in
+    // `~/.ssh` to a host whose block never mentioned a key.
+    assert!(!conn.use_disk_key);
+    assert!(conn.identity_file.is_none());
+}
+
+#[test]
 fn to_connection_falls_back_to_alias_when_no_hostname() {
     let input = "
 Host bare
@@ -376,7 +427,7 @@ proptest! {
             hostname: Some("h.example.com".into()),
             port: Some(port),
             user: Some("u".into()),
-            identity_file: None,
+            identity_files: Vec::new(),
             proxy_jump: None,
             proxy_command: None,
             forward_agent: false,

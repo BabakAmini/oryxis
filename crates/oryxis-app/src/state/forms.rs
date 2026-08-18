@@ -333,6 +333,16 @@ pub(crate) struct ConnectionForm {
     /// is on. Seeded from `has_existing_totp` on edit; turning it off
     /// clears any stored secret on save.
     pub use_totp: bool,
+    /// "Use a key from ~/.ssh" opt-in, mirroring
+    /// `Connection.use_disk_key`.
+    pub use_disk_key: bool,
+    /// The `IdentityFile` path, as typed. Empty = scan the default
+    /// OpenSSH names, which is what the field's placeholder says.
+    pub identity_file: String,
+    /// What the two fields above resolve to right now, recomputed on
+    /// the arms that can change it rather than per frame: the answer
+    /// costs a file read, and `view()` runs on every one.
+    pub disk_key_status: oryxis_vault::DiskKeyStatus,
     /// Per-host terminal palette override. `None` means "inherit the
     /// global pick"; `Some(name)` pins this host to the named palette.
     /// Mirrors `Connection.terminal_theme` while the editor is open.
@@ -1337,6 +1347,9 @@ impl Default for ConnectionForm {
             has_existing_totp: false,
             totp_visible: false,
             use_totp: false,
+            use_disk_key: false,
+            identity_file: String::new(),
+            disk_key_status: Default::default(),
             terminal_theme: None,
             terminal_appearance: Default::default(),
             highlight_rules: Default::default(),

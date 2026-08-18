@@ -19,7 +19,12 @@ pub struct SshConfigHost {
     pub hostname: Option<String>,
     pub port: Option<u16>,
     pub user: Option<String>,
-    pub identity_file: Option<PathBuf>,
+    /// Every `IdentityFile` line in the block, in file order. OpenSSH
+    /// ACCUMULATES them and offers each in turn, so this is a list and
+    /// not the last one seen (which is what a single field made of a
+    /// two-key block). `to_connection` keeps the first and records the
+    /// rest, since a Connection names one key.
+    pub identity_files: Vec<PathBuf>,
     /// First alias from `ProxyJump host[,host2,...]`. Only the first hop
     /// is recorded, multi-hop chains aren't supported on import yet
     /// because they'd require resolving multiple aliases at link time.
@@ -82,7 +87,7 @@ pub fn parse(text: &str) -> Vec<SshConfigHost> {
             "hostname" => host.hostname = Some(value.to_string()),
             "port" => host.port = value.parse().ok(),
             "user" => host.user = Some(value.to_string()),
-            "identityfile" => host.identity_file = Some(expand_tilde(value)),
+            "identityfile" => host.identity_files.push(expand_tilde(value)),
             "proxyjump" => {
                 // OpenSSH allows `ProxyJump host1,host2,...`, keep only
                 // the first hop; multi-hop linking on import is more
@@ -122,10 +127,14 @@ pub fn parse(text: &str) -> Vec<SshConfigHost> {
     hosts
 }
 
-/// Map a parsed entry onto an Oryxis `Connection`. We don't try to
-/// resolve `IdentityFile` to a vault key id here, that would require
-/// importing the keys first; for now we just flag the auth method as
-/// Key so the user finishes the link in the host editor.
+/// Map a parsed entry onto an Oryxis `Connection`.
+///
+/// `IdentityFile` is carried over as the host's disk key
+/// (`use_disk_key` + `identity_file`) rather than resolved to a vault
+/// key id: the file is what the user's config names, it is right there
+/// on disk, and importing it would be a second decision (with a
+/// passphrase prompt) made silently on their behalf during an import.
+/// The Keychain's own import is where a key becomes a vault key.
 pub fn to_connection(host: &SshConfigHost) -> Connection {
     let hostname = host
         .hostname
@@ -138,10 +147,22 @@ pub fn to_connection(host: &SshConfigHost) -> Connection {
     if let Some(user) = &host.user {
         conn.username = Some(user.clone());
     }
-    // If the user gave an explicit IdentityFile we lean Key; otherwise
-    // Auto handles whatever's available (key, agent, password) at
-    // connect time.
-    conn.auth_method = if host.identity_file.is_some() {
+    // An explicit IdentityFile becomes this host's disk key: the file
+    // the config already names is the one that connects, with no import
+    // step in between. The FIRST is kept because a Connection names one
+    // key; the rest land in `notes` below, the same place an unresolved
+    // ProxyJump alias goes, so nothing the config said is dropped in
+    // silence.
+    if let Some(first) = host.identity_files.first() {
+        conn.use_disk_key = true;
+        conn.identity_file = Some(first.display().to_string());
+    }
+    // A named IdentityFile still means Key rather than Auto: the config
+    // picked a credential, so sweeping the agent's whole roster after it
+    // is refused would spend the server's `MaxAuthTries` on keys the
+    // user did not name. Without one, Auto handles whatever's available
+    // (key, agent, password) at connect time.
+    conn.auth_method = if conn.identity_file.is_some() {
         AuthMethod::Key
     } else {
         AuthMethod::Auto
@@ -163,11 +184,22 @@ pub fn to_connection(host: &SshConfigHost) -> Connection {
         });
     }
     // Drop the import provenance into notes so the user can find the
-    // origin later, useful when reconciling with a manual edit.
-    conn.notes = Some(format!(
-        "Imported from ssh_config (alias `{}`)",
-        host.alias
-    ));
+    // origin later, useful when reconciling with a manual edit. The
+    // IdentityFile lines beyond the first ride along for the same
+    // reason: the host can only offer one, and a line that vanished
+    // without a trace is what makes an import untrustworthy.
+    let mut notes = format!("Imported from ssh_config (alias `{}`)", host.alias);
+    if host.identity_files.len() > 1 {
+        let extra: Vec<String> = host.identity_files[1..]
+            .iter()
+            .map(|p| p.display().to_string())
+            .collect();
+        notes.push_str(&format!(
+            "\nAlso listed IdentityFile: {}",
+            extra.join(", ")
+        ));
+    }
+    conn.notes = Some(notes);
     // `HostName` is a dedicated directive, so it rarely carries a user,
     // but the ALIAS falls back into the same field when the block omits
     // it, and an alias is free text. Runs after `User` / `Port` are

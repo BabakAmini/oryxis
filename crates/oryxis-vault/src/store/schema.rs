@@ -430,6 +430,14 @@ impl VaultStore {
         // a comma-separated string.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN monitor_disks TEXT;");
 
+        // Offer a key read from `~/.ssh` when this host has no vault
+        // key, and which file to read (OpenSSH's `IdentityFile`, NULL =
+        // scan the default names). `identity_file` holds a PATH, never
+        // key material, so it stays a plaintext column: the file is
+        // read at connect time and nothing about it is stored here.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN use_disk_key INTEGER DEFAULT 0;");
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN identity_file TEXT;");
+
         // Per-host tri-state override for auto-opening the terminal
         // sidebar on connect (NULL = follow the global setting).
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN sidebar_auto_open INTEGER;");

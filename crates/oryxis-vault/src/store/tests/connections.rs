@@ -20,6 +20,68 @@ fn connection_session_logging_override_round_trips() {
 }
 
 #[test]
+fn connection_disk_key_fields_round_trip() {
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "example.com");
+    conn.use_disk_key = true;
+    conn.identity_file = Some("/home/u/.ssh/work_ed25519".into());
+    vault.save_connection(&conn, None).unwrap();
+    let loaded = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("connection listed");
+    // Guards the positional column indices in `store/connections.rs`:
+    // both fields were appended to the INSERT and both SELECT lists, and
+    // an off-by-one there would silently reload every host with the
+    // disk source off (the exact failure mode the feature exists to
+    // remove).
+    assert!(loaded.use_disk_key);
+    assert_eq!(
+        loaded.identity_file.as_deref(),
+        Some("/home/u/.ssh/work_ed25519")
+    );
+}
+
+#[test]
+fn a_blank_identity_file_reads_back_as_no_path() {
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "example.com");
+    conn.use_disk_key = true;
+    // An emptied editor field must mean "scan the default names", which
+    // is `None`, not a path that is the empty string.
+    conn.identity_file = Some("   ".into());
+    vault.save_connection(&conn, None).unwrap();
+    let loaded = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("connection listed");
+    assert!(loaded.use_disk_key);
+    assert!(loaded.identity_file.is_none());
+}
+
+#[test]
+fn a_legacy_row_reads_back_with_the_disk_source_off() {
+    let vault = unlocked_vault();
+    let conn = Connection::new("h", "example.com");
+    vault.save_connection(&conn, None).unwrap();
+    // Every host that existed before this column did must keep
+    // authenticating exactly as it did: nothing from disk is offered
+    // until someone opts in.
+    let loaded = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("connection listed");
+    assert!(!loaded.use_disk_key);
+    assert!(loaded.identity_file.is_none());
+}
+
+#[test]
 fn connection_address_family_round_trips() {
     use oryxis_core::models::connection::AddressFamily;
     let vault = unlocked_vault();

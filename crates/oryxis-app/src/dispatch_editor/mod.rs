@@ -475,6 +475,11 @@ impl Oryxis {
         conn.key_id = self.editor_form.selected_key.as_ref().and_then(|label| {
             self.keys.iter().find(|k| k.label == *label).map(|k| k.id)
         });
+        conn.use_disk_key = self.editor_form.use_disk_key;
+        // Blank is "scan the default names", which is what the field's
+        // placeholder promises, so an emptied path is not a path.
+        conn.identity_file = Some(self.editor_form.identity_file.trim().to_string())
+            .filter(|p| !p.is_empty());
         conn.identity_id = self.editor_form.selected_identity.as_ref().and_then(|label| {
             self.identities.iter().find(|i| i.label == *label).map(|i| i.id)
         });
@@ -826,6 +831,16 @@ impl Oryxis {
             has_existing_totp: has_totp,
             totp_visible: false,
             use_totp: has_totp,
+            use_disk_key: conn.use_disk_key,
+            identity_file: conn.identity_file.clone().unwrap_or_default(),
+            // Resolved once here so the hint is right the moment the
+            // drawer opens; every arm that can change it refreshes it
+            // through `editor_refresh_disk_key`.
+            disk_key_status: oryxis_vault::resolve_disk_key(
+                conn.use_disk_key,
+                conn.identity_file.as_deref(),
+            )
+            .status(),
             terminal_theme: conn.terminal_theme.clone(),
             terminal_appearance: conn.terminal_appearance.clone().unwrap_or_default(),
             highlight_rules: conn.highlight_rules.clone().unwrap_or_default(),
@@ -911,6 +926,9 @@ impl Oryxis {
                 | EditorMessage::EditorTotpChanged(..)
                 | EditorMessage::EditorToggleTotpVisibility
                 | EditorMessage::EditorUseTotpToggled
+                | EditorMessage::EditorUseDiskKeyToggled
+                | EditorMessage::EditorIdentityFileChanged(..)
+                | EditorMessage::EditorBrowseIdentityFile
                 | EditorMessage::EditorAuthMethodChanged(..)
                 | EditorMessage::EditorGroupChanged(..)
                 | EditorMessage::EditorKeyChanged(..)

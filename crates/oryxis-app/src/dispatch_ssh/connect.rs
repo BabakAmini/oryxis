@@ -375,6 +375,13 @@ impl Oryxis {
                 // language the session is in rather than whatever it
                 // becomes by the time the dial gives up.
                 let host_hint = host_field_hint(&conn_host);
+                // Same idea one layer down: a host whose disk key is
+                // there but unusable authenticates with nothing, and the
+                // engine can only report the absence ("No private key
+                // selected") because the file never became key material.
+                // Resolved here for the same reason as `host_hint`, and
+                // only when the vault supplied no key of its own.
+                let disk_hint = (private_key.is_none()).then(|| disk_key_hint(&conn)).flatten();
                 let username = conn.username.clone()
                     .or_else(|| {
                         conn.identity_id.and_then(|iid| {
@@ -775,9 +782,16 @@ impl Oryxis {
                             .as_deref()
                             .map(|pem| oryxis_ssh::KeyMaterial::new(pem, certificate.as_deref()));
                         if let Err(e) = engine.do_authenticate(&mut handle, &conn, password.as_deref(), auth_material).await {
-                            let _ = sender.send(SshStreamMsg::Error(
-                                format!("Authentication failed for \"{}\": {}", username, e),
-                            )).await;
+                            let mut msg = format!("Authentication failed for \"{}\": {}", username, e);
+                            // Additive, like the host-field hint above:
+                            // the engine names what was missing, this
+                            // names the file that should have supplied
+                            // it and why it could not.
+                            if let Some(hint) = &disk_hint {
+                                msg.push('\n');
+                                msg.push_str(hint);
+                            }
+                            let _ = sender.send(SshStreamMsg::Error(msg)).await;
                             return;
                         }
 
@@ -1499,6 +1513,28 @@ impl Oryxis {
 /// Two keys, not one per fault: the username case is the one with a
 /// specific instruction (move it to the Username field), and the other
 /// three share the same answer (put only a host there).
+/// Why the disk key source produced nothing for this host, in the
+/// user's language, or `None` when it produced a key (or was never
+/// asked). Shares the host editor's wording, so the connect error and
+/// the editor hint can never say different things about one file.
+pub(crate) fn disk_key_hint(conn: &oryxis_core::models::Connection) -> Option<String> {
+    use oryxis_vault::DiskKeyStatus as St;
+    let status =
+        oryxis_vault::resolve_disk_key(conn.use_disk_key, conn.identity_file.as_deref()).status();
+    match status {
+        // Not opted in, or it worked: the failure is about something
+        // else and a line about keys would only mislead.
+        St::Off | St::Ready { .. } => None,
+        St::NotFound => Some(crate::i18n::t("disk_key_none").to_string()),
+        St::Encrypted(path) => Some(crate::i18n::t("disk_key_locked").replace("{path}", &path)),
+        St::Unreadable(path, err) | St::Unusable(path, err) => Some(
+            crate::i18n::t("disk_key_problem")
+                .replace("{path}", &path)
+                .replace("{error}", &err),
+        ),
+    }
+}
+
 pub(crate) fn host_field_hint(host: &str) -> Option<String> {
     use oryxis_core::ssh_target::HostFieldFault;
     match oryxis_core::ssh_target::diagnose_host_field(host)? {

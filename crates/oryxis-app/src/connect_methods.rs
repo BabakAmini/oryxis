@@ -9,6 +9,16 @@ use oryxis_core::models::connection::{AuthMethod, Connection};
 
 use crate::app::Oryxis;
 
+/// Whether this host's auth method ever offers a private key of its
+/// own. `Agent` is absent: its key lives in the agent process, and a
+/// local PEM would be a second credential the user did not pick.
+pub(crate) fn conn_uses_key(conn: &Connection) -> bool {
+    matches!(
+        conn.auth_method,
+        AuthMethod::Key | AuthMethod::Auto | AuthMethod::Certificate
+    )
+}
+
 impl Oryxis {
     /// The OpenSSH certificate attached to key `kid`, if any (B2). Read
     /// from the in-memory key list; resolved alongside the private key so
@@ -42,7 +52,46 @@ impl Oryxis {
     /// same rules as `|v| Message::Ssh(SshMessage::ConnectSsh(v))`: prefer identity-linked
     /// credentials, fall back to per-connection vault entries. The
     /// certificate is resolved from the SAME key as the pem.
+    ///
+    /// A host with `use_disk_key` fills a still-empty key slot from
+    /// `~/.ssh` (`oryxis_vault::resolve_disk_key`). It runs LAST on
+    /// purpose: the vault is the app's own answer to "which key is this
+    /// host's", and the disk is only ever the gap it leaves. Jump hops
+    /// route through here too (`make_jump_resolver` calls this per hop),
+    /// so a bastion reads its OWN `identity_file`, never the target's.
     pub(crate) fn resolve_credentials(
+        &self,
+        conn: &Connection,
+    ) -> (Option<String>, Option<String>, Option<String>) {
+        let (pw, pk, cert) = self.resolve_vault_credentials(conn);
+        match pk {
+            Some(pem) => (pw, Some(pem), cert),
+            // Same gate as the vault key below: on a method that never
+            // offers a key, reading one off disk would be work nobody
+            // asked for (and a file access per connect).
+            //
+            // The certificate comes from the disk key too (its
+            // `<key>-cert.pub` sibling), never from the vault: the pair
+            // must always describe ONE key, which is the whole reason
+            // `KeyMaterial` bundles them.
+            None if conn_uses_key(conn) => {
+                match oryxis_vault::resolve_disk_key(
+                    conn.use_disk_key,
+                    conn.identity_file.as_deref(),
+                )
+                .material()
+                {
+                    Some((pem, disk_cert)) => (pw, Some(pem), disk_cert),
+                    None => (pw, None, cert),
+                }
+            }
+            None => (pw, None, cert),
+        }
+    }
+
+    /// The vault half of `resolve_credentials`, unchanged: identity-linked
+    /// credentials first, per-connection vault entries second.
+    fn resolve_vault_credentials(
         &self,
         conn: &Connection,
     ) -> (Option<String>, Option<String>, Option<String>) {
@@ -68,10 +117,7 @@ impl Oryxis {
                 .vault
                 .as_ref()
                 .and_then(|v| v.get_connection_password(&conn.id).ok().flatten());
-            let (pk, cert) = if matches!(
-                conn.auth_method,
-                AuthMethod::Key | AuthMethod::Auto | AuthMethod::Certificate
-            ) {
+            let (pk, cert) = if conn_uses_key(conn) {
                 let pk = conn.key_id.and_then(|kid| {
                     self.vault
                         .as_ref()

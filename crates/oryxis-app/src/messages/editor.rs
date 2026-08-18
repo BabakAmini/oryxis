@@ -138,6 +138,12 @@ pub enum EditorMessage {
     EditorTotpChanged(super::Redacted),
     EditorToggleTotpVisibility,
     EditorUseTotpToggled,
+    /// Disk key source: the opt-in toggle, the `IdentityFile` path, and
+    /// the file picker that fills it. Not `Redacted`: the value is a
+    /// PATH, and the key itself never enters the form.
+    EditorUseDiskKeyToggled,
+    EditorIdentityFileChanged(String),
+    EditorBrowseIdentityFile,
     /// Login automation picker: the combo's display string (the "off"
     /// sentinel, a saved script's name, or the "new script" sentinel).
     EditorLoginScriptChanged(String),
