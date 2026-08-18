@@ -69,7 +69,11 @@ async fn run_plugin(
     #[cfg(windows)]
     {
         // No console flash over the GUI while the renderer runs.
-        use std::os::windows::process::CommandExt as _;
+        // `creation_flags` comes from tokio's own inherent impl here, not
+        // from `std::os::windows::process::CommandExt`: this is a
+        // `tokio::process::Command`, and an inherent method wins over a
+        // trait one, so importing that trait only produced an
+        // unused-import warning on the Windows target.
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
