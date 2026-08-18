@@ -740,14 +740,23 @@ mod tests {
 
         // Approved: the same call now spawns, which is what keeps the
         // gate from breaking every legitimate ProxyCommand host.
-        let approved = SshEngine::new().with_proxy_command_ask(
-            trusted_only_proxy_command_ask(
-                [oryxis_core::models::connection::proxy_command_fingerprint(CMD)]
-                    .into_iter()
-                    .collect(),
-            ),
-        );
-        assert!(approved.proxy_command(CMD, "host.example", 22).await.is_ok());
+        //
+        // Unix only, because it really does spawn: `proxy_command`
+        // runs `sh -c`, and there is no `sh` on a stock Windows box
+        // (the same reason a ProxyCommand host does not work there).
+        // The two refusals above are the security half and run
+        // everywhere.
+        #[cfg(unix)]
+        {
+            let approved = SshEngine::new().with_proxy_command_ask(
+                trusted_only_proxy_command_ask(
+                    [oryxis_core::models::connection::proxy_command_fingerprint(CMD)]
+                        .into_iter()
+                        .collect(),
+                ),
+            );
+            assert!(approved.proxy_command(CMD, "host.example", 22).await.is_ok());
+        }
     }
 
     #[test]

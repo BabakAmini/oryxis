@@ -26,6 +26,7 @@ pub(crate) mod new_tab_picker;
 pub(crate) mod onboarding;
 pub(crate) mod plugins_panel;
 pub(crate) mod port_forwards;
+pub(crate) mod proxy_command;
 pub(crate) mod session_group_panel;
 pub(crate) mod settings;
 pub(crate) mod settings_themes;

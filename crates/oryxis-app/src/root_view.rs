@@ -83,6 +83,16 @@ impl Oryxis {
                 // connect-progress screen). No outside-click dismiss: the user
                 // must submit or cancel so the in-flight auth gets an answer.
                 Some((self.view_kbi_modal(), None, 40.0))
+            } else if self.pending_proxy_command.is_some() && self.connecting.is_none() {
+                // Command-proxy approval for a dial with no
+                // connect-progress screen (split pane, manually toggled
+                // forward, SFTP mount, backup, remote-desktop launcher).
+                // Stacked ABOVE the host-key prompt because it is asked
+                // first: the proxy spawns before the handshake, so the
+                // two can never be pending at once, and the order here
+                // says which one the dial reaches first. No
+                // outside-click dismiss: the parked dial needs an answer.
+                Some((self.view_proxy_command_modal(), None, 40.0))
             } else if self.pending_host_key.is_some() && self.connecting.is_none() {
                 // Host-key prompt for a backgrounded action (a manually toggled
                 // port forward). No outside-click dismiss for the same reason.

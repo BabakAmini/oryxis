@@ -687,7 +687,29 @@ impl Oryxis {
         let proxy_resolution = build_proxy_resolution(&self.editor_form)?;
         // Authored here, so approved here: a line the user just typed
         // must not meet a "did you mean it?" modal on the next dial.
-        self.trust_authored_proxy_command(proxy_resolution.proxy.as_ref(), &conn.label);
+        //
+        // Only when it CHANGED, though. The form was filled from the
+        // stored value, so a command proxy that arrived over sync or in
+        // an imported file sits in that field already; approving on
+        // every save would hand it the grant the moment the user opens
+        // the host to change its colour, without them ever reading the
+        // line. Unchanged means the user did not author it here.
+        let previous_command = original.as_ref().and_then(|o| match o.proxy.as_ref() {
+            Some(p) => match &p.proxy_type {
+                oryxis_core::models::connection::ProxyType::Command(c) => Some(c.clone()),
+                _ => None,
+            },
+            None => None,
+        });
+        let authored = proxy_resolution.proxy.as_ref().filter(|p| {
+            match &p.proxy_type {
+                oryxis_core::models::connection::ProxyType::Command(c) => {
+                    previous_command.as_deref() != Some(c.as_str())
+                }
+                _ => false,
+            }
+        });
+        self.trust_authored_proxy_command(authored, &conn.label);
         conn.proxy = proxy_resolution.proxy;
         conn.proxy_identity_id = proxy_resolution.proxy_identity_id;
         conn.updated_at = chrono::Utc::now();
