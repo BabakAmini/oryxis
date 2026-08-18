@@ -16,6 +16,15 @@ expect "Protect your vault"
 # text selectors).
 click (550, 453)
 type "testpass123"
+# `settle` between the typing and the button, or the run is flaky:
+# "Create Vault" only becomes pressable once the field holds a long
+# enough password, so a click that arrives while the last keystrokes
+# are still in flight hits a dead button, the vault is never created,
+# and the failure surfaces two instructions later as a missing
+# dashboard (the log gives it away: no "Vault master password set").
+# Measured 1 in 5 without it and 0 in 16 with it; `password-mask.ice`
+# does not need it because it never presses the button.
+settle
 click "Create Vault"
 # `settle` before the assert: creating the vault runs an Argon2id
 # derivation, which is deliberately slow and is slower still on a
