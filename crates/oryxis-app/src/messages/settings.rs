@@ -491,6 +491,10 @@ pub enum SettingsMessage {
     /// Retention code picked in Settings ("off" / "1d" / ... / "90d");
     /// persists and prunes immediately.
     LogsRetentionChanged(&'static str),
+    /// Size cap picked in Settings ("off" or a byte count as a decimal
+    /// string); persists and prunes the oldest finished recordings
+    /// immediately, so picking a smaller cap has a visible effect.
+    LogsSizeCapChanged(&'static str),
     SettingToggleOsDetection,
     /// Toggle the global "record terminal sessions" setting.
     SettingToggleSessionLogging,

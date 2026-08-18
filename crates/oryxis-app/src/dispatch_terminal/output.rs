@@ -17,6 +17,21 @@ use oryxis_core::models::TriggerAction;
 /// RAM unbounded between the periodic flush ticks.
 const SESSION_LOG_FLUSH_BYTES: usize = 64 * 1024;
 
+/// Free space below which session recording stops. The vault sits on
+/// the user's home volume, so a recording that runs it dry takes every
+/// other application (and the OS's own logging) down with it, and the
+/// remote peer is the one deciding how many bytes arrive. Not a
+/// setting: nobody switches on "do not fill my disk".
+const SESSION_LOG_MIN_FREE_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// How often the capacity guard actually measures. The flush runs every
+/// 2 s (and on a 64 KiB burst); a `statvfs` plus a `SUM(LENGTH(data))`
+/// over every chunk at that cadence would cost more than the recording
+/// does. At 30 s the worst case between checks is bounded by the
+/// redaction pass's own throughput, well inside the 1 GiB floor.
+const SESSION_LOG_CAPACITY_INTERVAL: std::time::Duration =
+    std::time::Duration::from_secs(30);
+
 /// Minimum gap between arrival marks for the flush to cut a separate
 /// timed chunk (asciicast replay step). Bursty output (a compile, a
 /// `find /`) coalesces into a few chunks per second instead of one
@@ -204,6 +219,76 @@ impl Oryxis {
         self.flush_session_logs_inner(true);
     }
 
+    /// Why recording stopped, so the toast can say which limit was hit.
+    fn session_log_capacity_stop(&mut self) -> Option<&'static str> {
+        if self.last_session_log_capacity_check.elapsed() < SESSION_LOG_CAPACITY_INTERVAL {
+            return None;
+        }
+        self.last_session_log_capacity_check = std::time::Instant::now();
+        let vault = self.vault.as_ref()?;
+
+        // The size cap is the user's own quota, so reaching it drops the
+        // oldest FINISHED recordings first (retention by size) and
+        // recording continues. Only when there is nothing left to drop,
+        // i.e. one live session is the whole total, does it stop.
+        if let Some(cap) = self.prefs.session_log_max_bytes {
+            match vault.prune_session_logs_to_fit(cap) {
+                Ok(n) => {
+                    if n > 0 {
+                        tracing::info!("session log size cap pruned {n} recordings");
+                    }
+                }
+                Err(e) => tracing::warn!("session log size-cap prune failed: {e}"),
+            }
+            if vault.session_logs_total_bytes().unwrap_or(0) > cap {
+                return Some("session_log_stopped_cap");
+            }
+        }
+
+        // The free-space floor is NOT a setting: nobody switches on "do
+        // not fill my disk", and the vault lives on the user's home
+        // volume, so running it dry takes every other application down
+        // with the recording. Best-effort by construction, a platform
+        // that will not answer leaves recording alone.
+        let vault_dir = oryxis_core::paths::oryxis_dir()?;
+        let free = oryxis_core::disk::available_space(&vault_dir)?;
+        (free < SESSION_LOG_MIN_FREE_BYTES).then_some("session_log_stopped_disk")
+    }
+
+    /// Stop every live recording, flag each one as cut short, and say so
+    /// once. Marking matters as much as stopping: an audit feature that
+    /// hands back a partial stream presenting itself as the whole
+    /// session fails worse than one that stops.
+    fn stop_all_session_logs(&mut self, reason: &'static str) {
+        let mut stopped: Vec<uuid::Uuid> = Vec::new();
+        for tab in &mut self.tabs {
+            for pane in tab.pane_grid.panes.values_mut() {
+                if let Some(log_id) = pane.session_log_id.take() {
+                    pane.session_log_buf.clear();
+                    pane.session_log_marks.clear();
+                    pane.session_log_resizes.clear();
+                    stopped.push(log_id);
+                }
+            }
+        }
+        if stopped.is_empty() {
+            return;
+        }
+        if let Some(vault) = &self.vault {
+            for log_id in &stopped {
+                if let Err(e) = vault.mark_session_log_truncated(log_id) {
+                    tracing::warn!("marking session log {log_id} truncated failed: {e}");
+                }
+            }
+        }
+        tracing::warn!(
+            "session recording stopped for {} pane(s): {reason}",
+            stopped.len()
+        );
+        // A sentence to read, not a one-word confirmation.
+        self.set_toast_secs(crate::i18n::t(reason).to_string(), 8);
+    }
+
     fn flush_session_logs_inner(&mut self, final_flush: bool) {
         // Full detail = timed segments + resize events (.cast export);
         // simple = one untimed chunk per flush, the plain log of old.
@@ -338,6 +423,32 @@ impl Oryxis {
         if pending.is_empty() {
             return;
         }
+        // Capacity is checked at the WRITE, not at the capture: the
+        // buffers above are already drained, so the bytes this flush
+        // holds are written either way and the stop takes effect from
+        // the next one. Recording is what stops; the session keeps
+        // running, untouched.
+        if let Some(reason) = self.session_log_capacity_stop() {
+            if let Some(vault) = &self.vault {
+                for (log_id, row) in pending {
+                    if let PendingSessionRow::Chunk(offset_ms, bytes) = row {
+                        let scrubbed = crate::session_redact::redact_secrets(&bytes);
+                        let _ = vault.append_session_data(
+                            &log_id, &scrubbed, offset_ms, compress,
+                        );
+                    }
+                }
+            }
+            self.stop_all_session_logs(reason);
+            return;
+        }
+        // A failing append is almost always the disk filling underneath
+        // us (the guard above measures on an interval, so a fast enough
+        // peer can cross the line between two checks). It used to end
+        // in a `tracing::warn!` and nothing else: recording kept being
+        // attempted, every later byte was dropped on the floor, and the
+        // user was never told their recording had stopped working.
+        let mut append_failed = false;
         if let Some(vault) = &self.vault {
             for (log_id, row) in pending {
                 match row {
@@ -347,6 +458,7 @@ impl Oryxis {
                             &log_id, &scrubbed, offset_ms, compress,
                         ) {
                             tracing::warn!("session log append failed for {log_id}: {e}");
+                            append_failed = true;
                         }
                     }
                     PendingSessionRow::Resize(offset_ms, cols, rows) => {
@@ -354,10 +466,14 @@ impl Oryxis {
                             vault.append_session_resize(&log_id, offset_ms, cols, rows)
                         {
                             tracing::warn!("session resize append failed for {log_id}: {e}");
+                            append_failed = true;
                         }
                     }
                 }
             }
+        }
+        if append_failed {
+            self.stop_all_session_logs("session_log_stopped_disk");
         }
     }
 

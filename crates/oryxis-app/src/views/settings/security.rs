@@ -48,6 +48,16 @@ fn vault_callout<'a>(
     .into()
 }
 
+/// Localized label for a size-cap code. The numbers are byte counts
+/// (stable setting values), so the label is built from the code rather
+/// than carrying one i18n key per size.
+fn log_size_cap_label(code: &str) -> String {
+    match code.parse::<u64>() {
+        Ok(n) if n > 0 => crate::views::sftp::format_size(n),
+        _ => crate::i18n::t("log_retention_off").to_string(),
+    }
+}
+
 impl Oryxis {
     /// The change-master-password form: current password (verified
     /// before the rotation runs), then the new password twice. Tab walks
@@ -730,6 +740,25 @@ impl Oryxis {
             &retention_selected,
             |v| Message::Settings(SettingsMessage::LogsRetentionChanged(v)),
         );
+        // Byte counts, stable as setting values; "off" is the default
+        // and the only one that is not a number.
+        const SIZE_CAP_CODES: [&str; 6] =
+            ["off", "536870912", "1073741824", "5368709120", "10737418240", "53687091200"];
+        let cap_now = self
+            .prefs
+            .session_log_max_bytes
+            .map(|n| n.to_string())
+            .unwrap_or_else(|| "off".into());
+        let size_cap_selected = SIZE_CAP_CODES
+            .iter()
+            .copied()
+            .find(|c| *c == cap_now)
+            .unwrap_or("off");
+        let (size_cap_prev, size_cap_next) = crate::keynav::slots::cycle_pair(
+            &SIZE_CAP_CODES,
+            &size_cap_selected,
+            |v| Message::Settings(SettingsMessage::LogsSizeCapChanged(v)),
+        );
         panel_section(logging_rows.push(Space::new().height(16)).push(column![
             text(crate::i18n::t("log_retention_label"))
                 .size(13)
@@ -759,6 +788,35 @@ impl Oryxis {
                     },
                 )
                 .on_select(|v| Message::Settings(SettingsMessage::LogsRetentionChanged(v)))
+                .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
+                .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
+                .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)
+                .into(),
+            ),
+            // Size cap: the user's own quota on what recordings may
+            // occupy together. Reaching it drops the OLDEST FINISHED
+            // recordings (retention by size, sibling of the retention
+            // by age above), it does not stop recording the present.
+            // The floor that stops a runaway is the free-space check in
+            // `dispatch_terminal::output`, deliberately not a setting.
+            Space::new().height(16),
+            text(crate::i18n::t("log_size_cap_label"))
+                .size(13)
+                .color(OryxisColors::t().text_primary),
+            Space::new().height(4),
+            text(t("setting_log_size_cap_desc"))
+                .size(11).color(OryxisColors::t().text_muted),
+            Space::new().height(8),
+            self.settings_nav_slot_labeled(
+                t("log_size_cap_label"),
+                crate::keynav::RowAction::picker(size_cap_prev, size_cap_next),
+                8.0,
+                pick_list(
+                    Some(size_cap_selected),
+                    &SIZE_CAP_CODES[..],
+                    |code: &&str| log_size_cap_label(code),
+                )
+                .on_select(|v| Message::Settings(SettingsMessage::LogsSizeCapChanged(v)))
                 .on_open(Message::Navigation(NavigationMessage::PickOpenChanged(true)))
                 .on_close(Message::Navigation(NavigationMessage::PickOpenChanged(false)))
                 .width(260).padding(10).style(crate::widgets::rounded_pick_list_style)

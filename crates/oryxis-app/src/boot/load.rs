@@ -1212,6 +1212,12 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("logs_retention") {
                 self.prefs.logs_retention = v;
             }
+            if let Ok(Some(v)) = vault.get_setting("session_log_max_bytes") {
+                // Anything unparseable reads as "no cap", the same
+                // permissive answer a missing row gives: a bad value
+                // must not silently start deleting recordings.
+                self.prefs.session_log_max_bytes = v.parse::<u64>().ok().filter(|n| *n > 0);
+            }
             if let Ok(Some(v)) = vault.get_setting("auto_check_updates") {
                 self.prefs.auto_check_updates = v == "true";
             }

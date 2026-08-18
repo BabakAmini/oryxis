@@ -413,6 +413,12 @@ impl VaultStore {
         // small delta so old logs still replay, just without real
         // timing). `kind` distinguishes output ('o', the default) from
         // terminal resizes ('r', whose data is "<cols>x<rows>").
+        // A recording that was cut short (free space ran out, or the
+        // size cap was reached) must SAY so: the player and the
+        // `.cast` / transcript exports otherwise hand back a partial
+        // stream that presents itself as the whole session, which is a
+        // worse failure for an audit feature than stopping is.
+        let _ = self.db.execute_batch("ALTER TABLE session_logs ADD COLUMN truncated INTEGER NOT NULL DEFAULT 0;");
         let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN offset_ms INTEGER;");
         let _ = self.db.execute_batch("ALTER TABLE session_log_chunks ADD COLUMN kind TEXT NOT NULL DEFAULT 'o';");
         // Per-chunk compression flag: 0 = raw, 1 = deflate applied to

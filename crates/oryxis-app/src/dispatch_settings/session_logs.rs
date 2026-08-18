@@ -41,6 +41,26 @@ impl Oryxis {
                     if self.prefs.connection_history { "true" } else { "false" },
                 );
             }
+            SettingsMessage::LogsSizeCapChanged(code) => {
+                let cap = code.parse::<u64>().ok().filter(|n| *n > 0);
+                self.prefs.session_log_max_bytes = cap;
+                self.persist_setting("session_log_max_bytes", code);
+                // Apply right away, same reason the retention picker
+                // does: picking a smaller cap must have a visible
+                // effect, not wait for the next flush tick.
+                if let (Some(cap), Some(vault)) = (cap, &self.vault) {
+                    match vault.prune_session_logs_to_fit(cap) {
+                        Ok(0) => {}
+                        Ok(n) => tracing::info!("session log size cap pruned {n} recordings"),
+                        Err(e) => tracing::warn!("session log size-cap prune failed: {e}"),
+                    }
+                    self.session_logs_page = 0;
+                    self.session_logs_total = vault.count_session_logs().unwrap_or(0);
+                    self.session_logs = vault
+                        .list_session_logs_page(0, 50)
+                        .unwrap_or_default();
+                }
+            }
             SettingsMessage::LogsRetentionChanged(code) => {
                 self.prefs.logs_retention = code.to_string();
                 self.persist_setting("logs_retention", code);

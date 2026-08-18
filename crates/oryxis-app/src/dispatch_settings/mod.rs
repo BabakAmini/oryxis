@@ -376,6 +376,7 @@ impl Oryxis {
             | SettingsMessage::SettingToggleSessionLogCompress
             | SettingsMessage::SettingToggleConnectionHistory
             | SettingsMessage::LogsRetentionChanged(..)
+            | SettingsMessage::LogsSizeCapChanged(..)
             | SettingsMessage::SettingToggleOsDetection
             ) => self.handle_settings_session_logs(m).unwrap_or_else(crate::dispatch::unrouted),
             m @ (

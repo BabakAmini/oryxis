@@ -563,6 +563,7 @@ impl Oryxis {
                 // expose new hosts via MCP by default.
                 revealed_secrets: std::collections::HashSet::new(),
                 last_user_activity: std::time::Instant::now(),
+                last_session_log_capacity_check: std::time::Instant::now(),
                 last_unlock: None,
                 biometric_available,
                 pending_update: None,

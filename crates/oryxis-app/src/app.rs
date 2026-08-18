@@ -1251,6 +1251,12 @@ pub struct Oryxis {
     /// Instant of the last user input event (keyboard / mouse / IME),
     /// the idle anchor for `setting_auto_lock_minutes`. Not persisted.
     pub(crate) last_user_activity: std::time::Instant,
+    /// Instant of the last free-space / size-cap check on the session
+    /// recordings. The flush runs every 2 s (and on a 64 KiB burst),
+    /// while a `statvfs` plus a `SUM(LENGTH(data))` are far too costly
+    /// at that cadence, so the check is throttled to
+    /// `SESSION_LOG_CAPACITY_INTERVAL`. Not persisted.
+    pub(crate) last_session_log_capacity_check: std::time::Instant,
     /// Instant of the last successful password unlock. The Enter that
     /// submits the unlock password reaches the global key subscription
     /// one message AFTER the widget's on_submit unlocked the vault, so

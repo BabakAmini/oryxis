@@ -183,6 +183,7 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Security, "session_log_compress", "compress recordings gzip session log size"),
     e(S::Security, "connection_history", "connection history log recent hosts track"),
     e(S::Security, "log_retention_label", "log retention auto delete purge age cleanup"),
+    e(S::Security, "log_size_cap_label", "log size cap limit disk space quota recording storage"),
     e(S::Security, "export_vault", "export vault backup save file portable"),
     e(S::Security, "import_vault", "import vault restore load file portable"),
     e(S::Security, "import_from_sftp", "import sftp remote restore backup"),

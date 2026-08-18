@@ -525,6 +525,17 @@ pub(crate) struct AppPrefs {
     /// Auto-delete retention for Logs ("off", "1d", "3d", "7d",
     /// "14d", "30d", "90d"). Applied at boot and when changed.
     pub(crate) logs_retention: String,
+    /// Ceiling on what ALL session recordings may occupy together, in
+    /// bytes; `None` = no cap (the default). This is the user's own
+    /// quota, not the safety net: reaching it drops the oldest FINISHED
+    /// recordings (retention by size, sibling of `logs_retention`'s
+    /// retention by age) and recording continues. The unconditional
+    /// free-space floor in `dispatch_terminal::output` is what stops a
+    /// runaway, and it is deliberately not a setting.
+    ///
+    /// Persisted as `session_log_max_bytes` ("off" or a byte count), so
+    /// a future picker can offer other sizes without a migration.
+    pub(crate) session_log_max_bytes: Option<u64>,
     pub(crate) auto_check_updates: bool,
     /// Release stream the updater follows (`stable` / `nightly`).
     pub(crate) update_channel: crate::update::UpdateChannel,
@@ -655,6 +666,7 @@ impl Default for AppPrefs {
             session_log_compress: true,
             connection_history: false,
             logs_retention: "off".into(),
+            session_log_max_bytes: None,
             // Overwritten by `boot` right after this, which read pre-unlock: the boot check runs while the vault can still be locked.
             auto_check_updates: true,
             // Overwritten by `boot` right after this, which same pre-unlock read as `auto_check_updates`.

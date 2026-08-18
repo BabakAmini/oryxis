@@ -395,6 +395,87 @@ impl VaultStore {
         Ok(n as usize)
     }
 
+    /// Ciphertext bytes every recording occupies together. The figure
+    /// the size cap is measured against, and the same
+    /// `SUM(LENGTH(data))` the per-session size in the Logs listing
+    /// already uses, without the per-row grouping.
+    pub fn session_logs_total_bytes(&self) -> Result<u64, VaultError> {
+        let n: i64 = self.db.query_row(
+            "SELECT COALESCE(SUM(LENGTH(data)), 0) FROM session_log_chunks",
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(n.max(0) as u64)
+    }
+
+    /// Delete the OLDEST finished recordings until the total fits under
+    /// `cap`, and report how many went.
+    ///
+    /// Retention by size, sibling of the retention by age above and the
+    /// same shape as any log rotation: reaching a size limit drops the
+    /// oldest history, it does not stop recording the present. That
+    /// also fixes an asymmetry the age-based rule has on its own, where
+    /// "1 day" deletes a 10 KB recording from yesterday and keeps a
+    /// 40 GB one from today.
+    ///
+    /// In-progress recordings are never touched, for the same reason
+    /// the age-based prune skips them: their rows are still being
+    /// appended to. So a single runaway session can leave the total
+    /// above `cap` with nothing left to drop, which is the case the
+    /// caller has to handle by stopping the recording instead.
+    pub fn prune_session_logs_to_fit(&self, cap: u64) -> Result<usize, VaultError> {
+        let mut removed = 0usize;
+        loop {
+            if self.session_logs_total_bytes()? <= cap {
+                return Ok(removed);
+            }
+            // Oldest FINISHED recording first.
+            let oldest: Option<String> = {
+                let mut stmt = self.db.prepare(
+                    "SELECT id FROM session_logs
+                     WHERE ended_at IS NOT NULL
+                     ORDER BY started_at ASC LIMIT 1",
+                )?;
+                let mut rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+                rows.next().transpose()?
+            };
+            let Some(id) = oldest else {
+                // Only in-progress recordings left: nothing here can
+                // bring the total down.
+                return Ok(removed);
+            };
+            self.db.execute(
+                "DELETE FROM session_log_chunks WHERE log_id = ?1",
+                params![id],
+            )?;
+            self.db
+                .execute("DELETE FROM session_logs WHERE id = ?1", params![id])?;
+            removed += 1;
+        }
+    }
+
+    /// Mark a recording as cut short, so the player and the exports can
+    /// say the stream is partial rather than presenting it as the whole
+    /// session.
+    pub fn mark_session_log_truncated(&self, log_id: &Uuid) -> Result<(), VaultError> {
+        self.db.execute(
+            "UPDATE session_logs SET truncated = 1 WHERE id = ?1",
+            params![log_id.to_string()],
+        )?;
+        Ok(())
+    }
+
+    /// Whether a recording was cut short (see
+    /// [`Self::mark_session_log_truncated`]).
+    pub fn session_log_truncated(&self, log_id: &Uuid) -> Result<bool, VaultError> {
+        let mut stmt = self
+            .db
+            .prepare("SELECT truncated FROM session_logs WHERE id = ?1")?;
+        let mut rows =
+            stmt.query_map(params![log_id.to_string()], |row| row.get::<_, i64>(0))?;
+        Ok(rows.next().transpose()?.unwrap_or(0) != 0)
+    }
+
     /// Delete connection events and *finished* session recordings
     /// older than `cutoff` (retention setting). In-progress sessions
     /// are never pruned: their rows are still being appended to.
