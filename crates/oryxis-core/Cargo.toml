@@ -21,3 +21,14 @@ data-encoding = "2"
 # Optional regex patterns in login scripts (`login_script` module); the
 # suffix form needs no engine, the escape hatch does.
 regex = { workspace = true }
+
+# Free-space probe (`disk` module). `statvfs` on unix and
+# `GetDiskFreeSpaceExW` on Windows: no crate wraps both without pulling
+# a system-info stack we would use one function of.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+# 0.61 is the line the rest of the tree resolves, so the build keeps one
+# `windows-sys` (it numbers independently from `windows`).
+windows-sys = { version = "0.61", features = ["Win32_Storage_FileSystem"] }

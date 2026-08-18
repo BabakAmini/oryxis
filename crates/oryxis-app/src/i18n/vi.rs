@@ -645,6 +645,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Đóng tab SFTP này?",
         "sftp_unsafe_entry_name" => "Máy chủ đã gửi một tên tệp không an toàn",
+        "sftp_not_enough_space" => "Không đủ dung lượng trống cho lượt tải này",
         "sftp_close_guard_detail" => "Đang có truyền tải hoặc chỉnh sửa chưa lưu. Đóng sẽ làm mất nó.",
         "close_anyway" => "Vẫn đóng",
         "rename_folder" => "Đổi tên thư mục",

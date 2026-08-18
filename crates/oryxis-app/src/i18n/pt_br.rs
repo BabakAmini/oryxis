@@ -1991,6 +1991,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Fechar esta aba SFTP?",
         "sftp_unsafe_entry_name" => "O servidor enviou um nome de arquivo inseguro",
+        "sftp_not_enough_space" => "Espaço em disco insuficiente para este download",
         "sftp_close_guard_detail" => "Há uma transferência ou edição não salva em andamento. Fechar vai perdê-la.",
         "close_anyway" => "Fechar mesmo assim",
 

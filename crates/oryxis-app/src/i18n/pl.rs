@@ -650,6 +650,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Zamknąć tę kartę SFTP?",
         "sftp_unsafe_entry_name" => "Serwer przysłał niebezpieczną nazwę pliku",
+        "sftp_not_enough_space" => "Za mało wolnego miejsca na to pobieranie",
         "sftp_close_guard_detail" => "Trwa transfer lub niezapisana edycja. Zamknięcie spowoduje ich utratę.",
         "close_anyway" => "Zamknij mimo to",
         "rename_folder" => "Zmień nazwę folderu",

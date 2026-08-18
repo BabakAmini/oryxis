@@ -1,4 +1,5 @@
 pub mod agent_paths;
+pub mod disk;
 pub mod models;
 pub mod paths;
 pub mod error;

@@ -1910,6 +1910,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "¿Cerrar esta pestaña SFTP?",
         "sftp_unsafe_entry_name" => "El servidor envió un nombre de archivo no seguro",
+        "sftp_not_enough_space" => "No hay espacio libre suficiente para esta descarga",
         "sftp_close_guard_detail" => "Hay una transferencia o edición sin guardar en curso. Al cerrar se perderá.",
         "close_anyway" => "Cerrar de todos modos",
         "reconnect" => "Reconectar",

@@ -103,6 +103,37 @@ pub(crate) fn is_safe_remote_entry_name(name: &str) -> bool {
     true
 }
 
+/// Slack left underneath a download so the volume never lands at
+/// exactly zero. The free-space number is a snapshot and other
+/// processes keep writing during a long transfer, so a check with no
+/// margin still ends in ENOSPC (with a part file to clean up) often
+/// enough to be worth the margin.
+const DOWNLOAD_HEADROOM: u64 = 64 * 1024 * 1024;
+
+/// Refuse a download that does not fit on the destination volume.
+///
+/// The remote peer decides both the size and how many files there are,
+/// so this is the one place the sizes are known BEFORE anything is
+/// written: a listing carries them, and the walk sums them. Failing
+/// here costs the user a message; failing at 90% costs them the disk,
+/// a stranded `.oryxis-part`, and no explanation.
+///
+/// Permissive when the platform will not answer (see
+/// `oryxis_core::disk::fits`): an unavailable probe is not evidence of
+/// a full disk.
+pub(crate) fn ensure_local_space(dir: &std::path::Path, need: u64) -> Result<(), String> {
+    if oryxis_core::disk::fits(dir, need, DOWNLOAD_HEADROOM) {
+        return Ok(());
+    }
+    let free = oryxis_core::disk::available_space(dir).unwrap_or(0);
+    Err(format!(
+        "{} ({} / {})",
+        crate::i18n::t("sftp_not_enough_space"),
+        crate::views::sftp::format_size(need),
+        crate::views::sftp::format_size(free),
+    ))
+}
+
 /// Join a basename onto a POSIX directory path, handling the root case
 /// (which would otherwise produce `//foo`).
 pub(crate) fn remote_join(dir: &str, basename: &str) -> String {

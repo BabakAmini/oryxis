@@ -1919,6 +1919,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "この SFTP タブを閉じますか？",
         "sftp_unsafe_entry_name" => "サーバーが安全でないファイル名を送信しました",
+        "sftp_not_enough_space" => "このダウンロードに必要な空き容量がありません",
         "sftp_close_guard_detail" => "転送中または未保存の編集があります。閉じると失われます。",
         "close_anyway" => "閉じる",
         "reconnect" => "再接続",

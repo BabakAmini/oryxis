@@ -1904,6 +1904,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Diesen SFTP-Tab schließen?",
         "sftp_unsafe_entry_name" => "Der Server hat einen unsicheren Dateinamen gesendet",
+        "sftp_not_enough_space" => "Nicht genug freier Speicherplatz für diesen Download",
         "sftp_close_guard_detail" => "Eine Übertragung oder ungespeicherte Änderung läuft. Schließen verwirft sie.",
         "close_anyway" => "Trotzdem schließen",
         "reconnect" => "Erneut verbinden",

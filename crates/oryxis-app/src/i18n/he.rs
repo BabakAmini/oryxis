@@ -664,6 +664,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "לסגור את כרטיסיית ה-SFTP הזו?",
         "sftp_unsafe_entry_name" => "השרת שלח שם קובץ לא בטוח",
+        "sftp_not_enough_space" => "אין מספיק מקום פנוי להורדה הזו",
         "sftp_close_guard_detail" => "העברה או עריכה לא שמורה נמצאת בעיצומה. סגירה תגרום לאובדן שלה.",
         "close_anyway" => "סגירה בכל זאת",
         "rename_folder" => "שינוי שם תיקייה",

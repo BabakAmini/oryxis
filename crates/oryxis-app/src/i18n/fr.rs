@@ -1957,6 +1957,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Fermer cet onglet SFTP ?",
         "sftp_unsafe_entry_name" => "Le serveur a envoyé un nom de fichier non sûr",
+        "sftp_not_enough_space" => "Espace disque insuffisant pour ce téléchargement",
         "sftp_close_guard_detail" => "Un transfert ou une modification non enregistrée est en cours. Fermer l'annulera.",
         "close_anyway" => "Fermer quand même",
         "reconnect" => "Reconnecter",

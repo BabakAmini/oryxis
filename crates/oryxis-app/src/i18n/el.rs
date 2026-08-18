@@ -664,6 +664,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Κλείσιμο αυτής της καρτέλας SFTP;",
         "sftp_unsafe_entry_name" => "Ο διακομιστής έστειλε μη ασφαλές όνομα αρχείου",
+        "sftp_not_enough_space" => "Δεν υπάρχει αρκετός ελεύθερος χώρος για αυτή τη λήψη",
         "sftp_close_guard_detail" => "Υπάρχει μεταφορά ή μη αποθηκευμένη επεξεργασία σε εξέλιξη. Με το κλείσιμο θα χαθεί.",
         "close_anyway" => "Κλείσιμο ούτως ή άλλως",
         "rename_folder" => "Μετονομασία φακέλου",

@@ -645,6 +645,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "Bu SFTP sekmesi kapatılsın mı?",
         "sftp_unsafe_entry_name" => "Sunucu güvenli olmayan bir dosya adı gönderdi",
+        "sftp_not_enough_space" => "Bu indirme için yeterli boş alan yok",
         "sftp_close_guard_detail" => "Devam eden bir aktarım veya kaydedilmemiş düzenleme var. Kapatmak bunu kaybeder.",
         "close_anyway" => "Yine de kapat",
         "rename_folder" => "Klasörü yeniden adlandır",

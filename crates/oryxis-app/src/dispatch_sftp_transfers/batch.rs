@@ -11,7 +11,8 @@ use iced::Task;
 
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
-    build_client_pool, is_safe_remote_entry_name, parent_path, remote_cp, remote_join,
+    build_client_pool, ensure_local_space, is_safe_remote_entry_name, parent_path,
+    remote_cp, remote_join,
     unique_name_in_local_dir, unique_name_in_remote_dir, walk_local_for_duplicate,
     walk_local_for_upload, walk_remote_for_download,
 };
@@ -127,6 +128,14 @@ impl Oryxis {
                         });
                         walk_remote_for_download(&client, &remote_root, &target_root, &mut queue)
                             .await?;
+                        // The walk collected every file's size, so the
+                        // whole tree is measurable before the first byte
+                        // lands. A folder is where this matters most: the
+                        // remote peer picks both the sizes and the count.
+                        ensure_local_space(
+                            &local_dir,
+                            queue.iter().filter_map(|i| i.size).sum::<u64>(),
+                        )?;
                         let clients = build_client_pool(client, concurrency).await?;
                         Ok::<crate::state::TransferState, String>(crate::state::TransferState::new(
                             crate::state::TransferKind::Download,
@@ -351,6 +360,13 @@ impl Oryxis {
                 Ok(Task::perform(
                     async move {
                         let mut queue = std::collections::VecDeque::new();
+                        // Sizes for the space check. The walk fills them
+                        // in for everything under a selected DIRECTORY,
+                        // but a file picked at top level is queued with
+                        // `size: None`, so those get counted here or the
+                        // total would be an undercount that lets the
+                        // check pass on a transfer that cannot fit.
+                        let mut picked_file_bytes: u64 = 0;
                         for (remote_path, is_dir) in &remote_items {
                             let basename = remote_path
                                 .rsplit('/')
@@ -383,6 +399,9 @@ impl Oryxis {
                                 )
                                 .await?;
                             } else {
+                                picked_file_bytes = picked_file_bytes.saturating_add(
+                                    client.stat(remote_path).await.map(|s| s.size).unwrap_or(0),
+                                );
                                 queue.push_back(crate::state::TransferItem {
                                     src: remote_path.clone(),
                                     dst: target.to_string_lossy().into_owned(),
@@ -391,6 +410,14 @@ impl Oryxis {
                                 });
                             }
                         }
+                        ensure_local_space(
+                            &local_dir,
+                            queue
+                                .iter()
+                                .filter_map(|i| i.size)
+                                .sum::<u64>()
+                                .saturating_add(picked_file_bytes),
+                        )?;
                         let label = if remote_items.len() == 1 {
                             remote_items[0]
                                 .0

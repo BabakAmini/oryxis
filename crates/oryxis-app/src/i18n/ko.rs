@@ -645,6 +645,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "sftp" => "SFTP",
         "sftp_close_guard_title" => "이 SFTP 탭을 닫을까요?",
         "sftp_unsafe_entry_name" => "서버가 안전하지 않은 파일 이름을 보냈습니다",
+        "sftp_not_enough_space" => "이 다운로드를 위한 여유 공간이 부족합니다",
         "sftp_close_guard_detail" => "전송 또는 저장되지 않은 편집이 진행 중입니다. 닫으면 사라집니다.",
         "close_anyway" => "그래도 닫기",
         "rename_folder" => "폴더 이름 변경",

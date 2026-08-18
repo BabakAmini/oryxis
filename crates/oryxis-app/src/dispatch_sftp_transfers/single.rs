@@ -10,7 +10,7 @@ use iced::Task;
 
 use crate::app::{SftpMessage, Message, Oryxis};
 use crate::sftp_helpers::{
-    is_safe_remote_entry_name, parent_path, remote_cp, remote_join,
+    ensure_local_space, is_safe_remote_entry_name, parent_path, remote_cp, remote_join,
     unique_name_in_local_dir, unique_name_in_remote_dir, upload_one, UploadOutcome,
 };
 use super::SftpSides;
@@ -122,16 +122,21 @@ impl Oryxis {
                             ));
                         }
                         let target = local_dir.join(&basename);
+                        // The size is knowable before the first byte
+                        // moves, so ask now rather than fail at 90% and
+                        // strand a part file. One stat, and this arm
+                        // already spends one on the conflict path.
+                        let src_size = client
+                            .stat(&remote_path)
+                            .await
+                            .map(|s| s.size)
+                            .unwrap_or(0);
+                        ensure_local_space(&local_dir, src_size)?;
                         // A name already taken is the user's call, not
                         // ours: same four answers the upload side offers,
                         // including Duplicate, which is what this path
                         // used to do silently.
                         if let Ok(existing) = tokio::fs::metadata(&target).await {
-                            let src_size = client
-                                .stat(&remote_path)
-                                .await
-                                .map(|s| s.size)
-                                .unwrap_or(0);
                             return Ok::<_, String>(Some(crate::state::OverwritePrompt {
                                 src: remote_path,
                                 dst_dir: local_dir.to_string_lossy().into_owned(),
