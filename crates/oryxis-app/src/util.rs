@@ -710,19 +710,76 @@ pub(crate) fn sanitize_uint(input: &str, max: u64) -> String {
     value.min(max).to_string()
 }
 
+/// Web-facing schemes this function will hand to the OS. Everything the
+/// app opens today is `https`; `http` and `mailto` are the headroom.
+///
+/// The gate matters because of what sits behind it on Windows: the OS
+/// handler resolves a bare path or a UNC name to a program and RUNS it,
+/// so an unvalidated string is an execution primitive, not a navigation.
+/// The updater's `html_url` is the case that proves the point, it comes
+/// from release metadata a download mirror is free to author (mirrors
+/// are untrusted by design, `net_mirror`), and nothing else on that path
+/// checks it.
+fn browser_scheme_allowed(url: &str) -> bool {
+    let Some((scheme, _)) = url.split_once(':') else {
+        return false;
+    };
+    // RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ). A leading
+    // space or a control char anywhere in the run fails to parse, so
+    // " https:" or "http\n:" can never be mistaken for a match.
+    let mut chars = scheme.chars();
+    if !chars.next().is_some_and(|c| c.is_ascii_alphabetic()) {
+        return false;
+    }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')) {
+        return false;
+    }
+    matches!(scheme.to_ascii_lowercase().as_str(), "http" | "https" | "mailto")
+}
+
 /// Open an external URL in the user's default browser. Best-effort
 /// the UI falls back to copying the URL to the clipboard if this fails,
 /// so the io::Error here is something the caller can swallow.
 pub(crate) fn open_in_browser(url: &str) -> Result<(), std::io::Error> {
+    if !browser_scheme_allowed(url) {
+        return Err(std::io::Error::other(format!(
+            "refusing to open {url:?}: scheme is not http/https/mailto"
+        )));
+    }
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW so the `cmd /C start` shim doesn't flash a
-        // console window on the GUI-subsystem app.
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .creation_flags(0x0800_0000)
-            .spawn()?;
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+        // ShellExecuteW hands the string to the registered handler with no
+        // shell parser in between. `cmd /C start "" <url>` had one: std
+        // quotes an argument only when it holds a space or tab, a URL holds
+        // neither, so `&`, `|`, `^` reached cmd.exe as operators and `%VAR%`
+        // expanded. A release note whose `html_url` read
+        // `https://github.com/x&calc` ran `calc` on the click. Quoting the
+        // argument would not have been enough either, a `"` in the URL
+        // closes the quote. Same idiom as `update::launch_installer`.
+        let mut file: Vec<u16> = std::ffi::OsStr::new(url).encode_wide().collect();
+        file.push(0);
+
+        let hinst = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        // HINSTANCE-shaped sentinel: values > 32 mean success.
+        if (hinst as isize) <= 32 {
+            return Err(std::io::Error::other(format!(
+                "ShellExecute failed ({}) for {url:?}",
+                hinst as isize
+            )));
+        }
     }
     #[cfg(target_os = "macos")]
     {

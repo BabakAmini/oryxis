@@ -45,19 +45,65 @@ pub(crate) fn set_clipboard_text(text: &str) {
     crate::host_clipboard::write_text(text);
 }
 
+/// Schemes this function will hand to the OS, matching the OSC 8 allowlist
+/// (`highlight::osc8_scheme_allowed`) that already gates the link-open
+/// affordance. Repeated at the sink on purpose: the target is bytes the
+/// REMOTE HOST printed, and the Windows handler resolves a bare path or a
+/// UNC name to a program and runs it, so an unchecked string here is an
+/// execution primitive rather than a navigation.
+fn open_scheme_allowed(url: &str) -> bool {
+    let Some((scheme, _)) = url.split_once(':') else {
+        return false;
+    };
+    // RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ), so a leading
+    // space or an embedded control char fails to parse instead of passing.
+    let mut chars = scheme.chars();
+    if !chars.next().is_some_and(|c| c.is_ascii_alphabetic()) {
+        return false;
+    }
+    if !chars.all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')) {
+        return false;
+    }
+    matches!(
+        scheme.to_ascii_lowercase().as_str(),
+        "http" | "https" | "mailto" | "ftp"
+    )
+}
+
 /// Best-effort spawn of the OS default handler for a URL. Runs detached; the
 /// terminal widget never blocks on it and errors are swallowed, a failed
 /// launch just means nothing happens visibly, same as any other click miss.
 pub(crate) fn open_url(url: &str) {
+    if !open_scheme_allowed(url) {
+        return;
+    }
     #[cfg(target_os = "windows")]
     {
-        use std::os::windows::process::CommandExt;
-        // CREATE_NO_WINDOW so the `cmd /C start` shim doesn't flash a
-        // console window on the GUI-subsystem app.
-        let _ = std::process::Command::new("cmd")
-            .args(["/C", "start", "", url])
-            .creation_flags(0x0800_0000)
-            .spawn();
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::UI::Shell::ShellExecuteW;
+        use windows_sys::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+        // The OS handler is invoked directly, with no shell to parse the
+        // target. `cmd /C start "" <url>` had one, and std quotes an
+        // argument only when it holds a space or tab: `url_at_cell` stops
+        // the scan AT whitespace, so a scraped URL never got quoted and a
+        // printed `https://host/?a=1&calc` ran `calc` on Ctrl+click.
+        // Quoting would not have closed it either (a `"` in the URL ends
+        // the quote, and `%VAR%` expands inside quotes anyway).
+        let mut file: Vec<u16> = std::ffi::OsStr::new(url).encode_wide().collect();
+        file.push(0);
+        // HINSTANCE-shaped sentinel: > 32 is success. Nothing to report to
+        // here, a failed launch is the same visible outcome as a click miss.
+        unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                std::ptr::null(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
     }
     #[cfg(target_os = "macos")]
     {

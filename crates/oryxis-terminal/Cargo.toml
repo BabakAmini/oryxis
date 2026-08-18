@@ -20,3 +20,13 @@ regex = { workspace = true }
 # performed by the host through the iced runtime, so the process only ever
 # has one clipboard operation in flight. See `host_clipboard` for the
 # STATUS_HEAP_CORRUPTION crash that rule comes from.
+
+# `ShellExecuteW`, so Ctrl+click on a link reaches the OS handler without
+# a shell in between. The `cmd /C start` shim it replaces let a byte the
+# REMOTE HOST printed (`&`, `|`, `^`, `%VAR%`) act as a cmd.exe operator,
+# because std quotes an argument only when it holds a space or tab and a
+# scraped URL holds neither. See `widget::clipboard::open_url`.
+# 0.61 is the line the rest of the tree resolves, so the build keeps one
+# `windows-sys` (it numbers independently from `windows`).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
