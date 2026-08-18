@@ -13,24 +13,103 @@
 use oryxis_core::models::custom_terminal_theme::CustomTerminalTheme;
 use oryxis_core::models::custom_ui_theme::CustomUiTheme;
 
+/// Which of the two importers a pasted file belongs to. The app has one
+/// panel per kind, in different settings sections, so this is what a
+/// misplaced paste is routed by.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ThemeKind {
+    /// Oryxis chrome theme (Settings > Interface).
+    Ui,
+    /// Terminal color scheme (Settings > Terminal).
+    Terminal,
+}
+
+/// Why an import failed. Typed rather than a ready-made sentence for two
+/// reasons: the app ACTS on `WrongImporter` (it moves the paste to the
+/// other panel instead of showing anything), and every message it does
+/// show has to be translated, which `localized` is the single point of.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum ImportError {
+    /// The content is fine, just pasted in the wrong panel; the payload
+    /// is where it belongs.
+    WrongImporter(ThemeKind),
+    /// JSON without the `oryxis_ui_theme` marker that no terminal
+    /// format recognizes either.
+    NotUiTheme,
+    /// The content is not JSON at all (payload = the parser's own
+    /// message, which carries the offending line / column).
+    InvalidJson(String),
+    /// A required key is missing or is not a color (payload = the key).
+    MissingField(String),
+    /// None of the three terminal formats matched.
+    UnrecognizedFormat,
+}
+
+impl ImportError {
+    /// The sentence shown in an import panel's error slot. `WrongImporter`
+    /// normally never reaches a user (the app redirects on it), but it
+    /// renders the destination anyway so any other caller stays honest.
+    pub(crate) fn localized(&self) -> String {
+        use crate::i18n::t;
+        match self {
+            ImportError::WrongImporter(ThemeKind::Ui) => t("theme_import_err_is_ui").to_string(),
+            ImportError::WrongImporter(ThemeKind::Terminal) => {
+                t("theme_import_err_is_terminal").to_string()
+            }
+            ImportError::NotUiTheme => t("theme_import_err_not_ui").to_string(),
+            ImportError::InvalidJson(e) => format!("{}: {e}", t("theme_import_err_json")),
+            ImportError::MissingField(f) => format!("{}: {f}", t("theme_import_err_missing")),
+            ImportError::UnrecognizedFormat => t("theme_import_err_format").to_string(),
+        }
+    }
+}
+
 /// Detect the format from the content and parse it. `name` is the
 /// user-provided theme name.
-pub(crate) fn parse_theme(content: &str, name: &str) -> Result<CustomTerminalTheme, String> {
+pub(crate) fn parse_theme(content: &str, name: &str) -> Result<CustomTerminalTheme, ImportError> {
     let trimmed = content.trim_start();
     if trimmed.starts_with('{') {
+        // The marker is checked FIRST here and in `parse_ui_theme`, which
+        // is what makes a redirect loop structurally impossible: content
+        // carrying it is a UI theme to both sides, never a scheme.
         if content.contains("\"oryxis_ui_theme\"") {
-            return Err("This is an Oryxis UI (chrome) theme file; import it \
-                        from Settings > Interface.".to_string());
+            return Err(ImportError::WrongImporter(ThemeKind::Ui));
         }
+        // Any other JSON goes to the Windows Terminal parser, whose
+        // per-key error ("background") is worth more to someone standing
+        // in this panel than a blanket "unrecognized format".
         parse_windows_terminal(content, name)
     } else if trimmed.starts_with("<?xml") || trimmed.contains("<plist") {
         parse_iterm(content, name)
     } else if content.contains("base00") {
         parse_base16(content, name)
     } else {
-        Err("Unrecognized format (expected Windows Terminal JSON, iTerm \
-             .itermcolors, or base16 YAML).".to_string())
+        Err(ImportError::UnrecognizedFormat)
     }
+}
+
+/// POSITIVE evidence that the content is a terminal scheme, which is a
+/// different question from "which parser handles it" (`parse_theme`,
+/// permissive by design). Absence of the UI marker is deliberately NOT
+/// evidence: guessing from absence would send a typo pasted in the
+/// interface panel over to Settings > Terminal, to face an error it
+/// cannot act on there either.
+fn looks_like_terminal_scheme(content: &str) -> bool {
+    let trimmed = content.trim_start();
+    if trimmed.starts_with("<?xml") || trimmed.contains("<plist") || content.contains("base00") {
+        return true;
+    }
+    // Windows Terminal JSON carries no marker of its own, so its shape
+    // is the evidence: the background/foreground pair, or an ANSI slot.
+    let Ok(serde_json::Value::Object(obj)) = serde_json::from_str::<serde_json::Value>(content)
+    else {
+        return false;
+    };
+    let has = |k: &str| obj.get(k).is_some_and(|v| v.is_string());
+    (has("background") && has("foreground"))
+        || ["black", "red", "green", "yellow", "blue", "purple", "cyan", "white"]
+            .iter()
+            .any(|k| has(k))
 }
 
 /// Pull a display name out of a pasted / loaded scheme so the import modal
@@ -68,17 +147,25 @@ pub(crate) fn suggest_name(content: &str) -> Option<String> {
 pub(crate) fn parse_ui_theme(
     content: &str,
     fallback_name: &str,
-) -> Result<CustomUiTheme, String> {
+) -> Result<CustomUiTheme, ImportError> {
+    // Cheap marker probe before anything else: a terminal scheme routed
+    // out of here must not be rejected as "invalid JSON" first (an iTerm
+    // plist is not JSON at all), and the marker still wins over the
+    // scheme shape.
+    if !content.contains("\"oryxis_ui_theme\"") && looks_like_terminal_scheme(content) {
+        return Err(ImportError::WrongImporter(ThemeKind::Terminal));
+    }
     let v: serde_json::Value =
-        serde_json::from_str(content).map_err(|e| format!("Invalid JSON: {e}"))?;
+        serde_json::from_str(content).map_err(|e| ImportError::InvalidJson(e.to_string()))?;
+    // The parsed value is the authority: the probe above only sees text,
+    // so a file merely mentioning the marker inside a string lands here.
     if v.get("oryxis_ui_theme").is_none() {
-        return Err("Not an Oryxis UI theme file (missing the \
-                    'oryxis_ui_theme' marker).".to_string());
+        return Err(ImportError::NotUiTheme);
     }
     let colors_obj = v
         .get("colors")
         .and_then(|c| c.as_object())
-        .ok_or("Missing 'colors' object")?;
+        .ok_or_else(|| ImportError::MissingField("colors".to_string()))?;
     let defaults = crate::theme::theme_colors_to_hex(&crate::theme::ORYXIS_DARK);
     let colors: [String; 21] = std::array::from_fn(|i| {
         colors_obj
@@ -128,11 +215,11 @@ fn float_to_hex(r: f32, g: f32, b: f32) -> String {
 
 // ---- Windows Terminal ------------------------------------------------------
 
-fn parse_windows_terminal(s: &str, name: &str) -> Result<CustomTerminalTheme, String> {
+fn parse_windows_terminal(s: &str, name: &str) -> Result<CustomTerminalTheme, ImportError> {
     let v: serde_json::Value =
-        serde_json::from_str(s).map_err(|e| format!("Invalid JSON: {e}"))?;
+        serde_json::from_str(s).map_err(|e| ImportError::InvalidJson(e.to_string()))?;
     let get = |k: &str| v.get(k).and_then(|x| x.as_str()).and_then(norm_hex);
-    let req = |k: &str| get(k).ok_or_else(|| format!("Missing or invalid '{k}'"));
+    let req = |k: &str| get(k).ok_or_else(|| ImportError::MissingField(k.to_string()));
 
     let bg = req("background")?;
     let fg = req("foreground")?;
@@ -152,7 +239,7 @@ fn parse_windows_terminal(s: &str, name: &str) -> Result<CustomTerminalTheme, St
 
 // ---- base16 ----------------------------------------------------------------
 
-fn parse_base16(s: &str, name: &str) -> Result<CustomTerminalTheme, String> {
+fn parse_base16(s: &str, name: &str) -> Result<CustomTerminalTheme, ImportError> {
     let mut bases: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     for line in s.lines() {
         if let Some((k, val)) = line.split_once(':') {
@@ -165,7 +252,12 @@ fn parse_base16(s: &str, name: &str) -> Result<CustomTerminalTheme, String> {
             }
         }
     }
-    let b = |k: &str| bases.get(k).cloned().ok_or_else(|| format!("Missing '{k}'"));
+    let b = |k: &str| {
+        bases
+            .get(k)
+            .cloned()
+            .ok_or_else(|| ImportError::MissingField(k.to_string()))
+    };
     let bg = b("base00")?;
     let fg = b("base05")?;
     // Standard base16 -> ANSI mapping (shell template).
@@ -180,7 +272,7 @@ fn parse_base16(s: &str, name: &str) -> Result<CustomTerminalTheme, String> {
 
 // ---- iTerm2 .itermcolors ---------------------------------------------------
 
-fn parse_iterm(s: &str, name: &str) -> Result<CustomTerminalTheme, String> {
+fn parse_iterm(s: &str, name: &str) -> Result<CustomTerminalTheme, ImportError> {
     // For a `<key>NAME</key>` color entry, read the Red/Green/Blue float
     // components from the dict that follows it.
     let color_for = |key: &str| -> Option<String> {
@@ -196,13 +288,14 @@ fn parse_iterm(s: &str, name: &str) -> Result<CustomTerminalTheme, String> {
         Some(float_to_hex(comp("Red")?, comp("Green")?, comp("Blue")?))
     };
 
-    let bg = color_for("Background Color").ok_or("Missing Background Color")?;
-    let fg = color_for("Foreground Color").ok_or("Missing Foreground Color")?;
+    let missing = |k: &str| ImportError::MissingField(k.to_string());
+    let bg = color_for("Background Color").ok_or_else(|| missing("Background Color"))?;
+    let fg = color_for("Foreground Color").ok_or_else(|| missing("Foreground Color"))?;
     let cursor = color_for("Cursor Color").unwrap_or_else(|| fg.clone());
     let mut ansi: [String; 16] = std::array::from_fn(|_| String::new());
     for (i, slot) in ansi.iter_mut().enumerate() {
         *slot = color_for(&format!("Ansi {i} Color"))
-            .ok_or_else(|| format!("Missing Ansi {i} Color"))?;
+            .ok_or_else(|| missing(&format!("Ansi {i} Color")))?;
     }
     Ok(build(name, fg, bg, cursor, ansi))
 }
@@ -268,7 +361,7 @@ mod tests {
         </dict></plist>"#;
         // Needs all 16 ANSI keys; this minimal sample should fail cleanly.
         let err = parse_theme(xml, "iT").unwrap_err();
-        assert!(err.contains("Ansi"), "expected a missing-Ansi error, got {err}");
+        assert_eq!(err, ImportError::MissingField("Ansi 0 Color".to_string()));
     }
 
     #[test]
@@ -294,14 +387,71 @@ mod tests {
 
     #[test]
     fn unknown_format_errors() {
-        assert!(parse_theme("hello world", "x").is_err());
+        assert_eq!(
+            parse_theme("hello world", "x").unwrap_err(),
+            ImportError::UnrecognizedFormat
+        );
     }
 
     #[test]
     fn ui_theme_file_is_rejected_by_terminal_importer() {
         let json = r#"{ "oryxis_ui_theme": 1, "name": "X", "colors": {} }"#;
-        let err = parse_theme(json, "x").unwrap_err();
-        assert!(err.contains("Interface"), "unexpected error: {err}");
+        assert_eq!(
+            parse_theme(json, "x").unwrap_err(),
+            ImportError::WrongImporter(ThemeKind::Ui)
+        );
+    }
+
+    #[test]
+    fn terminal_scheme_in_the_ui_importer_names_its_own_panel() {
+        // Windows Terminal JSON (the discussion #68 case): shape alone,
+        // no marker of its own.
+        let wt = r##"{ "name": "Ubuntu", "background": "#300a24",
+            "foreground": "#ffffff", "black": "#2e3436" }"##;
+        assert_eq!(
+            parse_ui_theme(wt, "x").unwrap_err(),
+            ImportError::WrongImporter(ThemeKind::Terminal)
+        );
+        // An iTerm plist is not even JSON, so the probe has to run
+        // before the parse or this reports "invalid JSON" instead.
+        let plist = "<?xml version=\"1.0\"?><plist><dict></dict></plist>";
+        assert_eq!(
+            parse_ui_theme(plist, "x").unwrap_err(),
+            ImportError::WrongImporter(ThemeKind::Terminal)
+        );
+        let base16 = "scheme: \"Test\"\nbase00: \"1d1f21\"\n";
+        assert_eq!(
+            parse_ui_theme(base16, "x").unwrap_err(),
+            ImportError::WrongImporter(ThemeKind::Terminal)
+        );
+    }
+
+    #[test]
+    fn junk_in_the_ui_importer_stays_put() {
+        // The redirect needs POSITIVE evidence: anything else must fail
+        // here rather than move the user to a panel that would reject it
+        // too. This is the guard on the whole redirect feature.
+        for junk in ["hello world", "{}", "{ \"foreground\": \"#ffffff\" }", ""] {
+            let err = parse_ui_theme(junk, "x").unwrap_err();
+            assert!(
+                !matches!(err, ImportError::WrongImporter(_)),
+                "{junk:?} should not be routed to the terminal panel, got {err:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_marker_wins_over_the_scheme_shape() {
+        // A UI theme that also carries scheme-shaped keys resolves to UI
+        // on BOTH sides, which is what makes a redirect loop impossible.
+        let json = r##"{ "oryxis_ui_theme": 1, "name": "X",
+            "background": "#000000", "foreground": "#ffffff",
+            "colors": { "bg_primary": "#101010" } }"##;
+        assert_eq!(
+            parse_theme(json, "x").unwrap_err(),
+            ImportError::WrongImporter(ThemeKind::Ui)
+        );
+        assert!(parse_ui_theme(json, "x").is_ok());
     }
 
     #[test]
@@ -315,6 +465,37 @@ mod tests {
             Some("Tomorrow Night".to_string())
         );
         assert_eq!(suggest_name("<?xml version=\"1.0\"?>"), None);
+    }
+
+    #[test]
+    fn every_error_renders_a_real_string() {
+        // `i18n::en` answers "???" for a key it does not know, so a typo
+        // in `localized` reaches the user as punctuation instead of
+        // failing to compile. This is what catches it.
+        for err in [
+            ImportError::WrongImporter(ThemeKind::Ui),
+            ImportError::WrongImporter(ThemeKind::Terminal),
+            ImportError::NotUiTheme,
+            ImportError::InvalidJson("trailing comma".to_string()),
+            ImportError::MissingField("background".to_string()),
+            ImportError::UnrecognizedFormat,
+        ] {
+            let msg = err.localized();
+            assert!(!msg.contains("???"), "unresolved i18n key for {err:?}");
+            assert!(msg.len() > 5, "suspiciously short message for {err:?}");
+        }
+        // The two payload-carrying ones keep the detail the user needs
+        // to fix the file.
+        assert!(
+            ImportError::MissingField("background".to_string())
+                .localized()
+                .contains("background")
+        );
+        assert!(
+            ImportError::InvalidJson("trailing comma".to_string())
+                .localized()
+                .contains("trailing comma")
+        );
     }
 
     #[test]

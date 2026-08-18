@@ -11,9 +11,71 @@ fn read_theme_file(path: &std::path::Path) -> Result<String, String> {
     if std::fs::metadata(path).is_ok_and(|m| m.len() > MAX_THEME_FILE_BYTES) {
         return Err(crate::i18n::t("theme_import_too_large").to_string());
     }
-    std::fs::read_to_string(path).map_err(|e| format!("Failed to read: {e}"))
+    std::fs::read_to_string(path)
+        .map_err(|e| format!("{}: {e}", crate::i18n::t("theme_import_read_failed")))
 }
 impl Oryxis {
+    /// Move a paste to the importer it actually belongs to instead of
+    /// rejecting it. The two panels live in different settings sections,
+    /// so the content and the typed name travel over, the user lands on
+    /// the right section, and a toast says what happened; Apply there
+    /// still runs every existing validation (same contract as the
+    /// `oryxis://theme` deep link, which prefills and waits too).
+    fn hand_off_theme_import(
+        &mut self,
+        to: crate::theme_import::ThemeKind,
+        content: String,
+        typed_name: &str,
+    ) -> Task<Message> {
+        use crate::theme_import::ThemeKind;
+        let name = if typed_name.trim().is_empty() {
+            crate::theme_import::suggest_name(&content).unwrap_or_default()
+        } else {
+            typed_name.trim().to_string()
+        };
+        let editor = iced::widget::text_editor::Content::with_text(&content);
+        let (section, toast) = match to {
+            ThemeKind::Terminal => {
+                self.close_modal(crate::state::Modal::UiThemeImport);
+                self.ui_theme_import_error = None;
+                self.panels.theme_import = true;
+                self.theme_ui.import_content = editor;
+                self.theme_ui.import_name = name;
+                self.theme_ui.import_error = None;
+                (
+                    crate::state::SettingsSection::Terminal,
+                    crate::i18n::t("theme_import_moved_terminal"),
+                )
+            }
+            ThemeKind::Ui => {
+                self.close_modal(crate::state::Modal::ThemeImport);
+                self.theme_ui.import_error = None;
+                self.panels.ui_theme_import = true;
+                self.ui_theme_import_content = editor;
+                self.ui_theme_import_name = name;
+                self.ui_theme_import_error = None;
+                (
+                    crate::state::SettingsSection::Interface,
+                    crate::i18n::t("theme_import_moved_ui"),
+                )
+            }
+        };
+        // A sentence to read, not a one-word confirmation, and it has to
+        // outlive the section switch it explains.
+        self.set_toast_secs(toast.to_string(), 6);
+        // Section only when Settings is already the view, which it is
+        // whenever a human clicked Import: the full `OpenSettingsSection`
+        // route goes through `ChangeView`, which lands focus in the
+        // sidebar search and would pull it out of the panel we just
+        // opened. The long way stays for any caller that is elsewhere.
+        if self.active_view == View::Settings {
+            Task::done(Message::Settings(SettingsMessage::ChangeSettingsSection(
+                section,
+            )))
+        } else {
+            Task::done(Message::Tabs(TabsMessage::OpenSettingsSection(section)))
+        }
+    }
     /// Validate + persist the in-progress custom theme. Returns
     /// `Some(error_message)` on failure (shown in the editor), `None` on
     /// success (after reloading the list + repainting).
@@ -500,7 +562,13 @@ impl Oryxis {
                         self.theme_ui.editor = Some(form);
                         self.panels.theme_import = false;
                     }
-                    Err(e) => self.theme_ui.import_error = Some(e),
+                    // A UI theme pasted here is not a mistake to report,
+                    // it is a paste in the wrong panel: carry it over.
+                    Err(crate::theme_import::ImportError::WrongImporter(kind)) => {
+                        let typed = self.theme_ui.import_name.clone();
+                        return Ok(self.hand_off_theme_import(kind, content, &typed));
+                    }
+                    Err(e) => self.theme_ui.import_error = Some(e.localized()),
                 }
             }
             // -- Custom UI (chrome) themes --
@@ -759,7 +827,10 @@ impl Oryxis {
                     |result| {
                         let r = match result {
                             Ok(r) => r,
-                            Err(e) => Err(format!("Thread error: {e}")),
+                            Err(e) => Err(format!(
+                                "{}: {e}",
+                                crate::i18n::t("theme_import_read_failed")
+                            )),
                         };
                         Message::Settings(SettingsMessage::ThemeImportFileLoaded(r))
                     },
@@ -870,7 +941,14 @@ impl Oryxis {
                         });
                         self.panels.ui_theme_import = false;
                     }
-                    Err(e) => self.ui_theme_import_error = Some(e),
+                    // Same courtesy in the other direction: a terminal
+                    // scheme travels to Settings > Terminal instead of
+                    // being turned away here.
+                    Err(crate::theme_import::ImportError::WrongImporter(kind)) => {
+                        let typed = self.ui_theme_import_name.clone();
+                        return Ok(self.hand_off_theme_import(kind, content, &typed));
+                    }
+                    Err(e) => self.ui_theme_import_error = Some(e.localized()),
                 }
             }
             SettingsMessage::UiThemeImportBrowse => {
@@ -889,7 +967,10 @@ impl Oryxis {
                     |result| {
                         let r = match result {
                             Ok(r) => r,
-                            Err(e) => Err(format!("Thread error: {e}")),
+                            Err(e) => Err(format!(
+                                "{}: {e}",
+                                crate::i18n::t("theme_import_read_failed")
+                            )),
                         };
                         Message::Settings(SettingsMessage::UiThemeImportFileLoaded(r))
                     },
@@ -958,15 +1039,16 @@ fn save_theme_file_task(contents: String, file_name: String) -> Task<Message> {
                 .add_filter("JSON", &["json"])
                 .save_file();
             match file {
-                Some(path) => std::fs::write(&path, contents.as_bytes())
-                    .map_err(|e| format!("Failed to write: {e}")),
+                Some(path) => {
+                    std::fs::write(&path, contents.as_bytes()).map_err(|e| e.to_string())
+                }
                 None => Err("cancelled".to_string()),
             }
         }),
         |result| {
             let r = match result {
                 Ok(r) => r,
-                Err(e) => Err(format!("Thread error: {e}")),
+                Err(e) => Err(e.to_string()),
             };
             Message::Settings(SettingsMessage::ThemeExportFinished(r))
         },

@@ -897,8 +897,15 @@ impl Oryxis {
     /// Like [`show_toast`] but with an explicit dwell in whole seconds, for
     /// hints that are a sentence to read rather than a one-word confirmation.
     pub(crate) fn show_toast_secs(&mut self, msg: String, secs: u64) -> Task<Message> {
-        self.set_toast_millis(msg, secs * 1000);
+        self.set_toast_secs(msg, secs);
         Task::none()
+    }
+
+    /// [`set_toast`] with an explicit dwell, for a caller that returns a
+    /// real `Task` of its own and so cannot go through [`show_toast_secs`]
+    /// (whose empty `Task` would swallow it).
+    pub(crate) fn set_toast_secs(&mut self, msg: String, secs: u64) {
+        self.set_toast_millis(msg, secs * 1000);
     }
 
     /// Set the toast chip and stamp its auto-dismiss deadline (default
