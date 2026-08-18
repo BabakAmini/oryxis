@@ -17,6 +17,17 @@ pub enum LogEvent {
     Disconnected,
     AuthFailed,
     Error,
+    /// A sync peer OVERWROTE something that decides where or how a
+    /// connection is made (its address, its proxy, a group default, a
+    /// known host, an auto-starting forward, a login script).
+    ///
+    /// Only overwrites, never the peer's new entities: replication is
+    /// the feature, and a first sync would otherwise write a line per
+    /// host. What has no other trace is a route that was already
+    /// working and now points somewhere else, decided on another
+    /// machine, applied here with no prompt and no visible change
+    /// beyond a counter.
+    SyncApplied,
 }
 
 impl std::fmt::Display for LogEvent {
@@ -26,6 +37,7 @@ impl std::fmt::Display for LogEvent {
             Self::Disconnected => write!(f, "Disconnected"),
             Self::AuthFailed => write!(f, "Auth Failed"),
             Self::Error => write!(f, "Error"),
+            Self::SyncApplied => write!(f, "Sync Applied"),
         }
     }
 }

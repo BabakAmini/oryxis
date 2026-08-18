@@ -407,11 +407,18 @@ impl Oryxis {
         );
         let key = key.clone();
         let stamp = self.monitor_dash.stamp;
+        // Dashboard cards dial themselves as the grid fills, so this is
+        // an unattended path: approved command proxies still run, the
+        // rest are refused without a modal over the dashboard.
+        let trusted_proxy_commands = self.trusted_proxy_commands();
         Task::perform(
             async move {
                 let engine = oryxis_ssh::SshEngine::new()
                     .with_host_key_check(host_key_check)
                     .with_strict_host_key(true)
+                    .with_proxy_command_ask(oryxis_ssh::trusted_only_proxy_command_ask(
+                        trusted_proxy_commands,
+                    ))
                     .with_totp_secret(totp_secret.as_deref())
                     .with_keepalive(keepalive)
                     .with_address_family(conn.address_family)

@@ -25,6 +25,7 @@ use crate::state::{ConnectionProgress, ConnectionStep, SshStreamMsg, TerminalTab
 /// the shared modal, data/connect/disconnect route by pane id.
 enum PaneConnMsg {
     HostKey(oryxis_ssh::HostKeyQuery),
+    ProxyCommand(oryxis_ssh::ProxyCommandQuery),
     Kbi(oryxis_ssh::KbiQuery),
     /// Pre-auth banner from the server (RFC 4252 §5.4).
     Banner(String),
@@ -354,6 +355,16 @@ impl Oryxis {
                 let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
                 self.host_key_response_tx = Some(hk_resp_tx);
 
+                // Same ask/answer pair for command-proxy approval. The
+                // user drove this connect, so an unapproved line may
+                // raise the prompt (`ProxyConsentMode::Ask`).
+                let (pc_ask_tx, mut pc_ask_rx) = tokio::sync::mpsc::channel::<(
+                    oryxis_ssh::ProxyCommandQuery,
+                    tokio::sync::oneshot::Sender<bool>,
+                )>(1);
+                let (pc_resp_tx, mut pc_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
+                self.proxy_command_response_tx = Some(pc_resp_tx);
+
                 // Same ask/answer pair for keyboard-interactive
                 // (2FA / OTP) prompts when auth method is Interactive.
                 let (kbi_ask_tx, mut kbi_ask_rx) = tokio::sync::mpsc::channel::<(oryxis_ssh::KbiQuery, tokio::sync::oneshot::Sender<Option<Vec<String>>>)>(1);
@@ -541,6 +552,7 @@ impl Oryxis {
                         let engine = SshEngine::new()
                             .with_host_key_check(host_key_check)
                             .with_host_key_ask(hk_ask_tx)
+                            .with_proxy_command_ask(pc_ask_tx)
                             .with_kbi_ask(kbi_ask_tx)
                             .with_totp_secret(totp_secret.as_deref())
                             .with_password_prompt_labels(
@@ -579,6 +591,21 @@ impl Oryxis {
                                 // Wait for UI response
                                 let accepted = hk_resp_rx.recv().await.unwrap_or(false);
                                 let _ = resp_tx.send(accepted);
+                            }
+                        });
+
+                        // Same bridge for command-proxy approval. A
+                        // dropped response channel resolves to `false`,
+                        // i.e. the dial stops before spawning anything:
+                        // the absence of an answer is never consent.
+                        let mut pc_sender_clone = sender.clone();
+                        let _pc_bridge = tokio::spawn(async move {
+                            while let Some((query, resp_tx)) = pc_ask_rx.recv().await {
+                                let _ = pc_sender_clone
+                                    .send(SshStreamMsg::ProxyCommandVerify(query))
+                                    .await;
+                                let approved = pc_resp_rx.recv().await.unwrap_or(false);
+                                let _ = resp_tx.send(approved);
                             }
                         });
 
@@ -866,6 +893,12 @@ impl Oryxis {
                         )),
                         SshStreamMsg::HostKeyVerify(query) => {
                             Message::Ssh(SshMessage::SshHostKeyVerify(query))
+                        }
+                        SshStreamMsg::ProxyCommandVerify(query) => {
+                            Message::Ssh(SshMessage::SshProxyCommandVerify(
+                                Box::new(query),
+                                crate::state::ProxyConsentMode::Ask,
+                            ))
                         }
                         SshStreamMsg::KbiPrompt(query) => {
                             Message::Ssh(SshMessage::SshKbiPrompt(quick_origin, query))
@@ -1254,10 +1287,13 @@ impl Oryxis {
                 tracing::info!(%reason, "connection reuse failed, dialling fresh");
                 Message::Ssh(SshMessage::ReuseFailedDialFresh(pane_id))
             }
-            // A reused session never negotiates, so these cannot happen.
-            PaneConnMsg::HostKey(_) | PaneConnMsg::Kbi(_) | PaneConnMsg::Banner(_) => {
-                Message::NoOp
-            }
+            // A reused session never negotiates and never dials, so
+            // none of these can happen: the transport (and with it any
+            // proxy the original dial went through) is already up.
+            PaneConnMsg::HostKey(_)
+            | PaneConnMsg::ProxyCommand(_)
+            | PaneConnMsg::Kbi(_)
+            | PaneConnMsg::Banner(_) => Message::NoOp,
         })
     }
 
@@ -1410,6 +1446,15 @@ impl Oryxis {
         let (kbi_resp_tx, mut kbi_resp_rx) = tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
         self.kbi_response_tx = Some(kbi_resp_tx);
 
+        // Command-proxy approval bridge, same staging slot and the same
+        // multi-pane caveat as the two above.
+        let (pc_ask_tx, mut pc_ask_rx) = tokio::sync::mpsc::channel::<(
+            oryxis_ssh::ProxyCommandQuery,
+            tokio::sync::oneshot::Sender<bool>,
+        )>(1);
+        let (pc_resp_tx, mut pc_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
+        self.proxy_command_response_tx = Some(pc_resp_tx);
+
         // Pre-auth banner sink (one-way); a split-pane connect has no
         // progress card, so banners go straight to the pane's terminal.
         let (banner_tx, mut banner_rx) = tokio::sync::mpsc::unbounded_channel::<String>();
@@ -1418,6 +1463,7 @@ impl Oryxis {
             let engine = SshEngine::new()
                 .with_host_key_check(host_key_check)
                 .with_host_key_ask(hk_ask_tx)
+                .with_proxy_command_ask(pc_ask_tx)
                 .with_kbi_ask(kbi_ask_tx)
                 .with_totp_secret(totp_secret.as_deref())
                 .with_password_prompt_labels(
@@ -1462,6 +1508,15 @@ impl Oryxis {
                 }
             });
 
+            let mut pc_sender_clone = sender.clone();
+            let _pc_bridge = tokio::spawn(async move {
+                while let Some((query, resp_tx)) = pc_ask_rx.recv().await {
+                    let _ = pc_sender_clone.send(PaneConnMsg::ProxyCommand(query)).await;
+                    let approved = pc_resp_rx.recv().await.unwrap_or(false);
+                    let _ = resp_tx.send(approved);
+                }
+            });
+
             match engine
                 .connect_with_resolver(
                     &conn,
@@ -1493,6 +1548,10 @@ impl Oryxis {
 
         Task::stream(stream).map(move |m| match m {
             PaneConnMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
+            PaneConnMsg::ProxyCommand(q) => Message::Ssh(SshMessage::SshProxyCommandVerify(
+                Box::new(q),
+                crate::state::ProxyConsentMode::Ask,
+            )),
             PaneConnMsg::Kbi(q) => Message::Ssh(SshMessage::SshKbiPrompt(quick_id, q)),
             PaneConnMsg::Banner(text) => Message::Ssh(SshMessage::SshPaneBanner(pane_id, text)),
             PaneConnMsg::Connected(s) => {

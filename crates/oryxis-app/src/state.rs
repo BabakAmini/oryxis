@@ -466,6 +466,7 @@ pub(crate) enum SshStreamMsg {
     Banner(String),
     Connected(Arc<SshSession>),
     HostKeyVerify(oryxis_ssh::HostKeyQuery),
+    ProxyCommandVerify(oryxis_ssh::ProxyCommandQuery),
     KbiPrompt(oryxis_ssh::KbiQuery),
     Data(Vec<u8>),
     Error(String),
@@ -477,6 +478,26 @@ pub(crate) enum SshStreamMsg {
         server_offers: Vec<String>,
     },
     Disconnected,
+}
+
+/// Who is waiting behind a dial that hit a command proxy, which is what
+/// decides whether the approval may be ASKED for or only looked up.
+///
+/// Every dial consults the same per-device approval list, so a line the
+/// user already accepted never prompts twice regardless of mode. The
+/// difference is what an UNAPPROVED line does.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ProxyConsentMode {
+    /// The user asked for this connect and is watching it: raise the
+    /// prompt.
+    Ask,
+    /// Nobody triggered this dial (boot auto-start forwards, snapshot
+    /// sync, the monitor dashboard). Approved lines still run; anything
+    /// else is refused without a modal. A dialog nobody expects is
+    /// answered reflexively, which is not consent, and the whole point
+    /// of the gate is that these paths are exactly where a route pushed
+    /// by a sync peer would fire unattended.
+    TrustedOnly,
 }
 
 /// A pending "this server only speaks legacy algorithms" prompt: which

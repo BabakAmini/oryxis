@@ -547,9 +547,45 @@ pub enum ProxyType {
     Command(String),
 }
 
+/// Stable identifier for one command-proxy line, used as the key of the
+/// per-device approval a `ProxyType::Command` needs before it may be
+/// spawned (`VaultStore::is_proxy_command_trusted`).
+///
+/// The hash IS the identity of what runs: `proxy_command` executes the
+/// string verbatim, with no `%h` / `%p` substitution, so approving the
+/// string approves exactly that process and nothing else. Editing a
+/// single character mints a different fingerprint and the approval has
+/// to be given again, which is what stops a trusted line from being
+/// quietly rewritten into another one.
+///
+/// Hashed rather than stored in the clear because the line is
+/// user-authored and can embed credentials (the connect log already
+/// prints only its TYPE for that reason).
+pub fn proxy_command_fingerprint(command: &str) -> String {
+    use sha2::{Digest, Sha256};
+    Sha256::digest(command.as_bytes())
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The fingerprint keys a local approval to run a process, so it
+    /// has to be exact: two lines that differ at all are two decisions,
+    /// including by whitespace, which is enough to turn one command
+    /// into another.
+    #[test]
+    fn proxy_command_fingerprint_is_exact() {
+        let a = proxy_command_fingerprint("ssh -W %h:%p bastion");
+        assert_eq!(a.len(), 64, "SHA-256 in hex");
+        assert_eq!(a, proxy_command_fingerprint("ssh -W %h:%p bastion"));
+        assert_ne!(a, proxy_command_fingerprint("ssh -W %h:%p bastion "));
+        assert_ne!(a, proxy_command_fingerprint("ssh -W %h:%p bastionx"));
+        assert_ne!(a, proxy_command_fingerprint(""));
+    }
 
     #[test]
     fn new_connection_defaults() {

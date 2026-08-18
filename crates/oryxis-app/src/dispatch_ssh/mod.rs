@@ -76,8 +76,9 @@ impl Oryxis {
         message: SshMessage,
     ) -> Task<Message> {
         match message {
-            // Host-key prompt / legacy-algorithm dialog -> hostkey sub;
-            // keyboard-interactive auth + quick-auth switch -> kbi sub.
+            // Host-key prompt / legacy-algorithm dialog / command-proxy
+            // approval -> hostkey sub; keyboard-interactive auth +
+            // quick-auth switch -> kbi sub.
             // Exhaustive: a new variant fails to compile until listed.
             m @ (SshMessage::SshNoCommonAlgo{ .. }
             | SshMessage::LegacyAlgoAccept{ .. }
@@ -85,7 +86,11 @@ impl Oryxis {
             | SshMessage::SshHostKeyVerify(..)
             | SshMessage::SshHostKeyReject
             | SshMessage::SshHostKeyContinue
-            | SshMessage::SshHostKeyAcceptAndSave) => {
+            | SshMessage::SshHostKeyAcceptAndSave
+            | SshMessage::SshProxyCommandVerify(..)
+            | SshMessage::SshProxyCommandReject
+            | SshMessage::SshProxyCommandOnce
+            | SshMessage::SshProxyCommandAlways) => {
                 self.handle_ssh_hostkey(m).unwrap_or_else(crate::dispatch::unrouted)
             }
             m @ (SshMessage::SshKbiPrompt(..)

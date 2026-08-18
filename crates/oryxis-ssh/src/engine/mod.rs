@@ -24,6 +24,7 @@ mod handler;
 mod kbi;
 mod monitor_conn;
 mod net_quality;
+mod proxy_consent;
 mod session;
 mod transport;
 mod terminfo;
@@ -32,6 +33,7 @@ pub use errors::*;
 pub use forwarding::*;
 pub use monitor_conn::MonitorConn;
 pub use net_quality::{NetQuality, NetQualitySnapshot};
+pub use proxy_consent::trusted_only_proxy_command_ask;
 pub use session::*;
 pub use transport::SshTransport;
 pub use terminfo::TermFallback;
@@ -118,6 +120,10 @@ pub struct SshEngine {
     /// the stored password, so headless callers (boot port forwards) still
     /// work without a modal.
     kbi_ask_tx: Option<KbiAskSender>,
+    /// Optional channel for asking the UI to approve a command proxy
+    /// before it is spawned. Absent means REFUSE, never "spawn anyway":
+    /// see [`ProxyCommandAskSender`] and `proxy_command`.
+    proxy_cmd_ask_tx: Option<ProxyCommandAskSender>,
     /// Localized labels for the `AuthMethod::PasswordPrompt` modal
     /// (title + field label). The engine has no i18n, so the app injects
     /// the translated strings; `None` falls back to plain English for
@@ -699,6 +705,49 @@ mod tests {
         let engine = SshEngine::new();
         assert!(engine.host_key_check.is_none());
         assert!(engine.host_key_ask_tx.is_none());
+        // Fail-closed by construction: a command proxy needs an
+        // approval channel, and a fresh engine has none.
+        assert!(engine.proxy_cmd_ask_tx.is_none());
+    }
+
+    /// The spawn gate, from both sides.
+    ///
+    /// The refusal is what makes every dial site safe without each one
+    /// remembering to be: connection data can arrive over sync or from
+    /// an imported file, and this is the single point where it would
+    /// become a local process. A caller that forgets to wire the
+    /// approval channel gets a refusal, never a spawn.
+    #[tokio::test]
+    async fn a_command_proxy_needs_an_approval_channel() {
+        // The command is one that would be visible if it ever ran; the
+        // assertion is that neither branch below reaches a shell.
+        const CMD: &str = "echo should-never-run";
+
+        let no_channel = SshEngine::new();
+        assert!(matches!(
+            no_channel.proxy_command(CMD, "host.example", 22).await.err(),
+            Some(SshError::ProxyCommandNotApproved),
+        ));
+
+        // A channel whose answer is "no" is the same outcome: the
+        // decision is the user's, the default is not to run.
+        let refusing = SshEngine::new()
+            .with_proxy_command_ask(trusted_only_proxy_command_ask(Default::default()));
+        assert!(matches!(
+            refusing.proxy_command(CMD, "host.example", 22).await.err(),
+            Some(SshError::ProxyCommandNotApproved),
+        ));
+
+        // Approved: the same call now spawns, which is what keeps the
+        // gate from breaking every legitimate ProxyCommand host.
+        let approved = SshEngine::new().with_proxy_command_ask(
+            trusted_only_proxy_command_ask(
+                [oryxis_core::models::connection::proxy_command_fingerprint(CMD)]
+                    .into_iter()
+                    .collect(),
+            ),
+        );
+        assert!(approved.proxy_command(CMD, "host.example", 22).await.is_ok());
     }
 
     #[test]

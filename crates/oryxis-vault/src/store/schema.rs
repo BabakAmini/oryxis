@@ -168,6 +168,18 @@ impl VaultStore {
                 UNIQUE(hostname, port)
             );
 
+            -- Command proxies this DEVICE accepts spawning. Deliberately
+            -- outside sync and portable export (no EntityType, no export
+            -- category): the approval answers whether the local human
+            -- accepts running the line on THIS machine, and a replicated
+            -- answer would be a decision made for a person who never saw
+            -- the command. See store/proxy_trust.rs for the rationale.
+            CREATE TABLE IF NOT EXISTS trusted_proxy_commands (
+                fingerprint TEXT PRIMARY KEY,
+                label       TEXT NOT NULL,
+                trusted_at  TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS logs (
                 id               TEXT PRIMARY KEY,
                 connection_label TEXT NOT NULL,

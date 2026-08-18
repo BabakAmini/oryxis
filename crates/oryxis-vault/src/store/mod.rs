@@ -436,6 +436,7 @@ mod keys;
 mod known_hosts;
 mod login_scripts;
 mod logs;
+mod proxy_trust;
 mod schema;
 mod settings;
 mod snippets;
@@ -443,6 +444,7 @@ mod sync;
 
 pub use chat::{ChatConversationEntry, ChatMessageEntry};
 pub use logs::{SealedSessionOutput, CONTENT_SEARCH_MAX_SCAN_BYTES};
+pub use proxy_trust::TrustedProxyCommand;
 
 #[cfg(test)]
 mod tests;

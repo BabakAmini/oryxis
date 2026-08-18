@@ -24,6 +24,7 @@ enum BackupOutcome {
 /// carries the transfer outcome.
 enum BackupConnectMsg {
     HostKey(oryxis_ssh::HostKeyQuery),
+    ProxyCommand(oryxis_ssh::ProxyCommandQuery),
     Done(Result<BackupOutcome, String>),
     NoCommonAlgo {
         category: oryxis_ssh::NegCategory,
@@ -1110,6 +1111,15 @@ impl Oryxis {
         let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
         self.host_key_response_tx = Some(hk_resp_tx);
 
+        // Command-proxy approval, same bridge shape as the host key.
+        // The user confirmed this backup, so the prompt may be raised.
+        let (pc_ask_tx, mut pc_ask_rx) = tokio::sync::mpsc::channel::<(
+            oryxis_ssh::ProxyCommandQuery,
+            tokio::sync::oneshot::Sender<bool>,
+        )>(1);
+        let (pc_resp_tx, mut pc_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
+        self.proxy_command_response_tx = Some(pc_resp_tx);
+
         let totp_secret = self
             .vault
             .as_ref()
@@ -1125,6 +1135,7 @@ impl Oryxis {
                 let engine = SshEngine::new()
                     .with_host_key_check(host_key_check)
                     .with_host_key_ask(hk_ask_tx)
+                    .with_proxy_command_ask(pc_ask_tx)
                     .with_totp_secret(totp_secret.as_deref())
                     .with_keepalive(keepalive)
                     .with_address_family(conn.address_family)
@@ -1146,6 +1157,15 @@ impl Oryxis {
                         let _ = sender_clone.send(BackupConnectMsg::HostKey(query)).await;
                         let accepted = hk_resp_rx.recv().await.unwrap_or(false);
                         let _ = resp_tx.send(accepted);
+                    }
+                });
+
+                let mut pc_sender = sender.clone();
+                let _pc_bridge = tokio::spawn(async move {
+                    while let Some((query, resp_tx)) = pc_ask_rx.recv().await {
+                        let _ = pc_sender.send(BackupConnectMsg::ProxyCommand(query)).await;
+                        let approved = pc_resp_rx.recv().await.unwrap_or(false);
+                        let _ = resp_tx.send(approved);
                     }
                 });
 
@@ -1203,6 +1223,10 @@ impl Oryxis {
         );
         Task::stream(stream).map(move |m| match m {
             BackupConnectMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
+            BackupConnectMsg::ProxyCommand(q) => Message::Ssh(SshMessage::SshProxyCommandVerify(
+                Box::new(q),
+                crate::state::ProxyConsentMode::Ask,
+            )),
             BackupConnectMsg::Done(Ok(outcome)) => done_ok(outcome),
             BackupConnectMsg::Done(Err(e)) if is_import => Message::Share(ShareMessage::SftpBackupImportDone(Err(e))),
             BackupConnectMsg::Done(Err(e)) => Message::Share(ShareMessage::SftpBackupExportDone(Err(e))),

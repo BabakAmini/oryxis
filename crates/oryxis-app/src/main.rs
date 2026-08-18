@@ -92,6 +92,9 @@ mod os_icon;
 mod packaged;
 // Split-anchor geometry for dropping a dragged tab into a pane grid.
 mod pane_drop;
+// Answering the engine's command-proxy approval question on dials with
+// no user behind them.
+mod proxy_consent;
 // Cloud-provider plugin subsystem. Inert until the cloud dispatch
 // path is rewired onto it in a later PR, the `allow` keeps the
 // clippy `-D warnings` gate green while the infra (and its public

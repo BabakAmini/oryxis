@@ -6,6 +6,9 @@ impl SshEngine {
             host_key_check: None,
             host_key_ask_tx: None,
             kbi_ask_tx: None,
+            // Fail-closed default: an engine nobody wired a consent
+            // channel into refuses command proxies outright.
+            proxy_cmd_ask_tx: None,
             pw_prompt_title: None,
             pw_prompt_label: None,
             totp: None,
@@ -245,6 +248,19 @@ impl SshEngine {
     /// auth falls back to answering every prompt with the stored password.
     pub fn with_kbi_ask(mut self, tx: KbiAskSender) -> Self {
         self.kbi_ask_tx = Some(tx);
+        self
+    }
+
+    /// Set a channel for asking the UI to approve a command proxy before
+    /// it is spawned.
+    ///
+    /// Wire it on paths where a person is present to answer. Leave it
+    /// unset for anything that dials on its own (boot-time auto-start
+    /// forwards, the MCP server): those refuse instead, which is the
+    /// right answer when the route may have arrived from a sync peer
+    /// and nobody is watching.
+    pub fn with_proxy_command_ask(mut self, tx: ProxyCommandAskSender) -> Self {
+        self.proxy_cmd_ask_tx = Some(tx);
         self
     }
 

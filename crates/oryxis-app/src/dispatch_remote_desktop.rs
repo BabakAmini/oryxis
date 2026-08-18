@@ -211,6 +211,15 @@ impl Oryxis {
             tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
         self.kbi_response_tx = Some(kbi_resp_tx);
 
+        // Command-proxy approval for the gateway host's own dial, same
+        // bridge shape and the same one-at-a-time caveat.
+        let (pc_ask_tx, mut pc_ask_rx) = tokio::sync::mpsc::channel::<(
+            oryxis_ssh::ProxyCommandQuery,
+            tokio::sync::oneshot::Sender<bool>,
+        )>(1);
+        let (pc_resp_tx, mut pc_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
+        self.proxy_command_response_tx = Some(pc_resp_tx);
+
         let stream = iced::stream::channel::<Message>(
             8,
             move |mut sender: iced::futures::channel::mpsc::Sender<Message>| async move {
@@ -219,6 +228,7 @@ impl Oryxis {
                 let engine = SshEngine::new()
                     .with_host_key_check(host_key_check)
                     .with_host_key_ask(hk_ask_tx)
+                    .with_proxy_command_ask(pc_ask_tx)
                     .with_kbi_ask(kbi_ask_tx)
                     .with_totp_secret(totp_secret.as_deref())
                     .with_password_prompt_labels(
@@ -252,6 +262,20 @@ impl Oryxis {
                         let _ = kbi_sender.send(Message::Ssh(SshMessage::SshKbiPrompt(None, query))).await;
                         let answers = kbi_resp_rx.recv().await.unwrap_or(None);
                         let _ = resp_tx.send(answers);
+                    }
+                });
+
+                let mut pc_sender = sender.clone();
+                let _pc_bridge = tokio::spawn(async move {
+                    while let Some((query, resp_tx)) = pc_ask_rx.recv().await {
+                        let _ = pc_sender
+                            .send(Message::Ssh(SshMessage::SshProxyCommandVerify(
+                                Box::new(query),
+                                crate::state::ProxyConsentMode::Ask,
+                            )))
+                            .await;
+                        let approved = pc_resp_rx.recv().await.unwrap_or(false);
+                        let _ = resp_tx.send(approved);
                     }
                 });
 

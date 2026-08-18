@@ -436,7 +436,7 @@ impl SshEngine {
                     .map_err(|e| SshError::Proxy(format!("SSH over HTTP CONNECT: {}", e)))
             }
             ProxyType::Command(cmd) => {
-                let stream = self.proxy_command(cmd).await?;
+                let stream = self.proxy_command(cmd, target_host, target_port).await?;
 
                 let config = self.make_config();
                 client::connect_stream(config, stream, self.make_handler(target_host, target_port))
@@ -510,11 +510,48 @@ impl SshEngine {
     }
 
     /// ProxyCommand, spawn a process and use its stdin/stdout as transport.
+    /// Spawn a `ProxyCommand` and hand the SSH transport its pipes.
+    ///
+    /// This is the one place in the product where stored connection data
+    /// becomes a LOCAL process, and it runs before the handshake, so
+    /// neither host-key verification nor a failed auth can undo it. The
+    /// data reaching it is not necessarily the local user's: a sync peer
+    /// writes connections, proxy identities and group defaults verbatim,
+    /// and a group default lands on every host in the group that has no
+    /// proxy of its own. So the spawn asks first, and an engine with
+    /// nobody to ask refuses.
     pub(crate) async fn proxy_command(
         &self,
         cmd: &str,
+        target_host: &str,
+        target_port: u16,
     ) -> Result<impl AsyncRead + AsyncWrite + Unpin + Send + 'static, SshError> {
-        tracing::info!("ProxyCommand: {}", cmd);
+        // The line itself never reaches the log: it is user-authored and
+        // can embed credentials, which is why the connect progress card
+        // announces only that a command proxy is in play.
+        tracing::info!("ProxyCommand for {}:{}", target_host, target_port);
+
+        let Some(ref tx) = self.proxy_cmd_ask_tx else {
+            tracing::warn!(
+                "refusing command proxy for {}:{}: no approval channel on this engine",
+                target_host,
+                target_port
+            );
+            return Err(SshError::ProxyCommandNotApproved);
+        };
+        let (resp_tx, resp_rx) = tokio::sync::oneshot::channel();
+        let query = ProxyCommandQuery {
+            command: cmd.to_string(),
+            target_host: target_host.to_string(),
+            target_port,
+        };
+        if tx.send((query, resp_tx)).await.is_err() {
+            // The UI went away mid-dial. A dropped asker is not consent.
+            return Err(SshError::ProxyCommandNotApproved);
+        }
+        if !resp_rx.await.unwrap_or(false) {
+            return Err(SshError::ProxyCommandNotApproved);
+        }
 
         let mut child = TokioCommand::new("sh")
             .arg("-c")

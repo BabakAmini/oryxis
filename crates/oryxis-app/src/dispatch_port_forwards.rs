@@ -30,6 +30,7 @@ use crate::app::{SshMessage, PortForwardMessage, Message, Oryxis};
 /// modals, or the final result.
 enum PfStreamMsg {
     HostKey(HostKeyQuery),
+    ProxyCommand(oryxis_ssh::ProxyCommandQuery),
     Kbi(KbiQuery),
     Done(Result<ForwardConn, String>),
     NoCommonAlgo {
@@ -568,11 +569,22 @@ impl Oryxis {
 
         if boot_auto_start {
             tracing::info!("auto-starting port forward {} ({})", rule_label, id);
+            // Approvals resolved here, on the UI thread, and answered
+            // from that snapshot inside the task: this dial fires at
+            // boot with nobody watching, which is precisely where a
+            // route pushed by a sync peer would run unattended. Same
+            // reasoning as `with_strict_host_key(true)` on the line
+            // below, and the same shape of answer: known-good passes,
+            // everything else is refused rather than prompted for.
+            let trusted_proxy_commands = self.trusted_proxy_commands();
             return Task::perform(
                 async move {
                     let engine = SshEngine::new()
                         .with_host_key_check(host_key_check)
                         .with_strict_host_key(true)
+                        .with_proxy_command_ask(oryxis_ssh::trusted_only_proxy_command_ask(
+                            trusted_proxy_commands,
+                        ))
                         .with_totp_secret(totp_secret.as_deref())
                         .with_keepalive(keepalive)
                         .with_address_family(conn.address_family)
@@ -628,6 +640,16 @@ impl Oryxis {
             tokio::sync::mpsc::channel::<Option<Vec<String>>>(1);
         self.kbi_response_tx = Some(kbi_resp_tx);
 
+        // Command-proxy approval, same bridge shape. The user toggled
+        // this rule, so an unapproved line may raise the prompt (unlike
+        // the boot sweep above).
+        let (pc_ask_tx, mut pc_ask_rx) = tokio::sync::mpsc::channel::<(
+            oryxis_ssh::ProxyCommandQuery,
+            tokio::sync::oneshot::Sender<bool>,
+        )>(1);
+        let (pc_resp_tx, mut pc_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
+        self.proxy_command_response_tx = Some(pc_resp_tx);
+
         // Captured for the map closure (conn moves into the producer); the
         // retry re-runs this same port-forward start.
         let pf_conn_id = conn.id;
@@ -635,6 +657,7 @@ impl Oryxis {
             let engine = SshEngine::new()
                 .with_host_key_check(host_key_check)
                 .with_host_key_ask(hk_ask_tx)
+                .with_proxy_command_ask(pc_ask_tx)
                 .with_kbi_ask(kbi_ask_tx)
                 .with_totp_secret(totp_secret.as_deref())
                 .with_password_prompt_labels(
@@ -667,6 +690,15 @@ impl Oryxis {
                     let _ = kbi_sender.send(PfStreamMsg::Kbi(query)).await;
                     let answers = kbi_resp_rx.recv().await.unwrap_or(None);
                     let _ = resp_tx.send(answers);
+                }
+            });
+
+            let mut pc_sender = sender.clone();
+            let _pc_bridge = tokio::spawn(async move {
+                while let Some((query, resp_tx)) = pc_ask_rx.recv().await {
+                    let _ = pc_sender.send(PfStreamMsg::ProxyCommand(query)).await;
+                    let approved = pc_resp_rx.recv().await.unwrap_or(false);
+                    let _ = resp_tx.send(approved);
                 }
             });
 
@@ -704,6 +736,10 @@ impl Oryxis {
 
         Task::stream(stream).map(move |m| match m {
             PfStreamMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
+            PfStreamMsg::ProxyCommand(q) => Message::Ssh(SshMessage::SshProxyCommandVerify(
+                Box::new(q),
+                crate::state::ProxyConsentMode::Ask,
+            )),
             PfStreamMsg::Kbi(q) => Message::Ssh(SshMessage::SshKbiPrompt(None, q)),
             PfStreamMsg::Done(r) => {
                 Message::PortForward(PortForwardMessage::PortForwardConnReady(pf_conn_id, r))

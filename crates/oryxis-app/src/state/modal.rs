@@ -52,6 +52,12 @@ pub(crate) enum Modal {
     /// the key (the safe default: never accept an unknown / changed key by
     /// a stray keystroke).
     HostKey,
+    /// Command-proxy approval prompt (`pending_proxy_command`): the dial
+    /// is about to run a line from the vault as a local process. A
+    /// security prompt of the same class as `HostKey`, and the more
+    /// consequential of the two, so it MUST block input and Esc refuses
+    /// (the safe default is not to run it).
+    ProxyCommand,
     /// Global terminal-theme gallery, opened from the Settings row.
     /// The per-host picker is `ThemePicker`; this one writes the global
     /// override and carries the create / import / clone affordances.
@@ -140,6 +146,7 @@ impl Modal {
         Modal::SnippetVars,
         Modal::KbiPrompt,
         Modal::HostKey,
+        Modal::ProxyCommand,
         Modal::ThemeEditor,
         Modal::TerminalThemeGallery,
         Modal::UiThemeGallery,
@@ -184,6 +191,9 @@ impl Modal {
         Modal::SnippetVars,
         // A security prompt: Esc rejects the host key (safe default).
         Modal::HostKey,
+        // Sibling security prompt: Esc refuses to run the command proxy
+        // (safe default), and the refusal must reach the parked dial.
+        Modal::ProxyCommand,
         // Sibling security prompt: Esc denies the signature (safe default).
         Modal::AgentConfirm,
         // Same class: Esc refuses to let remote output type into the
@@ -251,6 +261,7 @@ impl Modal {
             | Modal::SnippetVars
             | Modal::KbiPrompt
             | Modal::HostKey
+            | Modal::ProxyCommand
             | Modal::ThemeEditor
             | Modal::TerminalThemeGallery
             | Modal::UiThemeGallery
@@ -303,6 +314,7 @@ mod tests {
                 | Modal::SnippetVars
                 | Modal::KbiPrompt
                 | Modal::HostKey
+                | Modal::ProxyCommand
                 | Modal::ThemeEditor
                 | Modal::TerminalThemeGallery
                 | Modal::UiThemeGallery
@@ -329,7 +341,7 @@ mod tests {
                 | Modal::LockVaultConfirm => {}
             }
         }
-        assert_eq!(Modal::ALL.len(), 38, "add the new variant to Modal::ALL");
+        assert_eq!(Modal::ALL.len(), 39, "add the new variant to Modal::ALL");
         // Every Esc-closeable modal must also be a known modal.
         for m in Modal::ESC_ORDER {
             assert!(Modal::ALL.contains(m));

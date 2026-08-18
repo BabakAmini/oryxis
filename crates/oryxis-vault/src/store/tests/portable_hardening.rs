@@ -557,3 +557,53 @@ fn imports_fixture_export_v09() {
     let data = include_bytes!("../../../tests/fixtures/export-0.9.oryxis");
     assert_fixture_imports(data, Some("JBSWY3DPEHPK3PXP"));
 }
+
+/// The per-device approval of a command proxy is not vault DATA, and a
+/// portable export must not carry it.
+///
+/// An export is a file that travels: onto another machine, into a
+/// colleague's hands, through whatever moved it. Carrying the approval
+/// would let the file answer "yes, run this" on a computer whose owner
+/// never saw the line, which is the same hole in a different courier
+/// (sync is the other one, covered in `oryxis-sync`). The proxy itself
+/// still exports, exactly like any other connection field: what stays
+/// behind is only the permission to run it.
+#[test]
+fn a_command_proxy_approval_never_leaves_the_device() {
+    const CMD: &str = "aws ssm start-session --target i-0123456789";
+    let vault = unlocked_vault_with("alpha");
+
+    let mut conn = Connection::new("bastion", "10.0.0.9");
+    conn.proxy = Some(ProxyConfig {
+        proxy_type: ProxyType::Command(CMD.into()),
+        host: String::new(),
+        port: 0,
+        username: None,
+        password: None,
+    });
+    vault.save_connection(&conn, None).unwrap();
+    vault.trust_proxy_command(CMD, "bastion:22").unwrap();
+    assert!(vault.is_proxy_command_trusted(CMD));
+
+    let blob = export_vault(&vault, "pack", all_options()).unwrap();
+    let target = unlocked_vault_with("beta");
+    import_vault(&target, &blob, "pack", &ExportSelection::all()).unwrap();
+
+    // The route arrived.
+    let imported = target
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("the connection should import");
+    assert!(matches!(
+        imported.proxy.as_ref().map(|p| &p.proxy_type),
+        Some(ProxyType::Command(c)) if c == CMD
+    ));
+    // The permission to run it did not.
+    assert!(
+        !target.is_proxy_command_trusted(CMD),
+        "an imported command proxy must arrive unapproved"
+    );
+    assert!(target.list_trusted_proxy_commands().unwrap().is_empty());
+}

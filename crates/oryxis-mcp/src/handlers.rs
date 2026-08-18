@@ -4,6 +4,38 @@ use uuid::Uuid;
 use oryxis_ssh::SshEngine;
 use oryxis_vault::VaultStore;
 
+/// Host-key verification against the vault's known-host pins, the same
+/// rows the app's accept-and-save flow writes. Mirrors
+/// `oryxis-app`'s `connect_methods::make_host_key_check`: a different
+/// offered algorithm reads as `Unknown` (verify + accept) rather than a
+/// "Changed" MITM warning, since the pin is per (host, port, key_type).
+///
+/// Paired with `with_strict_host_key(true)` at the call site, because
+/// this is a headless dialer with no UI to raise a fingerprint prompt.
+/// Without both, `ClientHandler::check_server_key` falls through to its
+/// legacy arm and returns `Ok(true)` for ANY server key, which hands the
+/// stored password and a live TOTP code to whoever answers the dial.
+/// Every other dial site in the workspace wires this; this one is the
+/// odd one out and the same policy the boot port-forward and SFTP-sync
+/// dials already use applies here.
+fn make_host_key_check(vault: &VaultStore) -> oryxis_ssh::HostKeyCheckCallback {
+    let pinned = vault.list_known_hosts().unwrap_or_default();
+    std::sync::Arc::new(move |host, port, key_type, fingerprint| {
+        if let Some(existing) = pinned
+            .iter()
+            .find(|h| h.hostname == host && h.port == port && h.key_type == key_type)
+        {
+            if existing.fingerprint != fingerprint {
+                return oryxis_ssh::HostKeyStatus::Changed {
+                    old_fingerprint: existing.fingerprint.clone(),
+                };
+            }
+            return oryxis_ssh::HostKeyStatus::Known;
+        }
+        oryxis_ssh::HostKeyStatus::Unknown
+    })
+}
+
 pub fn handle_list_hosts(vault: &VaultStore, params: Option<&Value>) -> Result<Value, String> {
     let conns = vault.list_mcp_connections().map_err(|e| e.to_string())?;
 
@@ -250,7 +282,25 @@ pub async fn handle_ssh_execute(
         .and_then(|kid| all_keys.iter().find(|k| k.id == kid))
         .map(|k| k.public_key.clone())
         .filter(|p| !p.trim().is_empty());
+    // Command-proxy approval, resolved from the vault's own list and
+    // answered with no UI in the loop, because there is none here.
+    // Same authority and same helper the app's unattended dials use, so
+    // a host that runs over MCP is exactly a host the user approved in
+    // the app, never one a sync peer wrote into the vault.
+    let trusted_proxy_commands = vault
+        .list_trusted_proxy_commands()
+        .map(|list| list.into_iter().map(|t| t.fingerprint).collect())
+        .unwrap_or_default();
     let engine = SshEngine::new()
+        // Verify the server key against the vault's pins and reject
+        // unknown/changed ones: there is no terminal here to surface a
+        // fingerprint prompt, so a host reached over MCP must already
+        // have been trusted interactively in the app.
+        .with_host_key_check(make_host_key_check(vault))
+        .with_strict_host_key(true)
+        .with_proxy_command_ask(oryxis_ssh::trusted_only_proxy_command_ask(
+            trusted_proxy_commands,
+        ))
         .with_totp_secret(totp_secret.as_deref())
         .with_address_family(auth_conn.address_family)
         .with_pinned_agent_key(pinned_agent.as_deref())

@@ -685,6 +685,9 @@ impl Oryxis {
         // port / command up-front so the user gets an error
         // instead of a silently-broken proxy entry.
         let proxy_resolution = build_proxy_resolution(&self.editor_form)?;
+        // Authored here, so approved here: a line the user just typed
+        // must not meet a "did you mean it?" modal on the next dial.
+        self.trust_authored_proxy_command(proxy_resolution.proxy.as_ref(), &conn.label);
         conn.proxy = proxy_resolution.proxy;
         conn.proxy_identity_id = proxy_resolution.proxy_identity_id;
         conn.updated_at = chrono::Utc::now();

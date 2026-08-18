@@ -27,6 +27,7 @@ const TOAST_DURATION: Duration = Duration::from_millis(2600);
 /// mounted session or the error.
 enum SftpConnectMsg {
     HostKey(oryxis_ssh::HostKeyQuery),
+    ProxyCommand(oryxis_ssh::ProxyCommandQuery),
     Done(
         Result<
             (
@@ -230,6 +231,15 @@ impl Oryxis {
                 let (hk_resp_tx, mut hk_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
                 self.host_key_response_tx = Some(hk_resp_tx);
 
+                // Command-proxy approval, same bridge: the user asked
+                // for this mount, so an unapproved line may prompt.
+                let (pc_ask_tx, mut pc_ask_rx) = tokio::sync::mpsc::channel::<(
+                    oryxis_ssh::ProxyCommandQuery,
+                    tokio::sync::oneshot::Sender<bool>,
+                )>(1);
+                let (pc_resp_tx, mut pc_resp_rx) = tokio::sync::mpsc::channel::<bool>(1);
+                self.proxy_command_response_tx = Some(pc_resp_tx);
+
                 // TOTP autofill for keyboard-interactive 2FA, same as the
                 // terminal path (headless here: no modal, so the autofill is
                 // the only way an OTP-gated host can mount at all).
@@ -247,6 +257,7 @@ impl Oryxis {
                         let engine = SshEngine::new()
                             .with_host_key_check(host_key_check)
                             .with_host_key_ask(hk_ask_tx)
+                            .with_proxy_command_ask(pc_ask_tx)
                             .with_totp_secret(totp_secret.as_deref())
                             .with_keepalive(keepalive)
                             .with_address_family(conn.address_family)
@@ -261,6 +272,15 @@ impl Oryxis {
                             .with_connect_timeout(connect_to)
                             .with_auth_timeout(auth_to)
                             .with_session_timeout(session_to);
+
+                        let mut pc_sender = sender.clone();
+                        let _pc_bridge = tokio::spawn(async move {
+                            while let Some((query, resp_tx)) = pc_ask_rx.recv().await {
+                                let _ = pc_sender.send(SftpConnectMsg::ProxyCommand(query)).await;
+                                let approved = pc_resp_rx.recv().await.unwrap_or(false);
+                                let _ = resp_tx.send(approved);
+                            }
+                        });
 
                         let mut sender_clone = sender.clone();
                         let _bridge = tokio::spawn(async move {
@@ -316,6 +336,12 @@ impl Oryxis {
                 );
                 return Ok(Task::stream(stream).map(move |m| match m {
                     SftpConnectMsg::HostKey(q) => Message::Ssh(SshMessage::SshHostKeyVerify(q)),
+                    SftpConnectMsg::ProxyCommand(q) => Message::Ssh(
+                        SshMessage::SshProxyCommandVerify(
+                            Box::new(q),
+                            crate::state::ProxyConsentMode::Ask,
+                        ),
+                    ),
                     SftpConnectMsg::Done(Ok((session, client, path, entries))) => {
                         Message::sftp_owned(
                             owner,

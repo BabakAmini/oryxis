@@ -27,6 +27,16 @@ pub enum SshError {
     #[error("Proxy error: {0}")]
     Proxy(String),
 
+    /// A `ProxyType::Command` proxy was not approved for execution on
+    /// this device, so the dial stopped before spawning anything.
+    ///
+    /// The command line is deliberately NOT in the message: it is
+    /// user-authored and can embed credentials (the same reason the
+    /// connect log prints only the proxy's type), and every caller that
+    /// needs to show it already holds the connection it came from.
+    #[error("Command proxy not approved on this device")]
+    ProxyCommandNotApproved,
+
     #[error("Jump host error: {0}")]
     JumpHost(String),
 }
@@ -104,6 +114,35 @@ pub type HostKeyCheckCallback = Arc<dyn Fn(&str, u16, &str, &str) -> HostKeyStat
 
 /// Channel for asking the UI to verify a host key. The UI sends `true` (accept) or `false` (reject).
 pub type HostKeyAskSender = tokio::sync::mpsc::Sender<(HostKeyQuery, tokio::sync::oneshot::Sender<bool>)>;
+
+/// Query about a command proxy the engine is about to spawn.
+///
+/// Same shape as [`HostKeyQuery`] on purpose: both ask the person at the
+/// keyboard to accept something about the ROUTE before any traffic
+/// flows, and a command proxy is the more consequential of the two,
+/// since answering it runs a local process rather than trusting a
+/// remote key.
+#[derive(Debug, Clone)]
+pub struct ProxyCommandQuery {
+    /// The exact line that would be handed to `sh -c`. Shown verbatim:
+    /// the user cannot judge what they are approving from a summary.
+    pub command: String,
+    /// The SSH endpoint this proxy would carry, so the prompt can say
+    /// which connect raised it.
+    pub target_host: String,
+    pub target_port: u16,
+}
+
+/// Channel for asking the UI to approve spawning a command proxy. The
+/// UI sends `true` (spawn) or `false` (refuse).
+///
+/// An engine built WITHOUT this channel refuses every command proxy.
+/// That default is the point: headless callers (boot-time port forwards,
+/// the MCP server) have nobody to ask, and a route that arrived from a
+/// sync peer or an imported file must not execute merely because no
+/// prompt was available.
+pub type ProxyCommandAskSender =
+    tokio::sync::mpsc::Sender<(ProxyCommandQuery, tokio::sync::oneshot::Sender<bool>)>;
 
 /// A single keyboard-interactive prompt line. `prompt` is the raw label
 /// the server sent (e.g. `"Password:"`, `"Verification code:"`) and must

@@ -128,6 +128,11 @@ impl Oryxis {
             .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
         let resolver = self.make_jump_resolver(&conn);
         let host_key_check = self.make_host_key_check();
+        // Approvals snapshot for the same reason the host-key check is
+        // strict here: a sync round dials on a timer, with nobody
+        // watching, so an unapproved command proxy is refused rather
+        // than prompted for.
+        let trusted_proxy_commands = self.trusted_proxy_commands();
         let keepalive = self.effective_keepalive(&conn);
         let connect_to = self.sftp_connect_timeout();
         let auth_to = self.sftp_auth_timeout();
@@ -173,6 +178,9 @@ impl Oryxis {
                     let engine = SshEngine::new()
                         .with_host_key_check(host_key_check)
                         .with_strict_host_key(true)
+                        .with_proxy_command_ask(oryxis_ssh::trusted_only_proxy_command_ask(
+                            trusted_proxy_commands,
+                        ))
                         .with_totp_secret(totp_secret.as_deref())
                         .with_keepalive(keepalive)
                         .with_address_family(conn.address_family)

@@ -52,6 +52,7 @@ impl VaultStore {
                 "Connected" => oryxis_core::models::log_entry::LogEvent::Connected,
                 "Disconnected" => oryxis_core::models::log_entry::LogEvent::Disconnected,
                 "Auth Failed" => oryxis_core::models::log_entry::LogEvent::AuthFailed,
+                "Sync Applied" => oryxis_core::models::log_entry::LogEvent::SyncApplied,
                 _ => oryxis_core::models::log_entry::LogEvent::Error,
             };
             Ok(oryxis_core::models::log_entry::LogEntry {

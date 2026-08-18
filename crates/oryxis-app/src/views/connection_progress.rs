@@ -430,6 +430,143 @@ impl Oryxis {
             ].align_y(iced::Alignment::Center).into();
 
             (status, body, btm)
+        } else if let Some(ref query) = self.pending_proxy_command {
+            // Before the handshake, before the host key: this dial is
+            // about to run a local process, so it outranks every other
+            // prompt this screen can show.
+            let status: Element<'_, Message> = text(crate::i18n::t("proxy_cmd_title"))
+                .size(14)
+                .color(OryxisColors::t().warning)
+                .into();
+
+            let body_col = column![]
+                .push(Space::new().height(8))
+                .push(
+                    text(crate::i18n::t("proxy_cmd_desc").replace(
+                        "{host}",
+                        &self.redact_progress(
+                            progress,
+                            &format!("{}:{}", query.target_host, query.target_port),
+                        ),
+                    ))
+                    .size(13)
+                    .color(OryxisColors::t().text_secondary),
+                )
+                .push(Space::new().height(12))
+                // Shown verbatim, and deliberately NOT redacted under
+                // Privacy Mode: approving a line nobody can read is not
+                // approval, it is a click. The command is the entire
+                // content of the decision.
+                .push(
+                    container(
+                        text(&query.command)
+                            .size(13)
+                            .font(iced::Font::MONOSPACE)
+                            .color(OryxisColors::t().text_primary),
+                    )
+                    .width(Length::Fill)
+                    .padding(10)
+                    .style(|_| container::Style {
+                        background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                        border: Border {
+                            radius: Radius::from(6.0),
+                            color: OryxisColors::t().border,
+                            width: 1.0,
+                        },
+                        ..Default::default()
+                    }),
+                )
+                .push(Space::new().height(12))
+                .push(
+                    text(crate::i18n::t("proxy_cmd_warning"))
+                        .size(12)
+                        .color(OryxisColors::t().text_muted),
+                )
+                .push(Space::new().height(12))
+                .push(
+                    text(crate::i18n::t("proxy_cmd_question"))
+                        .size(13)
+                        .color(OryxisColors::t().text_secondary),
+                );
+
+            let body: Element<'_, Message> = container(body_col)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .padding(Padding { top: 8.0, right: 16.0, bottom: 8.0, left: 16.0 })
+                .style(|_| container::Style {
+                    background: Some(Background::Color(OryxisColors::t().bg_sidebar)),
+                    border: Border { radius: Radius::from(10.0), ..Default::default() },
+                    ..Default::default()
+                })
+                .into();
+
+            let deny_btn = button(
+                container(
+                    text(crate::i18n::t("proxy_cmd_deny"))
+                        .size(13)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
+            )
+            .on_press(Message::Ssh(SshMessage::SshProxyCommandReject))
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border { radius: Radius::from(8.0), ..Default::default() },
+                ..Default::default()
+            });
+
+            let once_btn = button(
+                container(
+                    text(crate::i18n::t("proxy_cmd_once"))
+                        .size(13)
+                        .color(OryxisColors::t().text_primary),
+                )
+                .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
+            )
+            .on_press(Message::Ssh(SshMessage::SshProxyCommandOnce))
+            .style(|_, _| button::Style {
+                background: Some(Background::Color(OryxisColors::t().bg_surface)),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    color: OryxisColors::t().border,
+                    width: 1.0,
+                },
+                ..Default::default()
+            });
+
+            let always_btn = {
+                let fg = crate::theme::contrast_text_for(OryxisColors::t().accent);
+                button(
+                    container(
+                        text(crate::i18n::t("proxy_cmd_always"))
+                            .size(13)
+                            .font(iced::Font {
+                                weight: iced::font::Weight::Semibold,
+                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                            })
+                            .color(fg),
+                    )
+                    .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
+                )
+                .on_press(Message::Ssh(SshMessage::SshProxyCommandAlways))
+                .style(|_, _| button::Style {
+                    background: Some(Background::Color(OryxisColors::t().accent)),
+                    border: Border { radius: Radius::from(8.0), ..Default::default() },
+                    ..Default::default()
+                })
+            };
+
+            let btm: Element<'_, Message> = row![
+                deny_btn,
+                Space::new().width(12),
+                once_btn,
+                Space::new().width(Length::Fill),
+                always_btn,
+            ]
+            .align_y(iced::Alignment::Center)
+            .into();
+
+            (status, body, btm)
         } else if let Some(ref query) = self.pending_host_key {
             let is_changed = matches!(query.status, oryxis_ssh::HostKeyStatus::Changed { .. });
 

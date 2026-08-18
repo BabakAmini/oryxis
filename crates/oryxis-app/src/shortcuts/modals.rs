@@ -35,6 +35,10 @@ impl Oryxis {
             // the progress screen and has no focused PTY behind it) is
             // gated separately by `connecting.is_none()` at the render site.
             Modal::HostKey => self.pending_host_key.is_some(),
+            // Same shape as HostKey, and gated the same way at the
+            // render site: the flag alone decides, the connect-progress
+            // screen is what decides where it is drawn.
+            Modal::ProxyCommand => self.pending_proxy_command.is_some(),
             Modal::AgentConfirm => self.agent.pending_confirm.is_some(),
             Modal::TriggerConfirm => self.trigger_confirm.is_some(),
             Modal::TerminalThemeGallery => self.panels.terminal_theme_gallery,
@@ -120,6 +124,16 @@ impl Oryxis {
             Modal::HostKey => {
                 self.pending_host_key = None;
                 if let Some(tx) = self.active_host_key_tx.take() {
+                    let _ = tx.try_send(false);
+                }
+            }
+            // Esc refuses to spawn the command proxy, the only safe
+            // default when the answer runs a local process. Full mirror
+            // of SshProxyCommandReject: the parked dial must receive the
+            // `false` or it waits forever.
+            Modal::ProxyCommand => {
+                self.pending_proxy_command = None;
+                if let Some(tx) = self.active_proxy_command_tx.take() {
                     let _ = tx.try_send(false);
                 }
             }

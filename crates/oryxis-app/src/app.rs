@@ -407,6 +407,14 @@ pub struct Oryxis {
     // never be routed to a different connect's host (TOFU bypass).
     pub(crate) active_host_key_tx: Option<tokio::sync::mpsc::Sender<bool>>,
 
+    // Command-proxy approval dialog, and the same staging / active pair
+    // the host-key prompt uses, for the same reason: the answer must go
+    // back to the dial whose command the user actually read, not to
+    // whichever connect started last.
+    pub(crate) pending_proxy_command: Option<oryxis_ssh::ProxyCommandQuery>,
+    pub(crate) proxy_command_response_tx: Option<tokio::sync::mpsc::Sender<bool>>,
+    pub(crate) active_proxy_command_tx: Option<tokio::sync::mpsc::Sender<bool>>,
+
     // Keyboard-interactive (2FA / OTP) prompt dialog. `pending_kbi_prompt`
     // is the current challenge round; `kbi_inputs` holds one answer buffer
     // per prompt (parallel to `prompts`); the response channel carries

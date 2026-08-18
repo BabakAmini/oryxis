@@ -1,8 +1,14 @@
-//! Host-key verification, split out of `dispatch_ssh`: the shared
-//! verify / reject / continue / accept-and-save modal answers, plus
-//! the no-common-algorithm detection and the legacy-algorithm
-//! fallback dialog (cancel / accept-and-expand). Called from
+//! Route decisions a dial raises before any traffic flows, split out of
+//! `dispatch_ssh`: host-key verification (the shared verify / reject /
+//! continue / accept-and-save modal answers), the no-common-algorithm
+//! detection with its legacy-algorithm fallback dialog (cancel /
+//! accept-and-expand), and command-proxy approval. Called from
 //! `handle_ssh`.
+//!
+//! The three share a shape: the engine stops mid-dial, asks this layer,
+//! and continues on the answer. Command-proxy approval is the one whose
+//! "yes" runs a local process, so it is also the one whose default, on
+//! every path that cannot ask, is no.
 
 #![allow(clippy::result_large_err)]
 
@@ -51,6 +57,81 @@ impl Oryxis {
                 }
                 self.pending_host_key = None;
                 if let Some(tx) = self.active_host_key_tx.take() {
+                    let _ = tx.try_send(true);
+                }
+            }
+            SshMessage::SshProxyCommandVerify(query, mode) => {
+                // An approval already granted on this device answers
+                // immediately: the same line under a second host, or a
+                // second dial of the same host, is the same process the
+                // user already accepted, and re-asking would train them
+                // to click through it.
+                let trusted = self
+                    .vault
+                    .as_ref()
+                    .is_some_and(|v| v.is_proxy_command_trusted(&query.command));
+                if trusted {
+                    // Answer WITHOUT consuming the staging slot: one
+                    // dial can ask twice (a jump chain whose bastion
+                    // and target each carry a command proxy), and
+                    // taking it here would leave the second question
+                    // with nobody to answer it.
+                    if let Some(tx) = self.proxy_command_response_tx.as_ref() {
+                        let _ = tx.try_send(true);
+                    }
+                    return Ok(Task::none());
+                }
+                if mode == crate::state::ProxyConsentMode::TrustedOnly {
+                    // Unattended dial: refuse rather than raise a modal
+                    // over whatever the user is actually doing. The dial
+                    // fails with its own error, but "the proxy was never
+                    // approved here" is the one cause that error cannot
+                    // say in the user's language, so the toast does.
+                    tracing::warn!(
+                        target = "oryxis::dispatch_ssh",
+                        host = %query.target_host,
+                        "refusing an unapproved command proxy on an unattended dial"
+                    );
+                    if let Some(tx) = self.proxy_command_response_tx.as_ref() {
+                        let _ = tx.try_send(false);
+                    }
+                    return Ok(self.show_toast_secs(
+                        crate::i18n::t("proxy_cmd_refused").to_string(),
+                        8,
+                    ));
+                }
+                self.pending_proxy_command = Some(*query);
+                // Clone rather than take, exactly like the host-key
+                // prompt: one dial can raise this twice (a jump chain
+                // whose bastion and target each carry a command proxy)
+                // and both answers ride the same responder.
+                self.active_proxy_command_tx = self.proxy_command_response_tx.clone();
+            }
+            SshMessage::SshProxyCommandReject => {
+                self.pending_proxy_command = None;
+                if let Some(tx) = self.active_proxy_command_tx.take() {
+                    let _ = tx.try_send(false);
+                }
+            }
+            SshMessage::SshProxyCommandOnce => {
+                self.pending_proxy_command = None;
+                if let Some(tx) = self.active_proxy_command_tx.take() {
+                    let _ = tx.try_send(true);
+                }
+            }
+            SshMessage::SshProxyCommandAlways => {
+                if let (Some(query), Some(vault)) = (&self.pending_proxy_command, &self.vault) {
+                    // Label the grant with the endpoint it was given
+                    // from, so the revocation list means something
+                    // without keeping a second copy of the line (which
+                    // can carry credentials).
+                    let label = format!("{}:{}", query.target_host, query.target_port);
+                    if let Err(e) = vault.trust_proxy_command(&query.command, &label) {
+                        tracing::warn!("failed to record command-proxy approval: {e}");
+                    }
+                }
+                self.pending_proxy_command = None;
+                if let Some(tx) = self.active_proxy_command_tx.take() {
                     let _ = tx.try_send(true);
                 }
             }
