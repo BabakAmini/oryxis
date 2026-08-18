@@ -93,13 +93,13 @@ impl Oryxis {
                 // pane's remote dir.
                 return Ok(match paths.len() {
                     0 => Task::none(),
-                    1 => {
-                        let p = paths.remove(0);
-                        if p.is_dir() {
-                            Task::done(Message::Sftp(SftpMessage::SftpUploadFolder(p)))
-                        } else {
-                            Task::done(Message::Sftp(SftpMessage::SftpUpload(p)))
-                        }
+                    // A lone FOLDER keeps its own arm, which picks a
+                    // non-colliding name instead of merging into an
+                    // existing one. A lone FILE rides the batch like every
+                    // other drop: `SftpUpload` creates no `TransferState`,
+                    // so it moved with no progress strip and no cancel.
+                    1 if paths[0].is_dir() => {
+                        Task::done(Message::Sftp(SftpMessage::SftpUploadFolder(paths.remove(0))))
                     }
                     _ => Task::done(Message::Sftp(SftpMessage::SftpUploadBatch(paths))),
                 });

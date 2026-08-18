@@ -703,19 +703,22 @@ pub(crate) struct PropertiesView {
 /// pick which side it writes to (an SFTP upload or a local download).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum OverwriteDirection {
-    /// `src` is a local path, `dst_dir` a remote POSIX directory.
+    /// The file being written comes from the local filesystem, so
+    /// `dst_dir` is a remote POSIX directory.
     Upload,
-    /// `src` is a remote POSIX path, `dst_dir` a local directory.
+    /// The file being written comes from the remote host, so `dst_dir`
+    /// is a local directory.
     Download,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct OverwritePrompt {
-    /// Source path, as a string on both sides: an upload's local path and
-    /// a download's remote POSIX path never survive a round trip through
-    /// `PathBuf` on every platform, and `TransferItem` already stores
-    /// both directions this way.
-    pub src: String,
+    /// Destination directory, as a string on both sides: a remote POSIX
+    /// directory for an upload, a local one for a download (a local path
+    /// does not survive a round trip through `String` on every platform,
+    /// and `TransferItem` already stores both directions this way). The
+    /// source path lives on the parked `TransferItem`, which is what the
+    /// answer is applied to.
     pub dst_dir: String,
     pub basename: String,
     /// Size of the source file: local for an upload, remote for a

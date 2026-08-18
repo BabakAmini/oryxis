@@ -334,13 +334,6 @@ impl Oryxis {
             }
             SftpMessage::SftpDownloadSelection => {
                 self.sftp.row_menu = None;
-                if let Some(ask) = self.sftp_ask_download_dir(SftpMessage::SftpDownloadSelection) {
-                    return Ok(ask);
-                }
-                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
-                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
-                    return Ok(Task::none());
-                };
                 let remote_items: Vec<(String, bool)> = self
                     .sftp
                     .selected_rows
@@ -351,6 +344,22 @@ impl Oryxis {
                 if remote_items.is_empty() {
                     return Ok(Task::none());
                 }
+                Ok(Task::done(Message::Sftp(SftpMessage::SftpDownloadBatch(remote_items))))
+            }
+            SftpMessage::SftpDownloadBatch(remote_items) => {
+                self.sftp.row_menu = None;
+                if remote_items.is_empty() {
+                    return Ok(Task::none());
+                }
+                if let Some(ask) =
+                    self.sftp_ask_download_dir(SftpMessage::SftpDownloadBatch(remote_items.clone()))
+                {
+                    return Ok(ask);
+                }
+                let Some(client) = self.sftp.pane(remote_side).client.clone() else {
+                    self.sftp.pane_mut(remote_side).error = Some(crate::i18n::t("sftp_not_connected").to_string());
+                    return Ok(Task::none());
+                };
                 let local_dir = self
                     .sftp
                     .download_dest_override
@@ -360,27 +369,22 @@ impl Oryxis {
                 Ok(Task::perform(
                     async move {
                         let mut queue = std::collections::VecDeque::new();
-                        // Sizes for the space check. The walk fills them
-                        // in for everything under a selected DIRECTORY,
-                        // but a file picked at top level is queued with
-                        // `size: None`, so those get counted here or the
-                        // total would be an undercount that lets the
-                        // check pass on a transfer that cannot fit.
-                        let mut picked_file_bytes: u64 = 0;
+                        let mut skipped: Vec<String> = Vec::new();
                         for (remote_path, is_dir) in &remote_items {
                             let basename = remote_path
                                 .rsplit('/')
                                 .find(|s| !s.is_empty())
                                 .unwrap_or(remote_path)
                                 .to_string();
-                            // Skip rather than fail: this arm is a multi-row
-                            // selection, so one hostile name must not sink
-                            // the rows the user also picked. Same answer the
-                            // walk gives per entry.
+                            // Skip rather than fail: the list can hold rows
+                            // the user picked by hand, so one hostile name
+                            // must not sink the others. Same answer the walk
+                            // gives per entry.
                             if !is_safe_remote_entry_name(&basename) {
                                 tracing::warn!(
                                     "sftp download: skipping unsafe entry name {basename:?} in {remote_path}"
                                 );
+                                skipped.push(basename);
                                 continue;
                             }
                             let target = local_dir.join(&basename);
@@ -399,24 +403,41 @@ impl Oryxis {
                                 )
                                 .await?;
                             } else {
-                                picked_file_bytes = picked_file_bytes.saturating_add(
-                                    client.stat(remote_path).await.map(|s| s.size).unwrap_or(0),
-                                );
                                 queue.push_back(crate::state::TransferItem {
                                     src: remote_path.clone(),
                                     dst: target.to_string_lossy().into_owned(),
                                     is_dir: false,
-                                    size: None,
+                                    // The walk carries a size for everything
+                                    // under a selected DIRECTORY; a file
+                                    // picked at top level owes its own, and
+                                    // it is what the space check sums and
+                                    // what makes the progress bar advance by
+                                    // BYTES instead of by item count (a
+                                    // single-file transfer would otherwise
+                                    // sit at 0 / 1 for its whole run).
+                                    // `ok()` and not `unwrap_or(0)`: a failed
+                                    // stat means UNKNOWN, and `Some(0)` would
+                                    // read as an empty file, sending a 49 MB
+                                    // download down the small-file path with
+                                    // no resume and a bar already at 100%.
+                                    size: client.stat(remote_path).await.ok().map(|s| s.size),
                                 });
                             }
                         }
+                        if queue.is_empty() {
+                            // Every entry was skipped above. A skip is quiet
+                            // while other rows still transfer, but a download
+                            // where NOTHING happens owes the reason: this is
+                            // the whole answer a single-file download gets.
+                            return Err(format!(
+                                "{} ({})",
+                                crate::i18n::t("sftp_unsafe_entry_name"),
+                                skipped.join(", ")
+                            ));
+                        }
                         ensure_local_space(
                             &local_dir,
-                            queue
-                                .iter()
-                                .filter_map(|i| i.size)
-                                .sum::<u64>()
-                                .saturating_add(picked_file_bytes),
+                            queue.iter().filter_map(|i| i.size).sum::<u64>(),
                         )?;
                         let label = if remote_items.len() == 1 {
                             remote_items[0]

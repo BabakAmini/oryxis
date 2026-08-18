@@ -105,8 +105,7 @@ impl Oryxis {
             owner,
         };
         Ok(match message {
-            m @ (SftpMessage::SftpUpload(..)
-            | SftpMessage::SftpDownload(..)
+            m @ (SftpMessage::SftpDownload(..)
             | SftpMessage::SftpDownloadTo(..)
             | SftpMessage::SftpDownloadDestPicked(..)
             | SftpMessage::SftpDuplicate(..)) => self
@@ -116,13 +115,13 @@ impl Oryxis {
             | SftpMessage::SftpDownloadFolder(..)
             | SftpMessage::SftpDuplicateFolder(..)
             | SftpMessage::SftpUploadBatch(..)
+            | SftpMessage::SftpDownloadBatch(..)
             | SftpMessage::SftpUploadSelection
             | SftpMessage::SftpDownloadSelection
             | SftpMessage::SftpDuplicateSelection) => self
                 .handle_sftp_batch(m, sides)
                 .unwrap_or_else(crate::dispatch::unrouted),
-            m @ (SftpMessage::SftpAskOverwrite(..)
-            | SftpMessage::SftpToggleApplyToAll
+            m @ (SftpMessage::SftpToggleApplyToAll
             | SftpMessage::SftpResolveOverwrite(..)
             | SftpMessage::SftpTransferConflict(..)) => self
                 .handle_sftp_conflict(m, sides)

@@ -12,7 +12,6 @@ use super::{OverwriteDirection, OverwritePrompt};
 #[test]
 fn overwrite_sizes_follow_the_transfer_direction() {
     let prompt = |direction| OverwritePrompt {
-        src: "/src/file.bin".into(),
         dst_dir: "/dst".into(),
         basename: "file.bin".into(),
         src_size: 100,

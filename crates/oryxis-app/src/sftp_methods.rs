@@ -750,15 +750,12 @@ impl Oryxis {
                 if let Some(dir) = target_folder {
                     self.sftp.download_dest_override = Some(std::path::PathBuf::from(dir));
                 }
-                let mut tasks = Vec::with_capacity(drag.items.len());
-                for (path, is_dir) in drag.items {
-                    tasks.push(if is_dir {
-                        Task::done(Message::Sftp(SftpMessage::SftpDownloadFolder(path)))
-                    } else {
-                        Task::done(Message::Sftp(SftpMessage::SftpDownload(path)))
-                    });
-                }
-                Task::batch(tasks)
+                // One batch for the whole gesture, mirroring the upload
+                // side above. Dispatching per item would raise one
+                // `TransferState` per dragged entry against a runner that
+                // holds exactly ONE per owner, so the last one to arrive
+                // would silently replace the transfer already running.
+                Task::done(Message::Sftp(SftpMessage::SftpDownloadBatch(drag.items)))
             }
             // Remote -> remote: server-to-server relay.
             (true, true) => {

@@ -141,7 +141,6 @@ impl Oryxis {
             // matching the old chain's fall-through.
             m @ (SftpMessage::SftpToggleTransferPanel
             | SftpMessage::SftpTransferTick
-            | SftpMessage::SftpUpload(..)
             | SftpMessage::SftpDownload(..)
             | SftpMessage::SftpDownloadTo(..)
             | SftpMessage::SftpDownloadDestPicked(..)
@@ -153,10 +152,10 @@ impl Oryxis {
             | SftpMessage::SftpUploadFolder(..)
             | SftpMessage::SftpDownloadFolder(..)
             | SftpMessage::SftpDuplicateFolder(..)
-            | SftpMessage::SftpAskOverwrite(..)
             | SftpMessage::SftpResolveOverwrite(..)
             | SftpMessage::SftpToggleApplyToAll
             | SftpMessage::SftpUploadBatch(..)
+            | SftpMessage::SftpDownloadBatch(..)
             | SftpMessage::SftpUploadSelection
             | SftpMessage::SftpDownloadSelection
             | SftpMessage::SftpDuplicateSelection

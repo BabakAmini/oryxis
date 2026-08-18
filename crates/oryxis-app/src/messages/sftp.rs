@@ -300,7 +300,9 @@ pub enum SftpMessage {
     /// Periodic tick while a transfer runs: forces a redraw so the live
     /// byte-progress bar advances (it reads a shared atomic counter).
     SftpTransferTick,
-    SftpUpload(std::path::PathBuf),
+    /// Download ONE remote file. A thin alias for a one-item
+    /// `SftpDownloadBatch`, kept because the row menu and the
+    /// "Download to..." wrapper both name a single path.
     SftpDownload(String),
     /// Pick the destination folder for `then` (any of the three download
     /// entry points), then run it. The picked folder rides in
@@ -317,10 +319,14 @@ pub enum SftpMessage {
     SftpUploadFolder(std::path::PathBuf),
     SftpDownloadFolder(String),
     SftpDuplicateFolder(crate::state::SftpPaneSide, String),
-    SftpAskOverwrite(crate::state::OverwritePrompt),
     SftpResolveOverwrite(crate::state::OverwriteAction),
     SftpToggleApplyToAll,
     SftpUploadBatch(Vec<std::path::PathBuf>),
+    /// Download an explicit list of remote entries, `(path, is_dir)`, as
+    /// ONE queued transfer. The download mirror of `SftpUploadBatch`, and
+    /// the only download entry point that shows the progress strip, so
+    /// every caller routes through it, a single file included.
+    SftpDownloadBatch(Vec<(String, bool)>),
     SftpUploadSelection,
     SftpDownloadSelection,
     SftpDuplicateSelection,

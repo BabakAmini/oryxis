@@ -10,14 +10,6 @@
 //! `pub(crate)` everywhere keeps the API internal, these aren't
 //! intended for any consumer outside the app crate.
 
-/// Resolution returned by the upload pre-flight task, either upload
-/// completed silently, or we need to bounce back to the UI to ask the
-/// user how to handle a name collision.
-pub(crate) enum UploadOutcome {
-    Done(String),
-    Conflict(crate::state::OverwritePrompt),
-}
-
 /// Outcome of stepping through one queue item, in either direction:
 /// either it completed (file written or dir created), or the destination
 /// already exists and the user has to pick what to do next via the
@@ -575,7 +567,6 @@ pub(crate) async fn do_upload_item(
             .map(|m| m.len())
             .unwrap_or(0);
         let prompt = crate::state::OverwritePrompt {
-            src: item.src.clone(),
             dst_dir: parent,
             basename,
             src_size,
@@ -705,7 +696,6 @@ pub(crate) async fn do_download_item(
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| item.dst.clone());
         let prompt = crate::state::OverwritePrompt {
-            src: item.src.clone(),
             dst_dir: parent,
             basename,
             // The walk already carries the remote size; only fall back to
