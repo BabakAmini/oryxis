@@ -44,7 +44,35 @@ impl Oryxis {
         // rows yet leave `panel_items` empty, which the router treats
         // as "decline everything": same as before, zero risk.
         if self.side_panel_open() {
-            return self.handle_panel_nav_key(event);
+            if let Some(task) = self.handle_panel_nav_key(event) {
+                return Some(task);
+            }
+            // The panel declined. ONE key can still belong to the vault
+            // behind it: a bare Enter in the search box, which is the
+            // only surface whose focus iced cannot report, so nothing
+            // else can tell us the user is typing there (issue #175:
+            // opening the editor killed quick connect outright).
+            //
+            // The key check is not a formality. The panel router
+            // declines every ordinary character too, so falling through
+            // on anything else connects mid-word: typing `root@10.0.0.1`
+            // dials `roo` on the third keystroke, because by then the
+            // search box holds a bare hostname that matches no saved
+            // host and quick connect offers it.
+            //
+            // Only a NAMED target goes through, never the "top filtered
+            // result" step: with a panel open the Enter may belong to a
+            // field inside it, and `user@host` is an unambiguous ask
+            // where "whatever sorts first" is not.
+            let keyboard::Event::KeyPressed { key, modifiers, .. } = event else {
+                return None;
+            };
+            if !modifiers.is_empty()
+                || !matches!(key, keyboard::Key::Named(keyboard::key::Named::Enter))
+            {
+                return None;
+            }
+            return self.search_named_connect();
         }
         let in_settings = self.active_tab.is_none() && self.active_view == View::Settings;
         if !self.in_vault_area() && !in_settings {
@@ -517,33 +545,51 @@ impl Oryxis {
         }
     }
 
+    /// What the dashboard search box connects when it NAMES a target:
+    /// a saved host by label (or by its canonical `user@host`), else the
+    /// ad-hoc quick-connect target the "Enter to connect" chip
+    /// advertises. `None` when the text names neither.
+    ///
+    /// Split out of [`keynav_activate`](Self::keynav_activate) because
+    /// the side-panel path (issue #175) may fall back to it and the
+    /// "top filtered result" step must NOT come along there: with a
+    /// panel open the Enter may well belong to a field inside it, and
+    /// connecting whatever host happens to sort first is not something
+    /// the user asked for. A named target is unambiguous either way.
+    fn search_named_connect(&mut self) -> Option<Task<Message>> {
+        if self.active_view != View::Dashboard || self.host_search.trim().is_empty() {
+            return None;
+        }
+        let input = self.host_search.trim().to_string();
+        // Precedence: an exact saved-host match (label or its
+        // canonical user@host form) always beats quick connect,
+        // so typing something that names a saved host connects
+        // the saved one, credentials included.
+        let exact = self.connections.iter().position(|c| {
+            c.label.eq_ignore_ascii_case(&input)
+                || c.username.as_deref().is_some_and(|u| {
+                    format!("{}@{}", u, c.hostname).eq_ignore_ascii_case(&input)
+                })
+        });
+        if let Some(idx) = exact {
+            return Some(self.update(Message::Ssh(SshMessage::ConnectSsh(idx))));
+        }
+        // Then the ad-hoc target (matches the toolbar's
+        // "Enter to connect" hint chip).
+        let conn = self.dashboard_quick_connect_target(&input)?;
+        Some(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(
+            crate::state::QuickConnectEntry::bare(conn),
+        )))))
+    }
+
     /// Enter: activate the selected item, or (Dashboard idle with a
     /// non-empty search) connect the top search result.
     fn keynav_activate(&mut self) -> Option<Task<Message>> {
         match self.keynav.focus {
             None => {
                 if self.active_view == View::Dashboard && !self.host_search.is_empty() {
-                    let input = self.host_search.trim().to_string();
-                    // Precedence: an exact saved-host match (label or its
-                    // canonical user@host form) always beats quick connect,
-                    // so typing something that names a saved host connects
-                    // the saved one, credentials included.
-                    let exact = self.connections.iter().position(|c| {
-                        c.label.eq_ignore_ascii_case(&input)
-                            || c.username.as_deref().is_some_and(|u| {
-                                format!("{}@{}", u, c.hostname)
-                                    .eq_ignore_ascii_case(&input)
-                            })
-                    });
-                    if let Some(idx) = exact {
-                        return Some(self.update(Message::Ssh(SshMessage::ConnectSsh(idx))));
-                    }
-                    // Then the ad-hoc target (matches the toolbar's
-                    // "Enter to connect" hint chip).
-                    if let Some(conn) = self.dashboard_quick_connect_target(&input) {
-                        return Some(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(
-                            crate::state::QuickConnectEntry::bare(conn),
-                        )))));
+                    if let Some(task) = self.search_named_connect() {
+                        return Some(task);
                     }
                     // Finally the top filtered result.
                     let first = self.keynav.content_rows.borrow().iter().flatten().copied().next();
