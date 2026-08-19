@@ -41,20 +41,23 @@ impl Drop for PtyHandle {
 
 impl PtyHandle {
     /// Spawn the OS default shell. Equivalent to
-    /// `spawn_command(cols, rows, None, &[], event_proxy)`.
+    /// `spawn_command(cols, rows, None, &[], None, &[], event_proxy)`.
     pub fn spawn(
         cols: u16,
         rows: u16,
         event_proxy: &EventProxy,
     ) -> crate::widget::TerminalResult<(Self, mpsc::UnboundedReceiver<Vec<u8>>)>
     {
-        Self::spawn_command(cols, rows, None, &[], None, event_proxy)
+        Self::spawn_command(cols, rows, None, &[], None, &[], event_proxy)
     }
 
     /// Spawn an explicit program in a PTY (e.g. PowerShell or
     /// `wsl.exe -d Ubuntu`). Passing `None` for `program` falls back
     /// to the OS default. Always sets `TERM=xterm-256color` and
     /// `COLORTERM=truecolor` so apps detect 256-color / truecolor.
+    /// `env` adds (or overrides) variables for the child, which is what
+    /// a saved local host passes its own `env_vars` through; an empty
+    /// slice keeps the inherited environment exactly as it was.
     /// `event_proxy` is given the writer-side of the central PTY
     /// write channel so the emulator can answer host queries (DSR
     /// cursor-position, etc.), without that, ConPTY blocks on
@@ -65,6 +68,7 @@ impl PtyHandle {
         program: Option<&str>,
         args: &[String],
         cwd: Option<&str>,
+        env: &[(String, String)],
         event_proxy: &EventProxy,
     ) -> crate::widget::TerminalResult<(Self, mpsc::UnboundedReceiver<Vec<u8>>)>
     {
@@ -86,6 +90,14 @@ impl PtyHandle {
         }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+        // Host-provided variables last, so a host that deliberately
+        // sets TERM (a device that only understands vt100) wins over
+        // the defaults above rather than being silently overruled.
+        for (name, value) in env {
+            if !name.trim().is_empty() {
+                cmd.env(name, value);
+            }
+        }
         // Start in the inherited working directory (OSC 7) when it still
         // exists; a stale dir would make the shell fail to launch, so fall
         // back to the default by ignoring a missing path.

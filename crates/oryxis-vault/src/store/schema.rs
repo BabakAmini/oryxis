@@ -373,6 +373,15 @@ impl VaultStore {
         // Serial-line parameters as JSON (SerialParams). NULL on every
         // non-serial host.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN serial_config TEXT;");
+        // Telnet-only options as JSON (TelnetOptions: TLS + its per-host
+        // verification escape). NULL on every other host AND on a Telnet
+        // host that never turned TLS on, which is what makes an upgraded
+        // vault read back as plain Telnet with verification intact.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN telnet_config TEXT;");
+        // Local-shell settings as JSON (LocalConfig: which curated local
+        // terminal to spawn, and where it starts). NULL on every
+        // non-local host.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN local_config TEXT;");
         // Remote-desktop connection fields (protocol = RemoteDesktop):
         // `rd_kind` = 'rdp' | 'vnc'; `rd_gateway_id` = the SSH host to
         // tunnel through (NULL = direct). The desktop endpoint + login

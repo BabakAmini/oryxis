@@ -23,6 +23,19 @@ pub struct Connection {
     /// falls back to `SerialParams::default()` (9600 8N1).
     #[serde(default)]
     pub serial: Option<super::serial::SerialParams>,
+    /// Telnet-only options (TLS and its per-host verification escape),
+    /// meaningful only when `protocol` is `Telnet`. `None` on every
+    /// other host and on legacy payloads, which is plain Telnet with
+    /// verification on: an old payload can never decode into a session
+    /// that skips certificate checks.
+    #[serde(default)]
+    pub telnet: Option<super::telnet::TelnetOptions>,
+    /// Local-shell settings (which curated terminal to spawn and where
+    /// it starts), meaningful only when `protocol` is `Local`. `None`
+    /// falls back to the user's default shell in its own default
+    /// directory, the same session the local-terminal picker opens.
+    #[serde(default)]
+    pub local: Option<super::local::LocalConfig>,
     /// Remote-desktop kind (RDP vs VNC). Meaningful only when `protocol`
     /// is `RemoteDesktop`; ignored otherwise. `#[serde(default)]` -> RDP
     /// on legacy payloads.
@@ -317,6 +330,32 @@ pub struct Connection {
 }
 
 impl Connection {
+    /// Drop the fields that are a LOCAL trust decision rather than host
+    /// data, for a copy about to leave this machine (the sync wire, a
+    /// portable export).
+    ///
+    /// Today that is exactly one field: `telnet.tls_insecure`, which
+    /// says "accept a certificate the trust store rejects". Replicating
+    /// the DATA is right, and every other Telnet field travels; letting
+    /// this one travel would disarm certificate verification on a
+    /// machine whose owner never saw the appliance it was turned on for.
+    /// Same rule as `trusted_proxy_commands`, which is local-only by
+    /// construction for the same reason.
+    ///
+    /// Applied on SEND, so an old peer that still transmits the flag
+    /// cannot arm it here either: `apply_records` runs this too.
+    pub fn strip_local_trust(&mut self) {
+        if let Some(telnet) = self.telnet.as_mut() {
+            telnet.tls_insecure = false;
+            // An options blob that now says nothing is no blob at all,
+            // which keeps a plain-Telnet host byte-identical on both
+            // sides of a sync.
+            if telnet.is_default() {
+                self.telnet = None;
+            }
+        }
+    }
+
     pub fn new(label: impl Into<String>, hostname: impl Into<String>) -> Self {
         let now = chrono::Utc::now();
         Self {
@@ -326,6 +365,8 @@ impl Connection {
             port: 22,
             protocol: ConnectionProtocol::Ssh,
             serial: None,
+            telnet: None,
+            local: None,
             rd_kind: super::remote_desktop::RemoteDesktopKind::default(),
             rd_gateway_id: None,
             address_family: AddressFamily::default(),
@@ -395,9 +436,23 @@ pub enum ConnectionProtocol {
     #[default]
     Ssh,
     Telnet,
+    /// A bare TCP socket: bytes in, bytes out, no option negotiation
+    /// and no NVT line-ending rules (PuTTY calls this "Raw"). What
+    /// console / terminal servers expose their serial ports on, so a
+    /// switch reached through a Lantronix or Opengear box is the same
+    /// session a null-modem cable would give. `hostname`/`port` are the
+    /// endpoint; the protocol carries no credentials of its own, so the
+    /// editor hides them.
+    Raw,
     /// Local serial line (no network). The port path lives in
     /// `hostname`; line parameters live in `Connection.serial`.
     Serial,
+    /// A shell on THIS machine, saved like any other host so it can
+    /// carry a folder, a startup command, environment variables, a
+    /// theme and a group. Which shell to spawn is a reference into the
+    /// curated local-terminal list (`Connection.local`), never a copy
+    /// of its program path.
+    Local,
     /// Remote desktop (RDP/VNC). Unlike the others this is NOT a terminal
     /// transport: it opens no pane. `hostname`/`port` are the desktop
     /// endpoint and `username`/`password` its login; `rd_kind` picks
@@ -410,23 +465,102 @@ pub enum ConnectionProtocol {
 impl ConnectionProtocol {
     /// Conventional TCP port, used by the host editor to swap the
     /// numeric-port default when the picker changes (22 <-> 23).
-    /// `None` for `Serial`, which has no network port (the editor
-    /// hides the numeric field entirely). `RemoteDesktop` reports the
-    /// RDP default (3389); the kind picker refines it to VNC's 5900.
+    /// `RemoteDesktop` reports the RDP default (3389); the kind picker
+    /// refines it to VNC's 5900.
+    ///
+    /// `None` means "no port to suggest", which happens for two
+    /// different reasons: `Serial` and `Local` have no network port at
+    /// all (see [`uses_network_port`](Self::uses_network_port)), while
+    /// `Raw` has one that is required and unguessable, console servers
+    /// map each serial line to its own port (2001, 3001, 7001, ...) and
+    /// no vendor agrees. Suggesting one there would look authoritative
+    /// and be wrong, so the field stays as the user left it.
     pub fn default_port(self) -> Option<u16> {
         match self {
             ConnectionProtocol::Ssh => Some(22),
             ConnectionProtocol::Telnet => Some(23),
+            ConnectionProtocol::Raw => None,
             ConnectionProtocol::Serial => None,
+            ConnectionProtocol::Local => None,
             ConnectionProtocol::RemoteDesktop => Some(3389),
         }
     }
 
-    /// Whether this protocol drives a terminal pane (SSH/Telnet/Serial).
-    /// `RemoteDesktop` does not, it launches an external client, so the
-    /// terminal / SFTP / MCP paths must exclude it.
+    /// Whether `port` is a port nobody typed on purpose: the
+    /// conventional number of one of the protocols this app speaks
+    /// (22 SSH, 23 Telnet, 992 telnets, 3389 RDP, 5900 VNC).
+    ///
+    /// The host editor uses it to decide whether switching protocols
+    /// may retarget the field. Comparing against the PREVIOUS
+    /// protocol's default alone is not enough: a hop through Serial or
+    /// Local (neither has a port) breaks the chain, and the field then
+    /// keeps a 22 into a Telnet host. A user-typed 2222 still survives,
+    /// which is what the rule is protecting.
+    pub fn is_conventional_port(port: u16) -> bool {
+        matches!(port, 22 | 23 | 992 | 3389 | 5900)
+    }
+
+    /// Whether this protocol dials a TCP endpoint, i.e. whether the
+    /// host editor shows the numeric port field at all. Distinct from
+    /// [`default_port`](Self::default_port), which answers "what should
+    /// it start at": `Raw` needs the field and has no default.
+    pub fn uses_network_port(self) -> bool {
+        !matches!(self, ConnectionProtocol::Serial | ConnectionProtocol::Local)
+    }
+
+    /// Whether this protocol drives a terminal pane. `RemoteDesktop`
+    /// does not, it launches an external client, so the terminal /
+    /// SFTP / MCP paths must exclude it.
     pub fn is_terminal(self) -> bool {
         !matches!(self, ConnectionProtocol::RemoteDesktop)
+    }
+
+    /// Whether this protocol reaches another machine over the network.
+    /// `Serial` runs down a cable and `Local` never leaves this box, so
+    /// neither takes a hostname, a proxy, a jump chain or a Wake-on-LAN
+    /// packet.
+    pub fn is_remote(self) -> bool {
+        !matches!(self, ConnectionProtocol::Serial | ConnectionProtocol::Local)
+    }
+
+    /// Whether the protocol authenticates with a username / password of
+    /// its own. Raw is a bare socket and Serial a cable (both let the
+    /// device do its own prompting, in band); Local runs as the user
+    /// already logged in.
+    pub fn uses_credentials(self) -> bool {
+        !matches!(
+            self,
+            ConnectionProtocol::Raw | ConnectionProtocol::Serial | ConnectionProtocol::Local
+        )
+    }
+
+    /// The `scheme://` this protocol is written as in quick connect.
+    /// `Local` has none: it names no endpoint, so there is nothing for
+    /// an ad-hoc target to say.
+    pub fn scheme(self) -> Option<&'static str> {
+        match self {
+            ConnectionProtocol::Ssh => Some("ssh"),
+            ConnectionProtocol::Telnet => Some("telnet"),
+            ConnectionProtocol::Raw => Some("raw"),
+            ConnectionProtocol::Serial => Some("serial"),
+            ConnectionProtocol::RemoteDesktop => Some("rdp"),
+            ConnectionProtocol::Local => None,
+        }
+    }
+
+    /// Parse a quick-connect scheme back into a protocol, case
+    /// insensitively. `telnets` is the conventional name for Telnet
+    /// over TLS (port 992) and resolves to `Telnet`; the caller turns
+    /// on the TLS option.
+    pub fn from_scheme(scheme: &str) -> Option<Self> {
+        match scheme.to_ascii_lowercase().as_str() {
+            "ssh" => Some(ConnectionProtocol::Ssh),
+            "telnet" | "telnets" => Some(ConnectionProtocol::Telnet),
+            "raw" | "tcp" => Some(ConnectionProtocol::Raw),
+            "serial" => Some(ConnectionProtocol::Serial),
+            "rdp" | "vnc" => Some(ConnectionProtocol::RemoteDesktop),
+            _ => None,
+        }
     }
 }
 
@@ -437,7 +571,9 @@ impl std::fmt::Display for ConnectionProtocol {
         match self {
             ConnectionProtocol::Ssh => write!(f, "SSH"),
             ConnectionProtocol::Telnet => write!(f, "Telnet"),
+            ConnectionProtocol::Raw => write!(f, "Raw"),
             ConnectionProtocol::Serial => write!(f, "Serial"),
+            ConnectionProtocol::Local => write!(f, "Local"),
             ConnectionProtocol::RemoteDesktop => write!(f, "Remote Desktop"),
         }
     }
@@ -836,6 +972,102 @@ mod tests {
         let json = serde_json::to_string(&conn).unwrap();
         let de: Connection = serde_json::from_str(&json).unwrap();
         assert_eq!(de.protocol, ConnectionProtocol::Telnet);
+    }
+
+    /// A peer that never heard of Telnet-over-TLS sends no `telnet`
+    /// key. It must land as plain Telnet, never as "TLS on with
+    /// verification skipped": an absent field is not consent to stop
+    /// checking certificates.
+    #[test]
+    fn telnet_options_legacy_payload_defaults_to_plain() {
+        let mut conn = Connection::new("legacy", "10.0.0.1");
+        conn.protocol = ConnectionProtocol::Telnet;
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("telnet");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.telnet, None);
+    }
+
+    #[test]
+    fn telnet_options_round_trip() {
+        let mut conn = Connection::new("switch", "10.0.0.1");
+        conn.protocol = ConnectionProtocol::Telnet;
+        conn.port = 992;
+        conn.telnet = Some(super::super::telnet::TelnetOptions { tls: true, tls_insecure: true });
+        let json = serde_json::to_string(&conn).unwrap();
+        let de: Connection = serde_json::from_str(&json).unwrap();
+        let opts = de.telnet.expect("options survive the round trip");
+        assert!(opts.tls);
+        assert!(opts.tls_insecure);
+    }
+
+    #[test]
+    fn local_config_legacy_payload_defaults_to_none() {
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("local");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert_eq!(de.local, None);
+    }
+
+    #[test]
+    fn local_config_round_trips() {
+        let mut conn = Connection::new("Claude", "");
+        conn.protocol = ConnectionProtocol::Local;
+        conn.initial_command = Some("claude".to_string());
+        conn.local = Some(super::super::local::LocalConfig {
+            terminal_id: Some(Uuid::nil()),
+            terminal_label: Some("PowerShell".to_string()),
+            cwd: Some("~/work".to_string()),
+        });
+        let json = serde_json::to_string(&conn).unwrap();
+        let de: Connection = serde_json::from_str(&json).unwrap();
+        let local = de.local.expect("local config survives the round trip");
+        assert_eq!(local.terminal_label.as_deref(), Some("PowerShell"));
+        assert_eq!(local.effective_cwd(), Some("~/work"));
+        assert_eq!(de.initial_command.as_deref(), Some("claude"));
+    }
+
+    /// The port field is shown by `uses_network_port` and seeded by
+    /// `default_port`, which are NOT the same question: Raw dials a
+    /// port and has no conventional one (console servers map each line
+    /// to its own), so it must show the field and suggest nothing.
+    #[test]
+    fn raw_takes_a_port_but_suggests_none() {
+        assert!(ConnectionProtocol::Raw.uses_network_port());
+        assert_eq!(ConnectionProtocol::Raw.default_port(), None);
+        assert!(!ConnectionProtocol::Serial.uses_network_port());
+        assert!(!ConnectionProtocol::Local.uses_network_port());
+        assert_eq!(ConnectionProtocol::Ssh.default_port(), Some(22));
+        assert_eq!(ConnectionProtocol::Telnet.default_port(), Some(23));
+    }
+
+    /// Every terminal protocol round-trips through its quick-connect
+    /// scheme, and `telnets` resolves to Telnet (the caller turns the
+    /// TLS option on). `Local` names no endpoint, so it has no scheme.
+    #[test]
+    fn schemes_round_trip() {
+        for p in [
+            ConnectionProtocol::Ssh,
+            ConnectionProtocol::Telnet,
+            ConnectionProtocol::Raw,
+            ConnectionProtocol::Serial,
+            ConnectionProtocol::RemoteDesktop,
+        ] {
+            let scheme = p.scheme().expect("every dialable protocol names a scheme");
+            assert_eq!(ConnectionProtocol::from_scheme(scheme), Some(p), "{scheme}");
+            assert_eq!(
+                ConnectionProtocol::from_scheme(&scheme.to_uppercase()),
+                Some(p),
+                "{scheme} uppercased"
+            );
+        }
+        assert_eq!(ConnectionProtocol::Local.scheme(), None);
+        assert_eq!(
+            ConnectionProtocol::from_scheme("telnets"),
+            Some(ConnectionProtocol::Telnet)
+        );
+        assert_eq!(ConnectionProtocol::from_scheme("http"), None);
     }
 
     #[test]

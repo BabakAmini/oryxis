@@ -486,6 +486,15 @@ impl Oryxis {
         match message {
             // -- Terminal I/O --
             TerminalMessage::PtyOutput(pane_id, mut bytes) => {
+                // A local host's startup command waits for the shell to
+                // speak and then go quiet (there is no session-ready
+                // event to hang it on). Each batch re-arms the timer;
+                // for every other pane this is one hash lookup on an
+                // empty map.
+                let startup_task = match self.pending_local_startup.is_empty() {
+                    true => Task::none(),
+                    false => self.note_local_output(pane_id),
+                };
                 // ── ZMODEM interception (before any emulator processing) ──
                 // While a transfer owns the pane, output is protocol wire:
                 // hand it to the driver and stop. Otherwise the initiation
@@ -501,7 +510,12 @@ impl Oryxis {
                             // instead of dropping a fast prompt.
                             zm.late.extend_from_slice(&unsent.0);
                         }
-                        return Ok(Task::none());
+                        // Return the startup timer even here: a transfer
+                        // owns the BYTES, not the pane's pending
+                        // command, and dropping it on the batch that
+                        // happens to be the last one before silence
+                        // would lose the command outright.
+                        return Ok(startup_task);
                     }
                     let scan = pane.zmodem_detector.feed(&bytes);
                     // Only divert when the pane has a transport to run the
@@ -1171,9 +1185,14 @@ impl Oryxis {
                     // the falling edge. No-ops for everyone else.
                     tasks.push(self.tmux_alt_screen_edge(pane_id, entered));
                 }
-                if !tasks.is_empty() {
-                    return Ok(Task::batch(tasks));
-                }
+                // The local-startup timer rides along, so it survives
+                // the no-other-tasks path below too (the zmodem early
+                // return above carries its own copy).
+                tasks.push(startup_task);
+                return Ok(Task::batch(tasks));
+            }
+            TerminalMessage::LocalStartupDue(pane_id, armed_at) => {
+                self.fire_local_startup(pane_id, armed_at);
             }
             m => return Err(m),
         }

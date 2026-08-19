@@ -124,16 +124,16 @@ impl Oryxis {
         *visible = true;
     }
 
-    /// A blank connection form pre-filled with the user's new-connection
-    /// defaults (agent forwarding, port, keepalive, TERM), so they don't
-    /// re-set the same fields on every new host.
-    /// Open the host editor for a brand-new host of the given protocol.
-    /// Shared by "New host" (SSH) and "Add remote desktop" (RemoteDesktop),
-    /// which differ only in the seeded protocol + default port.
-    pub(crate) fn open_new_host_editor(
-        &mut self,
-        protocol: oryxis_core::models::connection::ConnectionProtocol,
-    ) -> iced::Task<crate::app::Message> {
+    /// Open the host editor on a blank form, pre-filled with the user's
+    /// new-connection defaults (agent forwarding, port, keepalive,
+    /// TERM), so they don't re-set the same fields on every new host.
+    ///
+    /// Always SSH: every other protocol is one pick away in the form's
+    /// own picker, which is where a user looks for it (an "Add remote
+    /// desktop" entry used to seed RemoteDesktop here, and its absence
+    /// from that picker read as "this app has no RDP").
+    pub(crate) fn open_new_host_editor(&mut self) -> iced::Task<crate::app::Message> {
+        let protocol = oryxis_core::models::connection::ConnectionProtocol::Ssh;
         // An existing host may still be open with a debouncing
         // auto-save; persist it before the form resets to blank.
         self.editor_flush_pending();
@@ -460,6 +460,51 @@ impl Oryxis {
         } else {
             None
         };
+        // Telnet options: only meaningful on a Telnet host, and written
+        // as `None` when they are all default, so a host that never
+        // touched TLS stays byte-identical to one saved before the
+        // field existed.
+        conn.telnet = if self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Telnet
+        {
+            let opts = oryxis_core::models::telnet::TelnetOptions {
+                tls: self.editor_form.telnet_tls,
+                // The escape is meaningless without TLS, and leaving it
+                // set would silently arm "skip verification" for a
+                // later re-enable the user never confirmed.
+                tls_insecure: self.editor_form.telnet_tls && self.editor_form.telnet_tls_insecure,
+            };
+            (!opts.is_default()).then_some(opts)
+        } else {
+            None
+        };
+        // Local-shell settings, same rule: cleared on any other
+        // protocol, and `None` when the host just takes the default
+        // shell in the default directory.
+        conn.local = if self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Local
+        {
+            // The label is saved beside the id as the cross-machine
+            // fallback: ids are minted per machine, so a synced host
+            // would otherwise resolve to nothing on the second one.
+            let label = self.editor_form.local_terminal_id.and_then(|id| {
+                self.local_terminals
+                    .as_deref()
+                    .unwrap_or(&[])
+                    .iter()
+                    .find(|e| e.id == id)
+                    .map(|e| e.label.clone())
+            });
+            let cfg = oryxis_core::models::local::LocalConfig {
+                terminal_id: self.editor_form.local_terminal_id,
+                terminal_label: label,
+                cwd: Some(self.editor_form.local_cwd.trim().to_string())
+                    .filter(|c| !c.is_empty()),
+            };
+            (!cfg.is_default()).then_some(cfg)
+        } else {
+            None
+        };
         // Address-family preference rides on every host (harmless scalar;
         // only the SSH dial paths read it today).
         conn.address_family = self.editor_form.address_family;
@@ -778,6 +823,31 @@ impl Oryxis {
             serial: conn.serial,
             rd_kind: conn.rd_kind,
             rd_gateway_id: conn.rd_gateway_id,
+            telnet_tls: conn.telnet.map(|t| t.tls).unwrap_or(false),
+            telnet_tls_insecure: conn.telnet.map(|t| t.tls_insecure).unwrap_or(false),
+            // The saved id first, then the saved label: on the machine
+            // that wrote the host the id resolves; on a second one it
+            // was minted elsewhere, and the label is what still names
+            // the same shell. Neither resolving leaves the picker on
+            // "default shell", which is what the connect path would
+            // also report.
+            local_terminal_id: conn.local.as_ref().and_then(|l| {
+                let entries = self.local_terminals.as_deref().unwrap_or(&[]);
+                l.terminal_id
+                    .filter(|id| entries.iter().any(|e| e.id == *id))
+                    .or_else(|| {
+                        let label = l.terminal_label.as_deref()?.trim();
+                        entries
+                            .iter()
+                            .find(|e| e.label.eq_ignore_ascii_case(label))
+                            .map(|e| e.id)
+                    })
+            }),
+            local_cwd: conn
+                .local
+                .as_ref()
+                .and_then(|l| l.cwd.clone())
+                .unwrap_or_default(),
             address_family: conn.address_family,
             quick_flow: false,
             hostname: conn.hostname.clone(),
@@ -927,7 +997,6 @@ impl Oryxis {
         match message {
             m @ (
                 EditorMessage::ShowNewConnection
-                | EditorMessage::ShowNewRemoteDesktop
                 | EditorMessage::EditConnection(..)
                 | EditorMessage::SaveQuickHost(..)
                 | EditorMessage::EditQuickHost(..)
@@ -962,6 +1031,10 @@ impl Oryxis {
                 | EditorMessage::EditorIconStyleChanged(..)
                 | EditorMessage::EditorProtocolChanged(..)
                 | EditorMessage::EditorAddressFamilyChanged(..)
+                | EditorMessage::EditorToggleTelnetTls
+                | EditorMessage::EditorToggleTelnetTlsInsecure
+                | EditorMessage::EditorLocalTerminalChanged(..)
+                | EditorMessage::EditorLocalCwdChanged(..)
             ) => self.handle_editor_identity(m),
             m @ (
                 EditorMessage::EditorProxyKindChanged(..)

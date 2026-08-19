@@ -92,6 +92,19 @@ pub(crate) struct LocalShellSpec {
     pub args: Vec<String>,
 }
 
+/// A local host's startup command, waiting for its pane's output to go
+/// quiet (see `Oryxis::pending_local_startup`).
+#[derive(Debug, Clone)]
+pub(crate) struct PendingLocalStartup {
+    /// The line to send, newline included at write time.
+    pub command: String,
+    /// How many output batches this pane has produced. A timer armed at
+    /// batch N fires only if the count is still N, so a shell that is
+    /// still printing pushes the send further out instead of landing in
+    /// the middle of its banner.
+    pub batches: u64,
+}
+
 /// A snippet run/paste parked while its `{name}` placeholders are
 /// filled in (the snippet-variables modal).
 #[derive(Debug, Clone)]

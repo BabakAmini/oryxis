@@ -13,5 +13,7 @@
 pub mod autologin;
 pub mod negotiation;
 pub mod session;
+pub mod tls;
 
-pub use session::{TelnetConfig, TelnetError, TelnetSession};
+pub use session::{TelnetConfig, TelnetError, TelnetMode, TelnetSession};
+pub use tls::TelnetTls;

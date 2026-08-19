@@ -527,6 +527,107 @@ fn proxy_password_survives_unrelated_resave() {
 }
 
 
+/// Telnet options and local-shell settings live in their own JSON
+/// columns, written by hand-maintained positional parameter lists and
+/// read back by hand-maintained column indices. Nothing about that is
+/// checked by the model's serde tests: a wrong index reads `None`
+/// SILENTLY, and the host quietly loses its TLS or its terminal on the
+/// next listing. This is the test that catches that.
+#[test]
+fn telnet_and_local_columns_round_trip() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    let vault = unlocked_vault();
+
+    let mut telnet = Connection::new("switch", "10.0.0.1");
+    telnet.protocol = ConnectionProtocol::Telnet;
+    telnet.port = 992;
+    telnet.telnet = Some(oryxis_core::models::telnet::TelnetOptions {
+        tls: true,
+        tls_insecure: true,
+    });
+    vault.save_connection(&telnet, None).unwrap();
+
+    let terminal_id = uuid::Uuid::new_v4();
+    let mut local = Connection::new("Claude", "");
+    local.protocol = ConnectionProtocol::Local;
+    local.initial_command = Some("claude".into());
+    local.local = Some(oryxis_core::models::local::LocalConfig {
+        terminal_id: Some(terminal_id),
+        terminal_label: Some("PowerShell".into()),
+        cwd: Some("~/work".into()),
+    });
+    vault.save_connection(&local, None).unwrap();
+
+    let listed = vault.list_connections().unwrap();
+    let stored_telnet = listed.iter().find(|c| c.id == telnet.id).expect("telnet host");
+    assert_eq!(stored_telnet.protocol, ConnectionProtocol::Telnet);
+    let opts = stored_telnet.telnet.expect("telnet options survive the column");
+    assert!(opts.tls);
+    assert!(opts.tls_insecure);
+
+    let stored_local = listed.iter().find(|c| c.id == local.id).expect("local host");
+    assert_eq!(stored_local.protocol, ConnectionProtocol::Local);
+    let cfg = stored_local.local.as_ref().expect("local config survives the column");
+    assert_eq!(cfg.terminal_id, Some(terminal_id));
+    assert_eq!(cfg.terminal_label.as_deref(), Some("PowerShell"));
+    assert_eq!(cfg.effective_cwd(), Some("~/work"));
+    assert_eq!(stored_local.initial_command.as_deref(), Some("claude"));
+}
+
+/// The same columns must survive a save that has nothing to do with
+/// them: `INSERT OR REPLACE` nulls every column missing from its
+/// parameter list, which is how a field silently disappears on the next
+/// unrelated edit (regression shape of
+/// `proxy_password_survives_unrelated_resave`).
+#[test]
+fn telnet_and_local_columns_survive_an_unrelated_resave() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("switch", "10.0.0.1");
+    conn.protocol = ConnectionProtocol::Telnet;
+    conn.telnet = Some(oryxis_core::models::telnet::TelnetOptions {
+        tls: true,
+        tls_insecure: false,
+    });
+    vault.save_connection(&conn, None).unwrap();
+
+    conn.label = "renamed".into();
+    vault.save_connection(&conn, None).unwrap();
+
+    let stored = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("host still listed");
+    assert!(
+        stored.telnet.is_some_and(|t| t.tls),
+        "an unrelated rename dropped the Telnet TLS option"
+    );
+}
+
+/// An all-default options blob is stored as NULL, so a host whose TLS
+/// was turned on and back off is indistinguishable from one that never
+/// had it. Otherwise the column would record a visit rather than a
+/// setting, and every such host would differ on the sync wire.
+#[test]
+fn default_telnet_options_are_stored_as_none() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("switch", "10.0.0.1");
+    conn.protocol = ConnectionProtocol::Telnet;
+    conn.telnet = Some(oryxis_core::models::telnet::TelnetOptions::default());
+    vault.save_connection(&conn, None).unwrap();
+
+    let stored = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("host still listed");
+    assert_eq!(stored.telnet, None);
+}
+
 /// TOTP secret round-trip: set / get / clear via empty and None, and
 /// the encrypted column must never hold the plaintext bytes.
 #[test]

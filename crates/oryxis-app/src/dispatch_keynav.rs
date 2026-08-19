@@ -540,7 +540,7 @@ impl Oryxis {
                     }
                     // Then the ad-hoc target (matches the toolbar's
                     // "Enter to connect" hint chip).
-                    if let Some(conn) = self.quick_connect_target(&input) {
+                    if let Some(conn) = self.dashboard_quick_connect_target(&input) {
                         return Some(self.update(Message::Ssh(SshMessage::QuickConnect(Box::new(
                             crate::state::QuickConnectEntry::bare(conn),
                         )))));

@@ -127,14 +127,21 @@ impl Oryxis {
         {
             return self.start_ssm_session_for_connection(&conn);
         }
-        // Telnet / Serial hosts branch to their own (much thinner)
-        // connect paths: no SSH engine, no host keys, no jump chains.
+        // Every non-SSH protocol branches to its own (much thinner)
+        // connect path: no SSH engine, no host keys, no jump chains.
         match conn.protocol {
-            oryxis_core::models::connection::ConnectionProtocol::Telnet => {
+            // Raw shares the Telnet path: same TCP dial, same tab
+            // wiring, with the option layer switched off in the engine
+            // config.
+            oryxis_core::models::connection::ConnectionProtocol::Telnet
+            | oryxis_core::models::connection::ConnectionProtocol::Raw => {
                 return self.start_telnet_tab(conn, origin);
             }
             oryxis_core::models::connection::ConnectionProtocol::Serial => {
                 return self.start_serial_tab(conn, origin);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::Local => {
+                return self.start_local_tab(conn, origin);
             }
             oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop => {
                 // Not a terminal: launch the OS-native desktop client
@@ -1322,11 +1329,15 @@ impl Oryxis {
         // Telnet / Serial hosts take their own thin connect paths (no
         // SSH engine); split panes and in-place reconnects included.
         match conn.protocol {
-            oryxis_core::models::connection::ConnectionProtocol::Telnet => {
+            oryxis_core::models::connection::ConnectionProtocol::Telnet
+            | oryxis_core::models::connection::ConnectionProtocol::Raw => {
                 return self.spawn_telnet_for_pane_conn(conn, quick_id, tab_idx, pane_id);
             }
             oryxis_core::models::connection::ConnectionProtocol::Serial => {
                 return self.spawn_serial_for_pane_conn(conn, tab_idx, pane_id);
+            }
+            oryxis_core::models::connection::ConnectionProtocol::Local => {
+                return self.spawn_local_for_pane_conn(conn, tab_idx, pane_id);
             }
             oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop => {
                 // A remote desktop can't live in a split pane; just launch

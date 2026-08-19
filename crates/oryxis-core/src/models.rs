@@ -1,5 +1,7 @@
 pub mod connection;
 pub mod serial;
+pub mod telnet;
+pub mod local;
 pub mod remote_desktop;
 pub mod key;
 pub mod group;
@@ -21,6 +23,8 @@ pub mod terminal_quirks;
 
 pub use connection::*;
 pub use serial::*;
+pub use telnet::*;
+pub use local::*;
 pub use remote_desktop::*;
 pub use key::*;
 pub use group::*;

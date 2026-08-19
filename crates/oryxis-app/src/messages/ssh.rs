@@ -19,6 +19,9 @@ pub enum SshMessage {
     /// retry for an id already present reuses the stored entry so
     /// in-place mutations (expanded legacy algorithms) survive.
     QuickConnect(Box<crate::state::QuickConnectEntry>),
+    /// Protocol badge picked on the quick-connect card (issue #174),
+    /// for the case where the typed text names no `scheme://`.
+    QuickConnectProtocolPicked(oryxis_core::models::connection::ConnectionProtocol),
     SshProgress(ConnectionStep, String),
     /// Pre-auth banner (RFC 4252 §5.4) for the connect in progress:
     /// shown on the progress card and written to the tab's terminal.

@@ -61,7 +61,7 @@ impl Oryxis {
         self.panel_nav_reset();
         let is_editing = self.editor_form.editing_id.is_some();
         let title = if is_editing { crate::i18n::t("edit_host") } else { crate::i18n::t("new_host") };
-        let has_address = !self.editor_form.hostname.is_empty();
+        let mut has_address = !self.editor_form.hostname.is_empty();
         // Telnet hosts hide the whole SSH block (keys, identities,
         // agent-fwd, jump chain, proxy, port-forwards, TOTP, MCP,
         // algorithms, initial command); the reduced form keeps only
@@ -78,6 +78,18 @@ impl Oryxis {
         // password), a kind (RDP/VNC) and an optional SSH gateway. All the
         // SSH-only rows below are `is_ssh`-gated, so they drop for free.
         let is_rd = self.editor_form.protocol == Proto::RemoteDesktop;
+        // Raw is Telnet minus the credentials: a bare socket has nobody
+        // to authenticate to, so the device prompts in band if it wants
+        // anything.
+        let is_raw = self.editor_form.protocol == Proto::Raw;
+        // Local reaches no endpoint at all: no address, no port, no
+        // credentials. What it needs instead is which curated terminal
+        // to spawn and where to start it.
+        let is_local = self.editor_form.protocol == Proto::Local;
+        // Whether the host has a network address to type. Drives both
+        // the address row and the Connect button's enable gate: a local
+        // host is connectable with no address at all.
+        let takes_address = !is_local;
         // Telnet needs no flag of its own: it is the trailing `else` of
         // the protocol-card branch below (it dials TCP too, so that
         // branch builds the IP-version row inline).
@@ -116,13 +128,18 @@ impl Oryxis {
         // only while open, its body (`hp_section` runs the body closure
         // after the header). Build order stays render order throughout,
         // which is the panel keyboard contract.
+        // A local host names no endpoint, so the Connect button gates on
+        // the label instead: that IS its whole target.
+        if is_local {
+            has_address = !self.editor_form.label.trim().is_empty();
+        }
         let label_field = self.hp_label_field();
         let parent_combo = self.hp_parent_combo();
         let tags_field = self.hp_tags_field();
-        let hostname_row = self.hp_hostname_row(is_serial);
-        let protocol_row = self.hp_protocol_row(is_rd);
+        let hostname_row = takes_address.then(|| self.hp_hostname_row(is_serial));
+        let protocol_row = self.hp_protocol_row();
         let cloud_transport_row = self.hp_cloud_transport_row();
-        let port_input = self.hp_port_input(is_serial);
+        let port_input = self.hp_port_input(!self.editor_form.protocol.uses_network_port());
 
         // ── Compose one card per semantic group ──
         // Host (label / parent / connection target), the essential
@@ -153,9 +170,10 @@ impl Oryxis {
         ];
         host_col = host_col
             .push(group_sep())
-            .push(section_header(t("connection")))
-            .push(Space::new().height(ROW_GAP))
-            .push(hostname_row);
+            .push(section_header(t("connection")));
+        if let Some(hr) = hostname_row {
+            host_col = host_col.push(Space::new().height(ROW_GAP)).push(hr);
+        }
         if let Some(pr) = protocol_row {
             host_col = host_col.push(Space::new().height(ROW_GAP)).push(pr);
         }
@@ -172,14 +190,18 @@ impl Oryxis {
             t("ssh")
         } else if is_serial {
             t("serial")
+        } else if is_local {
+            t("local")
+        } else if is_raw {
+            t("raw")
         } else if is_rd {
             t("remote_desktop")
         } else {
             t("telnet")
         };
-        // Serial has no numeric port, so its header is just the label;
-        // SSH/Telnet append the "[22] port" field.
-        let proto_header = if is_serial {
+        // Serial and Local have no numeric port, so their header is just
+        // the label; everything else appends the "[22] port" field.
+        let proto_header = if !self.editor_form.protocol.uses_network_port() {
             dir_row(vec![
                 text(proto_label).size(14).color(OryxisColors::t().accent).into(),
                 Space::new().width(Length::Fill).into(),
@@ -200,7 +222,10 @@ impl Oryxis {
         // Everything else protocol-specific lives in the collapsible
         // sections below; the reduced Serial / RD / Telnet forms keep
         // their few extra rows inline, they already ARE the disclosure.
-        let cred_items = self.hp_cred_items(is_serial, is_ssh);
+        // Serial, Raw and Local have no login of their own, so the
+        // credential rows are not built at all (building them would
+        // record dead keyboard stops for fields nothing reads).
+        let cred_items = self.hp_cred_items(is_serial || is_raw || is_local, is_ssh);
         let protocol_section: Element<'_, Message> = if is_ssh {
             panel_section(
                 column![proto_header]
@@ -236,36 +261,64 @@ impl Oryxis {
                     .push(Space::new().height(ROW_GAP))
                     .push(rd_block),
             )
+        } else if is_local {
+            // Local card: which curated terminal to spawn and where it
+            // starts. No port, no login, no network rows.
+            let local_block = self.hp_local_block();
+            panel_section(
+                column![proto_header]
+                    .push(group_sep())
+                    .push(section_header(t("local_shell")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(local_block),
+            )
         } else {
-            // Telnet keeps its two network rows inline (built here, in
-            // render order, so they record after the credential rows).
+            // Telnet and Raw keep their two network rows inline (built
+            // here, in render order, so they record after the credential
+            // rows).
+            let tls_block = (!is_raw).then(|| self.hp_telnet_tls_block());
             let row_address_family = self.hp_row_address_family(false, true);
             let row_mac_address = self.hp_row_mac_address(true);
-            // Telnet cleartext note: honest UX, not a lecture. The user
-            // is the only party on the path without a secure option.
-            let cleartext_note = dir_row(vec![
-                iced_fonts::lucide::triangle_alert()
-                    .size(13)
-                    .color(OryxisColors::t().warning)
-                    .into(),
-                Space::new().width(8).into(),
-                text(t("telnet_cleartext_note"))
-                    .size(11)
-                    .color(OryxisColors::t().text_muted)
-                    .into(),
-            ])
-            .align_y(iced::Alignment::Center);
-            let telnet_col = column![proto_header]
-                .push(group_sep())
-                .push(section_header(t("credentials")))
-                .push(Space::new().height(ROW_GAP))
-                .push(cred_items)
+            // Cleartext note: honest UX, not a lecture. The user is the
+            // only party on the path without a secure option. It drops
+            // once TLS is on, because then the statement is false.
+            let tls_on = self.editor_form.telnet_tls && !is_raw;
+            let cleartext_note: Option<Element<'_, Message>> = (!tls_on).then(|| {
+                dir_row(vec![
+                    iced_fonts::lucide::triangle_alert()
+                        .size(13)
+                        .color(OryxisColors::t().warning)
+                        .into(),
+                    Space::new().width(8).into(),
+                    text(if is_raw { t("raw_cleartext_note") } else { t("telnet_cleartext_note") })
+                        .size(11)
+                        .color(OryxisColors::t().text_muted)
+                        .into(),
+                ])
+                .align_y(iced::Alignment::Center)
+                .into()
+            });
+            let mut telnet_col = column![proto_header];
+            // Raw has no credentials block at all, so it also skips the
+            // header that would announce an empty group.
+            if !is_raw {
+                telnet_col = telnet_col
+                    .push(group_sep())
+                    .push(section_header(t("credentials")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(cred_items);
+            }
+            if let Some(tls) = tls_block {
+                telnet_col = telnet_col.push(Space::new().height(ROW_GAP)).push(tls);
+            }
+            telnet_col = telnet_col
                 .push(Space::new().height(ROW_GAP))
                 .push(row_address_family)
                 .push(Space::new().height(ROW_GAP))
-                .push(row_mac_address)
-                .push(Space::new().height(GROUP_GAP))
-                .push(cleartext_note);
+                .push(row_mac_address);
+            if let Some(note) = cleartext_note {
+                telnet_col = telnet_col.push(Space::new().height(GROUP_GAP)).push(note);
+            }
             panel_section(telnet_col)
         };
 
@@ -346,6 +399,20 @@ impl Oryxis {
                 col.push(self.hp_advanced_terminal_items()).into()
             })
         });
+        // A local host has an Integration section too, reduced to the
+        // two rows that mean something without a remote: the shell's
+        // environment and the command it opens with (which is the whole
+        // point of saving one).
+        let local_integration_section = is_local.then(|| {
+            self.hp_section(S::Integration, || {
+                let env_items = self.hp_env_items(true);
+                let startup_block = self.hp_startup_block(true);
+                column![env_items]
+                    .push(group_sep())
+                    .push(startup_block)
+                    .into()
+            })
+        });
         let integration_section = is_ssh.then(|| {
             self.hp_section(S::Integration, || {
                 let row_mcp = self.hp_row_mcp(true);
@@ -413,9 +480,15 @@ impl Oryxis {
 
         // ── Layout ──
         let mut form_col = column![host_section, Space::new().height(10), protocol_section];
-        for section in [auth_section, network_section, compat_section, integration_section]
-            .into_iter()
-            .flatten()
+        for section in [
+            auth_section,
+            network_section,
+            compat_section,
+            integration_section,
+            local_integration_section,
+        ]
+        .into_iter()
+        .flatten()
         {
             form_col = form_col.push(Space::new().height(10)).push(section);
         }

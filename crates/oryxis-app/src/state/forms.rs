@@ -244,6 +244,18 @@ pub(crate) struct ConnectionForm {
     /// SSH host to tunnel the remote-desktop connection through, or
     /// `None` for a direct connection. Saved to `Connection.rd_gateway_id`.
     pub rd_gateway_id: Option<uuid::Uuid>,
+    /// Telnet over TLS (`telnets`), shown by the reduced Telnet form.
+    /// Saved into `Connection.telnet` when `protocol` is Telnet.
+    pub telnet_tls: bool,
+    /// Accept a server certificate the trust store rejects. Only
+    /// meaningful (and only shown) while `telnet_tls` is on.
+    pub telnet_tls_insecure: bool,
+    /// Which curated local terminal a Local host spawns, or `None` for
+    /// the user's default shell. Saved into `Connection.local`.
+    pub local_terminal_id: Option<uuid::Uuid>,
+    /// Working directory a Local host starts in (`~` allowed). Empty =
+    /// the process default.
+    pub local_cwd: String,
     /// Outbound address-family preference (Auto / IPv4 / IPv6), shown in
     /// SSH > Network. Saved to `Connection.address_family`.
     pub address_family: oryxis_core::models::connection::AddressFamily,
@@ -1310,6 +1322,10 @@ impl Default for ConnectionForm {
             serial: None,
             rd_kind: oryxis_core::models::remote_desktop::RemoteDesktopKind::default(),
             rd_gateway_id: None,
+            telnet_tls: false,
+            telnet_tls_insecure: false,
+            local_terminal_id: None,
+            local_cwd: String::new(),
             address_family: oryxis_core::models::connection::AddressFamily::default(),
             quick_flow: false,
             hostname: String::new(),

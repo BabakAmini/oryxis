@@ -301,8 +301,14 @@ pub(crate) fn collect_records(
                     } else {
                         (None, false)
                     };
+                    // Host data travels; a local trust decision does
+                    // not. Stripping on SEND keeps the peer from ever
+                    // seeing a "skip certificate verification" flag it
+                    // could apply to a host its owner never inspected.
+                    let mut connection = c.clone();
+                    connection.strip_local_trust();
                     let wrapper = protocol::SyncConnection {
-                        connection: c.clone(),
+                        connection,
                         password,
                         password_cleared,
                         proxy_password,
@@ -568,7 +574,12 @@ pub(crate) fn apply_records(
                 // still deserializes, the optional password fields just
                 // resolve to `None` via `#[serde(default)]`.
                 match serde_json::from_slice::<protocol::SyncConnection>(&payload) {
-                    Ok(sc) => {
+                    Ok(mut sc) => {
+                        // Both halves of the rule: a peer that predates
+                        // the strip (or one that lies) cannot arm a
+                        // "skip certificate verification" flag on this
+                        // machine either.
+                        sc.connection.strip_local_trust();
                         let id = sc.connection.id;
                         if overwrites_local {
                             let route = match sc.connection.proxy.as_ref() {
@@ -1020,6 +1031,103 @@ mod lww_tests {
             .into_iter()
             .find(|c| c.id == id)
             .map(|c| c.label)
+    }
+
+    /// The Telnet TLS escape ("accept a certificate the trust store
+    /// rejects") is a decision about ONE appliance on ONE machine, so
+    /// it must not ride the wire: a peer would otherwise disarm
+    /// certificate verification on a computer whose owner never saw
+    /// that host. The TLS setting itself DOES travel, because it
+    /// describes the endpoint. Same shape as the command-proxy
+    /// approval, which is local-only by construction.
+    #[test]
+    fn collect_strips_the_telnet_certificate_escape() {
+        use oryxis_core::models::connection::ConnectionProtocol;
+        let vault = vault();
+        let mut c = Connection::new("switch", "10.0.0.1");
+        c.protocol = ConnectionProtocol::Telnet;
+        c.port = 992;
+        c.telnet = Some(oryxis_core::models::telnet::TelnetOptions {
+            tls: true,
+            tls_insecure: true,
+        });
+        vault.lock().unwrap().save_connection(&c, None).unwrap();
+
+        let records = collect_records(
+            &vault,
+            &[protocol::DeltaRef {
+                entity_type: EntityType::Connection,
+                entity_id: c.id,
+            }],
+            Some(&SECRET),
+        )
+        .unwrap();
+        assert_eq!(records.len(), 1);
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let plain = cipher.decrypt(&records[0].payload).unwrap();
+        let wire: protocol::SyncConnection = serde_json::from_slice(&plain).unwrap();
+        let opts = wire.connection.telnet.expect("TLS itself travels");
+        assert!(opts.tls);
+        assert!(
+            !opts.tls_insecure,
+            "the certificate escape must never reach a peer"
+        );
+    }
+
+    /// The other half of the same rule: a peer that predates the strip
+    /// (or one that lies) cannot arm the escape here either.
+    #[test]
+    fn apply_strips_the_telnet_certificate_escape() {
+        use oryxis_core::models::connection::ConnectionProtocol;
+        let vault = vault();
+        let mut c = Connection::new("switch", "10.0.0.1");
+        c.protocol = ConnectionProtocol::Telnet;
+        c.port = 992;
+        c.telnet = Some(oryxis_core::models::telnet::TelnetOptions {
+            tls: true,
+            tls_insecure: true,
+        });
+        let wrapper = protocol::SyncConnection {
+            connection: c.clone(),
+            password: None,
+            password_cleared: false,
+            proxy_password: None,
+            proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
+        };
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let payload = cipher.encrypt(&serde_json::to_vec(&wrapper).unwrap()).unwrap();
+
+        apply_records(
+            &vault,
+            &[protocol::SyncRecord {
+                entity_type: EntityType::Connection,
+                entity_id: c.id,
+                updated_at: Utc::now(),
+                is_deleted: false,
+                payload,
+            }],
+            Some(&SECRET),
+        )
+        .unwrap();
+
+        let stored = vault
+            .lock()
+            .unwrap()
+            .list_connections()
+            .unwrap()
+            .into_iter()
+            .find(|x| x.id == c.id)
+            .expect("the host arrived");
+        let opts = stored.telnet.expect("TLS itself arrived");
+        assert!(opts.tls);
+        assert!(
+            !opts.tls_insecure,
+            "an arriving host must verify certificates until its owner says otherwise"
+        );
     }
 
     #[test]

@@ -146,7 +146,10 @@ impl Oryxis {
                 rows += 1.0; // Open SFTP tab
             }
         }
-        if matches!(protocol, ConnectionProtocol::Ssh | ConnectionProtocol::Telnet) {
+        if matches!(
+            protocol,
+            ConnectionProtocol::Ssh | ConnectionProtocol::Telnet | ConnectionProtocol::Raw
+        ) {
             rows += 1.0; // Copy SSH URL
         }
         if conn.and_then(|c| c.mac_address.as_deref()).is_some_and(|m| !m.is_empty()) {
@@ -196,9 +199,12 @@ impl Oryxis {
         let protocol = conn.map(|c| c.protocol).unwrap_or(ConnectionProtocol::Ssh);
         let is_ssh_host = protocol == ConnectionProtocol::Ssh;
         let is_rd_host = protocol == ConnectionProtocol::RemoteDesktop;
+        // Every protocol that names a network endpoint has a URL worth
+        // copying (`ssh://`, `telnet://`, `telnets://`, `raw://`).
+        // Serial and Local name none.
         let has_url = matches!(
             protocol,
-            ConnectionProtocol::Ssh | ConnectionProtocol::Telnet
+            ConnectionProtocol::Ssh | ConnectionProtocol::Telnet | ConnectionProtocol::Raw
         );
         let mut items = column![
             self.menu_item(iced_fonts::lucide::play(), crate::i18n::t("connect"), by_idx(|i| Message::Ssh(SshMessage::ConnectSsh(i))), OryxisColors::t().success),

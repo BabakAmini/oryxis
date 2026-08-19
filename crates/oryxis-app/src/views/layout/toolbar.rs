@@ -296,7 +296,7 @@ impl Oryxis {
         // (`keynav_activate`), which already owns plain Enter in the vault
         // area; wiring `.on_submit` here too would double-dispatch.
         let quick_hint = self.active_view == View::Dashboard
-            && self.quick_connect_target(&self.host_search).is_some();
+            && self.dashboard_quick_connect_target(&self.host_search).is_some();
         // History only: the "search in session content" toggle floats
         // inside the field's trailing edge, so it travels with the
         // search box (including into the collapsed-search overlay).

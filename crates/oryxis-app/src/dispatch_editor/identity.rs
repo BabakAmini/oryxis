@@ -131,16 +131,25 @@ impl Oryxis {
             EditorMessage::EditorProtocolChanged(protocol) => {
                 let prev = self.editor_form.protocol;
                 if prev != protocol {
-                    // Retarget the numeric port only when both protocols
-                    // use one AND the field still holds the old default,
-                    // so a user-typed port survives the switch untouched.
-                    // Serial has no numeric port (`None`), so switching
-                    // to/from it leaves the field alone (it's hidden).
-                    if let (Some(prev_port), Some(new_port)) =
-                        (prev.default_port(), protocol.default_port())
-                        && self.editor_form.port.trim() == prev_port.to_string()
-                    {
-                        self.editor_form.port = new_port.to_string();
+                    // Retarget the numeric port when the new protocol
+                    // has a conventional one AND the field holds a
+                    // number nobody typed on purpose (any protocol's
+                    // conventional port, or nothing at all). A
+                    // user-typed 2222 survives the switch untouched.
+                    //
+                    // Deliberately NOT "equals the previous protocol's
+                    // default": Serial and Local have no port, so a hop
+                    // through either broke that chain and left a 22
+                    // sitting in a Telnet host.
+                    if let Some(new_port) = protocol.default_port() {
+                        let typed = self.editor_form.port.trim();
+                        let untouched = typed.is_empty()
+                            || typed.parse::<u16>().is_ok_and(
+                                oryxis_core::models::connection::ConnectionProtocol::is_conventional_port,
+                            );
+                        if untouched {
+                            self.editor_form.port = new_port.to_string();
+                        }
                     }
                     // Materialize serial defaults the first time a host
                     // becomes Serial so the reduced form has values to
@@ -152,11 +161,52 @@ impl Oryxis {
                             Some(oryxis_core::models::serial::SerialParams::default());
                     }
                     self.editor_form.protocol = protocol;
+                    // The Local form picks from the curated local-terminal
+                    // list, which is scanned lazily (first open of the
+                    // local-shell picker). Without this the picker would
+                    // offer nothing at all on a fresh install, which is
+                    // exactly when someone is creating their first local
+                    // host. `RescanLocalTerminals` merges and persists;
+                    // `LocalShellsDetected` would OPEN a shell as its
+                    // continuation, so it is deliberately not used here.
+                    if protocol == oryxis_core::models::connection::ConnectionProtocol::Local
+                        && self.local_terminals.is_none()
+                    {
+                        self.editor_form.username_focused = false;
+                        return Task::done(Message::Settings(
+                            crate::app::SettingsMessage::RescanLocalTerminals,
+                        ));
+                    }
                 }
                 self.editor_form.username_focused = false;
             }
             EditorMessage::EditorAddressFamilyChanged(family) => {
                 self.editor_form.address_family = family;
+            }
+            EditorMessage::EditorToggleTelnetTls => {
+                self.editor_form.telnet_tls = !self.editor_form.telnet_tls;
+                // Retarget the port the same way the protocol picker
+                // does: `telnets` is 992 and plain Telnet is 23, and a
+                // port the user typed themselves stays untouched.
+                let (from, to) = if self.editor_form.telnet_tls { (23, 992) } else { (992, 23) };
+                if self.editor_form.port.trim() == from.to_string() {
+                    self.editor_form.port = to.to_string();
+                }
+                // Turning TLS off drops the escape with it: it means
+                // nothing without TLS, and leaving it armed would make
+                // a later re-enable skip verification silently.
+                if !self.editor_form.telnet_tls {
+                    self.editor_form.telnet_tls_insecure = false;
+                }
+            }
+            EditorMessage::EditorToggleTelnetTlsInsecure => {
+                self.editor_form.telnet_tls_insecure = !self.editor_form.telnet_tls_insecure;
+            }
+            EditorMessage::EditorLocalTerminalChanged(id) => {
+                self.editor_form.local_terminal_id = id;
+            }
+            EditorMessage::EditorLocalCwdChanged(v) => {
+                self.editor_form.local_cwd = v;
             }
             // Routed here by the parent; anything else is a
             // grouping mistake, not a runtime case.

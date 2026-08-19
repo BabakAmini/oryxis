@@ -53,9 +53,21 @@ impl TerminalState {
         cwd: Option<&str>,
     ) -> TerminalResult<(Self, mpsc::UnboundedReceiver<Vec<u8>>)>
     {
+        Self::new_with_env(cols, rows, cwd, &[])
+    }
+
+    /// `new` with extra environment variables for the child process
+    /// (a saved local host's `env_vars`).
+    pub fn new_with_env(
+        cols: u16,
+        rows: u16,
+        cwd: Option<&str>,
+        env: &[(String, String)],
+    ) -> TerminalResult<(Self, mpsc::UnboundedReceiver<Vec<u8>>)>
+    {
         let backend = TerminalBackend::new(cols, rows);
         let (pty, rx) =
-            PtyHandle::spawn_command(cols, rows, None, &[], cwd, &backend.event_proxy)?;
+            PtyHandle::spawn_command(cols, rows, None, &[], cwd, env, &backend.event_proxy)?;
         let palette = TerminalPalette::default();
         Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None }, rx))
     }
@@ -71,9 +83,23 @@ impl TerminalState {
         cwd: Option<&str>,
     ) -> TerminalResult<(Self, mpsc::UnboundedReceiver<Vec<u8>>)>
     {
+        Self::new_with_command_env(cols, rows, program, args, cwd, &[])
+    }
+
+    /// `new_with_command` with extra environment variables for the
+    /// child process (a saved local host's `env_vars`).
+    pub fn new_with_command_env(
+        cols: u16,
+        rows: u16,
+        program: &str,
+        args: &[String],
+        cwd: Option<&str>,
+        env: &[(String, String)],
+    ) -> TerminalResult<(Self, mpsc::UnboundedReceiver<Vec<u8>>)>
+    {
         let backend = TerminalBackend::new(cols, rows);
         let (pty, rx) = PtyHandle::spawn_command(
-            cols, rows, Some(program), args, cwd, &backend.event_proxy,
+            cols, rows, Some(program), args, cwd, env, &backend.event_proxy,
         )?;
         let palette = TerminalPalette::default();
         Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None }, rx))

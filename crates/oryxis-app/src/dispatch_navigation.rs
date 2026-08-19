@@ -248,6 +248,14 @@ impl Oryxis {
                 }
             }
             NavigationMessage::HostSearchChanged(v) => {
+                // An emptied box ends the ad-hoc target it described, so
+                // the protocol badge goes back to SSH: a Telnet pick
+                // made for one switch must not silently follow whatever
+                // host is typed next.
+                if v.trim().is_empty() {
+                    self.quick_connect_protocol =
+                        oryxis_core::models::connection::ConnectionProtocol::Ssh;
+                }
                 self.host_search = v;
                 // The filtered set just changed; drop the keyboard
                 // selection so it can't point at a now-hidden host. Enter
@@ -574,9 +582,7 @@ impl Oryxis {
                 // first-run screen there is no toolbar, so Continue is
                 // the only way in and must never dead-end. The typed
                 // value survives the panel in case the user cancels.
-                let task = self.open_new_host_editor(
-                    oryxis_core::models::connection::ConnectionProtocol::Ssh,
-                );
+                let task = self.open_new_host_editor();
                 if input.is_empty() {
                     return task;
                 }

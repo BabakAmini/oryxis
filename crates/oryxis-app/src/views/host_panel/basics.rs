@@ -154,20 +154,30 @@ impl Oryxis {
         hostname_row
     }
 
-    pub(super) fn hp_protocol_row(&self, is_rd: bool) -> Option<Element<'_, Message>> {
+    pub(super) fn hp_protocol_row(&self) -> Option<Element<'_, Message>> {
         use oryxis_core::models::connection::ConnectionProtocol as Proto;
         // Protocol picker (Connection). A cloud-imported host has its own
         // transport picker below and is always SSH-family, so the two are
-        // mutually exclusive: hide the protocol picker on cloud hosts. A
-        // remote-desktop host is a distinct kind created via "Add remote
-        // desktop" (not converted from SSH), so hide it there too.
+        // mutually exclusive: hide the protocol picker on cloud hosts.
+        //
+        // Every protocol is in the ONE picker, remote desktop included.
+        // It used to be a separate "Add remote desktop" entry in the add
+        // menu, which meant a user looking for RDP opened this list,
+        // failed to find it, and concluded the app had none.
         let protocol_row: Option<Element<'_, Message>> = if self.editor_form.cloud_transport
             .is_some()
-            || is_rd
         {
             None
         } else {
-            let options = vec![Proto::Ssh, Proto::Telnet, Proto::Serial];
+            let mut options =
+                vec![Proto::Ssh, Proto::Telnet, Proto::Raw, Proto::Serial, Proto::Local];
+            // Remote desktop stays behind its opt-in feature flag, so it
+            // is offered only where it can actually be used; a host that
+            // already IS one keeps the option visible, or editing it
+            // would silently rewrite its protocol on the next pick.
+            if self.remote_desktop_enabled || self.editor_form.protocol == Proto::RemoteDesktop {
+                options.push(Proto::RemoteDesktop);
+            }
             let picker = self.panel_nav_slot(
                 crate::keynav::RowAction::input(iced::widget::Id::new("editor-pick-protocol")),
                 crate::widgets::INPUT_RADIUS,
@@ -252,8 +262,8 @@ impl Oryxis {
         // order.
 
         // Numeric port, dropped inline into the SSH/Telnet card header
-        // ("SSH ........ [22] port"). Serial has no TCP port, so it is
-        // gated off (empty) and the serial header omits it.
+        // ("SSH ........ [22] port"). Serial and Local have no TCP port,
+        // so it is gated off (empty) and their headers omit it.
         let port_input: Element<'_, Message> = if is_serial {
             empty()
         } else {
@@ -271,4 +281,146 @@ impl Oryxis {
         };
         port_input
     }
+
+    /// Telnet-over-TLS rows (`telnets`, conventionally port 992): the
+    /// toggle, and, only while it is on, the per-host escape for a
+    /// certificate the trust store rejects.
+    ///
+    /// The escape is nested under the toggle rather than sitting beside
+    /// it because it is meaningless without TLS, and a visible "accept
+    /// invalid certificate" on a plain-Telnet host reads as a setting
+    /// that is protecting something.
+    pub(super) fn hp_telnet_tls_block(&self) -> Element<'_, Message> {
+        let tls_on = self.editor_form.telnet_tls;
+        let tls_row = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::Editor(
+                EditorMessage::EditorToggleTelnetTls,
+            )),
+            8.0,
+            panel_option_row(
+                iced_fonts::lucide::lock(),
+                t("telnet_tls"),
+                hp_toggle_button(tls_on, Message::Editor(EditorMessage::EditorToggleTelnetTls)),
+            ),
+        );
+        let mut col = column![tls_row];
+        if tls_on {
+            let insecure_row = self.panel_nav_slot(
+                crate::keynav::RowAction::activate(Message::Editor(
+                    EditorMessage::EditorToggleTelnetTlsInsecure,
+                )),
+                8.0,
+                panel_option_row(
+                    iced_fonts::lucide::shield_alert(),
+                    t("telnet_tls_insecure"),
+                    hp_toggle_button(
+                        self.editor_form.telnet_tls_insecure,
+                        Message::Editor(EditorMessage::EditorToggleTelnetTlsInsecure),
+                    ),
+                ),
+            );
+            col = col.push(insecure_row).push(
+                text(t("telnet_tls_insecure_desc")).size(11).color(OryxisColors::t().text_muted),
+            );
+        }
+        col.into()
+    }
+
+    /// Local-host rows: which curated terminal to spawn, and the folder
+    /// it starts in.
+    ///
+    /// The terminal is a REFERENCE into the Settings > Terminal list,
+    /// never a program path typed here: that list is where local shells
+    /// are curated, and a second copy of "which PowerShell" would drift
+    /// from it. When the list is empty the picker says so and points at
+    /// the place that fills it, rather than offering nothing.
+    pub(super) fn hp_local_block(&self) -> Element<'_, Message> {
+        let entries = self.local_terminals.as_deref().unwrap_or(&[]);
+        // The default-shell row is a real option, not an empty
+        // selection: "whatever this machine's shell is" is a choice a
+        // local host can legitimately make.
+        let mut labels: Vec<String> = vec![t("local_default_shell").to_string()];
+        labels.extend(entries.iter().map(|e| e.label.clone()));
+        let selected = self
+            .editor_form
+            .local_terminal_id
+            .and_then(|id| entries.iter().find(|e| e.id == id))
+            .map(|e| e.label.clone())
+            .unwrap_or_else(|| t("local_default_shell").to_string());
+        // Map back by label: the picker hands us a String, and the ids
+        // live beside them in the same list.
+        let ids: Vec<Option<uuid::Uuid>> =
+            std::iter::once(None).chain(entries.iter().map(|e| Some(e.id))).collect();
+        let by_label: std::collections::HashMap<String, Option<uuid::Uuid>> =
+            labels.iter().cloned().zip(ids.iter().copied()).collect();
+        let (prev, next) = crate::keynav::slots::cycle_pair(&labels, &selected, {
+            let by_label = by_label.clone();
+            move |v| {
+                Message::Editor(EditorMessage::EditorLocalTerminalChanged(
+                    by_label.get(&v).copied().flatten(),
+                ))
+            }
+        });
+        let picker = self.panel_nav_slot(
+            crate::keynav::RowAction::picker(prev, next),
+            crate::widgets::INPUT_RADIUS,
+            pick_list(Some(selected), labels, |l: &String| l.clone())
+                .on_select(move |v: String| {
+                    Message::Editor(EditorMessage::EditorLocalTerminalChanged(
+                        by_label.get(&v).copied().flatten(),
+                    ))
+                })
+                .padding(10)
+                .style(crate::widgets::rounded_pick_list_style)
+                .into(),
+        );
+        let cwd_field = self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new("editor-local-cwd")),
+            10.0,
+            text_input(t("local_cwd_placeholder"), &self.editor_form.local_cwd)
+                .id(iced::widget::Id::new("editor-local-cwd"))
+                .on_input(|v| Message::Editor(EditorMessage::EditorLocalCwdChanged(v)))
+                .on_submit_maybe(self.hp_submit())
+                .padding(10)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x())
+                .into(),
+        );
+        let mut col = column![
+            panel_field(t("local_terminal"), picker),
+            Space::new().height(ROW_GAP),
+            panel_field(t("local_cwd"), cwd_field),
+        ];
+        if entries.is_empty() {
+            col = col.push(Space::new().height(ROW_GAP)).push(
+                text(t("local_terminals_empty_hint"))
+                    .size(11)
+                    .color(OryxisColors::t().text_muted),
+            );
+        }
+        col.into()
+    }
+}
+
+/// The editor's on/off pill (same shape as the SSH toggles): the
+/// background carries the state, the label says which one it is.
+fn hp_toggle_button<'a>(on: bool, msg: Message) -> Element<'a, Message> {
+    let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
+    let fg = crate::theme::contrast_text_for(bg);
+    button(
+        text(if on { crate::i18n::t("toggle_on") } else { crate::i18n::t("toggle_off") })
+            .size(12)
+            .color(fg),
+    )
+    .on_press(msg)
+    .style(move |_theme, status| button::Style {
+        background: Some(Background::Color(match status {
+            button::Status::Hovered | button::Status::Pressed => OryxisColors::t().accent,
+            _ => bg,
+        })),
+        border: Border { radius: Radius::from(4.0), ..Default::default() },
+        text_color: fg,
+        ..Default::default()
+    })
+    .into()
 }

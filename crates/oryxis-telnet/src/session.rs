@@ -23,8 +23,31 @@ pub enum TelnetError {
     #[error("Connection timed out")]
     Timeout,
 
+    #[error("TLS error: {0}")]
+    Tls(String),
+
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+}
+
+/// How much protocol sits on top of the socket.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum TelnetMode {
+    /// Telnet proper: RFC 854 option negotiation, IAC escaping and the
+    /// NVT line discipline.
+    #[default]
+    Nvt,
+    /// A bare TCP socket (PuTTY's "Raw"): every byte in both directions
+    /// is data. No negotiation, no IAC escaping, no CR LF mapping, so a
+    /// console server that hands a serial line straight through gets
+    /// exactly what the terminal produced.
+    Raw,
+}
+
+impl TelnetMode {
+    fn is_raw(self) -> bool {
+        matches!(self, TelnetMode::Raw)
+    }
 }
 
 /// Everything needed to dial a Telnet host. Credentials are optional:
@@ -47,6 +70,11 @@ pub struct TelnetConfig {
     /// semantics as the SSH engine's dial: filter resolved addresses,
     /// fail honestly when the name has none in the chosen family.
     pub address_family: oryxis_core::models::connection::AddressFamily,
+    /// Telnet proper, or a bare TCP socket (`Raw`).
+    pub mode: TelnetMode,
+    /// `Some` wraps the socket in TLS before anything else is sent
+    /// (`telnets`). `None` is plain TCP.
+    pub tls: Option<crate::tls::TelnetTls>,
 }
 
 impl Default for TelnetConfig {
@@ -60,6 +88,8 @@ impl Default for TelnetConfig {
             encoding: None,
             connect_timeout: Duration::from_secs(15),
             address_family: oryxis_core::models::connection::AddressFamily::Auto,
+            mode: TelnetMode::Nvt,
+            tls: None,
         }
     }
 }
@@ -105,9 +135,32 @@ impl TelnetSession {
     /// Dial the host and run option negotiation. Returns the session
     /// plus the decoded output stream; the receiver ends (`None`) when
     /// the server closes the connection.
+    ///
+    /// The socket is split into halves BEFORE anything protocol-shaped
+    /// happens, and everything after that point is generic over the two
+    /// halves: a TLS session is the same session over a different pair
+    /// of pipes, so `telnets` cannot drift from plain Telnet by having
+    /// its own copy of the reader / writer.
     pub async fn connect(
         config: TelnetConfig,
     ) -> Result<(TelnetSession, mpsc::UnboundedReceiver<Vec<u8>>), TelnetError> {
+        let stream = Self::dial(&config).await?;
+        match config.tls {
+            Some(tls) => {
+                let stream = crate::tls::wrap(stream, &config.host, tls).await?;
+                let (read_half, write_half) = tokio::io::split(stream);
+                Ok(Self::start(read_half, write_half, config))
+            }
+            None => {
+                let (read_half, write_half) = stream.into_split();
+                Ok(Self::start(read_half, write_half, config))
+            }
+        }
+    }
+
+    /// Resolve, filter by address family and connect, within the
+    /// configured timeout.
+    async fn dial(config: &TelnetConfig) -> Result<TcpStream, TelnetError> {
         // Brackets bare IPv6 literals; hostnames/IPv4 pass through.
         let addr = oryxis_core::net::host_port(&config.host, config.port);
         // Resolve, keep the addresses the per-host IP-version preference
@@ -146,9 +199,30 @@ impl TelnetSession {
         // coalescing (PuTTY defaults TCP_NODELAY on for the same
         // reason). Best-effort, some stacks refuse it.
         let _ = stream.set_nodelay(true);
+        Ok(stream)
+    }
 
-        let (negotiator, greeting) =
-            Negotiator::new(&config.term, config.username.as_deref());
+    /// Build the session over an already-connected (and, for
+    /// `telnets`, already-handshaken) pair of stream halves.
+    fn start<R, W>(
+        mut read_half: R,
+        mut write_half: W,
+        config: TelnetConfig,
+    ) -> (TelnetSession, mpsc::UnboundedReceiver<Vec<u8>>)
+    where
+        R: tokio::io::AsyncRead + Unpin + Send + 'static,
+        W: tokio::io::AsyncWrite + Unpin + Send + 'static,
+    {
+        let raw = config.mode.is_raw();
+        // Raw mode speaks no options at all, so it opens with silence
+        // instead of the client greeting: a console server forwards
+        // whatever it receives down the serial line, and an unasked-for
+        // IAC WILL burst would land on the attached device as garbage.
+        let (negotiator, greeting) = if raw {
+            (Negotiator::raw(), Vec::new())
+        } else {
+            Negotiator::new(&config.term, config.username.as_deref())
+        };
         let negotiator = Arc::new(StdMutex::new(negotiator));
 
         // Resolve the per-host charset once. `None` (or UTF-8) means
@@ -170,20 +244,25 @@ impl TelnetSession {
         // and the NVT Enter mapping, which would corrupt their frames.
         let (raw_tx, mut raw_rx) = mpsc::unbounded_channel::<Vec<u8>>();
 
-        let _ = wire_tx.send(greeting);
-
-        let (mut read_half, mut write_half) = stream.into_split();
+        if !greeting.is_empty() {
+            let _ = wire_tx.send(greeting);
+        }
 
         // Reader task: socket -> negotiator -> decoded output stream.
         // Also hosts the credential autofill, which watches the decoded
         // output and types back through the ordinary input path.
         let reader_neg = Arc::clone(&negotiator);
         let autologin_tx = writer_tx.clone();
-        let mut autologin = AutoLogin::new(
-            config.username.clone(),
-            config.password.clone(),
-            AUTOLOGIN_WINDOW,
-        );
+        // Raw carries no credentials of its own (the editor hides the
+        // fields), and a prompt-driven injection into a bare socket
+        // would be typing at whatever device happens to be on the other
+        // end of a console port. Built inert rather than skipped, so the
+        // reader keeps one shape.
+        let mut autologin = if raw {
+            AutoLogin::new(None, None, AUTOLOGIN_WINDOW)
+        } else {
+            AutoLogin::new(config.username.clone(), config.password.clone(), AUTOLOGIN_WINDOW)
+        };
         let binary_inbound = Arc::new(AtomicBool::new(false));
         let reader_binary = Arc::clone(&binary_inbound);
         let reader_task = tokio::spawn(async move {
@@ -278,14 +357,18 @@ impl TelnetSession {
                                 }
                                 None => data,
                             };
-                            Some(encode_input(&data))
+                            // Raw is a byte pipe: no IAC doubling, no
+                            // CR -> CR LF. What the terminal produced is
+                            // what the device receives.
+                            Some(if raw { data } else { encode_input(&data) })
                         }
                         None => break, // session closed
                     },
-                    raw = raw_rx.recv() => match raw {
+                    payload = raw_rx.recv() => match payload {
                         // Binary payload: IAC doubling only, no charset
-                        // transcode, no line-ending mapping.
-                        Some(b) => Some(escape_iac(&b)),
+                        // transcode, no line-ending mapping. In raw mode
+                        // 0xFF is already just a byte, so it goes as-is.
+                        Some(b) => Some(if raw { b } else { escape_iac(&b) }),
                         None => break, // session closed
                     },
                     size = resize_rx.recv() => match size {
@@ -310,7 +393,7 @@ impl TelnetSession {
             }
         });
 
-        Ok((
+        (
             TelnetSession {
                 writer_tx,
                 raw_tx,
@@ -321,7 +404,7 @@ impl TelnetSession {
                 closed: AtomicBool::new(false),
             },
             output_rx,
-        ))
+        )
     }
 
     pub fn write(&self, data: &[u8]) -> Result<(), TelnetError> {
@@ -489,6 +572,71 @@ mod tests {
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
+    }
+
+    /// Raw mode against a fake console server: the client must open in
+    /// SILENCE (an unasked-for IAC burst reaches whatever device is on
+    /// the far end of a console port), pass 0xFF through as data rather
+    /// than reading it as IAC, and send a bare CR without the NVT's
+    /// CR LF expansion.
+    #[tokio::test]
+    async fn raw_mode_negotiates_nothing_and_maps_nothing() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            // Byte the NVT would have eaten as a command introducer,
+            // plus a CR NUL pair the NVT would have collapsed.
+            sock.write_all(&[IAC, DO, 24]).await.unwrap();
+            sock.write_all(&[b'\r', 0]).await.unwrap();
+
+            let mut got: Vec<u8> = Vec::new();
+            let mut buf = [0u8; 512];
+            while !got.contains(&b'\r') {
+                let n = sock.read(&mut buf).await.unwrap();
+                assert!(n > 0, "client hung up early");
+                got.extend_from_slice(&buf[..n]);
+            }
+            got
+        });
+
+        let (session, mut output) = TelnetSession::connect(TelnetConfig {
+            host: addr.ip().to_string(),
+            port: addr.port(),
+            // Credentials the editor would never collect for Raw; they
+            // must stay inert rather than being typed at the device.
+            username: Some("admin".into()),
+            password: Some("hunter2".into()),
+            mode: TelnetMode::Raw,
+            ..TelnetConfig::default()
+        })
+        .await
+        .unwrap();
+
+        session.write(b"\r").unwrap();
+        session.resize(120, 40); // no NAWS in raw: must produce no bytes
+
+        let mut seen: Vec<u8> = Vec::new();
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        while seen.len() < 5 {
+            let chunk = tokio::time::timeout_at(deadline, output.recv())
+                .await
+                .expect("timed out waiting for output");
+            match chunk {
+                Some(b) => seen.extend_from_slice(&b),
+                None => break,
+            }
+        }
+        assert_eq!(
+            seen,
+            vec![IAC, DO, 24, b'\r', 0],
+            "raw output must be byte-exact, IAC and CR NUL included"
+        );
+
+        let got = server.await.unwrap();
+        assert_eq!(got, vec![b'\r'], "raw input must be byte-exact: {got:?}");
+        session.close();
     }
 
     /// Connecting to a dead port surfaces a clean error, not a hang.

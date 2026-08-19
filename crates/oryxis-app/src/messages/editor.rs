@@ -76,9 +76,6 @@ pub enum EditorMessage {
     /// Add/remove one algorithm name in a category's pinned list.
     EditorAlgoToggle(crate::state::AlgoCategory, String),
     ShowNewConnection,
-    /// Open the host editor seeded as a RemoteDesktop host ("Add remote
-    /// desktop" in the + Host menu; only shown when the feature toggle is on).
-    ShowNewRemoteDesktop,
     /// Open the host editor on a vault host, by ID: the click's index
     /// can go stale before the handler runs (its own flush of a
     /// pending auto-save rename re-sorts the list), same rationale as
@@ -101,6 +98,17 @@ pub enum EditorMessage {
     EditorSerialLocalEchoToggled,
     EditorRdKindChanged(oryxis_core::models::remote_desktop::RemoteDesktopKind),
     EditorRdGatewayChanged(Option<uuid::Uuid>),
+    /// Host editor: Telnet over TLS (`telnets`). Turning it off also
+    /// hides (and, on save, clears) the verification escape below it.
+    EditorToggleTelnetTls,
+    /// Host editor: accept a server certificate the trust store
+    /// rejects. Per host, and only reachable while TLS is on.
+    EditorToggleTelnetTlsInsecure,
+    /// Host editor: which curated local terminal a Local host spawns
+    /// (`None` = the machine's default shell).
+    EditorLocalTerminalChanged(Option<uuid::Uuid>),
+    /// Host editor: the folder a Local host starts in.
+    EditorLocalCwdChanged(String),
     /// Address-family preference picked in the host editor (SSH > Network).
     EditorAddressFamilyChanged(oryxis_core::models::connection::AddressFamily),
     EditorPortChanged(String),

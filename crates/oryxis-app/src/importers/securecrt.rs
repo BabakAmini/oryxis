@@ -64,6 +64,10 @@ pub(crate) fn parse(text: &str, file_stem: &str) -> Option<DirectImport> {
         // speaks SSH2, which every modern server wants anyway.
         "SSH1" => (ConnectionProtocol::Ssh, 22, "[SSH1] Port"),
         "TELNET" => (ConnectionProtocol::Telnet, 23, "Port"),
+        // A bare TCP socket, SecureCRT's own name for it. Its port is
+        // per console server, so the session's value is the only one
+        // worth taking.
+        "RAW" => (ConnectionProtocol::Raw, 0, "Port"),
         _ => {
             out.skipped.push(file_stem.to_string());
             return Some(out);

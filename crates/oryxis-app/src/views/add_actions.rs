@@ -14,7 +14,7 @@
 use iced::widget::{button, container, text};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{EditorMessage, CloudMessage, KeysMessage, ShareMessage, TabsMessage, Message, Oryxis};
+use crate::app::{CloudMessage, KeysMessage, ShareMessage, TabsMessage, Message, Oryxis};
 use crate::os_icon::BrandIcon;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
@@ -92,16 +92,10 @@ impl Oryxis {
             }
             _ => {}
         }
-        // Remote-desktop hosts (RDP/VNC) stay out of the light-user
-        // list until the opt-in feature is enabled.
-        if self.remote_desktop_enabled {
-            actions.push(AddAction {
-                icon: iced_fonts::lucide::monitor().into(),
-                label: crate::i18n::t("add_remote_desktop"),
-                msg: Message::Editor(EditorMessage::ShowNewRemoteDesktop),
-                color: secondary,
-            });
-        }
+        // Remote desktop has no add entry of its own: it is one of the
+        // protocols in the host editor's picker, like Telnet or Serial.
+        // A separate entry meant a user looking for RDP opened that
+        // picker, failed to find it, and concluded there was none.
         // Export hosts: opens the share dialog with a per-folder
         // include/exclude checklist (keys-off by default), unlike the
         // full-vault export in Settings. Pre-scoped to the active

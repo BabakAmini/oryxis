@@ -102,7 +102,8 @@ impl Oryxis {
             }
             m @ (SshMessage::ConnectSsh(..)
             | SshMessage::ConnectSavedHost(..)
-            | SshMessage::QuickConnect(..)) => self.handle_ssh_launch(m),
+            | SshMessage::QuickConnect(..)
+            | SshMessage::QuickConnectProtocolPicked(..)) => self.handle_ssh_launch(m),
             m @ (SshMessage::SshProgress(..)
             | SshMessage::SshCloseProgress
             | SshMessage::SshEditFromProgress

@@ -144,7 +144,14 @@ impl Oryxis {
             .into();
             quick_col = quick_col.push(self.jump_row(
                 quick_target,
-                format!("{}: {}", t("quick_connect"), conn.label),
+                match conn.protocol
+                    == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                {
+                    true => format!("{}: {}", t("quick_connect"), conn.label),
+                    false => {
+                        format!("{} ({}): {}", t("quick_connect"), conn.protocol, conn.label)
+                    }
+                },
                 false,
                 Message::Ssh(SshMessage::QuickConnect(Box::new(
                     crate::state::QuickConnectEntry::bare(conn),

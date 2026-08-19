@@ -321,6 +321,35 @@ pub struct Oryxis {
     /// wrong pane. An id that no longer resolves simply opens a tab.
     pub(crate) pending_pane_split:
         Option<(uuid::Uuid, iced::widget::pane_grid::Pane, iced::widget::pane_grid::Axis)>,
+    /// Protocol the quick-connect card dials when the typed text names
+    /// no scheme (issue #174).
+    ///
+    /// A `telnet://` prefix always wins over this: the text is what the
+    /// user wrote, and a picker that could contradict it would be a
+    /// second source of truth. This only answers the question the text
+    /// left open, and resets to SSH when the search box empties, so a
+    /// choice made for one switch cannot silently follow an unrelated
+    /// host typed ten minutes later.
+    pub(crate) quick_connect_protocol: oryxis_core::models::connection::ConnectionProtocol,
+    /// Startup commands of local hosts, parked until their pane has
+    /// produced output and then gone QUIET.
+    ///
+    /// A local shell has no "session ready" event to hang the command
+    /// on the way SSH does, and a PTY written to at spawn time is a
+    /// shell that has not read its first byte yet. Waiting for the
+    /// first byte is not enough either: a login shell prints a MOTD in
+    /// several batches, and typing into the middle of that makes the
+    /// command echo halfway up the banner. So each batch re-arms a
+    /// short timer and the command goes out when one expires without a
+    /// newer batch, which is as close to "the prompt is up" as a shell
+    /// that reports nothing can get.
+    ///
+    /// Keyed by pane so two panes running the same host stay
+    /// independent; the counter is what tells a stale timer from the
+    /// live one, and the entry is removed on fire so a shell that keeps
+    /// printing can never re-run it.
+    pub(crate) pending_local_startup:
+        std::collections::HashMap<uuid::Uuid, crate::state::PendingLocalStartup>,
     /// True while the cursor is over the `+` split popover itself. Lets the
     /// hover bridge keep the menu open when moving from the `+` button into
     /// the menu, and close it shortly after the cursor leaves both.

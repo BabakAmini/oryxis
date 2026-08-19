@@ -608,6 +608,52 @@ fn a_command_proxy_approval_never_leaves_the_device() {
     assert!(target.list_trusted_proxy_commands().unwrap().is_empty());
 }
 
+/// Same rule for the Telnet TLS escape: "accept a certificate the
+/// trust store rejects" is a decision made about ONE appliance on ONE
+/// machine, so a file that travels must not carry it. The TLS toggle
+/// itself is host data (it describes the endpoint) and does export; the
+/// escape is stripped on the way out AND on the way in, so a
+/// hand-edited file cannot arm it either.
+#[test]
+fn a_telnet_certificate_escape_never_leaves_the_device() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+    let vault = unlocked_vault_with("alpha");
+
+    let mut conn = Connection::new("switch", "10.0.0.1");
+    conn.protocol = ConnectionProtocol::Telnet;
+    conn.port = 992;
+    conn.telnet = Some(oryxis_core::models::telnet::TelnetOptions {
+        tls: true,
+        tls_insecure: true,
+    });
+    vault.save_connection(&conn, None).unwrap();
+
+    let blob = export_vault(&vault, "pack", all_options()).unwrap();
+    let target = unlocked_vault_with("beta");
+    import_vault(&target, &blob, "pack", &ExportSelection::all()).unwrap();
+
+    let imported = target
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("the connection should import");
+    let opts = imported.telnet.expect("the TLS setting itself travels");
+    assert!(opts.tls, "TLS describes the endpoint and must import");
+    assert!(
+        !opts.tls_insecure,
+        "an imported host must verify certificates until its owner says otherwise"
+    );
+    // And the source keeps its own decision.
+    let local = vault
+        .list_connections()
+        .unwrap()
+        .into_iter()
+        .find(|c| c.id == conn.id)
+        .expect("the source host is untouched");
+    assert!(local.telnet.expect("still set").tls_insecure);
+}
+
 /// A pin is a trust decision made at a fingerprint prompt, so a file
 /// must not be able to REPLACE one. Dedup by id alone would let it:
 /// `save_known_host` keeps a single row per (hostname, port, key_type)

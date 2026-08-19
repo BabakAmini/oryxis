@@ -779,7 +779,13 @@ fn retry_row<'a>(gid: uuid::Uuid) -> Element<'a, Message> {
 /// apart from saved hosts; the secondary line spells out that nothing is
 /// saved to the vault.
 fn quick_connect_row<'a>(conn: oryxis_core::models::Connection) -> Element<'a, Message> {
-    let primary = format!("{}: {}", t("quick_connect"), conn.label);
+    // Names the protocol whenever it is not the default one, so a
+    // Telnet or Serial target says so before Enter rather than after
+    // the tab opens.
+    let primary = match conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Ssh {
+        true => format!("{}: {}", t("quick_connect"), conn.label),
+        false => format!("{} ({}): {}", t("quick_connect"), conn.protocol, conn.label),
+    };
     button(
         dir_row(vec![
             iced_fonts::lucide::zap()

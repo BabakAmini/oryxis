@@ -694,7 +694,7 @@ impl Oryxis {
             && host_cards.is_empty()
             && tree_cards.is_empty()
             && !self.host_search.trim().is_empty()
-            && let Some(conn) = self.quick_connect_target(&self.host_search)
+            && let Some(conn) = self.dashboard_quick_connect_target(&self.host_search)
         {
             content_rows.push(self.quick_connect_card(conn));
         }
@@ -845,6 +845,51 @@ impl Oryxis {
         conn: oryxis_core::models::Connection,
     ) -> Element<'_, Message> {
         let label = conn.label.clone();
+        // Protocol badges, for a line that named no `scheme://`. They
+        // live OUTSIDE the card button (a button inside a button never
+        // gets its own press), directly under it.
+        let badges: Option<Element<'_, Message>> = self
+            .quick_connect_badges(&self.host_search)
+            .map(|(options, selected)| {
+                let chips: Vec<Element<'_, Message>> = options
+                    .into_iter()
+                    .map(|p| {
+                        let on = p == selected;
+                        let bg = if on {
+                            OryxisColors::t().accent
+                        } else {
+                            OryxisColors::t().bg_hover
+                        };
+                        let fg = if on {
+                            crate::theme::contrast_text_for(bg)
+                        } else {
+                            OryxisColors::t().text_secondary
+                        };
+                        button(text(p.to_string()).size(11).color(fg))
+                            .on_press(Message::Ssh(SshMessage::QuickConnectProtocolPicked(p)))
+                            .padding(Padding { top: 3.0, right: 10.0, bottom: 3.0, left: 10.0 })
+                            .style(move |_, status| button::Style {
+                                background: Some(Background::Color(match status {
+                                    BtnStatus::Hovered | BtnStatus::Pressed => {
+                                        OryxisColors::t().bg_selected
+                                    }
+                                    _ => bg,
+                                })),
+                                border: Border {
+                                    radius: Radius::from(4.0),
+                                    ..Default::default()
+                                },
+                                text_color: fg,
+                                ..Default::default()
+                            })
+                            .into()
+                    })
+                    .collect();
+                container(crate::widgets::dir_row(chips).spacing(6))
+                    .padding(Padding { top: 10.0, right: 0.0, bottom: 0.0, left: 0.0 })
+                    .center_x(Length::Fill)
+                    .into()
+            });
         let card = button(
             iced::widget::Column::with_children(vec![
                 iced_fonts::lucide::zap()
@@ -852,10 +897,25 @@ impl Oryxis {
                     .color(OryxisColors::t().accent)
                     .into(),
                 Space::new().height(10).into(),
-                text(format!("{}: {}", t("quick_connect"), label))
-                    .size(15)
-                    .color(OryxisColors::t().text_primary)
-                    .into(),
+                // The protocol is named whenever it is not the default
+                // one, so a Telnet or Serial dial says so before Enter
+                // rather than after it opens.
+                text(
+                    match conn.protocol
+                        == oryxis_core::models::connection::ConnectionProtocol::Ssh
+                    {
+                        true => format!("{}: {}", t("quick_connect"), label),
+                        false => format!(
+                            "{} ({}): {}",
+                            t("quick_connect"),
+                            conn.protocol,
+                            label
+                        ),
+                    },
+                )
+                .size(15)
+                .color(OryxisColors::t().text_primary)
+                .into(),
                 Space::new().height(4).into(),
                 text(t("quick_connect_not_saved"))
                     .size(12)
@@ -902,7 +962,12 @@ impl Oryxis {
                 ..Default::default()
             }
         });
-        container(card)
+        let mut stack = iced::widget::Column::new().align_x(iced::alignment::Horizontal::Center);
+        stack = stack.push(card);
+        if let Some(badges) = badges {
+            stack = stack.push(badges);
+        }
+        container(stack)
             .width(Length::Fill)
             .center_x(Length::Fill)
             .padding(Padding { top: 32.0, right: 0.0, bottom: 0.0, left: 0.0 })

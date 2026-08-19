@@ -6,6 +6,11 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub enum TerminalMessage {
     PtyOutput(Uuid, Vec<u8>),  // (pane_id, bytes)
+    /// A local host's startup command is due: its pane produced output
+    /// and then went quiet. Carries the output-batch count the timer was
+    /// armed at, so a shell still printing (a MOTD, a slow profile)
+    /// re-arms instead of firing into the middle of the banner.
+    LocalStartupDue(Uuid, u64),
     /// One-shot wake-up that force-flushes a stalled DEC `?2026`
     /// synchronized update on the given pane (`pane_id`). Armed by the
     /// `PtyOutput` handler when output stops mid-update; without it an app

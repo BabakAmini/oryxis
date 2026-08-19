@@ -47,6 +47,9 @@ impl Oryxis {
                     return self.update(Message::Ssh(SshMessage::ConnectSsh(idx)));
                 }
             }
+            SshMessage::QuickConnectProtocolPicked(protocol) => {
+                self.quick_connect_protocol = protocol;
+            }
             SshMessage::QuickConnect(entry) => {
                 self.card_context_menu = None;
                 self.overlay = None;

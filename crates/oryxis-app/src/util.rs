@@ -1,5 +1,29 @@
 //! Pure utility functions, no UI, no state.
 
+/// `~` / `~/rest` against the OS home directory. Only a LEADING `~` on
+/// its own path segment expands (`~user` is another user's home, which
+/// we cannot resolve portably, and a `~` anywhere else is a literal
+/// character in a filename). Falls through unchanged when there is no
+/// home directory to expand against.
+///
+/// Shared by every field that takes a TYPED path rather than a picked
+/// one (the folder-sync snapshot directory, a local host's start
+/// folder): `~/work` is what a person writes, and without this it
+/// resolves to a literal `./~` that exists nowhere.
+pub(crate) fn expand_home(input: &str) -> std::path::PathBuf {
+    use std::path::PathBuf;
+    let rest = match input.strip_prefix('~') {
+        Some("") => "",
+        Some(rest) if rest.starts_with(['/', '\\']) => &rest[1..],
+        _ => return PathBuf::from(input),
+    };
+    match dirs::home_dir() {
+        Some(home) if rest.is_empty() => home,
+        Some(home) => home.join(rest),
+        None => PathBuf::from(input),
+    }
+}
+
 /// File-name-safe version of a label (ASCII alphanumerics, `-`, `_`;
 /// everything else collapses to `_`, capped at 48 chars). Used by the
 /// command-history and session-recording exports.
@@ -912,6 +936,27 @@ pub(crate) fn host_address_label(conn: &oryxis_core::models::Connection) -> Stri
             let baud = conn.serial.map(|s| s.baud).unwrap_or(9600);
             format!("{} @ {}", conn.hostname, baud)
         }
+        // A local host has no address: what identifies it is the shell
+        // it opens and, when set, the folder it opens in. The shell's
+        // saved LABEL is used rather than a lookup, so this stays a
+        // pure function of the connection.
+        ConnectionProtocol::Local => {
+            let shell = conn
+                .local
+                .as_ref()
+                .and_then(|l| l.terminal_label.as_deref())
+                .map(str::trim)
+                .filter(|l| !l.is_empty())
+                .unwrap_or_else(|| crate::i18n::t("local_default_shell"));
+            match conn.local.as_ref().and_then(|l| l.effective_cwd()) {
+                Some(cwd) => format!("{shell} · {cwd}"),
+                None => shell.to_string(),
+            }
+        }
+        // Raw authenticates nobody, so prefixing a username (or the
+        // "root" placeholder) would invent a login the protocol has no
+        // concept of. The port always shows: it is the whole address.
+        ConnectionProtocol::Raw => format!("{}:{}", conn.hostname, conn.port),
         _ => {
             let default_port = conn.protocol.default_port().unwrap_or(22);
             let port_part = if conn.port == default_port {

@@ -15,8 +15,9 @@ that the app composes.
 | oryxis-ssh     russh, auto-  | oryxis-vault                        |
 |   auth, jump hosts, proxies, | SQLite, Argon2id,                   |
 |   -L/-R/-D, SFTP, TOFU       | ChaCha20-Poly1305 per-field,        |
-| oryxis-telnet  RFC 854/1143  | session logs / recordings,          |
-| oryxis-serial  COM / tty     | .oryxis export / import             |
+| oryxis-telnet  RFC 854/1143, | session logs / recordings,          |
+|   TLS, raw TCP               | .oryxis export / import             |
+| oryxis-serial  COM / tty     |                                     |
 | oryxis-zmodem  sz/rz engine  |                                     |
 | oryxis-archive tar/zip over  |                                     |
 |   SFTP + local codecs        |                                     |
@@ -52,7 +53,7 @@ that the app composes.
 | `oryxis-core` | Shared model types: Connection, SshKey, Identity, ProxyIdentity, Group, Snippet, KnownHost, PortForwardRule, SessionGroup, CloudAccount, custom themes, LogEntry |
 | `oryxis-terminal` | Terminal widget: alacritty_terminal + custom canvas widget + PTY + themes + URL/IP/path detection |
 | `oryxis-ssh` | SSH engine: auto-auth, jump hosts, SOCKS/HTTP/Command proxy, Local/Remote/Dynamic forwarding, SFTP, TOFU, RSA-SHA2 |
-| `oryxis-telnet` | Native Telnet engine: RFC 854/855 option negotiation (RFC 1143 state machine), NAWS, terminal-type, charset transcoding |
+| `oryxis-telnet` | Native Telnet engine: RFC 854/855 option negotiation (RFC 1143 state machine), NAWS, terminal-type, charset transcoding, TLS (`telnets`), plus the raw-TCP mode console servers expose serial lines on |
 | `oryxis-serial` | Serial console sessions: COM / `/dev/tty*`, configurable baud, framing, flow control, line endings, local echo |
 | `oryxis-zmodem` | ZMODEM transfer engine: auto-detects `sz` / `rz` on the byte stream over SSH, Telnet and serial |
 | `oryxis-archive` | SFTP archive operations: remote `tar` / `unzip` / `zip` command synthesis with safe quoting (POSIX + Windows), local zip / tar.gz codecs, zip central-directory browsing over ranged reads |

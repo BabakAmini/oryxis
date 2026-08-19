@@ -277,6 +277,9 @@ impl Oryxis {
                 tabs: Vec::new(),
                 pending_tab_placement: None,
                 pending_pane_split: None,
+                quick_connect_protocol:
+                    oryxis_core::models::connection::ConnectionProtocol::Ssh,
+                pending_local_startup: std::collections::HashMap::new(),
                 split_menu_hovered: false,
                 active_tab: None,
                 last_terminal_tab: None,
@@ -798,6 +801,22 @@ impl Oryxis {
         // tabs before the first render; subsequent messages keep it in sync via
         // `reconcile_tab_order` at the end of `update`.
         app.reconcile_tab_order();
+        // A local host names a curated terminal, and that list is
+        // scanned lazily (the first time the local-shell picker opens).
+        // A vault that already holds one, whether saved here or arrived
+        // by sync or import, needs the list before the user clicks
+        // Connect, or the host would resolve to nothing on a machine
+        // that simply never looked. The rescan merges and persists; it
+        // never opens a shell.
+        if app.local_terminals.is_none()
+            && app.connections.iter().any(|c| {
+                c.protocol == oryxis_core::models::connection::ConnectionProtocol::Local
+            })
+        {
+            tasks.push(Task::done(Message::Settings(
+                crate::app::SettingsMessage::RescanLocalTerminals,
+            )));
+        }
         // Booting straight onto the lock screen: put the keyboard in
         // the master-password field (same auto-focus as LockVault /
         // SoftLockVault, so the password is typeable without a click).

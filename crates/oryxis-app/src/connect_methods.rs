@@ -269,8 +269,13 @@ impl Oryxis {
         // Serial has no network URL; hand back the bare port path so the
         // copy action still yields something meaningful (the caller only
         // offers this on SSH/Telnet hosts, but stay honest if reached).
+        // Local reaches no endpoint at all, so its label is the only
+        // truthful answer.
         if conn.protocol == ConnectionProtocol::Serial {
             return conn.hostname.clone();
+        }
+        if conn.protocol == ConnectionProtocol::Local {
+            return conn.label.clone();
         }
         let username = conn.username.clone().or_else(|| {
             conn.identity_id.and_then(|iid| {
@@ -285,12 +290,27 @@ impl Oryxis {
         // an rdp/vnc endpoint; use the kind's scheme (the copy action is
         // only offered on SSH/Telnet, but stay honest if reached).
         let (scheme, default_port) = match conn.protocol {
-            ConnectionProtocol::Telnet => ("telnet", 23),
+            // `telnets` when TLS is on, so pasting the URL back into
+            // quick connect restores the tunnel and not a cleartext
+            // session on the same port.
+            ConnectionProtocol::Telnet => {
+                match conn.telnet.map(|t| t.tls).unwrap_or(false) {
+                    true => ("telnets", 992),
+                    false => ("telnet", 23),
+                }
+            }
+            // Raw has no conventional port, so `default_port` is one it
+            // can never equal: the port always shows, which is the only
+            // way the URL round-trips (`raw://host` alone is not a
+            // target).
+            ConnectionProtocol::Raw => ("raw", 0),
             ConnectionProtocol::RemoteDesktop => match conn.rd_kind {
                 oryxis_core::models::remote_desktop::RemoteDesktopKind::Rdp => ("rdp", 3389),
                 oryxis_core::models::remote_desktop::RemoteDesktopKind::Vnc => ("vnc", 5900),
             },
-            ConnectionProtocol::Ssh | ConnectionProtocol::Serial => ("ssh", 22),
+            ConnectionProtocol::Ssh
+            | ConnectionProtocol::Serial
+            | ConnectionProtocol::Local => ("ssh", 22),
         };
         let target = oryxis_core::ssh_target::SshTarget {
             username,
@@ -339,29 +359,127 @@ impl Oryxis {
     /// saved host, so ordinary label searches never grow a spurious
     /// quick-connect row.
     pub(crate) fn quick_connect_target(&self, input: &str) -> Option<Connection> {
-        let target = oryxis_core::ssh_target::SshTarget::parse(input)?;
+        use oryxis_core::models::connection::ConnectionProtocol as Proto;
+        self.quick_connect_target_as(input, Proto::Ssh)
+    }
+
+    /// The dashboard's quick connect, where the card's protocol badges
+    /// are on screen and can answer for a line that named no scheme.
+    ///
+    /// Separate from [`quick_connect_target`](Self::quick_connect_target)
+    /// on purpose: the badge belongs to that one card. Reading the
+    /// field everywhere would let a Telnet pick made on the dashboard
+    /// silently apply in the new-tab picker and the tab-jump palette,
+    /// where there is no badge to see it or to undo it.
+    pub(crate) fn dashboard_quick_connect_target(&self, input: &str) -> Option<Connection> {
+        self.quick_connect_target_as(input, self.quick_connect_protocol)
+    }
+
+    /// Shared body: `fallback` is the protocol for a line that named no
+    /// `scheme://`. A typed scheme always wins over it.
+    fn quick_connect_target_as(
+        &self,
+        input: &str,
+        fallback: oryxis_core::models::connection::ConnectionProtocol,
+    ) -> Option<Connection> {
+        use oryxis_core::models::connection::ConnectionProtocol as Proto;
+        use oryxis_core::quick_target::{QuickEndpoint, QuickTarget};
+        let parsed = QuickTarget::parse(input)?;
+        let protocol = parsed.protocol.unwrap_or(fallback);
+        let target = match parsed.endpoint {
+            // A serial device is its own kind of target: no user, no
+            // port, and the line parameters (baud) ride the connection.
+            QuickEndpoint::Serial { device, baud } => {
+                let mut conn = Connection::new(device.clone(), &device);
+                conn.protocol = Proto::Serial;
+                let mut params = oryxis_core::models::serial::SerialParams::default();
+                if let Some(baud) = baud {
+                    params.baud = baud;
+                }
+                conn.serial = Some(params);
+                return Some(conn);
+            }
+            QuickEndpoint::Network(target) => target,
+        };
+        // Raw needs a port and has no default worth inventing (console
+        // servers number their lines per vendor), so a Raw target
+        // without one is not offered rather than dialled somewhere
+        // arbitrary.
+        if protocol == Proto::Raw && target.port.is_none() {
+            return None;
+        }
         let needle = target.host.to_lowercase();
         let matches_saved = self.connections.iter().any(|c| {
             c.label.to_lowercase().contains(&needle)
                 || c.hostname.to_lowercase().contains(&needle)
         });
-        if !quick_connect_offerable(&target, matches_saved) {
+        // A typed scheme IS the explicit marker: `telnet://web01` says
+        // connect, whatever else the vault happens to hold under that
+        // name.
+        if parsed.protocol.is_none() && !quick_connect_offerable(&target, matches_saved) {
             return None;
         }
-        let username = target
-            .username
-            .clone()
-            .or_else(oryxis_core::ssh_target::local_username);
+        // Raw and Serial authenticate nobody, so they never borrow the
+        // local OS user the SSH/Telnet default fills in.
+        let username = match protocol.uses_credentials() {
+            true => target.username.clone().or_else(oryxis_core::ssh_target::local_username),
+            false => None,
+        };
         let resolved = oryxis_core::ssh_target::SshTarget {
             username: username.clone(),
             ..target
         };
         let mut conn = Connection::new(resolved.canonical(), &resolved.host);
-        if let Some(port) = resolved.port {
-            conn.port = port;
-        }
+        conn.protocol = protocol;
+        conn.port = resolved
+            .port
+            .or_else(|| protocol.default_port())
+            .unwrap_or(conn.port);
         conn.username = username;
+        if parsed.tls {
+            conn.telnet = Some(oryxis_core::models::telnet::TelnetOptions {
+                tls: true,
+                // An ad-hoc dial never skips verification: the escape is
+                // a per-host decision made in the editor, on a host the
+                // user chose to keep.
+                tls_insecure: false,
+            });
+        }
         Some(conn)
+    }
+
+    /// Which protocols the quick-connect card offers as badges for the
+    /// current input, and which one is selected.
+    ///
+    /// Only shown while the typed text names no scheme: with
+    /// `telnet://` in front of it the question is already answered, and
+    /// a picker that could contradict the text would be a second
+    /// source of truth. Raw appears only once the text carries a port,
+    /// because that is the one thing it cannot do without.
+    pub(crate) fn quick_connect_badges(
+        &self,
+        input: &str,
+    ) -> Option<(Vec<oryxis_core::models::connection::ConnectionProtocol>, oryxis_core::models::connection::ConnectionProtocol)>
+    {
+        use oryxis_core::models::connection::ConnectionProtocol as Proto;
+        use oryxis_core::quick_target::{QuickEndpoint, QuickTarget};
+        let parsed = QuickTarget::parse(input)?;
+        if parsed.protocol.is_some() {
+            return None;
+        }
+        let QuickEndpoint::Network(target) = &parsed.endpoint else {
+            return None;
+        };
+        let mut options = vec![Proto::Ssh, Proto::Telnet];
+        if target.port.is_some() {
+            options.push(Proto::Raw);
+        }
+        let selected = if options.contains(&self.quick_connect_protocol) {
+            self.quick_connect_protocol
+        } else {
+            Proto::Ssh
+        };
+        Some((options, selected))
     }
 }
 

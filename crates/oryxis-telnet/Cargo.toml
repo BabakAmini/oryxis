@@ -14,6 +14,11 @@ thiserror = { workspace = true }
 # Per-host terminal encoding: transcode session bytes <-> UTF-8 for
 # non-UTF-8 charsets, mirroring the SSH engine's PTY transcoding.
 encoding_rs = "0.8"
+# Telnet over TLS (`telnets`, port 992): the handshake runs before any
+# option negotiation, so the NVT rides inside the tunnel unchanged.
+rustls = { workspace = true }
+tokio-rustls = { workspace = true }
+webpki-roots = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }

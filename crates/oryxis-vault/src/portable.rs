@@ -657,8 +657,14 @@ pub fn export_vault(
             let proxy_pw = store.get_proxy_password(&conn.id).unwrap_or(None);
             let totp = store.get_connection_totp_secret(&conn.id).unwrap_or(None);
             let target_pw = store.get_connection_target_password(&conn.id).unwrap_or(None);
+            // A trust decision made about ONE appliance on ONE machine
+            // is not host data: an export is a file that travels, and
+            // "accept an invalid certificate" must be re-made where it
+            // lands. Same rule the sync wire applies.
+            let mut connection = (*conn).clone();
+            connection.strip_local_trust();
             connections.push(ExportConnection {
-                connection: (*conn).clone(),
+                connection,
                 password: pw,
                 proxy_password: proxy_pw,
                 totp_secret: totp,
@@ -985,6 +991,11 @@ pub fn import_vault(
 
     for ec in &mut payload.connections {
         let c = &mut ec.connection;
+        // A picked file is not a read file: an import may carry an
+        // "accept an invalid certificate" flag from a machine whose
+        // appliance this user has never seen, so it is dropped on the
+        // way in as well as on the way out.
+        c.strip_local_trust();
         if c.group_id.is_some_and(|id| !will_have(&payload_group_ids, &existing_group_ids, &id)) {
             c.group_id = None;
         }

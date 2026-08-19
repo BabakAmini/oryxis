@@ -144,7 +144,7 @@ impl Oryxis {
         message: TerminalMessage,
     ) -> Task<Message> {
         match message {
-            TerminalMessage::PtyOutput(..) => {
+            TerminalMessage::PtyOutput(..) | TerminalMessage::LocalStartupDue(..) => {
                 return self
                     .handle_terminal_output(message)
                     .unwrap_or_else(crate::dispatch::unrouted);

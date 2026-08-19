@@ -52,30 +52,12 @@ const DEFAULT_SNAPSHOT_NAME: &str = "oryxis-sync.bin";
 /// path the user believes is right.
 fn snapshot_path(input: &str) -> PathBuf {
     let trimmed = input.trim();
-    let expanded = expand_home(trimmed);
+    let expanded = crate::util::expand_home(trimmed);
     let path = expanded.as_path();
     if path.is_dir() || trimmed.ends_with('/') || trimmed.ends_with('\\') {
         path.join(DEFAULT_SNAPSHOT_NAME)
     } else {
         path.to_path_buf()
-    }
-}
-
-/// `~` / `~/rest` against the OS home directory. Only a LEADING `~` on
-/// its own path segment expands (`~user` is another user's home, which
-/// we cannot resolve portably, and a `~` anywhere else is a literal
-/// character in a filename). Falls through unchanged when there is no
-/// home directory to expand against.
-fn expand_home(input: &str) -> PathBuf {
-    let rest = match input.strip_prefix('~') {
-        Some("") => "",
-        Some(rest) if rest.starts_with(['/', '\\']) => &rest[1..],
-        _ => return PathBuf::from(input),
-    };
-    match dirs::home_dir() {
-        Some(home) if rest.is_empty() => home,
-        Some(home) => home.join(rest),
-        None => PathBuf::from(input),
     }
 }
 
@@ -238,8 +220,8 @@ mod tests {
         let Some(home) = dirs::home_dir() else {
             return;
         };
-        assert_eq!(expand_home("~"), home);
-        assert_eq!(expand_home("~/Dropbox/vault"), home.join("Dropbox/vault"));
+        assert_eq!(crate::util::expand_home("~"), home);
+        assert_eq!(crate::util::expand_home("~/Dropbox/vault"), home.join("Dropbox/vault"));
         assert_eq!(
             snapshot_path("~/Dropbox/team.bin"),
             home.join("Dropbox/team.bin")
@@ -251,9 +233,9 @@ mod tests {
     /// a path is an ordinary filename character.
     #[test]
     fn a_tilde_anywhere_else_stays_literal() {
-        assert_eq!(expand_home("~user/keys"), PathBuf::from("~user/keys"));
-        assert_eq!(expand_home("/srv/~backup"), PathBuf::from("/srv/~backup"));
-        assert_eq!(expand_home(""), PathBuf::from(""));
+        assert_eq!(crate::util::expand_home("~user/keys"), PathBuf::from("~user/keys"));
+        assert_eq!(crate::util::expand_home("/srv/~backup"), PathBuf::from("/srv/~backup"));
+        assert_eq!(crate::util::expand_home(""), PathBuf::from(""));
     }
 
     /// A path that names a file is honoured as typed, so someone

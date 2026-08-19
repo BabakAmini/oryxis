@@ -5429,9 +5429,12 @@ version = "0.1.0"
 dependencies = [
  "encoding_rs",
  "oryxis-core",
+ "rustls",
  "thiserror 2.0.19",
  "tokio",
+ "tokio-rustls",
  "tracing",
+ "webpki-roots",
 ]
 
 [[package]]

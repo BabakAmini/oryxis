@@ -60,7 +60,12 @@ impl Oryxis {
             // desktop shows its kind (RDP/VNC) instead of an SSH auth
             // method.
             match conn.protocol {
-                ConnectionProtocol::Serial => address,
+                // Serial, Raw and Local have no auth method to append:
+                // what `address` already shows (line params, endpoint,
+                // shell) is the whole subtitle.
+                ConnectionProtocol::Serial
+                | ConnectionProtocol::Raw
+                | ConnectionProtocol::Local => address,
                 ConnectionProtocol::RemoteDesktop => {
                     format!("{} · {}", address, conn.rd_kind)
                 }

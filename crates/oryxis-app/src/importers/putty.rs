@@ -157,6 +157,14 @@ fn to_connection(s: &PuttySession) -> Option<Connection> {
         "ssh" => (ConnectionProtocol::Ssh, 22),
         "telnet" => (ConnectionProtocol::Telnet, 23),
         "serial" => (ConnectionProtocol::Serial, 0),
+        // PuTTY's "raw" is a bare TCP socket, which is exactly what
+        // `ConnectionProtocol::Raw` is. It has no conventional port on
+        // either side, so the session's own is the only answer (0 =
+        // whatever the file carried).
+        "raw" => (ConnectionProtocol::Raw, 0),
+        // "rlogin" and "supdup" have no analogue here: both are dead
+        // protocols we deliberately do not speak, so their sessions are
+        // reported as skipped rather than imported as something else.
         _ => return None,
     };
 

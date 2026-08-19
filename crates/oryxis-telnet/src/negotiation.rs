@@ -118,6 +118,11 @@ pub struct Negotiator {
     username: Option<String>,
     cols: u16,
     rows: u16,
+    /// Raw mode (a bare TCP socket): every inbound byte is data and no
+    /// reply is ever generated. Held here rather than branched around
+    /// this type at the call sites so "what raw means on the wire"
+    /// lives in one place, next to the rules it suspends.
+    raw: bool,
 }
 
 impl Negotiator {
@@ -138,6 +143,7 @@ impl Negotiator {
             username: username.map(str::to_string),
             cols: 80,
             rows: 24,
+            raw: false,
         };
         let mut greeting = Vec::new();
         for opt in [OPT_TTYPE, OPT_NAWS, OPT_NEW_ENVIRON, OPT_SGA] {
@@ -149,6 +155,29 @@ impl Negotiator {
             greeting.extend_from_slice(&[IAC, DO, opt]);
         }
         (neg, greeting)
+    }
+
+    /// A negotiator for a bare TCP socket: no greeting, no options, no
+    /// replies. `receive` hands every byte through untouched, including
+    /// 0xFF, which in raw mode is data and not IAC.
+    ///
+    /// Raw sessions run through this type rather than around it so a
+    /// future option (or a future NVT rule) cannot be added on one path
+    /// and forgotten on the other.
+    pub fn raw() -> Self {
+        Negotiator {
+            us: [QState::No; 256],
+            him: [QState::No; 256],
+            state: ParseState::Data,
+            subneg_option: 0,
+            subneg_buf: Vec::new(),
+            last_was_cr: false,
+            term: String::new(),
+            username: None,
+            cols: 80,
+            rows: 24,
+            raw: true,
+        }
     }
 
     /// Options we agree to enable on our side when the server asks.
@@ -163,6 +192,9 @@ impl Negotiator {
 
     /// Feed inbound bytes; returns decoded app data and wire replies.
     pub fn receive(&mut self, input: &[u8]) -> Step {
+        if self.raw {
+            return Step { app: input.to_vec(), wire: Vec::new() };
+        }
         let mut step = Step::default();
         for &byte in input {
             match self.state {
@@ -489,6 +521,23 @@ mod tests {
         // Re-announcing an already-on option stays silent too.
         let step = neg.receive(&[IAC, WILL, OPT_ECHO]);
         assert!(step.wire.is_empty());
+    }
+
+    /// Raw is the absence of this whole state machine: an inbound
+    /// command sequence is DATA, and nothing is ever written back. A
+    /// resize produces no NAWS report either, because raw never
+    /// negotiated the option that would carry one.
+    #[test]
+    fn raw_passes_commands_through_as_data() {
+        let mut neg = Negotiator::raw();
+        let step = neg.receive(&[IAC, DO, OPT_TTYPE, b'h', b'i', IAC, IAC, b'\r', 0]);
+        assert_eq!(step.wire, Vec::<u8>::new(), "raw must never answer");
+        assert_eq!(
+            step.app,
+            vec![IAC, DO, OPT_TTYPE, b'h', b'i', IAC, IAC, b'\r', 0],
+            "raw must not interpret IAC or the CR NUL pad"
+        );
+        assert_eq!(neg.set_window(120, 40), None);
     }
 
     #[test]

@@ -94,6 +94,11 @@ chacha20poly1305 = { version = "0.11", features = ["rand_core"] }
 # present self-signed certs pinned by device identity, not a CA chain).
 quinn = { version = "0.11", default-features = false, features = ["log", "runtime-tokio", "rustls-aws-lc-rs", "bloom"] }
 rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs", "prefer-post-quantum", "std"] }
+# Telnet over TLS (`telnets`, port 992). Same provider as everything else
+# above, and no default features so the `ring` backend never comes back in
+# through a transitive default set.
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws-lc-rs"] }
+webpki-roots = "1"
 rcgen = { version = "0.13", default-features = false, features = ["pem", "aws_lc_rs"] }
 mdns-sd = "0.20"
 x25519-dalek = { version = "3", features = ["static_secrets", "getrandom"] }

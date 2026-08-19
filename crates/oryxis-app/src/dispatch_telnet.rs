@@ -13,7 +13,7 @@ use iced::futures::SinkExt;
 use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
-use oryxis_telnet::{TelnetConfig, TelnetSession};
+use oryxis_telnet::{TelnetConfig, TelnetMode, TelnetSession};
 use oryxis_terminal::widget::TerminalState;
 
 use crate::app::{TerminalMessage, SshMessage, DEFAULT_TERM_COLS, DEFAULT_TERM_ROWS, Message, Oryxis};
@@ -53,6 +53,16 @@ impl Oryxis {
             let mut unused_totp = None;
             self.apply_quick_entry_secrets(id, conn, &mut password, &mut unused_totp);
         }
+        // Raw is a bare socket: no options, no NVT rules, and no
+        // credentials of its own (the editor hides those fields, and
+        // the engine drops any that arrive anyway, so a host converted
+        // from Telnet cannot type an old password at a device).
+        let raw = conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Raw;
+        let tls = conn
+            .telnet
+            .filter(|_| !raw)
+            .filter(|t| t.tls)
+            .map(|t| oryxis_telnet::TelnetTls { insecure: t.tls_insecure });
         TelnetConfig {
             host: conn.hostname.clone(),
             port: conn.port,
@@ -65,7 +75,21 @@ impl Oryxis {
                 .unwrap_or_else(|| "xterm-256color".to_string()),
             encoding: conn.encoding.clone(),
             address_family: conn.address_family,
+            mode: if raw { TelnetMode::Raw } else { TelnetMode::Nvt },
+            tls,
             ..TelnetConfig::default()
+        }
+    }
+
+    /// How a dial over this transport is named in the progress panel and
+    /// the connection log. One helper so the tab path and the pane path
+    /// cannot describe the same session differently.
+    fn telnet_dial_name(conn: &oryxis_core::models::Connection) -> &'static str {
+        use oryxis_core::models::connection::ConnectionProtocol;
+        match (conn.protocol, conn.telnet.map(|t| t.tls).unwrap_or(false)) {
+            (ConnectionProtocol::Raw, _) => "Raw",
+            (_, true) => "Telnet (TLS)",
+            (_, false) => "Telnet",
         }
     }
 
@@ -91,7 +115,8 @@ impl Oryxis {
         };
         state.palette = self.resolve_terminal_palette_for_connection(&conn);
         let label = conn.label.clone();
-        let hostname = format!("Telnet {}:{}", conn.hostname, conn.port);
+        let dial_name = Self::telnet_dial_name(&conn);
+        let hostname = format!("{dial_name} {}:{}", conn.hostname, conn.port);
         let terminal = Arc::new(Mutex::new(state));
         let tab_idx = self.tabs.len();
 
@@ -139,7 +164,7 @@ impl Oryxis {
             logs: vec![(
                 ConnectionStep::Starting,
                 format!(
-                    "Starting a new Telnet connection to \"{}\" port {}",
+                    "Starting a new {dial_name} connection to \"{}\" port {}",
                     conn.hostname, conn.port
                 ),
             )],

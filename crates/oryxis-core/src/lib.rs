@@ -5,6 +5,7 @@ pub mod paths;
 pub mod error;
 pub mod login_script;
 pub mod net;
+pub mod quick_target;
 pub mod ssh_target;
 pub mod totp;
 

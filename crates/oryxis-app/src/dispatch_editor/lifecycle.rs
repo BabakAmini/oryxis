@@ -10,14 +10,7 @@ impl Oryxis {
     pub(super) fn handle_editor_lifecycle(&mut self, message: EditorMessage) -> Task<Message> {
         match message {
             EditorMessage::ShowNewConnection => {
-                return self.open_new_host_editor(
-                    oryxis_core::models::connection::ConnectionProtocol::Ssh,
-                );
-            }
-            EditorMessage::ShowNewRemoteDesktop => {
-                return self.open_new_host_editor(
-                    oryxis_core::models::connection::ConnectionProtocol::RemoteDesktop,
-                );
+                return self.open_new_host_editor();
             }
             EditorMessage::EditConnection(id) => {
                 // Another host may still be open with a debouncing
@@ -221,7 +214,18 @@ impl Oryxis {
                 // too: the ad-hoc dial reads the same form and would
                 // otherwise hand `user@host` straight to the resolver.
                 self.editor_split_host_field();
-                if self.editor_form.hostname.trim().is_empty() {
+                // Local is the one protocol with nothing to dial: its
+                // label is what identifies the session, so that is what
+                // this path requires instead of an address.
+                if self.editor_form.protocol
+                    == oryxis_core::models::connection::ConnectionProtocol::Local
+                {
+                    if self.editor_form.label.trim().is_empty() {
+                        self.host_panel_error =
+                            Some(crate::i18n::t("editor_label_required").into());
+                        return Task::none();
+                    }
+                } else if self.editor_form.hostname.trim().is_empty() {
                     self.host_panel_error =
                         Some(crate::i18n::t("quick_connect_hostname_required").into());
                     return Task::none();
@@ -580,9 +584,19 @@ impl Oryxis {
     ) -> Result<oryxis_core::models::Connection, super::PersistError> {
         use super::PersistError;
         self.editor_split_host_field();
-        if self.editor_form.label.is_empty() || self.editor_form.hostname.trim().is_empty() {
+        // A local host names no endpoint, so its label IS the target and
+        // is the only thing required; every other protocol needs both.
+        let takes_address = self.editor_form.protocol
+            != oryxis_core::models::connection::ConnectionProtocol::Local;
+        if self.editor_form.label.is_empty()
+            || (takes_address && self.editor_form.hostname.trim().is_empty())
+        {
             return Err(PersistError::Invalid(
-                crate::i18n::t("editor_label_host_required").to_string(),
+                crate::i18n::t(match takes_address {
+                    true => "editor_label_host_required",
+                    false => "editor_label_required",
+                })
+                .to_string(),
             ));
         }
         let conn = self
