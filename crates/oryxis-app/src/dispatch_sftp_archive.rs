@@ -270,6 +270,15 @@ impl Oryxis {
                 }
                 match result {
                     Ok(label) => {
+                        // Compressing or extracting a big tree is the
+                        // same kind of wait a transfer is, and it ends
+                        // the same way: with the user somewhere else.
+                        // The answer is ignored here, unlike the toast
+                        // sites: what this op leaves behind in-app is
+                        // the log line (and, below, the pane's error),
+                        // both of which PERSIST, so the notice adds to
+                        // them instead of standing in for them.
+                        self.notify_away(crate::i18n::t("transfer_notify_done"), &label);
                         self.push_sftp_log(SftpLogLevel::Ok, label);
                         // Refresh the affected pane so the new entries
                         // show up (skip if it meanwhile entered zip
@@ -287,7 +296,10 @@ impl Oryxis {
                             self.refresh_sftp_local(side);
                         }
                     }
-                    Err(e) => return Ok(Task::done(Message::Sftp(SftpMessage::SftpOpResult(side, e, true)))),
+                    Err(e) => {
+                        self.notify_away(crate::i18n::t("transfer_notify_failed"), &e);
+                        return Ok(Task::done(Message::Sftp(SftpMessage::SftpOpResult(side, e, true))));
+                    }
                 }
             }
             other => return Err(other),

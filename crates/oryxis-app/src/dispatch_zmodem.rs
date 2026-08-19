@@ -238,10 +238,20 @@ impl Oryxis {
                 let mut toast: Option<String> = None;
                 let mut replay: Vec<u8> = Vec::new();
                 let mut divert_closed = false;
+                // What the OS notice names, taken while the overlay is
+                // still here: the terminal arms below consume it, and
+                // the transfer's own file name is the only thing that
+                // tells two of them apart in a notification list.
+                let mut finished: Option<(String, String)> = None;
                 {
                     let Some(pane) = self.pane_by_id_mut(pane_id) else {
                         return Task::none();
                     };
+                    let file_name = pane
+                        .zmodem
+                        .as_ref()
+                        .and_then(|zm| zm.file_name.clone())
+                        .unwrap_or_default();
                     match progress {
                         Progress::Started { name, size, batch } => {
                             if let Some(zm) = pane.zmodem.as_mut() {
@@ -263,21 +273,27 @@ impl Oryxis {
                             if let Some(zm) = pane.zmodem.take() {
                                 replay.extend(zm.late);
                             }
-                            toast = Some(crate::i18n::t("zmodem_complete").to_string());
+                            let title = crate::i18n::t("transfer_notify_done");
+                            toast = Some(title.to_string());
+                            finished = Some((title.to_string(), file_name));
                             divert_closed = true;
                         }
                         Progress::Aborted => {
                             if let Some(zm) = pane.zmodem.take() {
                                 replay = zm.late;
                             }
-                            toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
+                            let title = crate::i18n::t("transfer_notify_cancelled");
+                            toast = Some(title.to_string());
+                            finished = Some((title.to_string(), file_name));
                             divert_closed = true;
                         }
                         Progress::Error(e) => {
                             if let Some(zm) = pane.zmodem.take() {
                                 replay = zm.late;
                             }
-                            toast = Some(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
+                            toast = Some(format!("{}: {e}", crate::i18n::t("transfer_notify_failed")));
+                            finished =
+                                Some((crate::i18n::t("transfer_notify_failed").to_string(), e.to_string()));
                             divert_closed = true;
                         }
                     }
@@ -290,7 +306,26 @@ impl Oryxis {
                     // whole transfer.
                     self.set_zmodem_binary_inbound(pane_id, false);
                 }
-                if let Some(text) = toast {
+                // A ZMODEM transfer runs in the terminal the user
+                // started it from, so away from the window it gets the
+                // same OS notice an SFTP queue does; the toast is the
+                // in-app half, and stays whenever that notice wasn't
+                // shown. Both directions land here: `rz` and `sz` are
+                // one driver, and every one of its ends is one of the
+                // three arms above.
+                //
+                // A cancel notifies too, which is not the redundancy it
+                // looks like: cancelling from the card means being in
+                // front of the window, where the notice is suppressed
+                // anyway. What is left is a cancel from the OTHER end,
+                // and from a room away that is a transfer that stopped
+                // without finishing, same as a failure.
+                let notified = finished
+                    .as_ref()
+                    .is_some_and(|(title, body)| self.notify_away(title, body));
+                if let Some(text) = toast
+                    && !notified
+                {
                     self.set_toast(text);
                 }
                 if replay.is_empty() {

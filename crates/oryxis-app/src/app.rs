@@ -531,10 +531,16 @@ pub struct Oryxis {
     /// paste, so Run actually executes) and records the run into the
     /// host's install memory; an ordinary paste park clears it.
     pub(crate) pending_paste_install: Option<(uuid::Uuid, bool)>,
-    /// A file row press waiting to become an OS drag-out (issue #167):
-    /// crossing [`crate::drag_out::DRAG_THRESHOLD`] with the button
-    /// held starts the native drag; the global left-release disarms.
+    /// A file row press on its way to becoming an OS drag-out (issue
+    /// #167): crossing [`crate::drag_out::DRAG_THRESHOLD`] with the
+    /// button held raises the ghost and resolves the payload, leaving
+    /// the window hands it to the OS; the global left-release disarms.
     pub(crate) drag_out_arm: Option<crate::drag_out::DragOutArm>,
+    /// Paths handed to the OS by the last local drag-out, held so a
+    /// release back inside our own window isn't re-imported as a drop
+    /// onto ourselves. Each path is forgotten as its drop arrives, so
+    /// the guard empties itself (see `update`).
+    pub(crate) drag_out_echo: Vec<std::path::PathBuf>,
     /// Paths from an in-flight OS drop onto the terminal, buffered so a
     /// multi-file gesture (one `FileDropped` per file) becomes one routed
     /// batch. Flushed by `TerminalDropFlush` after a short debounce; the

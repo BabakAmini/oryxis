@@ -32,6 +32,15 @@ pub(crate) fn unrouted<M: std::fmt::Debug>(message: M) -> Task<Message> {
     Task::none()
 }
 
+/// The one step an armed drag-out takes this pass, decided while the
+/// gesture is borrowed and acted on after (see `advance_drag_out`).
+enum DragOutStep {
+    /// Threshold crossed: resolve the payload, raise the ghost.
+    Resolve,
+    /// Cursor left the window: hand the resolved payload to the OS.
+    Escalate,
+}
+
 impl Oryxis {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         // Stall watchdog (#104): heartbeat + in-flight marker for this
@@ -55,31 +64,34 @@ impl Oryxis {
             self.sftp.suppress_hover = false;
             self.last_user_activity = std::time::Instant::now();
         }
-        // An armed drag-out (issue #167) whose cursor crossed the
-        // threshold becomes an OS drag NOW, while the button is still
-        // down (the global left-release message disarms below, so a
-        // finished click can never fire this late). The armed flag
-        // keeps `mouse_interest` on, which is what streams the
-        // CursorMoved messages this check rides on.
-        let drag_out_started: Option<Task<Message>> = match self.drag_out_arm.as_ref() {
-            Some(arm)
-                if arm.press.distance(self.mouse_position)
-                    >= crate::drag_out::DRAG_THRESHOLD =>
-            {
-                let arm = self.drag_out_arm.take().expect("checked above");
-                Some(Task::perform(
-                    crate::drag_out::prepare(arm.payload),
-                    |result| {
-                        Message::SidebarFiles(
-                            crate::messages::SidebarFilesMessage::SidebarFilesDragOutReady(
-                                result,
-                            ),
-                        )
-                    },
-                ))
-            }
-            _ => None,
-        };
+        // An armed drag-out (issue #167) advances here, off the two
+        // cursor moments it rides on. The armed flag keeps
+        // `mouse_interest` on, which is what streams the CursorMoved
+        // messages both checks read; the global left-release message
+        // disarms below, so a finished click can never fire either.
+        let drag_out_started: Option<Task<Message>> = self.advance_drag_out();
+        // A drag-out released back INSIDE the window comes back to us
+        // as an ordinary OS drop, and a LOCAL payload (real paths, the
+        // one format the OS drop path understands) would then be
+        // uploaded or pasted from the very browser it left. Those
+        // events are the echo of our own gesture, so they are dropped
+        // here rather than in each of the three handlers.
+        //
+        // The guard matches the PATHS we offered and forgets each one
+        // as it comes home, which is what keeps it self-clearing. A
+        // window / burst guard cannot be, because the only signal that
+        // a burst ended is another message, and after a drag-out the
+        // app can legitimately sit with nothing to say: cursor moves
+        // stop producing messages once nothing consumes them, so a
+        // guard waiting for one would still be closed when the user's
+        // NEXT drag arrives from Explorer.
+        if !self.drag_out_echo.is_empty()
+            && let Message::Sftp(SftpMessage::SftpFileDropped(path)) = &message
+            && let Some(i) = self.drag_out_echo.iter().position(|p| p == path)
+        {
+            self.drag_out_echo.swap_remove(i);
+            return drag_out_started.unwrap_or_else(Task::none);
+        }
         // Any user input event resets the vault auto-lock idle clock.
         // These are the raw-event messages `subscription.rs` maps from
         // iced's global listener, so presence is detected app-wide
@@ -190,6 +202,99 @@ impl Oryxis {
         }
         extra.insert(0, task);
         Task::batch(extra)
+    }
+
+    /// Advance an armed drag-out (issue #167) through the two cursor
+    /// moments it waits on, both read from the freshly-synced position
+    /// at the top of `update`.
+    ///
+    /// Crossing the movement threshold RESOLVES the payload (and raises
+    /// the ghost); leaving the window ESCALATES it to the OS. Splitting
+    /// them is what makes the gesture legible: `start` blocks the UI
+    /// thread for the whole OS drag, so escalating at the threshold
+    /// freezes the window while the cursor is still over it, with
+    /// nothing following the cursor to say a drag began (the field
+    /// report this split answers). Resolving early also keeps the
+    /// remote round trip off the critical path, so a quick flick out of
+    /// the window finds the payload already prepared instead of handing
+    /// `DoDragDrop` a button that is already up.
+    pub(crate) fn advance_drag_out(&mut self) -> Option<Task<Message>> {
+        // Scoped so the borrow ends before either arm mutates.
+        let step = {
+            let arm = self.drag_out_arm.as_ref()?;
+            match arm.stage {
+                crate::drag_out::DragOutStage::Armed(_)
+                    if arm.press.distance(self.mouse_position)
+                        >= crate::drag_out::DRAG_THRESHOLD =>
+                {
+                    DragOutStep::Resolve
+                }
+                crate::drag_out::DragOutStage::Ready(_) if self.cursor_outside_window() => {
+                    DragOutStep::Escalate
+                }
+                _ => return None,
+            }
+        };
+        match step {
+            DragOutStep::Resolve => {
+                let arm = self.drag_out_arm.as_mut()?;
+                let crate::drag_out::DragOutStage::Armed(payload) = std::mem::replace(
+                    &mut arm.stage,
+                    crate::drag_out::DragOutStage::Resolving,
+                ) else {
+                    return None;
+                };
+                Some(Task::perform(crate::drag_out::prepare(payload), |result| {
+                    Message::Tabs(TabsMessage::DragOutReady(result))
+                }))
+            }
+            DragOutStep::Escalate => {
+                let arm = self.drag_out_arm.take()?;
+                let crate::drag_out::DragOutStage::Ready(prepared) = arm.stage else {
+                    return None;
+                };
+                // These three go BEFORE the launch, all for the same
+                // reason: the OS drag owns the rest of this gesture.
+                // Our ghost would freeze mid-air where `start` blocks
+                // the UI thread, an SFTP internal drag left armed would
+                // treat the release (which now lands in another
+                // application) as a cross-pane drop, and the paths we
+                // are about to offer are the ones a drop back onto our
+                // own window would be re-importing.
+                self.sftp.drag = None;
+                self.drag_out_echo = match &prepared {
+                    crate::drag_out::Prepared::Local(paths) => paths.clone(),
+                    // A remote payload is served as virtual files, a
+                    // format the OS drop path doesn't read, so it can
+                    // never come back as a drop.
+                    crate::drag_out::Prepared::Remote { .. } => Vec::new(),
+                };
+                Some(crate::drag_out::launch(prepared))
+            }
+        }
+    }
+
+    /// Whether the cursor has left the window's client area. Reliable
+    /// mid-gesture because a held button makes the OS capture the
+    /// pointer, so positions keep arriving (unclamped, so they go
+    /// negative past the top / left edge) instead of stopping at the
+    /// edge.
+    ///
+    /// It is a GEOMETRY test, not a "which window is under the cursor"
+    /// test: capture reports everything in our client coordinates, so a
+    /// window floating OVER Oryxis is indistinguishable from Oryxis
+    /// itself. Dropping onto a window that overlaps ours therefore
+    /// can't be detected; side-by-side, the ordinary way to drag a file
+    /// somewhere, works.
+    fn cursor_outside_window(&self) -> bool {
+        // A window that never reported its size yet would read as
+        // "cursor outside" for every position.
+        self.window_size.width > 1.0
+            && self.window_size.height > 1.0
+            && (self.mouse_position.x < 0.0
+                || self.mouse_position.y < 0.0
+                || self.mouse_position.x > self.window_size.width
+                || self.mouse_position.y > self.window_size.height)
     }
 
     /// Whether anything in the app currently consumes continuous cursor

@@ -332,6 +332,7 @@ impl Oryxis {
                 pending_paste: None,
                 pending_paste_install: None,
                 drag_out_arm: None,
+                drag_out_echo: Vec::new(),
                 pending_terminal_drops: Vec::new(),
                 os_drop_hover: false,
                 group_edit: crate::state::GroupEditForm::default(),

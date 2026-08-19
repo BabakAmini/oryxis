@@ -17,23 +17,7 @@ use crate::state::TerminalTab;
 use crate::theme::OryxisColors;
 use crate::widgets::dir_row;
 
-/// Middle-truncate a string to at most `max` characters, keeping both ends so
-/// a long URL's scheme + host and its tail both stay legible
-/// (`https://a.example.com/…/tail`). Char-based, so it never splits a UTF-8
-/// codepoint. Returns the input untouched when it already fits.
-fn truncate_middle(s: &str, max: usize) -> String {
-    let chars: Vec<char> = s.chars().collect();
-    if chars.len() <= max {
-        return s.to_string();
-    }
-    let keep = max.saturating_sub(1); // one char spent on the ellipsis
-    let head = keep.div_ceil(2);
-    let tail = keep - head;
-    let mut out: String = chars[..head].iter().collect();
-    out.push('\u{2026}');
-    out.extend(&chars[chars.len() - tail..]);
-    out
-}
+use crate::util::truncate_middle;
 
 impl Oryxis {
     pub(crate) fn view_terminal(&self) -> Element<'_, Message> {

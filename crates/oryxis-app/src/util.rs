@@ -488,6 +488,24 @@ impl HintMode {
     }
 }
 
+/// Middle-truncate a string to at most `max` characters, keeping both ends so
+/// a long URL's scheme + host and its tail both stay legible
+/// (`https://a.example.com/…/tail`). Char-based, so it never splits a UTF-8
+/// codepoint. Returns the input untouched when it already fits.
+pub(crate) fn truncate_middle(s: &str, max: usize) -> String {
+    let chars: Vec<char> = s.chars().collect();
+    if chars.len() <= max {
+        return s.to_string();
+    }
+    let keep = max.saturating_sub(1); // one char spent on the ellipsis
+    let head = keep.div_ceil(2);
+    let tail = keep - head;
+    let mut out: String = chars[..head].iter().collect();
+    out.push('\u{2026}');
+    out.extend(&chars[chars.len() - tail..]);
+    out
+}
+
 /// Show a native OS notification (OSC 9). Returns whether it was dispatched;
 /// the caller falls back to an in-app toast on `false` (no notification daemon
 /// on Linux, or the toast pipeline failing on Windows).

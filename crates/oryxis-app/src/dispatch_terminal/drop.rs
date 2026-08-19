@@ -446,7 +446,15 @@ impl Oryxis {
     ) -> Task<Message> {
         let mut toast: Option<String> = None;
         let mut refresh: Option<Task<Message>> = None;
+        // Title + body for the OS notice on a terminal event, taken
+        // while the card is still here (the arms below consume it).
+        let mut finished: Option<(String, String)> = None;
         if let Some(pane) = self.pane_by_id_mut(pane_id) {
+            let file_name = pane
+                .drop_upload
+                .as_ref()
+                .and_then(|up| up.file_name.clone())
+                .unwrap_or_default();
             match progress {
                 DropProgress::Plan { total } => {
                     if let Some(up) = pane.drop_upload.as_mut() {
@@ -468,7 +476,11 @@ impl Oryxis {
                 }
                 DropProgress::Done => {
                     let up = pane.drop_upload.take();
-                    toast = Some(crate::i18n::t("zmodem_complete").to_string());
+                    toast = Some(crate::i18n::t("transfer_notify_done").to_string());
+                    finished = Some((
+                        crate::i18n::t("transfer_notify_done").to_string(),
+                        file_name,
+                    ));
                     // Sidebar Files showing the directory we just landed
                     // in: re-list it so the new entries appear without a
                     // manual refresh. Pinned to this pane's browser (not
@@ -490,15 +502,30 @@ impl Oryxis {
                 }
                 DropProgress::Cancelled => {
                     pane.drop_upload = None;
-                    toast = Some(crate::i18n::t("zmodem_cancelled").to_string());
+                    toast = Some(crate::i18n::t("transfer_notify_cancelled").to_string());
+                    finished = Some((
+                        crate::i18n::t("transfer_notify_cancelled").to_string(),
+                        file_name,
+                    ));
                 }
                 DropProgress::Failed(e) => {
                     pane.drop_upload = None;
-                    toast = Some(format!("{}: {e}", crate::i18n::t("zmodem_failed")));
+                    toast = Some(format!("{}: {e}", crate::i18n::t("transfer_notify_failed")));
+                    finished = Some((crate::i18n::t("transfer_notify_failed").to_string(), e));
                 }
             }
         }
-        if let Some(t) = toast {
+        // Dropping files onto the terminal is an upload like any other,
+        // and the one most likely to be left running: the user dropped
+        // a folder and went back to what they were doing. Away from the
+        // window it gets the OS notice, and the toast stays for the
+        // times that notice wasn't shown.
+        let notified = finished
+            .as_ref()
+            .is_some_and(|(title, body)| self.notify_away(title, body));
+        if let Some(t) = toast
+            && !notified
+        {
             self.set_toast(t);
         }
         refresh.unwrap_or_else(Task::none)

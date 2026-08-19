@@ -805,13 +805,27 @@ impl Oryxis {
         }
 
         // Floating drag ghost, rendered last so it sits above
-        // everything else. Tracks the cursor while a cross-pane SFTP
-        // drag is in flight; non-interactive so it doesn't swallow the
-        // release event that ends the drag.
+        // everything else. Tracks the cursor while a file drag is in
+        // flight; non-interactive so it doesn't swallow the release
+        // event that ends the drag.
+        //
+        // Two gestures feed it and one press can arm BOTH (an SFTP file
+        // row arms the cross-pane transfer and the drag-out together),
+        // so exactly one draws. The internal drag keeps its own rule
+        // (it appears on cross-pane activation, unchanged); the
+        // drag-out raises the same pill at its movement threshold,
+        // which is what puts something under the cursor while the
+        // gesture is still over the window. Same pill either way, so a
+        // file row that armed both reads as one continuous drag.
         if let Some(drag) = &self.sftp.drag
             && drag.active
         {
-            return self.layer_sftp_drag_ghost(base, resize_overlay, drag);
+            return self.layer_drag_ghost(base, resize_overlay, &drag.label);
+        }
+        if let Some(arm) = &self.drag_out_arm
+            && arm.dragging()
+        {
+            return self.layer_drag_ghost(base, resize_overlay, &arm.label);
         }
 
         // A tab dragged off the strip and over the content area: the

@@ -156,6 +156,13 @@ pub enum TabsMessage {
     CloseOtherTabs(usize),
     CloseAllTabs,
     MouseMoved(Point),
+    /// A drag-out's payload finished preparing (issue #167): remote
+    /// handles opened, runtime captured. It waits in the armed gesture
+    /// until the cursor leaves the window, which is when the OS drag
+    /// starts. Lives in the window domain rather than either browser's:
+    /// both file surfaces raise it, and what escalates it is a window
+    /// geometry test, not anything either browser owns.
+    DragOutReady(Result<crate::drag_out::Prepared, String>),
     WindowResized(iced::Size),
     /// OS window moved; carries the new outer position in logical
     /// desktop coordinates (negative on monitors left of / above the

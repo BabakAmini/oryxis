@@ -83,6 +83,34 @@ pub(crate) fn serve_terminal_clipboard_requests() -> Option<Task<Message>> {
 }
 
 impl Oryxis {
+    /// Hand the OS a notice about something that finished while the
+    /// user was away from the window, and say whether it was carried.
+    ///
+    /// A file transfer is the long operation the user is EXPECTED to
+    /// walk away from, which is what makes it worth a native popup:
+    /// SFTP queues (both directions, both browsers) and ZMODEM alike.
+    /// In front of the window it is noise, because every one of those
+    /// surfaces already shows its own progress, so this refuses there
+    /// and the caller keeps whatever in-app feedback it had.
+    ///
+    /// `false` means nothing was shown (the window is focused, or the
+    /// OS refused: no notification daemon on Linux, no AppUserModelID
+    /// on a non-installed Windows build), so a caller with an in-app
+    /// fallback should show it.
+    ///
+    /// No setting gates this: `terminal_notification` governs notices
+    /// a remote SHELL asks for, which is a different question from
+    /// whether the user's own transfer is done.
+    pub(crate) fn notify_away(&self, title: &str, body: &str) -> bool {
+        if self.window_focused {
+            return false;
+        }
+        // One line, and never the full path of a deep tree: the OS
+        // decides how much of a body it shows, and a truncated middle
+        // reads worse than a short line.
+        crate::util::show_os_notification(title, &crate::util::truncate_middle(body, 120))
+    }
+
     pub(crate) fn handle_global(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::TogglePrivacyReveal => {

@@ -55,14 +55,17 @@ impl Oryxis {
                 }
                 // Arm a drag-out (issue #167) on FILE rows where a
                 // backend can serve it: crossing the movement threshold
-                // while the button is still down turns this press into
-                // an OS drag (see the check in `dispatch.rs`); a plain
-                // click stays exactly the select it always was. The
-                // payload is resolved NOW, while the pane is in hand;
-                // the press anchor was synced at the top of `update`.
+                // while the button is still down raises the ghost, and
+                // leaving the window turns the press into an OS drag
+                // (see `advance_drag_out`); a plain click stays exactly
+                // the select it always was. The payload is built NOW,
+                // while the pane is in hand; the press anchor was
+                // synced at the top of `update`.
+                let mut ghost_label = String::new();
                 let arm = (!is_dir && crate::drag_out::supported())
                     .then(|| {
                         let name = files_basename(&path);
+                        ghost_label = name.clone();
                         let size = pane
                             .files
                             .entries
@@ -91,7 +94,8 @@ impl Oryxis {
                     .flatten();
                 self.drag_out_arm = arm.map(|payload| crate::drag_out::DragOutArm {
                     press: self.mouse_position,
-                    payload,
+                    label: ghost_label,
+                    stage: crate::drag_out::DragOutStage::Armed(payload),
                 });
             }
             SidebarFilesMessage::SidebarFilesToggleFollow => {

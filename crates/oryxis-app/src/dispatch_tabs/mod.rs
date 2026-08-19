@@ -62,6 +62,7 @@ impl Oryxis {
         match message {
             m @ (
                 TabsMessage::MouseMoved(..)
+                | TabsMessage::DragOutReady(..)
                 | TabsMessage::WindowResized(..)
                 | TabsMessage::WindowMoved(..)
                 | TabsMessage::WindowEnsureOnScreen

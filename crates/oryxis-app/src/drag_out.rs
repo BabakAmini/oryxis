@@ -31,12 +31,48 @@
 
 use std::sync::Arc;
 
-/// A drag armed by a row press, waiting for the movement threshold.
-#[derive(Debug, Clone)]
+/// A drag armed by a row press. The gesture has THREE moments, and
+/// keeping them apart is what makes it feel like a drag:
+///
+/// 1. the press anchors it ([`DragOutStage::Armed`]);
+/// 2. the movement threshold resolves the payload (one `open` round
+///    trip per remote file) and raises OUR OWN ghost, so the user sees
+///    something following the cursor while still over the window;
+/// 3. the cursor LEAVING THE WINDOW hands the gesture to the OS.
+///
+/// Steps 2 and 3 are deliberately not the same moment. `start` blocks
+/// the UI thread for the whole OS gesture (see the module docs), so a
+/// drag escalated at the threshold freezes the window before a ghost
+/// could paint even once, and inside our own window the OS has nothing
+/// to show either. Resolving early and escalating late also keeps the
+/// round trip off the critical path: a quick flick out of the window
+/// finds the payload already prepared instead of racing the button
+/// release, which would hand `DoDragDrop` a button that is already up.
+#[derive(Debug)]
 pub(crate) struct DragOutArm {
     /// Cursor position at the press, the threshold's anchor.
     pub press: iced::Point,
-    pub payload: DragOutPayload,
+    /// What the ghost says while the drag is still over the window.
+    pub label: String,
+    pub stage: DragOutStage,
+}
+
+#[derive(Debug)]
+pub(crate) enum DragOutStage {
+    /// Pressed, below the movement threshold. Still a click.
+    Armed(DragOutPayload),
+    /// Threshold crossed: the ghost is up and `prepare` is in flight.
+    Resolving,
+    /// Prepared, waiting for the cursor to leave the window.
+    Ready(Prepared),
+}
+
+impl DragOutArm {
+    /// Whether the gesture has become a drag (ghost visible, payload
+    /// resolving or resolved). Below the threshold it is still a click.
+    pub fn dragging(&self) -> bool {
+        !matches!(self.stage, DragOutStage::Armed(_))
+    }
 }
 
 /// What the armed row offers.
@@ -72,8 +108,16 @@ pub(crate) fn supported() -> bool {
 }
 
 /// Everything [`start`] needs, resolved OFF the UI thread: remote
-/// files are opened (ranged handles validate readability and pin the
-/// size) and the tokio handle is captured for the streams' bridge.
+/// files are stat'd (which pins the size the descriptor promises the
+/// target, and answers whether the path is still there) and the tokio
+/// handle is captured for the streams' bridge.
+///
+/// The ranged read handles are deliberately NOT opened here. Each one
+/// costs its own SFTP channel, and a selection of a dozen files would
+/// open a dozen at once against an `sshd` whose stock `MaxSessions` is
+/// 10 -- to serve a target that then copies the files ONE AT A TIME.
+/// The streams open on their first read instead, so the channel count
+/// follows what is actually being copied.
 #[derive(Debug, Clone)]
 // The fields are only READ by a platform backend; on the others the
 // payload flows through `start`'s unsupported arm untouched.
@@ -82,31 +126,37 @@ pub(crate) enum Prepared {
     Local(Vec<std::path::PathBuf>),
     Remote {
         rt: tokio::runtime::Handle,
-        /// (file name offered to the target, size, open remote handle).
-        files: Vec<(String, u64, Arc<oryxis_ssh::RemoteRangedFile>)>,
+        client: oryxis_ssh::SftpClient,
+        /// (file name offered to the target, size, absolute remote path).
+        files: Vec<(String, u64, String)>,
     },
 }
 
 /// Resolve a payload into [`Prepared`]. Runs inside the tokio runtime
 /// (a `Task::perform` future), while the mouse button is still down,
-/// so it must stay quick: one `open` round trip per file.
+/// so it must stay quick: one `stat` round trip per file, all on the
+/// pane's EXISTING channel.
 pub(crate) async fn prepare(payload: DragOutPayload) -> Result<Prepared, String> {
     match payload {
         DragOutPayload::Local(paths) => Ok(Prepared::Local(paths)),
         DragOutPayload::Remote { client, files } => {
             let rt = tokio::runtime::Handle::current();
-            let mut open = Vec::with_capacity(files.len());
+            let mut resolved = Vec::with_capacity(files.len());
             for f in files {
-                let handle = client
-                    .open_ranged(&f.path)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                // The listing's size may be stale; the open handle's is
-                // what the descriptor promises the target.
-                let size = handle.len().max(f.size);
-                open.push((f.name, size, Arc::new(handle)));
+                // The listing's size can be stale, and the descriptor's
+                // size is what the target sizes its copy against, so it
+                // is re-read here. Failing now is also the only chance
+                // to say so with a toast: past this point the gesture
+                // belongs to the OS, where a vanished file can only
+                // surface as a failed copy.
+                let stat = client.stat(&f.path).await.map_err(|e| e.to_string())?;
+                resolved.push((f.name, stat.size.max(f.size), f.path));
             }
-            Ok(Prepared::Remote { rt, files: open })
+            Ok(Prepared::Remote {
+                rt,
+                client,
+                files: resolved,
+            })
         }
     }
 }
@@ -132,6 +182,29 @@ pub(crate) fn start(_window: &dyn iced::Window, _prepared: Prepared) -> Result<(
     // The gesture only arms where `supported()` says yes, so this is a
     // routing bug, not a user-visible state.
     Err("drag-out is not supported on this platform yet".into())
+}
+
+/// Hop onto the UI thread and run [`start`] there, the only thread that
+/// may own an OS drag. The button may already be up by the time this
+/// lands (a very quick flick): the drop source then ends the drag on its
+/// first `QueryContinueDrag`, which is the right outcome.
+pub(crate) fn launch(prepared: Prepared) -> iced::Task<crate::messages::Message> {
+    // `window::run` takes an `Fn` closure, so the one-shot payload
+    // travels in a take-once slot.
+    let slot = Arc::new(std::sync::Mutex::new(Some(prepared)));
+    iced::window::oldest()
+        .and_then(move |id| {
+            let slot = slot.clone();
+            iced::window::run(id, move |window| {
+                let Some(prepared) = slot.lock().ok().and_then(|mut s| s.take()) else {
+                    return;
+                };
+                if let Err(e) = start(window, prepared) {
+                    tracing::warn!("drag-out failed to start: {e}");
+                }
+            })
+        })
+        .discard()
 }
 
 #[cfg(target_os = "windows")]
@@ -187,7 +260,9 @@ mod imp {
         ensure_ole();
         let data: IDataObject = match prepared {
             Prepared::Local(paths) => DataObject::new_local(paths)?.into(),
-            Prepared::Remote { rt, files } => DataObject::new_remote(rt, files)?.into(),
+            Prepared::Remote { rt, client, files } => {
+                DataObject::new_remote(rt, client, files)?.into()
+            }
         };
         let source: IDropSource = DropSource.into();
         let mut effect = DROPEFFECT(0);
@@ -250,8 +325,13 @@ mod imp {
         /// Pre-serialized HGLOBAL payloads keyed like `formats`
         /// (HDROP bytes / descriptor bytes).
         globals: std::collections::HashMap<u16, Vec<u8>>,
-        /// Remote handles behind CFSTR_FILECONTENTS, by lindex.
-        streams: Vec<(u64, Arc<oryxis_ssh::RemoteRangedFile>)>,
+        /// What CFSTR_FILECONTENTS serves, by lindex: (size, remote
+        /// path). The read handle behind each one is opened by the
+        /// stream itself, on its first read.
+        streams: Vec<(u64, String)>,
+        /// The channel the remote streams open against. `None` for a
+        /// local payload, which serves CF_HDROP and no streams.
+        client: Option<oryxis_ssh::SftpClient>,
         rt: Option<tokio::runtime::Handle>,
         /// IDataObjectAsyncCapability bookkeeping.
         async_mode: AtomicBool,
@@ -306,6 +386,7 @@ mod imp {
                 formats: vec![Format { cf: CF_HDROP.0, tymed: TYMED_HGLOBAL, lindex: -1 }],
                 globals,
                 streams: Vec::new(),
+                client: None,
                 rt: None,
                 async_mode: AtomicBool::new(true),
                 in_operation: AtomicBool::new(false),
@@ -317,7 +398,8 @@ mod imp {
         /// stream per index, pulled at drop time.
         fn new_remote(
             rt: tokio::runtime::Handle,
-            files: Vec<(String, u64, Arc<oryxis_ssh::RemoteRangedFile>)>,
+            client: oryxis_ssh::SftpClient,
+            files: Vec<(String, u64, String)>,
         ) -> Result<Self, String> {
             if files.is_empty() {
                 return Err("nothing to drag".into());
@@ -386,7 +468,8 @@ mod imp {
             Ok(Self {
                 formats,
                 globals,
-                streams: files.into_iter().map(|(_, s, h)| (s, h)).collect(),
+                streams: files.into_iter().map(|(_, s, p)| (s, p)).collect(),
+                client: Some(client),
                 rt: Some(rt),
                 async_mode: AtomicBool::new(true),
                 in_operation: AtomicBool::new(false),
@@ -441,13 +524,19 @@ mod imp {
                     })
                 }
                 Ok(Render::Stream(idx)) => {
-                    let (size, handle) = &self.streams[idx];
+                    let (size, path) = &self.streams[idx];
                     let rt = self.rt.clone().expect("remote payload carries a runtime");
+                    let client = self
+                        .client
+                        .clone()
+                        .expect("remote payload carries a client");
                     let stream: IStream = RemoteStream {
                         rt,
+                        client,
+                        path: path.clone(),
                         size: *size,
                         pos64: Mutex::new(0),
-                        file: handle.clone(),
+                        file: Mutex::new(None),
                     }
                     .into();
                     Ok(STGMEDIUM {
@@ -634,18 +723,55 @@ mod imp {
     /// the SFTP ranged handle through the captured tokio runtime. The
     /// target reads from its own thread (async data object), so the
     /// `block_on` here parks a shell worker, never our UI thread.
+    ///
+    /// The handle behind it opens on the FIRST read, not at drag time:
+    /// it costs an SFTP channel of its own, the target copies the files
+    /// one after another, and a data object offers one stream per file.
+    /// Opening them all up front would spend a dozen channels to serve
+    /// one copy (see [`Prepared`]).
     #[implement(IStream)]
     struct RemoteStream {
         rt: tokio::runtime::Handle,
+        client: oryxis_ssh::SftpClient,
+        path: String,
         size: u64,
         /// Read cursor. A plain mutex: the shell reads sequentially
         /// from one thread; Clone snapshots it.
         pos64: Mutex<u64>,
-        file: Arc<oryxis_ssh::RemoteRangedFile>,
+        /// Opened on first use and kept for the rest of the copy.
+        file: Mutex<Option<Arc<oryxis_ssh::RemoteRangedFile>>>,
+    }
+
+    impl RemoteStream {
+        /// The read handle, opening it if this is the first read.
+        /// Every caller is already on a target thread, so the open
+        /// blocks a shell worker like the reads do.
+        fn handle(&self) -> Result<Arc<oryxis_ssh::RemoteRangedFile>, HRESULT> {
+            const E_FAIL: HRESULT = HRESULT(0x8000_4005u32 as i32);
+            let mut slot = self.file.lock().map_err(|_| E_FAIL)?;
+            if let Some(f) = slot.as_ref() {
+                return Ok(f.clone());
+            }
+            match self.rt.block_on(self.client.open_ranged(&self.path)) {
+                Ok(f) => {
+                    let f = Arc::new(f);
+                    *slot = Some(f.clone());
+                    Ok(f)
+                }
+                Err(e) => {
+                    tracing::warn!("drag-out could not open {}: {e}", self.path);
+                    Err(E_FAIL)
+                }
+            }
+        }
     }
 
     impl ISequentialStream_Impl for RemoteStream_Impl {
         fn Read(&self, pv: *mut core::ffi::c_void, cb: u32, pcbread: *mut u32) -> HRESULT {
+            let file = match self.handle() {
+                Ok(f) => f,
+                Err(hr) => return hr,
+            };
             let mut pos = match self.pos64.lock() {
                 Ok(g) => g,
                 Err(_) => return HRESULT(0x8000_4005u32 as i32), // E_FAIL
@@ -655,7 +781,7 @@ mod imp {
             while done < want {
                 let chunk = self
                     .rt
-                    .block_on(self.file.read_at(*pos + done as u64, want - done));
+                    .block_on(file.read_at(*pos + done as u64, want - done));
                 match chunk {
                     Ok(bytes) if bytes.is_empty() => break,
                     Ok(bytes) => {
@@ -766,11 +892,17 @@ mod imp {
 
         fn Clone(&self) -> WinResult<IStream> {
             let pos = self.pos64.lock().map(|g| *g).unwrap_or(0);
+            // The clone shares the OPEN handle when there is one (reads
+            // are positioned, so one handle serves both cursors) and
+            // opens its own on first use otherwise.
+            let file = self.file.lock().map(|g| g.clone()).unwrap_or(None);
             Ok(RemoteStream {
                 rt: self.rt.clone(),
+                client: self.client.clone(),
+                path: self.path.clone(),
                 size: self.size,
                 pos64: Mutex::new(pos),
-                file: self.file.clone(),
+                file: Mutex::new(file),
             }
             .into())
         }

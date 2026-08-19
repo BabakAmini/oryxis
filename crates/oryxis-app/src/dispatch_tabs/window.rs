@@ -159,6 +159,40 @@ impl Oryxis {
         Task::none()
     }
 
+    /// The armed drag-out's payload came back (issue #167). It does NOT
+    /// start the OS drag: it parks the resolved payload in the gesture,
+    /// which `advance_drag_out` hands over once the cursor leaves the
+    /// window. An arm that is gone by now means the user released mid
+    /// round trip; dropping the payload closes the remote handles it
+    /// opened.
+    fn handle_drag_out_ready(
+        &mut self,
+        result: Result<crate::drag_out::Prepared, String>,
+    ) -> Task<Message> {
+        match result {
+            Ok(prepared) => {
+                if let Some(arm) = self.drag_out_arm.as_mut()
+                    && matches!(arm.stage, crate::drag_out::DragOutStage::Resolving)
+                {
+                    arm.stage = crate::drag_out::DragOutStage::Ready(prepared);
+                }
+                // The cursor may ALREADY be outside by the time the
+                // payload lands, and a cursor parked out there produces
+                // no further events to notice it on. This arrival is
+                // the last one the gesture is guaranteed, so the
+                // escalation check runs here too.
+                self.advance_drag_out().unwrap_or_else(Task::none)
+            }
+            Err(e) => {
+                // The open failed (file vanished, channel died): the
+                // toast is the same surface every other one-shot op
+                // reports through. The gesture is over either way.
+                self.drag_out_arm = None;
+                self.show_toast_secs(e, 3)
+            }
+        }
+    }
+
     pub(super) fn handle_window_resized(&mut self, size: iced::Size) -> Task<Message> {
         // Spatial debounce: drag-resize emits one event per pixel.
         // Quantising to an 8 px grid means most consecutive events
@@ -537,6 +571,7 @@ impl Oryxis {
     pub(super) fn handle_tabs_window(&mut self, message: TabsMessage) -> Task<Message> {
         match message {
             TabsMessage::MouseMoved(pos) => return self.handle_mouse_moved(pos),
+            TabsMessage::DragOutReady(result) => return self.handle_drag_out_ready(result),
             TabsMessage::WindowResized(size) => return self.handle_window_resized(size),
             TabsMessage::WindowMoved(pos) => {
                 // Same skip rule as the windowed-size tracking above:

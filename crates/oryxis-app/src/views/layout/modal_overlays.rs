@@ -620,16 +620,18 @@ impl Oryxis {
         wrap_with_resize(stack.width(Length::Fill).height(Length::Fill).into(), resize_overlay)
     }
 
-    /// Floating drag ghost for an in-flight cross-pane SFTP drag, tracking
-    /// the cursor above everything else and non-interactive so it never
-    /// swallows the release that ends the drag.
-    pub(crate) fn layer_sftp_drag_ghost<'a>(
+    /// Floating drag ghost for an in-flight file drag, tracking the
+    /// cursor above everything else and non-interactive so it never
+    /// swallows the release that ends the drag. Serves both drags a file
+    /// row can start (cross-pane transfer, drag-out) from one pill, so
+    /// the gesture looks the same until it lands.
+    pub(crate) fn layer_drag_ghost<'a>(
         &'a self,
         base: Element<'a, Message>,
         resize_overlay: Option<Element<'a, Message>>,
-        drag: &'a crate::state::SftpInternalDrag,
+        label: &str,
     ) -> Element<'a, Message> {
-        let ghost = crate::views::sftp::drag_ghost(&drag.label);
+        let ghost = crate::views::sftp::drag_ghost(label);
         // Offset slightly off the cursor, matches OS drag previews
         // and keeps the label out from under the pointer. Direction
         // mirrors under RTL so the ghost trails the cursor on the

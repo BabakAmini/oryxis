@@ -82,12 +82,85 @@ impl Oryxis {
                 .unwrap_or(&path)
                 .to_string()
         };
+        // The same press also arms a drag-out (issue #167). The two
+        // gestures share the press and separate on where the cursor
+        // goes: into the opposite pane it is the internal transfer,
+        // out of the window it is the OS drag. Only the FILES of the
+        // selection travel: a directory needs recursive descriptors
+        // the data object doesn't build yet, and offering a folder
+        // that arrives empty is worse than not offering it.
+        self.arm_drag_out_from_sftp(side, &items, &label);
         self.sftp.drag = Some(crate::state::SftpInternalDrag {
             origin_side: side,
             items,
             label,
             press_pos: self.mouse_position,
             active: false,
+        });
+    }
+
+    /// Build the drag-out payload for a pressed SFTP row (or the whole
+    /// same-pane selection it belongs to), the SFTP surface's half of
+    /// the arm `dispatch_sidebar_files::navigate` does for the sidebar
+    /// browser. The pane is in hand here, so the listing's sizes ride
+    /// along as the floor `prepare`'s own `stat` is measured against.
+    fn arm_drag_out_from_sftp(
+        &mut self,
+        side: SftpPaneSide,
+        items: &[(String, bool)],
+        label: &str,
+    ) {
+        self.drag_out_arm = None;
+        if !crate::drag_out::supported() {
+            return;
+        }
+        let files: Vec<&String> = items
+            .iter()
+            .filter(|(_, is_dir)| !is_dir)
+            .map(|(path, _)| path)
+            .collect();
+        // A press that ends up being an ordinary cross-pane drag still
+        // paid for the payload, so the arm stays off for selections
+        // where that price stops being invisible: `prepare` stats every
+        // file, and past a point those round trips are a queue in front
+        // of the pane's own listings. Dragging hundreds of files OUT of
+        // the window is not the gesture anyway; the context menu's
+        // download is.
+        const MAX_DRAG_OUT_FILES: usize = 64;
+        if files.is_empty() || files.len() > MAX_DRAG_OUT_FILES {
+            return;
+        }
+        let pane = self.sftp.pane(side);
+        let payload = if pane.is_remote {
+            let Some(client) = pane.client.clone() else {
+                return;
+            };
+            let files = files
+                .into_iter()
+                .map(|path| {
+                    let name = crate::dispatch_sidebar_files::files_basename(path);
+                    let size = pane
+                        .remote_entries
+                        .iter()
+                        .find(|e| e.name == name)
+                        .map_or(0, |e| e.size);
+                    crate::drag_out::RemoteDragFile {
+                        path: path.clone(),
+                        name,
+                        size,
+                    }
+                })
+                .collect();
+            crate::drag_out::DragOutPayload::Remote { client, files }
+        } else {
+            crate::drag_out::DragOutPayload::Local(
+                files.into_iter().map(std::path::PathBuf::from).collect(),
+            )
+        };
+        self.drag_out_arm = Some(crate::drag_out::DragOutArm {
+            press: self.mouse_position,
+            label: label.to_string(),
+            stage: crate::drag_out::DragOutStage::Armed(payload),
         });
     }
 

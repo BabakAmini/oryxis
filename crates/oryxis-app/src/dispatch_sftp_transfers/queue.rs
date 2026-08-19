@@ -141,6 +141,12 @@ impl Oryxis {
                         if let Some(slot) = self.transfer_slot_mut(owner) {
                             slot.state = None;
                         }
+                        // Both owners pass through here, so the notice
+                        // goes BEFORE the sidebar's early return below.
+                        self.notify_transfer_finished(
+                            crate::i18n::t("transfer_notify_done"),
+                            &root_label,
+                        );
                         if self.is_sidebar_owner(owner) {
                             // A sidebar transfer has one thing to refresh
                             // (its own listing) and none of the dual-pane
@@ -356,7 +362,11 @@ impl Oryxis {
                 // The message has to OUTLIVE the toast that used to carry
                 // it: the reported 3 GB download died while the user was
                 // looking elsewhere, and a transient toast is exactly how
-                // "everything stopped" became all they knew.
+                // "everything stopped" became all they knew. Same
+                // reasoning gives a failure the OS notice a completion
+                // gets: away from the window, "it stopped" is the half
+                // that matters most.
+                self.notify_transfer_finished(crate::i18n::t("transfer_notify_failed"), &e);
                 match kind {
                     Some(crate::state::TransferKind::DuplicateLocal) => {
                         self.transfer_set_error(owner, local_side, e);
@@ -417,5 +427,16 @@ impl Oryxis {
             m => return Err(m),
         }
         Ok(Task::none())
+    }
+
+    /// A queue that drained (or died) while the user was elsewhere.
+    /// In front of the window the progress panel already says it, so
+    /// the toast is only for the case where the notice was owed and
+    /// the OS refused to carry it.
+    fn notify_transfer_finished(&mut self, title: &str, body: &str) {
+        if self.window_focused || self.notify_away(title, body) {
+            return;
+        }
+        self.set_toast(format!("{title}: {body}"));
     }
 }
