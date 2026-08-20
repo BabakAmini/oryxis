@@ -892,7 +892,7 @@ impl Oryxis {
                     self.tab_scroll_to_active(),
                     Task::stream(stream).map(move |msg| match msg {
                         SshStreamMsg::Progress(step, log) => {
-                            Message::Ssh(SshMessage::SshProgress(step, log))
+                            Message::Ssh(SshMessage::SshProgress(pane_id, step, log))
                         }
                         SshStreamMsg::Connected(session) => Message::Ssh(SshMessage::SshConnected(
                             pane_id,
@@ -913,8 +913,8 @@ impl Oryxis {
                         SshStreamMsg::Data(data) => {
                             Message::Terminal(TerminalMessage::PtyOutput(pane_id, data))
                         }
-                        SshStreamMsg::Banner(text) => Message::Ssh(SshMessage::SshBanner(text)),
-                        SshStreamMsg::Error(err) => Message::Ssh(SshMessage::SshError(err)),
+                        SshStreamMsg::Banner(text) => Message::Ssh(SshMessage::SshBanner(pane_id, text)),
+                        SshStreamMsg::Error(err) => Message::Ssh(SshMessage::SshError(pane_id, err)),
                         SshStreamMsg::NoCommonAlgo { category, server_offers } => {
                             Message::Ssh(SshMessage::SshNoCommonAlgo {
                                 conn_id: map_conn_id,

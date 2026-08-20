@@ -119,7 +119,7 @@ impl Oryxis {
                     }
                     Err(e) => {
                         let _ = sender
-                            .send(Message::Ssh(SshMessage::SshError(format!("Serial {path}: {e}"))))
+                            .send(Message::Ssh(SshMessage::SshError(pane_id, format!("Serial {path}: {e}"))))
                             .await;
                     }
                 }

@@ -10,8 +10,17 @@ use super::*;
 impl Oryxis {
     pub(super) fn handle_ssh_progress(&mut self, message: SshMessage) -> Task<Message> {
         match message {
-            SshMessage::SshProgress(step, log) => {
-                if let Some(ref mut progress) = self.connecting {
+            SshMessage::SshProgress(pane_id, step, log) => {
+                // Scoped to the dial this card is tracking: a progress
+                // event from a connect whose card was superseded by a
+                // newer tab's dial must not append to that card's
+                // timeline (concurrent connections).
+                if self
+                    .connecting
+                    .as_ref()
+                    .is_some_and(|p| p.pane_id == pane_id)
+                    && let Some(ref mut progress) = self.connecting
+                {
                     progress.step = step;
                     progress.logs.push((step, log));
                 }
@@ -115,7 +124,7 @@ impl Oryxis {
                     };
                 }
             }
-            SshMessage::SshBanner(text) => {
+            SshMessage::SshBanner(pane_id, text) => {
                 // Progress-card copy, so legal notices / MFA instructions
                 // are readable while the auth prompts are up. Multiple
                 // banners concatenate, but CAPPED: banners are
@@ -129,7 +138,15 @@ impl Oryxis {
                 if text.trim().is_empty() {
                     return Task::none();
                 }
-                if let Some(p) = &mut self.connecting {
+                // Card copy scoped to the dial this card tracks: a banner
+                // from a connect whose card a newer tab's dial superseded
+                // must not render on that connect's card.
+                if self
+                    .connecting
+                    .as_ref()
+                    .is_some_and(|p| p.pane_id == pane_id)
+                    && let Some(p) = &mut self.connecting
+                {
                     let slot = p.banner.get_or_insert_with(String::new);
                     if slot.len() < BANNER_CAP {
                         if !slot.is_empty() {
@@ -146,10 +163,13 @@ impl Oryxis {
                         }
                     }
                 }
-                // Terminal copy: lands in scrollback, so the banner is
-                // still reviewable after the card closes (PuTTY prints
-                // it in the terminal). The emulator wants CRLF.
-                if let Some(tab_idx) = self.connecting.as_ref().map(|p| p.tab_idx)
+                // Terminal copy: lands in THIS pane's own tab's
+                // scrollback (not the current progress card's tab, which
+                // concurrent connections may have taken over), so the
+                // banner is still reviewable after the card closes
+                // (PuTTY prints it in the terminal). The emulator wants
+                // CRLF.
+                if let Some(tab_idx) = self.pane_tab_index(pane_id)
                     && let Some(tab) = self.tabs.get(tab_idx)
                     && let Ok(mut state) = tab.active().terminal.lock()
                 {

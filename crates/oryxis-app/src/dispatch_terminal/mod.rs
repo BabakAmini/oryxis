@@ -737,8 +737,16 @@ impl Oryxis {
                 if self.cursor_over_sidebar() {
                     return Task::none();
                 }
+                // Same per-tab scoping as the KeyboardEvent PTY gate: the
+                // connect screen covers only its own tab, so a tab switched
+                // away from an in-flight / failed connect keeps its IME
+                // commits (the old app-global `connecting.is_none()` ate
+                // them until the connecting tab was closed).
                 if let Some(tab_idx) = self.active_tab
-                    && self.connecting.is_none()
+                    && !self
+                        .connecting
+                        .as_ref()
+                        .is_some_and(|cp| Some(cp.tab_idx) == self.active_tab)
                 {
                     let bytes = text.into_bytes();
                     self.write_input_to_tab(tab_idx, &bytes);

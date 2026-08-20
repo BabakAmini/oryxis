@@ -74,14 +74,16 @@ impl Oryxis {
                 }
                 tracing::error!("pane SSH connect failed: {msg}");
             }
-            SshMessage::SshError(err) => {
+            SshMessage::SshError(pane_id, err) => {
                 // A cancel provoked by the identity / key switch: retry with
                 // the mutated entry instead of surfacing the failure. The
                 // guard on the progress origin keeps an (unlikely) stale flag
-                // from hijacking an unrelated connect's error.
+                // from hijacking an unrelated connect's error; the pane id
+                // scopes it to the dial this error actually belongs to.
                 if let Some(qid) = self.pending_auth_switch
                     && self.connecting.as_ref().is_some_and(|p| {
                         p.origin == crate::state::ProgressOrigin::Quick(qid)
+                            && p.pane_id == pane_id
                     })
                 {
                     self.pending_auth_switch = None;
@@ -97,9 +99,16 @@ impl Oryxis {
                     return Task::none();
                 }
                 tracing::error!("SSH error: {}", err);
+                // History entry keyed by the pane's own tab label, not the
+                // current progress card's: with concurrent connections the
+                // card may be tracking a different dial than this error.
+                let pane_label = self
+                    .pane_tab_index(pane_id)
+                    .and_then(|i| self.tabs.get(i))
+                    .map(|t| t.label.clone());
                 if self.should_record_history()
                     && let Some(vault) = &self.vault {
-                    let label = self.connecting.as_ref().map(|p| p.label.as_str()).unwrap_or("unknown");
+                    let label = pane_label.as_deref().unwrap_or("unknown");
                     let entry = oryxis_core::models::log_entry::LogEntry::new(
                         label, label, oryxis_core::models::log_entry::LogEvent::Error, &err,
                     );
@@ -111,10 +120,9 @@ impl Oryxis {
                 // identity was never added to the OS agent. Append the
                 // localized hint so the fix is one line away.
                 let err = {
-                    let sk_pinned = self
-                        .connecting
+                    let sk_pinned = pane_label
                         .as_ref()
-                        .and_then(|p| self.any_connection_by_label(&p.label))
+                        .and_then(|l| self.any_connection_by_label(l))
                         .and_then(|c| {
                             c.key_id.or_else(|| {
                                 c.identity_id.and_then(|iid| {
@@ -133,24 +141,45 @@ impl Oryxis {
                         err
                     }
                 };
-                // Mark progress as failed (keep the view open with logs)
-                if let Some(ref mut progress) = self.connecting {
-                    progress.failed = true;
-                    progress.logs.push((progress.step, format!("Error: {}", err)));
-                    // The connect is dead, so a KBI modal parked on it is an
-                    // orphan: its oneshot is gone (submits would vanish
-                    // silently) and the progress card's KBI branch renders
-                    // OVER the failure timeline, hiding the real error
-                    // (blanket auth timeout with the 2FA form open). Drop it
-                    // and answer any waiting bridge.
-                    if self.pending_kbi_prompt.is_some() {
-                        self.pending_kbi_prompt = None;
-                        self.pending_kbi_quick = None;
-                        self.kbi_inputs.clear();
-                        if let Some(ref tx) = self.kbi_response_tx {
-                            let _ = tx.try_send(None);
+                // Mark the progress card failed ONLY when it is tracking
+                // this pane's dial. A later tab's connect may have taken
+                // over the card while this dial was still in flight; in
+                // that case the failure belongs to the pane itself, so
+                // surface it there instead.
+                if self
+                    .connecting
+                    .as_ref()
+                    .is_some_and(|p| p.pane_id == pane_id)
+                {
+                    if let Some(ref mut progress) = self.connecting {
+                        progress.failed = true;
+                        progress.logs.push((progress.step, format!("Error: {}", err)));
+                        // The connect is dead, so a KBI modal parked on it is an
+                        // orphan: its oneshot is gone (submits would vanish
+                        // silently) and the progress card's KBI branch renders
+                        // OVER the failure timeline, hiding the real error
+                        // (blanket auth timeout with the 2FA form open). Drop it
+                        // and answer any waiting bridge.
+                        if self.pending_kbi_prompt.is_some() {
+                            self.pending_kbi_prompt = None;
+                            self.pending_kbi_quick = None;
+                            self.kbi_inputs.clear();
+                            if let Some(ref tx) = self.kbi_response_tx {
+                                let _ = tx.try_send(None);
+                            }
                         }
                     }
+                } else if let Some(pane) = self
+                    .tabs
+                    .iter()
+                    .flat_map(|t| t.pane_grid.panes.values())
+                    .find(|p| p.id == pane_id)
+                    && let Ok(mut state) = pane.terminal.lock()
+                {
+                    // Concurrent-connect fallback: no card tracks this
+                    // dial anymore, so print the failure into the pane's
+                    // own terminal (mirrors `PaneConnectError`).
+                    state.process(format!("\r\nConnection failed: {err}\r\n").as_bytes());
                 } else {
                     self.host_panel_error = Some(format!("SSH: {}", err));
                 }

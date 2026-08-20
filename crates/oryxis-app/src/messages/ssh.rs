@@ -22,10 +22,14 @@ pub enum SshMessage {
     /// Protocol badge picked on the quick-connect card (issue #174),
     /// for the case where the typed text names no `scheme://`.
     QuickConnectProtocolPicked(oryxis_core::models::connection::ConnectionProtocol),
-    SshProgress(ConnectionStep, String),
+    /// Progress step for the dial of `(pane_id)`. The pane id is part of
+    /// the message so a later, unrelated connect can't capture an earlier
+    /// dial's timeline on its progress card (concurrent tabs).
+    SshProgress(Uuid, ConnectionStep, String),
     /// Pre-auth banner (RFC 4252 §5.4) for the connect in progress:
-    /// shown on the progress card and written to the tab's terminal.
-    SshBanner(String),
+    /// `(pane_id, text)`; shown on the progress card (when it is tracking
+    /// this pane's dial) and written to that pane's tab terminal.
+    SshBanner(Uuid, String),
     /// Pre-auth banner for a split-pane connect (no progress card):
     /// written straight to that pane's terminal.
     SshPaneBanner(Uuid, String),
@@ -39,7 +43,11 @@ pub enum SshMessage {
     ReuseFailedDialFresh(Uuid),
 
     SshDisconnected(Uuid),  // (pane_id)
-    SshError(String),
+    /// A tab-connect dial failed: `(pane_id, error)`. The pane id lets the
+    /// error land on the progress card that is actually tracking this dial;
+    /// a failure for a dial whose card was superseded by a newer connect
+    /// falls back to writing into that pane's terminal instead.
+    SshError(Uuid, String),
     /// Handshake hit "no common algorithm". Prompts the legacy-fallback
     /// dialog for `conn_id` (the failed category + what the server offered).
     SshNoCommonAlgo {

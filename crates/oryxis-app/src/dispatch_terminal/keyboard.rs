@@ -366,8 +366,19 @@ impl Oryxis {
                     return Ok(Task::none());
                 }
 
+                // The connect screen covers only the connecting tab (the
+                // render side scopes it via `cp.tab_idx == active_tab` in
+                // `view_content`); match that here. The old app-global
+                // `connecting.is_none()` gate ate every keystroke in every
+                // other tab as long as one tab sat on an in-flight or
+                // failed-and-not-dismissed connect, so typing died until
+                // the connecting tab was closed.
+                let connecting_here = self
+                    .connecting
+                    .as_ref()
+                    .is_some_and(|cp| Some(cp.tab_idx) == self.active_tab);
                 if let Some(tab_idx) = self.active_tab
-                    && self.connecting.is_none()
+                    && !connecting_here
                     && let keyboard::Event::KeyPressed {
                         key,
                         modified_key,

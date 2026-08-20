@@ -195,10 +195,13 @@ impl Oryxis {
                     }
                     Err(e) => {
                         let _ = sender
-                            .send(Message::Ssh(SshMessage::SshError(format!(
-                                "Connection to {}:{} failed: {}",
-                                conn_host, conn_port, e
-                            ))))
+                            .send(Message::Ssh(SshMessage::SshError(
+                                pane_id,
+                                format!(
+                                    "Connection to {}:{} failed: {}",
+                                    conn_host, conn_port, e
+                                ),
+                            )))
                             .await;
                     }
                 }
