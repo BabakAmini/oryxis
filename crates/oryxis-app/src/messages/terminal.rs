@@ -76,6 +76,11 @@ pub enum TerminalMessage {
     /// Arrives separately from `KeyboardEvent`; forwarded to the active
     /// PTY in `dispatch_terminal` behind the same focus guards.
     TerminalImeCommit(String),
+    /// IME preedit (composition) update, e.g. the pinyin syllables while a
+    /// CJK input method is composing. Stored on the focused pane's
+    /// `TerminalState` so the `ime_host` overlay can render it at the
+    /// caret; an empty string clears it.
+    TerminalImePreedit(String),
     /// Focus a pane (click). Routes keyboard / snippets / paste to it.
     FocusPane(iced::widget::pane_grid::Pane),
     /// Drag a pane divider to resize.

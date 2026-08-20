@@ -74,6 +74,22 @@ impl Oryxis {
                 iced::event::Event::InputMethod(
                     iced::advanced::input_method::Event::Commit(text),
                 ) => Some(Message::Terminal(TerminalMessage::TerminalImeCommit(text))),
+                // Composition (preedit) updates: pinyin syllables, kana,
+                // etc. while an IME is composing. Stored on the focused
+                // pane so the `ime_host` overlay draws them at the caret;
+                // an empty string (or the IME closing) clears it. The
+                // cursor-range hint is ignored: the terminal's caret is
+                // where the composed text belongs.
+                iced::event::Event::InputMethod(
+                    iced::advanced::input_method::Event::Preedit(text, _),
+                ) => Some(Message::Terminal(TerminalMessage::TerminalImePreedit(
+                    text,
+                ))),
+                iced::event::Event::InputMethod(iced::advanced::input_method::Event::Closed) => {
+                    Some(Message::Terminal(TerminalMessage::TerminalImePreedit(
+                        String::new(),
+                    )))
+                }
                 iced::event::Event::Mouse(iced::mouse::Event::CursorMoved { position }) => {
                     // Always record the raw position (cheap, no message):
                     // `update()` syncs `self.mouse_position` from these on

@@ -5447,6 +5447,7 @@ dependencies = [
  "regex",
  "tokio",
  "tracing",
+ "unicode-width",
  "vte",
  "windows-sys 0.61.2",
 ]

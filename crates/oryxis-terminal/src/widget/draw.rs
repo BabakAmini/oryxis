@@ -237,6 +237,8 @@ where
             in_alt_screen,
             scroll_offset,
             ghost,
+            preedit,
+            cols_count,
         ) = {
             let mut state = match self.state.lock() {
                 Ok(s) => s,
@@ -440,6 +442,8 @@ where
                 in_alt_screen,
                 scroll_offset,
                 ghost,
+                state.preedit().to_string(),
+                cols_count,
             )
         };
         let palette = &palette;
@@ -975,31 +979,83 @@ where
         if (0..screen_lines as i32).contains(&visible_cursor_row) {
             let cx = cursor.point.column.0 as f32 * cell_w + TERM_PAD;
             let cy = visible_cursor_row as f32 * cell_h + TERM_PAD_TOP;
-            match cursor.shape {
+            // Paint the caret shape at an arbitrary cell origin, shared by
+            // the normal caret and the end of an inline IME composition.
+            let paint_cursor = |frame: &mut Frame, x: f32| match cursor.shape {
                 CursorShape::Block => {
                     frame.fill_rectangle(
-                        Point::new(cx, cy),
+                        Point::new(x, cy),
                         Size::new(cell_w, cell_h),
                         Color { a: 0.7, ..palette.cursor },
                     );
                 }
                 CursorShape::Beam => {
-                    frame.fill_rectangle(Point::new(cx, cy), Size::new(2.0, cell_h), palette.cursor);
+                    frame.fill_rectangle(Point::new(x, cy), Size::new(2.0, cell_h), palette.cursor);
                 }
                 CursorShape::Underline => {
                     frame.fill_rectangle(
-                        Point::new(cx, cy + cell_h - 2.0),
+                        Point::new(x, cy + cell_h - 2.0),
                         Size::new(cell_w, 2.0),
                         palette.cursor,
                     );
                 }
                 _ => {
                     frame.fill_rectangle(
-                        Point::new(cx, cy),
+                        Point::new(x, cy),
                         Size::new(cell_w, cell_h),
                         Color { a: 0.5, ..palette.cursor },
                     );
                 }
+            };
+            // Inline IME preedit: while a composition is active the caret
+            // row shows the composed text in the terminal font, one glyph
+            // per cell from the caret (CJK wide glyphs take two cells),
+            // underlined to mark the composition region (Windows Terminal /
+            // alacritty style). The caret moves to the end of the composed
+            // text and the normal cursor is not drawn; the composition
+            // clips at the right edge of the grid.
+            if !preedit.is_empty() {
+                let mut pen_x = cx;
+                let mut end_col = cursor.point.column.0;
+                for ch in preedit.chars() {
+                    let w =
+                        unicode_width::UnicodeWidthChar::width(ch).unwrap_or(0).max(1);
+                    if end_col + w > cols_count {
+                        break;
+                    }
+                    // Semi-transparent backing so the composition stays
+                    // readable over a colourful cell behind it (vim
+                    // highlight, a selection, a bright ANSI background):
+                    // the composed text is not part of the grid, so it
+                    // must not inherit whatever the cell carries. RGB
+                    // comes from the palette background (works on
+                    // transparent backdrops too, alpha is ours).
+                    frame.fill_rectangle(
+                        Point::new(pen_x, cy),
+                        Size::new(w as f32 * cell_w, cell_h),
+                        Color { a: 0.45, ..palette.background },
+                    );
+                    stamp(
+                        frame,
+                        ch.to_string(),
+                        Point::new(pen_x, cy),
+                        palette.foreground,
+                        self.font,
+                    );
+                    // Composition underline at the same height as the
+                    // `CursorShape::Underline` caret, so the region reads
+                    // as "being edited" rather than a separate element.
+                    frame.fill_rectangle(
+                        Point::new(pen_x, cy + cell_h - 2.0),
+                        Size::new(w as f32 * cell_w, 2.0),
+                        Color { a: 0.8, ..palette.foreground },
+                    );
+                    pen_x += w as f32 * cell_w;
+                    end_col += w;
+                }
+                paint_cursor(frame, pen_x);
+            } else {
+                paint_cursor(frame, cx);
             }
         }
 

@@ -20,6 +20,9 @@ regex = { workspace = true }
 # performed by the host through the iced runtime, so the process only ever
 # has one clipboard operation in flight. See `host_clipboard` for the
 # STATUS_HEAP_CORRUPTION crash that rule comes from.
+# Character width for the inline IME preedit layout (CJK double-width
+# cells); already in the tree via alacritty_terminal.
+unicode-width = "0.2"
 
 # `ShellExecuteW`, so Ctrl+click on a link reaches the OS handler without
 # a shell in between. The `cmd /C start` shim it replaces let a byte the

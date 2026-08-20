@@ -44,6 +44,12 @@ pub struct TerminalState {
     /// chip. `None` when the pointer is over no explicit link. Updated by
     /// the widget's hover handler under the render lock.
     pub hovered_link: Option<HoveredLink>,
+    /// IME preedit (composition) text for this pane, e.g. the pinyin
+    /// syllables while a CJK input method is composing. The app stores it
+    /// from `InputMethod::Preedit` events; the `ime_host` widget reports it
+    /// back to the iced runtime so the over-the-spot overlay can draw it at
+    /// the caret. Empty string means "no active composition".
+    preedit: String,
 }
 
 impl TerminalState {
@@ -69,7 +75,7 @@ impl TerminalState {
         let (pty, rx) =
             PtyHandle::spawn_command(cols, rows, None, &[], cwd, env, &backend.event_proxy)?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None, preedit: String::new() }, rx))
     }
 
     /// Like `new` but spawns an explicit program (e.g. PowerShell or
@@ -102,7 +108,7 @@ impl TerminalState {
             cols, rows, Some(program), args, cwd, env, &backend.event_proxy,
         )?;
         let palette = TerminalPalette::default();
-        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None }, rx))
+        Ok((Self { backend, pty: Some(pty), palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None, preedit: String::new() }, rx))
     }
 
     pub fn new_no_pty(
@@ -111,7 +117,7 @@ impl TerminalState {
     ) -> TerminalResult<Self> {
         let backend = TerminalBackend::new(cols, rows);
         let palette = TerminalPalette::default();
-        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None })
+        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None, preedit: String::new() })
     }
 
     /// A PTY-less state with an explicit scrollback budget, for the
@@ -125,7 +131,7 @@ impl TerminalState {
     ) -> TerminalResult<Self> {
         let backend = TerminalBackend::new_with_scrollback(cols, rows, scrollback);
         let palette = TerminalPalette::default();
-        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None })
+        Ok(Self { backend, pty: None, palette, remote_resize_tx: None, render_epoch: 0, search: None, pending_scroll: std::cell::Cell::new(None), hovered_link: None, preedit: String::new() })
     }
 
     /// Wire a remote resize sender, called from the app once an SSH
@@ -767,6 +773,23 @@ impl TerminalState {
         (p.column.0 as u16, p.line.0.max(0) as u16)
     }
 
+    /// Store the OS IME preedit (composition) text, e.g. pinyin syllables
+    /// while a CJK method is composing. Empty means "no active composition".
+    /// Drawn inline on the grid by the widget (terminal font, at the
+    /// caret); the `ime_host` decorator only anchors the OS candidate
+    /// window. Bumps the render epoch so the canvas geometry cache
+    /// re-tessellates with the new composition (it is part of what a
+    /// frame draws).
+    pub fn set_preedit(&mut self, text: String) {
+        self.preedit = text;
+        self.render_epoch = self.render_epoch.wrapping_add(1);
+    }
+
+    /// The current IME preedit text (empty when idle).
+    pub fn preedit(&self) -> &str {
+        &self.preedit
+    }
+
     /// Extract text from a selection range.
     pub fn get_selection_text(&self, sel: &Selection) -> String {
         use alacritty_terminal::grid::Dimensions;
@@ -1087,6 +1110,21 @@ pub struct RegionText {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The IME preedit round-trip the `ime_host` overlay depends on: the app
+    /// stores composition text on the state, the overlay reads it back on the
+    /// next redraw, and an empty string (commit / IME close) hides it again.
+    #[test]
+    fn preedit_round_trips_and_empty_clears() {
+        let mut state = TerminalState::new_no_pty(24, 80).expect("headless state");
+        assert!(state.preedit().is_empty(), "idle state has no preedit");
+
+        state.set_preedit("nihao".to_string());
+        assert_eq!(state.preedit(), "nihao");
+
+        state.set_preedit(String::new());
+        assert!(state.preedit().is_empty(), "empty preedit clears the overlay");
+    }
 
     /// The canvas geometry cache keys off `render_epoch`: a stale epoch
     /// after real output or a palette swap would leave the terminal showing

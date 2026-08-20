@@ -506,9 +506,11 @@ pub(crate) fn scroll_into_view_task(
 /// itself arrives as `Event::InputMethod(Commit(..))` and is routed to the
 /// PTY in `subscription.rs` / `dispatch_terminal.rs`, not here.
 ///
-/// The candidate box is anchored near the bottom-left (the usual prompt row)
-/// rather than the live caret. Caret-following is a future polish; this keeps
-/// the popup on-screen and functional.
+/// The candidate box is anchored at the live caret (the pane's drawn cell)
+/// and the composed preedit is drawn INLINE on the grid by the terminal
+/// widget itself (terminal font, at the caret), so we deliberately report
+/// `preedit: None`: the runtime's over-the-spot overlay would otherwise
+/// double-paint the composition in a second font.
 pub(crate) fn ime_host<'a, Message: 'a>(
     content: impl Into<Element<'a, Message>>,
     enabled: bool,
@@ -599,9 +601,12 @@ pub(crate) fn ime_host<'a, Message: 'a>(
                 )
             {
                 let b = layout.bounds();
-                // Anchor the candidate window at the terminal caret. try_lock
-                // so a frame that races the render thread just falls back to
-                // the bottom-left instead of blocking the UI.
+                // Anchor the OS candidate window at the terminal caret.
+                // try_lock so a frame that races the render thread just
+                // falls back to the bottom-left instead of blocking the UI.
+                // The composed preedit is drawn inline by the terminal
+                // widget itself, so `preedit` stays `None` here (no
+                // over-the-spot overlay, no double paint).
                 let cursor_area = match self.terminal.try_lock() {
                     Ok(state) => oryxis_terminal::ime_caret_rect(
                         b,
@@ -620,7 +625,10 @@ pub(crate) fn ime_host<'a, Message: 'a>(
                 };
                 let ime: input_method::InputMethod = input_method::InputMethod::Enabled {
                     cursor: cursor_area,
-                    purpose: input_method::Purpose::Normal,
+                    // A terminal surface: lets Wayland shape the OSK for a
+                    // PTY (extra keys, layout hints) instead of the generic
+                    // text-field form.
+                    purpose: input_method::Purpose::Terminal,
                     preedit: None,
                 };
                 shell.request_input_method(&ime);

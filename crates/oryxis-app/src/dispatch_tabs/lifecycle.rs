@@ -21,6 +21,15 @@ impl Oryxis {
             // Switching tabs dismisses the session-group editor (it's
             // tied to the tab it was opened from).
             self.panels.session_group_panel = false;
+            // Leaving a tab mid-composition clears its preedit so a stale
+            // IME overlay can't re-show when the user tabs back.
+            if let Some(old_idx) = self.active_tab
+                && old_idx != idx
+                && let Some(old) = self.tabs.get(old_idx)
+                && let Ok(mut state) = old.active().terminal.lock()
+            {
+                state.set_preedit(String::new());
+            }
             self.active_tab = Some(idx);
             // A hybrid tab in Files mode owns the live SFTP buffer
             // while shown (park/hoist, same invariant as the
