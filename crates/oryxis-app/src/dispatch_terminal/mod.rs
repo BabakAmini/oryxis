@@ -738,7 +738,20 @@ impl Oryxis {
             // the host-panel / modal guards keep that from also hitting the
             // session.
             TerminalMessage::TerminalImeCommit(text) => {
+                // Which gate a commit died on is the other half of the IME
+                // evidence (the subscription traces delivery); lengths only,
+                // never content.
+                let trace_ime = crate::logging::is_enabled();
+                let commit_len = text.chars().count();
                 if text.is_empty() || self.panels.host_panel || self.any_modal_blocks_input() {
+                    if trace_ime && !text.is_empty() {
+                        tracing::debug!(
+                            len = commit_len,
+                            host_panel = self.panels.host_panel,
+                            modal = self.any_modal_blocks_input(),
+                            "ime-commit dropped by surface gate"
+                        );
+                    }
                     return Task::none();
                 }
                 // `cursor_over_sidebar` honors the dock side (issue #85)
@@ -746,6 +759,9 @@ impl Oryxis {
                 // right-edge math leaked IME commits into the PTY when
                 // the sidebar was docked left.
                 if self.cursor_over_sidebar() {
+                    if trace_ime {
+                        tracing::debug!(len = commit_len, "ime-commit dropped: cursor over sidebar");
+                    }
                     return Task::none();
                 }
                 // Same per-tab scoping as the KeyboardEvent PTY gate: the
@@ -765,6 +781,15 @@ impl Oryxis {
                     // sends an empty Preedit first, but clear defensively so
                     // a stale preedit can never linger on the overlay.
                     self.clear_focused_pane_preedit();
+                    if trace_ime {
+                        tracing::debug!(len = commit_len, tab = tab_idx, "ime-commit written to PTY");
+                    }
+                } else if trace_ime {
+                    tracing::debug!(
+                        len = commit_len,
+                        no_tab = self.active_tab.is_none(),
+                        "ime-commit dropped: connecting tab or no tab"
+                    );
                 }
             }
             // IME composition (preedit) update, e.g. pinyin syllables. Stored

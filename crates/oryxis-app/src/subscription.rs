@@ -73,7 +73,17 @@ impl Oryxis {
                 // the final commit needs forwarding.
                 iced::event::Event::InputMethod(
                     iced::advanced::input_method::Event::Commit(text),
-                ) => Some(Message::Terminal(TerminalMessage::TerminalImeCommit(text))),
+                ) => {
+                    // IME tracing (debug log, opt-in): whether the OS ever
+                    // delivered composition events is exactly what an "IME
+                    // types nothing" report (issue #176) needs answered.
+                    // Lengths only, never content: commits are what the
+                    // user typed.
+                    if crate::logging::is_enabled() {
+                        tracing::debug!(len = text.chars().count(), "ime-commit delivered");
+                    }
+                    Some(Message::Terminal(TerminalMessage::TerminalImeCommit(text)))
+                }
                 // Composition (preedit) updates: pinyin syllables, kana,
                 // etc. while an IME is composing. Stored on the focused
                 // pane so the `ime_host` overlay draws them at the caret;
@@ -82,10 +92,27 @@ impl Oryxis {
                 // where the composed text belongs.
                 iced::event::Event::InputMethod(
                     iced::advanced::input_method::Event::Preedit(text, _),
-                ) => Some(Message::Terminal(TerminalMessage::TerminalImePreedit(
-                    text,
-                ))),
+                ) => {
+                    if crate::logging::is_enabled() {
+                        tracing::debug!(len = text.chars().count(), "ime-preedit delivered");
+                    }
+                    Some(Message::Terminal(TerminalMessage::TerminalImePreedit(
+                        text,
+                    )))
+                }
+                iced::event::Event::InputMethod(iced::advanced::input_method::Event::Opened) => {
+                    // No message: the app has nothing to do on open. Traced
+                    // because "opened but no preedit ever followed" and "never
+                    // opened at all" are different IME failures.
+                    if crate::logging::is_enabled() {
+                        tracing::debug!("ime-opened");
+                    }
+                    None
+                }
                 iced::event::Event::InputMethod(iced::advanced::input_method::Event::Closed) => {
+                    if crate::logging::is_enabled() {
+                        tracing::debug!("ime-closed");
+                    }
                     Some(Message::Terminal(TerminalMessage::TerminalImePreedit(
                         String::new(),
                     )))
