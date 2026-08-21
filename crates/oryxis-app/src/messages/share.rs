@@ -10,6 +10,12 @@ pub enum ShareMessage {
     ExportToggleCategory(oryxis_vault::ExportCategory),
     ExportConfirm,
     ExportCompleted(Result<String, String>),
+    /// Export the host list as a secrets-free CSV, the round-trip mate
+    /// of the hub's CSV importer. No dialog step: there is no password
+    /// to ask for, so the save dialog is the whole interaction.
+    ExportHostsCsv,
+    /// The CSV write finished; `Ok` carries the written path.
+    ExportHostsCsvCompleted(Result<String, String>),
     ImportVault,
     /// Pick `~/.ssh/config` (or any file the user chooses) and read it.
     /// The parsed Host blocks land in a preview modal where the user

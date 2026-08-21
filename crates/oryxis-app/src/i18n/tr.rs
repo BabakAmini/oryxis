@@ -902,6 +902,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "Kasayı Dışa Aktar",
+        "export_hosts_csv" => "Ana bilgisayarları dışa aktar (CSV)",
+        "csv_export_done" => "{count} ana bilgisayar {path} konumuna aktarıldı",
         "import_vault" => "Kasayı İçe Aktar",
         // Vault export/import categories + dialog
         "password_required" => "Parola gerekli",

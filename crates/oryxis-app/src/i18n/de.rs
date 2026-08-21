@@ -736,6 +736,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "Bereitgestellte Tresorschlüssel",
         "agent_external_keys_held" => "Gehaltene externe Schlüssel",
         "export_vault" => "Tresor exportieren",
+        "export_hosts_csv" => "Hosts exportieren (CSV)",
+        "csv_export_done" => "{count} Hosts nach {path} exportiert",
         "import_vault" => "Tresor importieren",
         // Vault export/import categories + dialog
         "password_required" => "Passwort erforderlich",

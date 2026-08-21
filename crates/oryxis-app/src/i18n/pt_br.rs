@@ -876,6 +876,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "Chaves do cofre servidas",
         "agent_external_keys_held" => "Chaves externas mantidas",
         "export_vault" => "Exportar Cofre",
+        "export_hosts_csv" => "Exportar hosts (CSV)",
+        "csv_export_done" => "{count} hosts exportados para {path}",
         "import_vault" => "Importar Cofre",
         // Vault export/import categories + dialog
         "password_required" => "A senha é obrigatória",

@@ -736,6 +736,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "Обслуживаемые ключи хранилища",
         "agent_external_keys_held" => "Удерживаемые внешние ключи",
         "export_vault" => "Экспорт хранилища",
+        "export_hosts_csv" => "Экспорт хостов (CSV)",
+        "csv_export_done" => "Экспортировано хостов: {count}, в {path}",
         "import_vault" => "Импорт хранилища",
         // Vault export/import categories + dialog
         "password_required" => "Требуется пароль",

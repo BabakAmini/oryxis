@@ -1,6 +1,9 @@
-//! CSV / Termius importer: one header-mapped table reader serving
-//! both the generic "spreadsheet of hosts" case and Termius' own
-//! export (which is a CSV of hosts without secrets).
+//! CSV / Termius importer, and the CSV host EXPORT that mirrors it:
+//! one header-mapped table reader serving both the generic
+//! "spreadsheet of hosts" case and Termius' own export (which is a
+//! CSV of hosts without secrets), plus [`render`], which writes the
+//! same columns back so an exported file re-imports losslessly here
+//! and lands recognizably in any tool that reads host spreadsheets.
 //!
 //! Columns are matched by header NAME, case- and separator-
 //! insensitive (`Host Name`, `hostname`, `host_name` all hit the
@@ -156,6 +159,56 @@ pub(crate) fn parse(text: &str) -> Option<DirectImport> {
     (!out.hosts.is_empty() || !out.skipped.is_empty()).then_some(out)
 }
 
+/// Render hosts as the CSV [`parse`] reads back: the same
+/// header-mapped columns, RFC 4180 quoting, comma-delimited. Each row
+/// arrives with its group PATH pre-resolved ("Prod / Web"; empty for
+/// root) because group ids mean nothing outside this vault.
+///
+/// There is deliberately NO password column, and the function cannot
+/// grow one by accident: it never receives secret material at all.
+/// The encrypted portable export stays the only secrets-bearing path;
+/// this is the shareable, secrets-free view of the host list.
+pub(crate) fn render(rows: &[(&Connection, String)]) -> String {
+    let mut out = String::from("label,hostname,port,username,protocol,group,tags,notes\n");
+    for (conn, group) in rows {
+        let cells = [
+            conn.label.clone(),
+            conn.hostname.clone(),
+            conn.port.to_string(),
+            conn.username.clone().unwrap_or_default(),
+            // `Local` has no scheme (it names no endpoint); every
+            // other protocol reuses its quick-connect token, which is
+            // also what re-importing recognizes (foreign ones are
+            // reported by name rather than guessed at).
+            conn.protocol.scheme().unwrap_or("local").to_string(),
+            group.clone(),
+            conn.tags.join(","),
+            conn.notes.clone().unwrap_or_default(),
+        ];
+        let mut first = true;
+        for cell in cells {
+            if !first {
+                out.push(',');
+            }
+            first = false;
+            out.push_str(&quote_field(&cell));
+        }
+        out.push('\n');
+    }
+    out
+}
+
+/// RFC 4180 field quoting. The semicolon is included so a re-read (or
+/// another tool's delimiter sniffing) can never split on one inside a
+/// notes field.
+fn quote_field(cell: &str) -> String {
+    if cell.contains(['"', ',', ';', '\n', '\r']) {
+        format!("\"{}\"", cell.replace('"', "\"\""))
+    } else {
+        cell.to_string()
+    }
+}
+
 /// Minimal RFC 4180 reader: quoted fields, doubled quotes inside
 /// them, embedded newlines, and a comma-or-semicolon delimiter
 /// sniffed from the header (European exports use `;`).
@@ -291,5 +344,81 @@ mod tests {
     fn a_table_with_no_usable_header_is_not_a_host_list() {
         assert!(parse("total,average\n1,2\n").is_none());
         assert!(parse("").is_none());
+    }
+
+    #[test]
+    fn export_round_trips_through_the_importer() {
+        let mut conn = Connection::new("web, staging".to_string(), "web1.corp".to_string());
+        conn.port = 2222;
+        conn.username = Some("deploy".to_string());
+        conn.tags = vec!["prod".to_string(), "web".to_string()];
+        conn.notes = Some("say \"hi\"\nthen wait".to_string());
+        let csv = render(&[(&conn, "Prod / Web".to_string())]);
+
+        let back = parse(&csv).expect("own export parses");
+        assert_eq!(back.hosts.len(), 1);
+        assert!(back.skipped.is_empty());
+        let c = &back.hosts[0].conn;
+        assert_eq!(c.label, "web, staging");
+        assert_eq!(c.hostname, "web1.corp");
+        assert_eq!(c.port, 2222);
+        assert_eq!(c.username.as_deref(), Some("deploy"));
+        assert_eq!(c.protocol, ConnectionProtocol::Ssh);
+        assert_eq!(c.tags, vec!["prod".to_string(), "web".to_string()]);
+        // The importer folds the group column into the notes, after
+        // the note text itself (quotes and newline intact).
+        assert_eq!(
+            c.notes.as_deref(),
+            Some("say \"hi\"\nthen wait\nGroup: Prod / Web")
+        );
+        // Nothing in the round trip invented a credential.
+        assert!(back.hosts[0].password.is_none());
+    }
+
+    #[test]
+    fn export_never_grows_a_password_column() {
+        // Structural, like proxy_password_does_not_leak_into_proxy_column:
+        // the header is the contract, and no header may map to the
+        // password slot. `render` cannot even receive secrets (its
+        // input carries none), so the header check is what would catch
+        // a future column addition that changes that.
+        let conn = Connection::new("a".to_string(), "a.corp".to_string());
+        let csv = render(&[(&conn, String::new())]);
+        let header = csv.lines().next().unwrap();
+        for h in header.split(',') {
+            assert!(
+                !matches!(column_of(h), Column::Password),
+                "export header {h:?} maps to the password column"
+            );
+        }
+        assert_eq!(
+            header,
+            "label,hostname,port,username,protocol,group,tags,notes"
+        );
+    }
+
+    #[test]
+    fn export_writes_every_protocol_by_its_token() {
+        // Non-SSH tokens must be the quick-connect vocabulary: the
+        // importer re-reads ssh/telnet and reports the others by name
+        // instead of silently guessing.
+        let mk = |p: ConnectionProtocol| {
+            let mut c = Connection::new("x".to_string(), "x.corp".to_string());
+            c.protocol = p;
+            c
+        };
+        let conns = [
+            (mk(ConnectionProtocol::Ssh), "ssh"),
+            (mk(ConnectionProtocol::Telnet), "telnet"),
+            (mk(ConnectionProtocol::Raw), "raw"),
+            (mk(ConnectionProtocol::Serial), "serial"),
+            (mk(ConnectionProtocol::Local), "local"),
+            (mk(ConnectionProtocol::RemoteDesktop), "rdp"),
+        ];
+        for (conn, token) in &conns {
+            let csv = render(&[(conn, String::new())]);
+            let row = csv.lines().nth(1).unwrap();
+            assert_eq!(row.split(',').nth(4), Some(*token));
+        }
     }
 }

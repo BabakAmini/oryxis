@@ -262,13 +262,8 @@ tracks it interactively.
   IP changes and sleep, with predictive local echo. This would be the
   first open-source mosh client to run natively on Windows (no Cygwin or
   WSL layer).
-- **Utilities:** CSV export of hosts, and an optional network tools
-  panel (DNS, ping / traceroute, port test, TLS check, WHOIS, RBL).
-- **Keyboard-only dialogs:** finish keyboard navigation on the prompts
-  that still expect a mouse to pick an answer. The host-key and
-  command-proxy approvals take Esc (which always refuses) but offer no
-  way to reach their other buttons, so the safest answer is the only
-  one the keyboard can give.
+- **Utilities:** an optional network tools panel (DNS, ping /
+  traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** a curated terminal theme collection plus theme file
   import, and one-click relay deploy (the app installs `oryxis-relay`
   on a host from your vault over SSH, with the script shown before it

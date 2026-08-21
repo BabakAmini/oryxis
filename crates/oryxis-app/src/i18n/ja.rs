@@ -749,6 +749,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "提供中のヴォルトの鍵",
         "agent_external_keys_held" => "保持中の外部鍵",
         "export_vault" => "保管庫をエクスポート",
+        "export_hosts_csv" => "ホストをエクスポート (CSV)",
+        "csv_export_done" => "{count} 件のホストを {path} にエクスポートしました",
         "import_vault" => "保管庫をインポート",
         // Vault export/import categories + dialog
         "password_required" => "パスワードが必要です",

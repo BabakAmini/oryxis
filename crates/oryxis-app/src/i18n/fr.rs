@@ -749,6 +749,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "Clés du coffre servies",
         "agent_external_keys_held" => "Clés externes détenues",
         "export_vault" => "Exporter le Coffre",
+        "export_hosts_csv" => "Exporter les hôtes (CSV)",
+        "csv_export_done" => "{count} hôtes exportés vers {path}",
         "import_vault" => "Importer le Coffre",
         // Vault export/import categories + dialog
         "password_required" => "Le mot de passe est requis",

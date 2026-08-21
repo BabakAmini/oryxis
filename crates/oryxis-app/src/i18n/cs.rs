@@ -908,6 +908,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "Exportovat trezor",
+        "export_hosts_csv" => "Exportovat hostitele (CSV)",
+        "csv_export_done" => "Exportováno {count} hostitelů do {path}",
         "import_vault" => "Importovat trezor",
         // Vault export/import categories + dialog
         "password_required" => "Heslo je povinné",

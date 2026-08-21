@@ -736,6 +736,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "Chiavi del vault servite",
         "agent_external_keys_held" => "Chiavi esterne conservate",
         "export_vault" => "Esporta Cassaforte",
+        "export_hosts_csv" => "Esporta host (CSV)",
+        "csv_export_done" => "{count} host esportati in {path}",
         "import_vault" => "Importa Cassaforte",
         // Vault export/import categories + dialog
         "password_required" => "La password è obbligatoria",

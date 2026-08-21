@@ -912,6 +912,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "Eksportuj sejf",
+        "export_hosts_csv" => "Eksportuj hosty (CSV)",
+        "csv_export_done" => "Wyeksportowano {count} hostów do {path}",
         "import_vault" => "Importuj sejf",
         // Vault export/import categories + dialog
         "password_required" => "Hasło jest wymagane",

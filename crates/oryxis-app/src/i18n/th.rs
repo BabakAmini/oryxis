@@ -908,6 +908,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "ส่งออก Vault",
+        "export_hosts_csv" => "ส่งออกโฮสต์ (CSV)",
+        "csv_export_done" => "ส่งออก {count} โฮสต์ไปยัง {path} แล้ว",
         "import_vault" => "นำเข้า Vault",
         // Vault export/import categories + dialog
         "password_required" => "ต้องระบุรหัสผ่าน",

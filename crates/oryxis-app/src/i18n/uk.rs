@@ -902,6 +902,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "Експортувати сховище",
+        "export_hosts_csv" => "Експортувати хости (CSV)",
+        "csv_export_done" => "Експортовано хостів: {count}, до {path}",
         "import_vault" => "Імпортувати сховище",
         // Vault export/import categories + dialog
         "password_required" => "Потрібен пароль",

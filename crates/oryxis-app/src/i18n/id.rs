@@ -902,6 +902,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "Ekspor Vault",
+        "export_hosts_csv" => "Ekspor host (CSV)",
+        "csv_export_done" => "{count} host diekspor ke {path}",
         "import_vault" => "Impor Vault",
         // Vault export/import categories + dialog
         "password_required" => "Kata sandi diperlukan",

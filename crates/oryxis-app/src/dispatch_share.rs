@@ -124,6 +124,54 @@ impl Oryxis {
             ShareMessage::ExportCompleted(result) => {
                 self.export_status = Some(result);
             }
+            ShareMessage::ExportHostsCsv => {
+                // Rendered here, on live state: only plaintext fields
+                // go in (`importers::csv::render` cannot receive
+                // secrets), so no vault access and no password step.
+                let rows: Vec<(&oryxis_core::models::Connection, String)> = self
+                    .connections
+                    .iter()
+                    .map(|c| {
+                        let group = c
+                            .group_id
+                            .map(|gid| oryxis_core::models::Group::path_of(&self.groups, gid))
+                            .unwrap_or_default();
+                        (c, group)
+                    })
+                    .collect();
+                let data = crate::importers::csv::render(&rows);
+                return Task::perform(
+                    tokio::task::spawn_blocking(move || {
+                        // Same off-the-event-loop rule as the vault
+                        // export: the native dialog blocks its thread.
+                        let path = rfd::FileDialog::new()
+                            .set_title("Export hosts (CSV)")
+                            .add_filter("CSV", &["csv"])
+                            .set_file_name("oryxis-hosts.csv")
+                            .save_file()?;
+                        Some(
+                            write_export_file(&path, data.as_bytes())
+                                .map(|_| path.display().to_string()),
+                        )
+                    }),
+                    |res| match res {
+                        Ok(Some(status)) => {
+                            Message::Share(ShareMessage::ExportHostsCsvCompleted(status))
+                        }
+                        // Dialog cancelled or task panicked: nothing to say.
+                        _ => Message::NoOp,
+                    },
+                );
+            }
+            ShareMessage::ExportHostsCsvCompleted(result) => match result {
+                Ok(path) => {
+                    let msg = crate::i18n::t("csv_export_done")
+                        .replace("{count}", &self.connections.len().to_string())
+                        .replace("{path}", &path);
+                    self.set_toast(msg);
+                }
+                Err(e) => self.set_toast(e),
+            },
             ShareMessage::ImportSshConfig => {
                 self.overlay = None;
                 self.ssh_config_import_status = None;

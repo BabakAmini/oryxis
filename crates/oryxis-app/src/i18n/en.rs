@@ -909,6 +909,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // Export / Import
         "export_vault" => "Export Vault",
+        "export_hosts_csv" => "Export hosts (CSV)",
+        "csv_export_done" => "Exported {count} hosts to {path}",
         "import_vault" => "Import Vault",
         // Vault export/import categories + dialog
         "password_required" => "Password is required",

@@ -902,6 +902,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "Xuất kho",
+        "export_hosts_csv" => "Xuất máy chủ (CSV)",
+        "csv_export_done" => "Đã xuất {count} máy chủ sang {path}",
         "import_vault" => "Nhập kho",
         // Vault export/import categories + dialog
         "password_required" => "Cần mật khẩu",

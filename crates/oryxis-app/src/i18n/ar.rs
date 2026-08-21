@@ -924,6 +924,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "تصدير الخزنة",
+        "export_hosts_csv" => "تصدير المضيفين (CSV)",
+        "csv_export_done" => "تم تصدير {count} مضيفًا إلى {path}",
         "import_vault" => "استيراد الخزنة",
         // Vault export/import categories + dialog
         "password_required" => "كلمة المرور مطلوبة",

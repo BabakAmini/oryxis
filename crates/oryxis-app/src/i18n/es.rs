@@ -742,6 +742,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "Claves del baúl servidas",
         "agent_external_keys_held" => "Claves externas retenidas",
         "export_vault" => "Exportar Bóveda",
+        "export_hosts_csv" => "Exportar hosts (CSV)",
+        "csv_export_done" => "{count} hosts exportados a {path}",
         "import_vault" => "Importar Bóveda",
         // Vault export/import categories + dialog
         "password_required" => "La contraseña es obligatoria",

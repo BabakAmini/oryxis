@@ -852,11 +852,19 @@ impl Oryxis {
             6.0,
             styled_button(crate::i18n::t("import_from_sftp"), Message::Share(ShareMessage::ImportFromSftp), OryxisColors::t().text_muted),
         );
+        // Secrets-free spreadsheet of the host list (the encrypted
+        // .oryxis export above stays the only secrets-bearing path).
+        let export_csv_btn = self.settings_nav_slot_labeled(
+            t("export_hosts_csv"),
+            crate::keynav::RowAction::activate(Message::Share(ShareMessage::ExportHostsCsv)),
+            6.0,
+            styled_button(crate::i18n::t("export_hosts_csv"), Message::Share(ShareMessage::ExportHostsCsv), OryxisColors::t().text_muted),
+        );
 
         let mut export_import_section: iced::widget::Column<'_, Message> = column![
             text(crate::i18n::t("export_import")).size(13).color(OryxisColors::t().text_primary),
             Space::new().height(8),
-            dir_row(vec![export_btn, Space::new().width(8).into(), import_btn, Space::new().width(8).into(), import_sftp_btn]),
+            dir_row(vec![export_btn, Space::new().width(8).into(), export_csv_btn, Space::new().width(8).into(), import_btn, Space::new().width(8).into(), import_sftp_btn]),
         ];
 
         // Show export dialog inline

@@ -749,6 +749,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "agent_vault_keys_served" => "已提供的保险库密钥",
         "agent_external_keys_held" => "持有的外部密钥",
         "export_vault" => "导出保险库",
+        "export_hosts_csv" => "导出主机 (CSV)",
+        "csv_export_done" => "已导出 {count} 个主机到 {path}",
         "import_vault" => "导入保险库",
         // Vault export/import categories + dialog
         "password_required" => "需要密码",

@@ -908,6 +908,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "ייצוא כספת",
+        "export_hosts_csv" => "ייצוא מארחים (CSV)",
+        "csv_export_done" => "{count} מארחים יוצאו אל {path}",
         "import_vault" => "ייבוא כספת",
         // Vault export/import categories + dialog
         "password_required" => "נדרשת סיסמה",

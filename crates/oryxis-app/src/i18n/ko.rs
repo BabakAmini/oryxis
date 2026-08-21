@@ -902,6 +902,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "볼트 내보내기",
+        "export_hosts_csv" => "호스트 내보내기 (CSV)",
+        "csv_export_done" => "{count}개의 호스트를 {path}(으)로 내보냈습니다",
         "import_vault" => "볼트 가져오기",
         // Vault export/import categories + dialog
         "password_required" => "비밀번호가 필요합니다",

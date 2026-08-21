@@ -904,6 +904,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Export / Import
         "export_vault" => "خروجی گرفتن از صندوقچه",
+        "export_hosts_csv" => "خروجی گرفتن از میزبان‌ها (CSV)",
+        "csv_export_done" => "{count} میزبان به {path} صادر شد",
         "import_vault" => "وارد کردن صندوقچه",
         // Vault export/import categories + dialog
         "password_required" => "رمز عبور لازم است",
