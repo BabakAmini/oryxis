@@ -225,13 +225,10 @@ impl crate::app::Oryxis {
         };
         let route = self.handle_deep_link(link);
         #[cfg(target_os = "windows")]
-        {
-            return Task::batch([
-                Task::done(Message::Tray(crate::messages::TrayMessage::Show)),
-                route,
-            ]);
-        }
-        #[cfg(not(target_os = "windows"))]
+        let route = Task::batch([
+            Task::done(Message::Tray(crate::messages::TrayMessage::Show)),
+            route,
+        ]);
         route
     }
 }
