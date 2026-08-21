@@ -729,6 +729,14 @@ fn main() -> iced::Result {
                 corner_preference:
                     window::settings::platform::CornerPreference::Round,
                 undecorated_shadow: true,
+                // ICON_BIG. The generic `icon` above only ever becomes
+                // ICON_SMALL (the title-bar size), and the classic
+                // Alt+Tab switcher asks the window for ICON_BIG, so
+                // without this it draws the default executable glyph
+                // (issue #182). The modern switcher and the taskbar
+                // resolve the icon through the shortcut instead, which
+                // is why they never showed the gap.
+                taskbar_icon: load_taskbar_icon(),
                 ..Default::default()
             },
             #[cfg(target_os = "linux")]
@@ -762,6 +770,18 @@ fn main() -> iced::Result {
 
 fn load_icon() -> Option<window::Icon> {
     let bytes = include_bytes!("../../../resources/logo_64.png");
+    let img = image::load_from_memory(bytes).ok()?.into_rgba8();
+    let (w, h) = img.dimensions();
+    window::icon::from_rgba(img.into_raw(), w, h).ok()
+}
+
+/// The Windows ICON_BIG. Bigger than the window icon on purpose: the
+/// consumers of ICON_BIG (classic Alt+Tab, third-party switchers) draw
+/// at SM_CXICON and beyond, and 256 is the documented ceiling for the
+/// field, so the OS always scales DOWN from here.
+#[cfg(target_os = "windows")]
+fn load_taskbar_icon() -> Option<window::Icon> {
+    let bytes = include_bytes!("../../../resources/logo_256.png");
     let img = image::load_from_memory(bytes).ok()?.into_rgba8();
     let (w, h) = img.dimensions();
     window::icon::from_rgba(img.into_raw(), w, h).ok()
