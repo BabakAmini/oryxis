@@ -1107,7 +1107,7 @@ impl Oryxis {
         let (password, private_key, certificate) = self.resolve_credentials(&conn);
         // Agent-auth pin (B3), same rule as the tab connect.
         let pinned_agent = self.pinned_agent_public(&conn);
-        let resolver = self.make_jump_resolver(&conn);
+        let resolver = self.make_jump_resolver(&mut conn);
         let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
         let connect_to = self.sftp_connect_timeout();

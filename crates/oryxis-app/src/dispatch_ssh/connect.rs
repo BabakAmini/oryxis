@@ -1347,6 +1347,13 @@ impl Oryxis {
             oryxis_core::models::connection::ConnectionProtocol::Ssh => {}
         }
         self.apply_group_inheritance(&mut conn);
+        // Nested hop routes (issue #184) expand onto the working copy
+        // BEFORE the reuse key is minted: the key hashes the route
+        // actually dialed, so an edit to a hop's own chain re-keys
+        // instead of riding a pooled transport built over the old
+        // route (the full-tab path expands inside its connect plan,
+        // ahead of its own key mint, for the same reason).
+        self.expand_jump_chain(&mut conn);
 
         // Connection reuse (F2): a tab to a host that is already open
         // rides the live connection instead of paying for a handshake,
@@ -1383,7 +1390,7 @@ impl Oryxis {
             self.apply_quick_entry_secrets(id, &mut conn, &mut password, &mut totp_secret);
         }
         let is_quick = quick_id.is_some();
-        let resolver = self.make_jump_resolver(&conn);
+        let resolver = self.make_jump_resolver(&mut conn);
         let host_key_check = self.make_host_key_check();
         let keepalive = self.effective_keepalive(&conn);
         let address_family = conn.address_family;

@@ -126,7 +126,7 @@ impl Oryxis {
             .vault
             .as_ref()
             .and_then(|v| v.get_connection_totp_secret(&conn.id).ok().flatten());
-        let resolver = self.make_jump_resolver(&conn);
+        let resolver = self.make_jump_resolver(&mut conn);
         let host_key_check = self.make_host_key_check();
         // Approvals snapshot for the same reason the host-key check is
         // strict here: a sync round dials on a timer, with nobody
