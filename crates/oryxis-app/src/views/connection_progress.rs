@@ -461,11 +461,7 @@ impl Oryxis {
             })
             .into();
 
-            (
-                status,
-                body,
-                crate::views::proxy_command::proxy_command_buttons(),
-            )
+            (status, body, self.proxy_command_buttons())
         } else if let Some(ref query) = self.pending_host_key {
             let is_changed = matches!(query.status, oryxis_ssh::HostKeyStatus::Changed { .. });
 
@@ -520,59 +516,7 @@ impl Oryxis {
                 })
                 .into();
 
-            let close_btn = button(
-                container(text(crate::i18n::t("close")).size(13).color(OryxisColors::t().text_primary))
-                    .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
-            )
-            .on_press(Message::Ssh(SshMessage::SshHostKeyReject))
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(8.0), ..Default::default() },
-                ..Default::default()
-            });
-
-            let continue_btn = button(
-                container(text(crate::i18n::t("hk_continue")).size(13).color(OryxisColors::t().text_primary))
-                    .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
-            )
-            .on_press(Message::Ssh(SshMessage::SshHostKeyContinue))
-            .style(|_, _| button::Style {
-                background: Some(Background::Color(OryxisColors::t().bg_surface)),
-                border: Border { radius: Radius::from(8.0), color: OryxisColors::t().border, width: 1.0 },
-                ..Default::default()
-            });
-
-            let accept_btn = {
-                let fg = crate::theme::contrast_text_for(OryxisColors::t().success);
-                button(
-                    container(
-                        text(crate::i18n::t("hk_add_and_continue"))
-                            .size(13)
-                            .font(iced::Font {
-                                weight: iced::font::Weight::Semibold,
-                                ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                            })
-                            .color(fg),
-                    )
-                    .padding(Padding { top: 10.0, right: 24.0, bottom: 10.0, left: 24.0 }),
-                )
-                .on_press(Message::Ssh(SshMessage::SshHostKeyAcceptAndSave))
-                .style(|_, _| button::Style {
-                    background: Some(Background::Color(OryxisColors::t().success)),
-                    border: Border { radius: Radius::from(8.0), ..Default::default() },
-                    ..Default::default()
-                })
-            };
-
-            let btm: Element<'_, Message> = row![
-                close_btn,
-                Space::new().width(12),
-                continue_btn,
-                Space::new().width(Length::Fill),
-                accept_btn,
-            ].align_y(iced::Alignment::Center).into();
-
-            (status, body, btm)
+            (status, body, self.host_key_buttons())
         } else {
             // Normal connection progress / failure: the journey bar on top
             // answers the state at a glance (and keeps the screen alive

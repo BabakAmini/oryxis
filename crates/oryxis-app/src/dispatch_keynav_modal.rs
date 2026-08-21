@@ -98,6 +98,16 @@ impl Oryxis {
                     | Modal::SshImport
                     | Modal::ShareDialog
                     | Modal::CloudImportConfirm
+                    // Dial security prompts: the REFUSING button is the
+                    // default-ringed action on both, so a stray Enter can
+                    // never trust a host key or spawn a command proxy
+                    // (Esc refuses either way, via ESC_ORDER). Their rows
+                    // are recorded by the shared button builders
+                    // (`host_key_buttons` / `proxy_command_buttons`), so
+                    // the inline connect-progress prompts navigate
+                    // identically to the standalone cards.
+                    | Modal::HostKey
+                    | Modal::ProxyCommand
                     // Security prompt: Deny is the default-ringed action.
                     | Modal::AgentConfirm
                     // Save-confirmation for an edit watch: Yes is the

@@ -620,48 +620,7 @@ impl Oryxis {
             .push(text(t("hk_add_question")).size(13).color(OryxisColors::t().text_secondary))
             .push(Space::new().height(18));
 
-        let close_btn = button(
-            container(text(t("close")).size(13).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 9.0, right: 18.0, bottom: 9.0, left: 18.0 }),
-        )
-        .on_press(Message::Ssh(SshMessage::SshHostKeyReject))
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_surface)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
-        let continue_btn = button(
-            container(text(t("hk_continue")).size(13).color(OryxisColors::t().text_primary))
-                .padding(Padding { top: 9.0, right: 18.0, bottom: 9.0, left: 18.0 }),
-        )
-        .on_press(Message::Ssh(SshMessage::SshHostKeyContinue))
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().bg_surface)),
-            border: Border { radius: Radius::from(8.0), color: OryxisColors::t().border, width: 1.0 },
-            ..Default::default()
-        });
-        let accept_fg = crate::theme::contrast_text_for(OryxisColors::t().success);
-        let accept_btn = button(
-            container(text(t("hk_add_and_continue")).size(13).color(accept_fg))
-                .padding(Padding { top: 9.0, right: 18.0, bottom: 9.0, left: 18.0 }),
-        )
-        .on_press(Message::Ssh(SshMessage::SshHostKeyAcceptAndSave))
-        .style(|_, _| button::Style {
-            background: Some(Background::Color(OryxisColors::t().success)),
-            border: Border { radius: Radius::from(8.0), ..Default::default() },
-            ..Default::default()
-        });
-
-        let buttons = dir_row(vec![
-            close_btn.into(),
-            Space::new().width(8).into(),
-            continue_btn.into(),
-            Space::new().width(Length::Fill).into(),
-            accept_btn.into(),
-        ])
-        .align_y(iced::Alignment::Center);
-
-        let card = container(column![body, buttons].width(Length::Fill))
+        let card = container(column![body, self.host_key_buttons()].width(Length::Fill))
             .width(Length::Fixed(480.0))
             .padding(24)
             .style(|_| container::Style {
@@ -672,6 +631,100 @@ impl Oryxis {
 
         // Bare card; `widgets::modal_overlay` (the caller) centers + scrims.
         card.into()
+    }
+
+    /// Reject / continue once / add-and-continue, in that order, shared
+    /// by the standalone modal above and the connect-progress inline
+    /// prompt: two copies of a security prompt's buttons are two chances
+    /// for one of them to wire an answer wrong (the proxy-command
+    /// prompt's rationale). The three buttons are the modal keynav rows
+    /// (`SurfaceFamily::Confirm`), and REJECT is the default row: a
+    /// stray Enter must never trust a host key.
+    pub(crate) fn host_key_buttons(&self) -> Element<'_, Message> {
+        self.modal_nav_reset();
+        let close_btn = button(
+            container(text(t("close")).size(13).color(OryxisColors::t().text_primary))
+                .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
+        )
+        .on_press(Message::Ssh(SshMessage::SshHostKeyReject))
+        .style(|_, status| button::Style {
+            background: Some(Background::Color(match status {
+                button::Status::Hovered | button::Status::Pressed => OryxisColors::t().bg_hover,
+                _ => OryxisColors::t().bg_surface,
+            })),
+            border: Border { radius: Radius::from(8.0), ..Default::default() },
+            ..Default::default()
+        });
+        let continue_btn = button(
+            container(text(t("hk_continue")).size(13).color(OryxisColors::t().text_primary))
+                .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
+        )
+        .on_press(Message::Ssh(SshMessage::SshHostKeyContinue))
+        .style(|_, status| button::Style {
+            background: Some(Background::Color(match status {
+                button::Status::Hovered | button::Status::Pressed => OryxisColors::t().bg_hover,
+                _ => OryxisColors::t().bg_surface,
+            })),
+            border: Border { radius: Radius::from(8.0), color: OryxisColors::t().border, width: 1.0 },
+            ..Default::default()
+        });
+        let accept_fg = crate::theme::contrast_text_for(OryxisColors::t().success);
+        let accept_btn = button(
+            container(
+                text(t("hk_add_and_continue"))
+                    .size(13)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Semibold,
+                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                    })
+                    .color(accept_fg),
+            )
+            .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
+        )
+        .on_press(Message::Ssh(SshMessage::SshHostKeyAcceptAndSave))
+        .style(|_, status| button::Style {
+            background: Some(Background::Color(match status {
+                // No dedicated success_hover in the palette; nudge the
+                // fill toward the text colour, which lightens on dark
+                // themes and darkens on light ones.
+                button::Status::Hovered | button::Status::Pressed => crate::theme::mix(
+                    OryxisColors::t().success,
+                    OryxisColors::t().text_primary,
+                    0.15,
+                ),
+                _ => OryxisColors::t().success,
+            })),
+            border: Border { radius: Radius::from(8.0), ..Default::default() },
+            ..Default::default()
+        });
+
+        use crate::keynav::RowAction;
+        dir_row(vec![
+            self.modal_nav_slot_default(
+                RowAction::activate(Message::Ssh(SshMessage::SshHostKeyReject)),
+                8.0,
+                false,
+                close_btn.into(),
+            ),
+            Space::new().width(8).into(),
+            self.modal_nav_slot(
+                RowAction::activate(Message::Ssh(SshMessage::SshHostKeyContinue)),
+                8.0,
+                false,
+                continue_btn.into(),
+            ),
+            Space::new().width(Length::Fill).into(),
+            // Success-filled: the ring needs the contrast colour or it
+            // vanishes into the fill.
+            self.modal_nav_slot(
+                RowAction::activate(Message::Ssh(SshMessage::SshHostKeyAcceptAndSave)),
+                8.0,
+                true,
+                accept_btn.into(),
+            ),
+        ])
+        .align_y(iced::Alignment::Center)
+        .into()
     }
 
     /// Standalone keyboard-interactive (2FA / OTP) modal, used when a

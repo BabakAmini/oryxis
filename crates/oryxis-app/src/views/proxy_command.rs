@@ -73,84 +73,106 @@ pub(crate) fn proxy_command_body(
         )
 }
 
-/// Refuse / run once / always run, in that order.
-///
-/// Refusing is the leading button and the accent is on "always", which
-/// mirrors the host-key prompt next door; Esc refuses either way
-/// (`Modal::ProxyCommand` in `ESC_ORDER`).
-pub(crate) fn proxy_command_buttons() -> Element<'static, Message> {
-    let plain = |label: &'static str, msg: Message, outlined: bool| {
-        button(
-            container(text(t(label)).size(13).color(OryxisColors::t().text_primary)).padding(
-                Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 },
-            ),
-        )
-        .on_press(msg)
-        .style(move |_, status| button::Style {
-            background: Some(Background::Color(match status {
-                button::Status::Hovered | button::Status::Pressed => OryxisColors::t().bg_hover,
-                _ => OryxisColors::t().bg_surface,
-            })),
-            border: Border {
-                radius: Radius::from(8.0),
-                color: if outlined {
-                    OryxisColors::t().border
-                } else {
-                    Color::TRANSPARENT
-                },
-                width: if outlined { 1.0 } else { 0.0 },
-            },
-            ..Default::default()
-        })
-    };
-
-    let always_fg = crate::theme::contrast_text_for(OryxisColors::t().accent);
-    let always = button(
-        container(
-            text(t("proxy_cmd_always"))
-                .size(13)
-                .font(iced::Font {
-                    weight: iced::font::Weight::Semibold,
-                    ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
-                })
-                .color(always_fg),
-        )
-        .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
-    )
-    .on_press(Message::Ssh(SshMessage::SshProxyCommandAlways))
-    .style(|_, status| button::Style {
-        background: Some(Background::Color(match status {
-            button::Status::Hovered | button::Status::Pressed => {
-                OryxisColors::t().accent_hover
-            }
-            _ => OryxisColors::t().accent,
-        })),
-        border: Border { radius: Radius::from(8.0), ..Default::default() },
-        ..Default::default()
-    });
-
-    dir_row(vec![
-        plain(
-            "proxy_cmd_deny",
-            Message::Ssh(SshMessage::SshProxyCommandReject),
-            false,
-        )
-        .into(),
-        Space::new().width(8).into(),
-        plain(
-            "proxy_cmd_once",
-            Message::Ssh(SshMessage::SshProxyCommandOnce),
-            true,
-        )
-        .into(),
-        Space::new().width(Length::Fill).into(),
-        always.into(),
-    ])
-    .align_y(iced::Alignment::Center)
-    .into()
-}
-
 impl Oryxis {
+    /// Refuse / run once / always run, in that order.
+    ///
+    /// Refusing is the leading button and the accent is on "always", which
+    /// mirrors the host-key prompt next door; Esc refuses either way
+    /// (`Modal::ProxyCommand` in `ESC_ORDER`). The three buttons are the
+    /// modal keynav rows (`SurfaceFamily::Confirm`), recorded here so both
+    /// render sites share the wiring, and REFUSE is the default row: a
+    /// stray Enter must never spawn a local process.
+    pub(crate) fn proxy_command_buttons(&self) -> Element<'_, Message> {
+        self.modal_nav_reset();
+        let plain = |label: &'static str, msg: Message, outlined: bool| {
+            button(
+                container(text(t(label)).size(13).color(OryxisColors::t().text_primary)).padding(
+                    Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 },
+                ),
+            )
+            .on_press(msg)
+            .style(move |_, status| button::Style {
+                background: Some(Background::Color(match status {
+                    button::Status::Hovered | button::Status::Pressed => OryxisColors::t().bg_hover,
+                    _ => OryxisColors::t().bg_surface,
+                })),
+                border: Border {
+                    radius: Radius::from(8.0),
+                    color: if outlined {
+                        OryxisColors::t().border
+                    } else {
+                        Color::TRANSPARENT
+                    },
+                    width: if outlined { 1.0 } else { 0.0 },
+                },
+                ..Default::default()
+            })
+        };
+
+        let always_fg = crate::theme::contrast_text_for(OryxisColors::t().accent);
+        let always = button(
+            container(
+                text(t("proxy_cmd_always"))
+                    .size(13)
+                    .font(iced::Font {
+                        weight: iced::font::Weight::Semibold,
+                        ..iced::Font::new(crate::theme::SYSTEM_UI_FAMILY)
+                    })
+                    .color(always_fg),
+            )
+            .padding(Padding { top: 10.0, right: 20.0, bottom: 10.0, left: 20.0 }),
+        )
+        .on_press(Message::Ssh(SshMessage::SshProxyCommandAlways))
+        .style(|_, status| button::Style {
+            background: Some(Background::Color(match status {
+                button::Status::Hovered | button::Status::Pressed => {
+                    OryxisColors::t().accent_hover
+                }
+                _ => OryxisColors::t().accent,
+            })),
+            border: Border { radius: Radius::from(8.0), ..Default::default() },
+            ..Default::default()
+        });
+
+        use crate::keynav::RowAction;
+        dir_row(vec![
+            self.modal_nav_slot_default(
+                RowAction::activate(Message::Ssh(SshMessage::SshProxyCommandReject)),
+                8.0,
+                false,
+                plain(
+                    "proxy_cmd_deny",
+                    Message::Ssh(SshMessage::SshProxyCommandReject),
+                    false,
+                )
+                .into(),
+            ),
+            Space::new().width(8).into(),
+            self.modal_nav_slot(
+                RowAction::activate(Message::Ssh(SshMessage::SshProxyCommandOnce)),
+                8.0,
+                false,
+                plain(
+                    "proxy_cmd_once",
+                    Message::Ssh(SshMessage::SshProxyCommandOnce),
+                    true,
+                )
+                .into(),
+            ),
+            Space::new().width(Length::Fill).into(),
+            // Accent-filled: the ring needs the contrast colour or it
+            // vanishes into the fill.
+            self.modal_nav_slot(
+                RowAction::activate(Message::Ssh(SshMessage::SshProxyCommandAlways)),
+                8.0,
+                true,
+                always.into(),
+            ),
+        ])
+        .align_y(iced::Alignment::Center)
+        .into()
+    }
+
     /// Standalone card, for every dial that has no connect-progress
     /// screen to host the prompt inline. Stacked by `root_view` under
     /// the same `connecting.is_none()` gate the host-key modal uses, so
@@ -168,7 +190,7 @@ impl Oryxis {
                 Space::new().height(10),
                 proxy_command_body(query, &endpoint),
                 Space::new().height(18),
-                proxy_command_buttons(),
+                self.proxy_command_buttons(),
             ]
             .width(Length::Fill),
         )
