@@ -343,9 +343,7 @@ impl Oryxis {
                 }
             }
             ShareMessage::SshImportSelectAll(on) => {
-                for sel in &mut self.ssh_import_selected {
-                    *sel = on;
-                }
+                self.ssh_import_selected.fill(on);
             }
             ShareMessage::SshImportDismiss => {
                 self.panels.ssh_import_dialog = false;
