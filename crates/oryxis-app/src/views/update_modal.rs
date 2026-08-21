@@ -106,7 +106,11 @@ impl Oryxis {
             // can lag the offer that's actually on screen.
             let label = match info.artifact {
                 crate::update::UpdateArtifact::Installer => t("downloading_installer"),
-                crate::update::UpdateArtifact::Binary => t("downloading_update"),
+                // Everything applied in place (nightly binary, portable
+                // zip, AppImage) downloads "the update", not an installer.
+                crate::update::UpdateArtifact::Binary
+                | crate::update::UpdateArtifact::PortableArchive
+                | crate::update::UpdateArtifact::AppImage => t("downloading_update"),
             };
             column![
                 text(format!("{} {}%", label, pct))

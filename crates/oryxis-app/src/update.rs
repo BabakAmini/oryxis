@@ -1,6 +1,8 @@
 //! Auto-update, queries GitHub releases on startup, prompts the user if a
-//! newer version is available, downloads the platform installer, and hands
-//! off to it so the app can relaunch on the new version.
+//! newer version is available, downloads the platform artifact, and applies
+//! it so the app can relaunch on the new version. Installed copies hand off
+//! to the platform installer; copies nobody installed (the Windows portable
+//! zip, a Linux AppImage, the nightly bare binary) swap themselves in place.
 //!
 //! Flow:
 //!   1. `check_latest_release()`, async HTTP GET to GitHub releases/latest
@@ -70,11 +72,21 @@ pub fn build_channel() -> UpdateChannel {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum UpdateArtifact {
     /// A platform installer (NSIS / AppImage / tarball) handed off to the
-    /// OS. The stable channel's mechanism.
+    /// OS. The stable channel's mechanism for installed copies.
     Installer,
     /// A bare executable that replaces the running binary in place. The
     /// nightly channel's mechanism, no installer is published for it.
     Binary,
+    /// The Windows portable zip (`oryxis-windows-<arch>.zip`, a bare
+    /// signed exe inside). Extracted, then the exe swaps the running
+    /// binary through the same helper the nightly channel uses: handing
+    /// a portable user the NSIS installer would lay down a SECOND,
+    /// installed copy instead of updating the one they run (issue #180).
+    PortableArchive,
+    /// A stable AppImage replacing the running image file in place. The
+    /// swap target is `$APPIMAGE` (the image on disk), never
+    /// `current_exe` (the read-only mounted squashfs).
+    AppImage,
 }
 
 /// Why an update check failed, kept separate from "no update available"
@@ -238,15 +250,70 @@ async fn check_stable() -> Result<Option<UpdateInfo>, UpdateError> {
         .ok_or(UpdateError::Parse)?
         .to_string();
     let body = json.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let (installer_url, installer_name) = pick_asset(&json, UpdateChannel::Stable);
+    let artifact = stable_artifact();
+    let (installer_url, installer_name) = pick_asset(&json, artifact);
     Ok(Some(UpdateInfo {
         version: tag,
         html_url,
         body,
         installer_url,
         installer_name,
-        artifact: UpdateArtifact::Installer,
+        artifact,
     }))
+}
+
+/// How a stable update applies on this machine. Installer everywhere,
+/// with two in-place exceptions: a Windows portable copy (no NSIS
+/// uninstaller beside the exe) swaps its binary from the portable zip,
+/// and a Linux AppImage replaces the image file it was launched from.
+fn stable_artifact() -> UpdateArtifact {
+    if is_portable_install() {
+        UpdateArtifact::PortableArchive
+    } else if appimage_path().is_some() {
+        UpdateArtifact::AppImage
+    } else {
+        UpdateArtifact::Installer
+    }
+}
+
+/// Whether this Windows build runs as the portable zip: unpackaged (the
+/// MSIX probe already refuses self-update elsewhere, but WindowsApps
+/// also has no uninstaller, so it would read as portable here) and with
+/// no NSIS uninstaller beside the exe. Both installers write
+/// `uninstall.exe` into `$INSTDIR`, so its absence is a local,
+/// path-independent signal that survives custom install directories.
+#[cfg(target_os = "windows")]
+pub(crate) fn is_portable_install() -> bool {
+    if crate::packaged::is_packaged() {
+        return false;
+    }
+    std::env::current_exe()
+        .ok()
+        .and_then(|exe| exe.parent().map(|dir| !dir.join("uninstall.exe").exists()))
+        .unwrap_or(false)
+}
+
+/// Portable is a Windows-zip concept; every other platform's stable
+/// artifact decision goes through the AppImage probe or the installer.
+#[cfg(not(target_os = "windows"))]
+pub(crate) fn is_portable_install() -> bool {
+    false
+}
+
+/// The AppImage file this process was launched from, if any. The
+/// AppImage runtime exports `APPIMAGE` with the absolute path of the
+/// image on disk; `current_exe` inside the mounted squashfs is
+/// read-only and useless as a swap target.
+#[cfg(target_os = "linux")]
+pub(crate) fn appimage_path() -> Option<PathBuf> {
+    let p = PathBuf::from(std::env::var_os("APPIMAGE")?);
+    (p.is_absolute() && p.is_file()).then_some(p)
+}
+
+/// AppImage is Linux-only; elsewhere the probe never matches.
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn appimage_path() -> Option<PathBuf> {
+    None
 }
 
 /// Nightly channel: the rolling `nightly-latest` prerelease. Version
@@ -273,7 +340,7 @@ async fn check_nightly() -> Result<Option<UpdateInfo>, UpdateError> {
         .ok_or(UpdateError::Parse)?
         .to_string();
     let body = json.get("body").and_then(|v| v.as_str()).unwrap_or("").to_string();
-    let (installer_url, installer_name) = pick_asset(&json, UpdateChannel::Nightly);
+    let (installer_url, installer_name) = pick_asset(&json, UpdateArtifact::Binary);
     let short: String = remote_sha.chars().take(8).collect();
     Ok(Some(UpdateInfo {
         version: format!("nightly ({short})"),
@@ -332,7 +399,7 @@ fn is_newer(lhs: &str, rhs: &str) -> bool {
 
 fn pick_asset(
     json: &serde_json::Value,
-    channel: UpdateChannel,
+    artifact: UpdateArtifact,
 ) -> (Option<String>, Option<String>) {
     let assets = match json.get("assets").and_then(|v| v.as_array()) {
         Some(a) => a,
@@ -347,12 +414,16 @@ fn pick_asset(
     // is a dead update, not code execution, but it is dead for every
     // user of that release).
     let mut exclude = vec![".sig", ".sha256"];
-    let want = match channel {
-        UpdateChannel::Stable => {
+    let want = match artifact {
+        // The AppImage IS this platform's stable asset, so both stable
+        // shapes share the fragment table; what differs is only how the
+        // download is applied.
+        UpdateArtifact::Installer | UpdateArtifact::AppImage => {
             exclude.extend(platform_asset_exclude());
             platform_asset_fragment()
         }
-        UpdateChannel::Nightly => nightly_asset_fragment(),
+        UpdateArtifact::PortableArchive => portable_zip_fragment(),
+        UpdateArtifact::Binary => nightly_asset_fragment(),
     };
     for a in assets {
         let name = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
@@ -390,7 +461,9 @@ pub(crate) fn is_per_user_install() -> bool {
 }
 
 /// Substrings we expect inside the asset filename for the current
-/// platform. The release pipeline emits, per architecture:
+/// platform's INSTALLED stable artifact (portable Windows copies match
+/// the zip via [`portable_zip_fragment`] instead). The release pipeline
+/// emits, per architecture:
 ///   • Windows x64:    `oryxis-setup-x86_64.exe` (NSIS, system / UAC)
 ///                     `oryxis-user-setup-x86_64.exe` (NSIS, per-user)
 ///   • Windows arm64:  `oryxis-setup-aarch64.exe` (NSIS, system / UAC)
@@ -461,6 +534,20 @@ fn platform_asset_exclude() -> Vec<&'static str> {
         return vec!["user-setup"];
     }
     vec![]
+}
+
+/// Substrings identifying the Windows portable zip for this arch
+/// (`oryxis-windows-<arch>.zip`, the bare signed exe plus docs). Only
+/// reachable on Windows, where the portable-install probe selects the
+/// `PortableArchive` artifact.
+fn portable_zip_fragment() -> Vec<&'static str> {
+    if cfg!(target_arch = "x86_64") {
+        vec!["windows", "x86_64", ".zip"]
+    } else if cfg!(target_arch = "aarch64") {
+        vec!["windows", "aarch64", ".zip"]
+    } else {
+        vec![]
+    }
 }
 
 /// Substrings identifying this platform's bare-binary nightly asset. The
@@ -646,29 +733,17 @@ pub fn launch_installer(path: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Apply a downloaded nightly: replace the running executable with the
-/// freshly downloaded bare binary and relaunch. The nightly channel
-/// ships no installer, so there's nothing to hand off, we swap in place.
-/// Returns once the new process is spawned; the caller then closes the
-/// window so the old process exits and releases the file.
+/// Apply a downloaded bare binary (a nightly, or the exe extracted from
+/// the stable portable zip): replace the running executable and
+/// relaunch. Neither ships an installer, so there's nothing to hand
+/// off, we swap in place. Returns once the new process is spawned; the
+/// caller then closes the window so the old process exits and releases
+/// the file.
 pub fn apply_binary_update(downloaded: &std::path::Path) -> Result<(), String> {
     let current = std::env::current_exe().map_err(|e| format!("locate current exe: {e}"))?;
 
     #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        // Stage next to the target so the rename is same-filesystem and
-        // atomic. Overwriting the running binary's path is fine on Unix:
-        // the old inode stays alive for the still-running process.
-        let staged = current.with_extension("new");
-        std::fs::copy(downloaded, &staged).map_err(|e| format!("stage binary: {e}"))?;
-        std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))
-            .map_err(|e| format!("set exec bit: {e}"))?;
-        std::fs::rename(&staged, &current).map_err(|e| format!("swap binary: {e}"))?;
-        std::process::Command::new(&current)
-            .spawn()
-            .map_err(|e| format!("relaunch: {e}"))?;
-    }
+    swap_unix_binary(downloaded, &current)?;
 
     #[cfg(windows)]
     {
@@ -695,7 +770,79 @@ pub fn apply_binary_update(downloaded: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Windows nightly self-replace via a detached helper script. The
+/// Replace `target` with `downloaded` and relaunch it: stage beside the
+/// target so the rename is same-filesystem and atomic, set the exec
+/// bit, swap, spawn. Overwriting a running binary's path is fine on
+/// Unix, the old inode stays alive for the still-running process.
+#[cfg(unix)]
+fn swap_unix_binary(
+    downloaded: &std::path::Path,
+    target: &std::path::Path,
+) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    // Append rather than `with_extension`: an AppImage target would
+    // otherwise stage as `Oryxis-x86_64.new`, shadowing nothing but
+    // reading like a different artifact in a directory listing.
+    let mut staged = target.as_os_str().to_os_string();
+    staged.push(".new");
+    let staged = PathBuf::from(staged);
+    std::fs::copy(downloaded, &staged).map_err(|e| format!("stage binary: {e}"))?;
+    std::fs::set_permissions(&staged, std::fs::Permissions::from_mode(0o755))
+        .map_err(|e| format!("set exec bit: {e}"))?;
+    std::fs::rename(&staged, target).map_err(|e| format!("swap binary: {e}"))?;
+    std::process::Command::new(target)
+        .spawn()
+        .map_err(|e| format!("relaunch: {e}"))?;
+    Ok(())
+}
+
+/// Apply a downloaded stable AppImage: replace the image file this
+/// process was launched from (`$APPIMAGE`) and relaunch it. Compiled
+/// everywhere so the dispatch match stays cfg-free; only Linux ever
+/// selects the artifact.
+pub fn apply_appimage_update(downloaded: &std::path::Path) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let target = appimage_path()
+            .ok_or_else(|| "not running from an AppImage".to_string())?;
+        swap_unix_binary(downloaded, &target)
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = downloaded;
+        Err("AppImage update outside Linux".to_string())
+    }
+}
+
+/// Pull the bare `oryxis.exe` out of a verified portable zip into a
+/// fresh temp directory and hand back its path, ready for
+/// [`apply_binary_update`]. The zip's other contents (README, logo)
+/// are extracted alongside and swept with the directory. Compiled
+/// everywhere for the same cfg-free-dispatch reason as
+/// [`apply_appimage_update`]; only Windows ever selects the artifact.
+pub fn extract_portable_exe(archive: &std::path::Path) -> Result<PathBuf, String> {
+    let dest = std::env::temp_dir().join(format!(
+        "oryxis-portable-update-{}",
+        std::process::id()
+    ));
+    // A leftover from a previous attempt in this same process must not
+    // shadow the fresh copy with a stale exe.
+    let _ = std::fs::remove_dir_all(&dest);
+    oryxis_archive::local::extract_archive(
+        oryxis_archive::names::ArchiveKind::Zip,
+        archive,
+        &dest,
+    )
+    .map_err(|e| format!("unpack update: {e}"))?;
+    let exe = dest.join("oryxis.exe");
+    if !exe.is_file() {
+        return Err("update archive does not contain oryxis.exe".to_string());
+    }
+    Ok(exe)
+}
+
+/// Windows in-place self-replace (nightly and portable-zip updates) via
+/// a detached helper script. The
 /// running process can't replace its own `.exe`, so we stage the new
 /// binary, write a `.cmd` that waits for our PID to exit, moves the
 /// staged file over the (now-unlocked) target with a short retry for
@@ -943,11 +1090,12 @@ fn run_elevated_cmd(script: &std::path::Path) -> Result<(), String> {
     Ok(())
 }
 
-/// Clean up the leftovers a Windows nightly self-update can leave
-/// behind: the legacy `.old.exe` (older renaming scheme), the aborted
-/// `oryxis.exe.new` swap sibling, plus the `oryxis-update-*` staged
-/// binary and helper script the current scheme stages beside the exe
-/// and in TEMP. All are consumed on a successful update; this sweeps the
+/// Clean up the leftovers a Windows in-place self-update (nightly or
+/// portable zip) can leave behind: the legacy `.old.exe` (older
+/// renaming scheme), the aborted `oryxis.exe.new` swap sibling, plus
+/// the `oryxis-update-*` staged binary / helper script and the
+/// `oryxis-portable-update-*` extraction dir the current scheme stages
+/// beside the exe and in TEMP. All are consumed on a successful update; this sweeps the
 /// remains of a failed or declined one. Best-effort and a no-op
 /// everywhere else, called once on boot.
 pub fn sweep_stale_binary() {
@@ -990,9 +1138,10 @@ fn remove_if_stale(path: &std::path::Path) {
     }
 }
 
-/// Remove `oryxis-update-*.tmp.exe` / `oryxis-update-*.cmd` files a
-/// stalled self-replace left in `dir`, but only ones old enough to be
-/// from a dead run (see [`remove_if_stale`]).
+/// Remove `oryxis-update-*.tmp.exe` / `oryxis-update-*.cmd` files and
+/// `oryxis-portable-update-*` extraction dirs a stalled self-replace
+/// left in `dir`, but only ones old enough to be from a dead run (see
+/// [`remove_if_stale`]).
 #[cfg(windows)]
 fn sweep_update_leftovers(dir: &std::path::Path) {
     let Ok(entries) = std::fs::read_dir(dir) else { return };
@@ -1003,6 +1152,19 @@ fn sweep_update_leftovers(dir: &std::path::Path) {
             && (name.ends_with(".tmp.exe") || name.ends_with(".cmd"))
         {
             remove_if_stale(&entry.path());
+        } else if name.starts_with("oryxis-portable-update-") {
+            // The portable zip's extraction dir. Same staleness rule so a
+            // live helper still copying out of it isn't swept mid-swap.
+            let path = entry.path();
+            let stale = std::fs::metadata(&path)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.elapsed().ok())
+                .map(|age| age >= UPDATE_LEFTOVER_MIN_AGE)
+                .unwrap_or(false);
+            if stale {
+                let _ = std::fs::remove_dir_all(&path);
+            }
         }
     }
 }
@@ -1049,6 +1211,50 @@ mod tests {
             "name": "Nightly (deadbeef)",
         });
         assert_eq!(nightly_commit(&json).as_deref(), Some("deadbeef"));
+    }
+
+    /// A release asset list shaped like a real stable release: both
+    /// portable zips, their sidecars first (so ordering alone can't
+    /// save the matcher), and the installers.
+    fn stable_assets() -> serde_json::Value {
+        serde_json::json!({
+            "assets": [
+                {"name": "oryxis-windows-x86_64.zip.sig",
+                 "browser_download_url": "https://example.com/oryxis-windows-x86_64.zip.sig"},
+                {"name": "oryxis-windows-x86_64.zip",
+                 "browser_download_url": "https://example.com/oryxis-windows-x86_64.zip"},
+                {"name": "oryxis-windows-aarch64.zip",
+                 "browser_download_url": "https://example.com/oryxis-windows-aarch64.zip"},
+                {"name": "oryxis-setup-x86_64.exe",
+                 "browser_download_url": "https://example.com/oryxis-setup-x86_64.exe"},
+                {"name": "oryxis-user-setup-x86_64.exe",
+                 "browser_download_url": "https://example.com/oryxis-user-setup-x86_64.exe"},
+                {"name": "oryxis-linux-x86_64.AppImage",
+                 "browser_download_url": "https://example.com/oryxis-linux-x86_64.AppImage"},
+            ]
+        })
+    }
+
+    #[test]
+    fn pick_asset_portable_archive_selects_arch_zip_never_a_sidecar() {
+        let (url, name) = pick_asset(&stable_assets(), UpdateArtifact::PortableArchive);
+        let expect = if cfg!(target_arch = "aarch64") {
+            "oryxis-windows-aarch64.zip"
+        } else {
+            "oryxis-windows-x86_64.zip"
+        };
+        assert_eq!(name.as_deref(), Some(expect));
+        assert_eq!(url.as_deref(), Some(format!("https://example.com/{expect}").as_str()));
+    }
+
+    #[test]
+    fn pick_asset_appimage_shares_the_stable_fragment_table() {
+        // Only meaningful where the stable asset IS the AppImage.
+        if !cfg!(all(target_os = "linux", target_arch = "x86_64")) {
+            return;
+        }
+        let (_, name) = pick_asset(&stable_assets(), UpdateArtifact::AppImage);
+        assert_eq!(name.as_deref(), Some("oryxis-linux-x86_64.AppImage"));
     }
 
     #[test]

@@ -258,13 +258,26 @@ impl Oryxis {
                 self.update_downloading = false;
                 match result {
                     Ok(path) => {
-                        // Nightly ships a bare binary we swap in place;
-                        // stable hands a downloaded installer to the OS.
+                        // Nightly ships a bare binary we swap in place; a
+                        // portable stable extracts its exe from the zip and
+                        // takes the same swap; an AppImage replaces the
+                        // image file; an installed stable hands the
+                        // downloaded installer to the OS.
+                        use crate::update::UpdateArtifact;
                         let apply = match self.pending_update.as_ref().map(|i| i.artifact) {
-                            Some(crate::update::UpdateArtifact::Binary) => {
+                            Some(UpdateArtifact::Binary) => {
                                 crate::update::apply_binary_update(&path)
                             }
-                            _ => crate::update::launch_installer(&path),
+                            Some(UpdateArtifact::PortableArchive) => {
+                                crate::update::extract_portable_exe(&path)
+                                    .and_then(|exe| crate::update::apply_binary_update(&exe))
+                            }
+                            Some(UpdateArtifact::AppImage) => {
+                                crate::update::apply_appimage_update(&path)
+                            }
+                            Some(UpdateArtifact::Installer) | None => {
+                                crate::update::launch_installer(&path)
+                            }
                         };
                         if let Err(e) = apply {
                             self.update_error = Some(e);
