@@ -746,6 +746,12 @@ pub(crate) struct OverwritePrompt {
     /// bar frozen. `None` only for prompts built before this field
     /// existed in a given flow; those fall back to the live buffer.
     pub owner: Option<uuid::Uuid>,
+    /// When set, the conflict came from a terminal / sidebar Files drop
+    /// upload (`begin_drop_sftp_upload`) on this pane, and resolving it
+    /// resumes that upload instead of a transfer queue. The modal's
+    /// answer stays unaddressed (`owner: None`) so it lands in the
+    /// plain SFTP handler, which dispatches on this field.
+    pub drop_upload_pane: Option<uuid::Uuid>,
 }
 
 impl OverwritePrompt {

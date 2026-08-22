@@ -31,6 +31,14 @@ impl Oryxis {
                 let Some(prompt) = self.sftp.overwrite_prompt.take() else {
                     return Ok(Task::none());
                 };
+                // Terminal / sidebar Files drop upload conflicts are
+                // intercepted earlier in `handle_sftp_transfers` (they
+                // must resolve even with no SFTP tab open); a prompt
+                // reaching here without a queue behind it is a stale
+                // drop conflict, so decline it instead of guessing.
+                if prompt.drop_upload_pane.is_some() {
+                    return Ok(Task::none());
+                }
                 let apply_to_all = prompt.apply_to_all;
                 let temp_name = self.prefs.sftp_upload_temp_name;
                 let downloading =

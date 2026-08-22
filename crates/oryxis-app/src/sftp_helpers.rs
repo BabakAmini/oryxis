@@ -575,6 +575,7 @@ pub(crate) async fn do_upload_item(
             multi,
             apply_to_all: false,
                     owner: None,
+                    drop_upload_pane: None,
         };
         return Ok(TransferStepOutcome::Conflict { prompt, item });
     }
@@ -709,6 +710,7 @@ pub(crate) async fn do_download_item(
             multi,
             apply_to_all: false,
                     owner: None,
+                    drop_upload_pane: None,
         };
         return Ok(TransferStepOutcome::Conflict { prompt, item });
     }

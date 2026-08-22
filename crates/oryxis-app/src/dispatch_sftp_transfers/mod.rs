@@ -96,6 +96,44 @@ impl Oryxis {
         &mut self,
         message: SftpMessage,
     ) -> Result<Task<Message>, SftpMessage> {
+        // A terminal / sidebar Files drop conflict's modal answers land
+        // here even with no SFTP tab open: the resume targets the
+        // pane's paused drop upload, not any SFTP surface. The owner
+        // gate below would otherwise decline them into `Task::none` and
+        // the upload would stay paused forever.
+        match &message {
+            SftpMessage::SftpToggleApplyToAll
+                if self
+                    .sftp
+                    .overwrite_prompt
+                    .as_ref()
+                    .is_some_and(|p| p.drop_upload_pane.is_some()) =>
+            {
+                if let Some(p) = self.sftp.overwrite_prompt.as_mut() {
+                    p.apply_to_all = !p.apply_to_all;
+                }
+                return Ok(Task::none());
+            }
+            SftpMessage::SftpResolveOverwrite(action)
+                if self
+                    .sftp
+                    .overwrite_prompt
+                    .as_ref()
+                    .is_some_and(|p| p.drop_upload_pane.is_some()) =>
+            {
+                let prompt = self.sftp.overwrite_prompt.take();
+                let pane_id = prompt.as_ref().and_then(|p| p.drop_upload_pane);
+                let apply_to_all = prompt.map(|p| p.apply_to_all).unwrap_or(false);
+                if let Some(pane_id) = pane_id {
+                    return Ok(self.resolve_terminal_drop_conflict(
+                        pane_id,
+                        *action,
+                        apply_to_all,
+                    ));
+                }
+            }
+            _ => {}
+        }
         let Some(owner) = self.current_sftp_owner() else {
             return Err(message);
         };

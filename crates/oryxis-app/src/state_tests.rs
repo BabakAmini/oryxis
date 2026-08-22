@@ -20,6 +20,7 @@ fn overwrite_sizes_follow_the_transfer_direction() {
         multi: false,
         apply_to_all: false,
         owner: None,
+        drop_upload_pane: None,
     };
     // Uploading: the source IS the local file.
     assert_eq!(

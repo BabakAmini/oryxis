@@ -748,6 +748,31 @@ pub(crate) struct DropUploadPane {
     /// the sidebar Files browser when it is showing this directory, so
     /// the uploaded entries appear without a manual refresh.
     pub dest_dir: String,
+    /// Context parked while a destination conflict paused the upload
+    /// and the overwrite modal is up; the resolve handler resumes the
+    /// upload with it once the user answers.
+    pub paused: Option<DropUploadPaused>,
+}
+
+/// Everything the resume handler needs to continue a drop upload after
+/// the user answered an overwrite prompt. The SFTP client is NOT kept:
+/// it is re-opened from the pane's live session on resume, so this stays
+/// `Debug + Clone` (it rides `DropProgress`).
+#[derive(Debug, Clone)]
+pub(crate) struct DropUploadPaused {
+    /// Remaining top-level plans; the first entry's first item is the
+    /// conflicted file the answer applies to.
+    pub plans: Vec<(String, Vec<crate::state::TransferItem>)>,
+    /// Bytes already transferred before the pause.
+    pub completed: u64,
+    /// 0-based position of the paused entry across the whole drop, so
+    /// the resume keeps the same displayed `(k, n)` batch position.
+    pub index: usize,
+    pub of: usize,
+    /// Remote directory the drop lands in (kept so the resume stream
+    /// can refresh the sidebar Files browser at `Done`).
+    pub dest_dir: String,
+    pub temp_name: bool,
 }
 
 /// Progress events streamed by the OS-drop SFTP upload task
@@ -762,6 +787,14 @@ pub(crate) enum DropProgress {
     Entry { name: String, index: usize, of: usize },
     /// Cumulative bytes moved across the whole drop.
     Advanced { transferred: u64 },
+    /// A destination file already exists: the upload paused and the
+    /// overwrite modal is up. `paused` is what the resolve handler
+    /// resumes with once the user answers.
+    Conflict {
+        prompt: Box<crate::state::OverwritePrompt>,
+        item: crate::state::TransferItem,
+        paused: DropUploadPaused,
+    },
     Done,
     Failed(String),
     Cancelled,
