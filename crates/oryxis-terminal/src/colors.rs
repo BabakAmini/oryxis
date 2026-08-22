@@ -21,27 +21,62 @@ pub enum TerminalTheme {
     NightOwl,
     NightOwlLight,
     PaperLight,
+    AyuDark,
+    AyuLight,
+    CatppuccinLatte,
+    CatppuccinMocha,
+    EverforestDark,
+    GithubDark,
+    GithubLight,
+    GruvboxLight,
+    Horizon,
+    Kanagawa,
+    OneLight,
+    RosePine,
+    TokyoNight,
+    Zenburn,
 }
 
 impl TerminalTheme {
+    /// Picker order: the dark group first, then the light group,
+    /// alphabetical by display name within each (the h3 curation
+    /// decision; `list_order_is_dark_then_light_alphabetical` enforces
+    /// it). Nothing else may depend on this order: themes persist by
+    /// NAME everywhere.
     pub const ALL: &[TerminalTheme] = &[
-        Self::OryxisDark,
-        Self::OryxisLight,
-        Self::Termius,
+        // Dark
+        Self::AyuDark,
+        Self::CatppuccinMocha,
         Self::Darcula,
-        Self::IslandsDark,
         Self::Dracula,
-        Self::Monokai,
-        Self::HackerGreen,
-        Self::OneDark,
+        Self::EverforestDark,
+        Self::GithubDark,
         Self::GruvboxDark,
-        Self::Nord,
-        Self::NordLight,
-        Self::SolarizedDark,
-        Self::SolarizedLight,
+        Self::HackerGreen,
+        Self::Horizon,
+        Self::IslandsDark,
+        Self::Kanagawa,
+        Self::Monokai,
         Self::NightOwl,
+        Self::Nord,
+        Self::OneDark,
+        Self::OryxisDark,
+        Self::RosePine,
+        Self::SolarizedDark,
+        Self::Termius,
+        Self::TokyoNight,
+        Self::Zenburn,
+        // Light
+        Self::AyuLight,
+        Self::CatppuccinLatte,
+        Self::GithubLight,
+        Self::GruvboxLight,
         Self::NightOwlLight,
+        Self::NordLight,
+        Self::OneLight,
+        Self::OryxisLight,
         Self::PaperLight,
+        Self::SolarizedLight,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -63,6 +98,20 @@ impl TerminalTheme {
             Self::NightOwl => "Night Owl",
             Self::NightOwlLight => "Night Owl Light",
             Self::PaperLight => "Paper Light",
+            Self::AyuDark => "Ayu Dark",
+            Self::AyuLight => "Ayu Light",
+            Self::CatppuccinLatte => "Catppuccin Latte",
+            Self::CatppuccinMocha => "Catppuccin Mocha",
+            Self::EverforestDark => "Everforest Dark",
+            Self::GithubDark => "GitHub Dark",
+            Self::GithubLight => "GitHub Light",
+            Self::GruvboxLight => "Gruvbox Light",
+            Self::Horizon => "Horizon",
+            Self::Kanagawa => "Kanagawa",
+            Self::OneLight => "One Light",
+            Self::RosePine => "Rosé Pine",
+            Self::TokyoNight => "Tokyo Night",
+            Self::Zenburn => "Zenburn",
         }
     }
 
@@ -85,6 +134,20 @@ impl TerminalTheme {
             Self::NightOwl => TerminalPalette::night_owl(),
             Self::NightOwlLight => TerminalPalette::night_owl_light(),
             Self::PaperLight => TerminalPalette::paper_light(),
+            Self::AyuDark => TerminalPalette::ayu_dark(),
+            Self::AyuLight => TerminalPalette::ayu_light(),
+            Self::CatppuccinLatte => TerminalPalette::catppuccin_latte(),
+            Self::CatppuccinMocha => TerminalPalette::catppuccin_mocha(),
+            Self::EverforestDark => TerminalPalette::everforest_dark(),
+            Self::GithubDark => TerminalPalette::github_dark(),
+            Self::GithubLight => TerminalPalette::github_light(),
+            Self::GruvboxLight => TerminalPalette::gruvbox_light(),
+            Self::Horizon => TerminalPalette::horizon(),
+            Self::Kanagawa => TerminalPalette::kanagawa(),
+            Self::OneLight => TerminalPalette::one_light(),
+            Self::RosePine => TerminalPalette::rose_pine(),
+            Self::TokyoNight => TerminalPalette::tokyo_night(),
+            Self::Zenburn => TerminalPalette::zenburn(),
         }
     }
 }
@@ -595,6 +658,439 @@ impl TerminalPalette {
         }
     }
 
+    /// Catppuccin Mocha, from the org's own alacritty port
+    /// (catppuccin/alacritty). Bright 9-14 REPEAT normal 1-6 upstream;
+    /// only the black/white pairs differ (surface1/surface2,
+    /// subtext1/subtext0; bright white is DARKER than normal white by
+    /// design). Cursor is rosewater.
+    pub fn catppuccin_mocha() -> Self {
+        Self {
+            foreground: Color::from_rgb8(205, 214, 244), // text #cdd6f4
+            background: Color::from_rgb8(30, 30, 46),    // base #1e1e2e
+            cursor: Color::from_rgb8(245, 224, 220),     // rosewater #f5e0dc
+            ansi: [
+                Color::from_rgb8(69, 71, 90),     // Black          #45475a (surface1)
+                Color::from_rgb8(243, 139, 168),  // Red            #f38ba8
+                Color::from_rgb8(166, 227, 161),  // Green          #a6e3a1
+                Color::from_rgb8(249, 226, 175),  // Yellow         #f9e2af
+                Color::from_rgb8(137, 180, 250),  // Blue           #89b4fa
+                Color::from_rgb8(245, 194, 231),  // Magenta        #f5c2e7 (pink)
+                Color::from_rgb8(148, 226, 213),  // Cyan           #94e2d5 (teal)
+                Color::from_rgb8(186, 194, 222),  // White          #bac2de (subtext1)
+                Color::from_rgb8(88, 91, 112),    // Bright Black   #585b70 (surface2)
+                Color::from_rgb8(243, 139, 168),  // Bright Red     #f38ba8
+                Color::from_rgb8(166, 227, 161),  // Bright Green   #a6e3a1
+                Color::from_rgb8(249, 226, 175),  // Bright Yellow  #f9e2af
+                Color::from_rgb8(137, 180, 250),  // Bright Blue    #89b4fa
+                Color::from_rgb8(245, 194, 231),  // Bright Magenta #f5c2e7
+                Color::from_rgb8(148, 226, 213),  // Bright Cyan    #94e2d5
+                Color::from_rgb8(166, 173, 200),  // Bright White   #a6adc8 (subtext0)
+            ],
+        }
+    }
+
+    /// Catppuccin Latte, the light flavour, same source and the same
+    /// bright-repeats-normal pattern as Mocha; being a light theme the
+    /// "black" slots are light greys and the "white" slots are dark.
+    pub fn catppuccin_latte() -> Self {
+        Self {
+            foreground: Color::from_rgb8(76, 79, 105),   // text #4c4f69
+            background: Color::from_rgb8(239, 241, 245), // base #eff1f5
+            cursor: Color::from_rgb8(220, 138, 120),     // rosewater #dc8a78
+            ansi: [
+                Color::from_rgb8(188, 192, 204),  // Black          #bcc0cc (surface1)
+                Color::from_rgb8(210, 15, 57),    // Red            #d20f39
+                Color::from_rgb8(64, 160, 43),    // Green          #40a02b
+                Color::from_rgb8(223, 142, 29),   // Yellow         #df8e1d
+                Color::from_rgb8(30, 102, 245),   // Blue           #1e66f5
+                Color::from_rgb8(234, 118, 203),  // Magenta        #ea76cb (pink)
+                Color::from_rgb8(23, 146, 153),   // Cyan           #179299 (teal)
+                Color::from_rgb8(92, 95, 119),    // White          #5c5f77 (subtext1)
+                Color::from_rgb8(172, 176, 190),  // Bright Black   #acb0be (surface2)
+                Color::from_rgb8(210, 15, 57),    // Bright Red     #d20f39
+                Color::from_rgb8(64, 160, 43),    // Bright Green   #40a02b
+                Color::from_rgb8(223, 142, 29),   // Bright Yellow  #df8e1d
+                Color::from_rgb8(30, 102, 245),   // Bright Blue    #1e66f5
+                Color::from_rgb8(234, 118, 203),  // Bright Magenta #ea76cb
+                Color::from_rgb8(23, 146, 153),   // Bright Cyan    #179299
+                Color::from_rgb8(108, 111, 133),  // Bright White   #6c6f85 (subtext0)
+            ],
+        }
+    }
+
+    /// Tokyo Night, the default "night" style, from folke's own
+    /// alacritty extra (agrees with the ghostty extra on all 16 slots).
+    /// The brights are genuinely brightened variants; bright white is
+    /// the foreground.
+    pub fn tokyo_night() -> Self {
+        Self {
+            foreground: Color::from_rgb8(192, 202, 245), // #c0caf5
+            background: Color::from_rgb8(26, 27, 38),    // #1a1b26
+            cursor: Color::from_rgb8(192, 202, 245),     // = foreground (ghostty extra)
+            ansi: [
+                Color::from_rgb8(21, 22, 30),     // Black          #15161e
+                Color::from_rgb8(247, 118, 142),  // Red            #f7768e
+                Color::from_rgb8(158, 206, 106),  // Green          #9ece6a
+                Color::from_rgb8(224, 175, 104),  // Yellow         #e0af68
+                Color::from_rgb8(122, 162, 247),  // Blue           #7aa2f7
+                Color::from_rgb8(187, 154, 247),  // Magenta        #bb9af7
+                Color::from_rgb8(125, 207, 255),  // Cyan           #7dcfff
+                Color::from_rgb8(169, 177, 214),  // White          #a9b1d6
+                Color::from_rgb8(65, 72, 104),    // Bright Black   #414868
+                Color::from_rgb8(255, 137, 157),  // Bright Red     #ff899d
+                Color::from_rgb8(159, 224, 68),   // Bright Green   #9fe044
+                Color::from_rgb8(250, 186, 74),   // Bright Yellow  #faba4a
+                Color::from_rgb8(141, 176, 255),  // Bright Blue    #8db0ff
+                Color::from_rgb8(199, 169, 255),  // Bright Magenta #c7a9ff
+                Color::from_rgb8(164, 218, 255),  // Bright Cyan    #a4daff
+                Color::from_rgb8(192, 202, 245),  // Bright White   #c0caf5
+            ],
+        }
+    }
+
+    /// Rosé Pine (main), from the org's own alacritty dist. The slot
+    /// semantics are deliberately unusual upstream: "green" is pine (a
+    /// blue-teal), "blue" is foam (light cyan) and "cyan" is rose
+    /// (pinkish); do not "fix" them. Bright 9-15 repeat normal 1-7;
+    /// only black differs (overlay vs muted).
+    pub fn rose_pine() -> Self {
+        Self {
+            foreground: Color::from_rgb8(224, 222, 244), // text #e0def4
+            background: Color::from_rgb8(25, 23, 36),    // base #191724
+            cursor: Color::from_rgb8(82, 79, 103),       // highlight-high #524f67
+            ansi: [
+                Color::from_rgb8(38, 35, 58),     // Black          #26233a (overlay)
+                Color::from_rgb8(235, 111, 146),  // Red            #eb6f92 (love)
+                Color::from_rgb8(49, 116, 143),   // Green          #31748f (pine)
+                Color::from_rgb8(246, 193, 119),  // Yellow         #f6c177 (gold)
+                Color::from_rgb8(156, 207, 216),  // Blue           #9ccfd8 (foam)
+                Color::from_rgb8(196, 167, 231),  // Magenta        #c4a7e7 (iris)
+                Color::from_rgb8(235, 188, 186),  // Cyan           #ebbcba (rose)
+                Color::from_rgb8(224, 222, 244),  // White          #e0def4 (text)
+                Color::from_rgb8(110, 106, 134),  // Bright Black   #6e6a86 (muted)
+                Color::from_rgb8(235, 111, 146),  // Bright Red     #eb6f92
+                Color::from_rgb8(49, 116, 143),   // Bright Green   #31748f
+                Color::from_rgb8(246, 193, 119),  // Bright Yellow  #f6c177
+                Color::from_rgb8(156, 207, 216),  // Bright Blue    #9ccfd8
+                Color::from_rgb8(196, 167, 231),  // Bright Magenta #c4a7e7
+                Color::from_rgb8(235, 188, 186),  // Bright Cyan    #ebbcba
+                Color::from_rgb8(224, 222, 244),  // Bright White   #e0def4
+            ],
+        }
+    }
+
+    /// Kanagawa (wave), from rebelot's kitty extra, cross-checked with
+    /// the ghostty extra (the alacritty extra's normal black 0x090618
+    /// is stale; 2 of 3 official exports and the sumiInk0 palette say
+    /// #16161d). Some brights are deliberately DULLER than their
+    /// normal slot (bright magenta is springViolet). Cursor is
+    /// oldWhite.
+    pub fn kanagawa() -> Self {
+        Self {
+            foreground: Color::from_rgb8(220, 215, 186), // fujiWhite #dcd7ba
+            background: Color::from_rgb8(31, 31, 40),    // sumiInk3 #1f1f28
+            cursor: Color::from_rgb8(200, 192, 147),     // oldWhite #c8c093
+            ansi: [
+                Color::from_rgb8(22, 22, 29),     // Black          #16161d (sumiInk0)
+                Color::from_rgb8(195, 64, 67),    // Red            #c34043
+                Color::from_rgb8(118, 148, 106),  // Green          #76946a
+                Color::from_rgb8(192, 163, 110),  // Yellow         #c0a36e
+                Color::from_rgb8(126, 156, 216),  // Blue           #7e9cd8
+                Color::from_rgb8(149, 127, 184),  // Magenta        #957fb8
+                Color::from_rgb8(106, 149, 137),  // Cyan           #6a9589
+                Color::from_rgb8(200, 192, 147),  // White          #c8c093 (oldWhite)
+                Color::from_rgb8(114, 113, 105),  // Bright Black   #727169
+                Color::from_rgb8(232, 36, 36),    // Bright Red     #e82424
+                Color::from_rgb8(152, 187, 108),  // Bright Green   #98bb6c
+                Color::from_rgb8(230, 195, 132),  // Bright Yellow  #e6c384
+                Color::from_rgb8(127, 180, 202),  // Bright Blue    #7fb4ca
+                Color::from_rgb8(147, 138, 169),  // Bright Magenta #938aa9 (springViolet)
+                Color::from_rgb8(122, 168, 159),  // Bright Cyan    #7aa89f
+                Color::from_rgb8(220, 215, 186),  // Bright White   #dcd7ba
+            ],
+        }
+    }
+
+    /// Everforest Dark (medium background), from the scheme's own
+    /// palette.md plus its vim terminal mapping (the only official
+    /// terminal export). Upstream repeats every normal slot into its
+    /// bright twin, and defines no cursor (vim uses reverse video), so
+    /// the cursor is the foreground.
+    pub fn everforest_dark() -> Self {
+        Self {
+            foreground: Color::from_rgb8(211, 198, 170), // fg #d3c6aa
+            background: Color::from_rgb8(45, 53, 59),    // bg0 #2d353b
+            cursor: Color::from_rgb8(211, 198, 170),     // = foreground
+            ansi: [
+                Color::from_rgb8(71, 82, 88),     // Black          #475258 (bg3)
+                Color::from_rgb8(230, 126, 128),  // Red            #e67e80
+                Color::from_rgb8(167, 192, 128),  // Green          #a7c080
+                Color::from_rgb8(219, 188, 127),  // Yellow         #dbbc7f
+                Color::from_rgb8(127, 187, 179),  // Blue           #7fbbb3
+                Color::from_rgb8(214, 153, 182),  // Magenta        #d699b6 (purple)
+                Color::from_rgb8(131, 192, 146),  // Cyan           #83c092 (aqua)
+                Color::from_rgb8(211, 198, 170),  // White          #d3c6aa (fg)
+                Color::from_rgb8(71, 82, 88),     // Bright Black   #475258
+                Color::from_rgb8(230, 126, 128),  // Bright Red     #e67e80
+                Color::from_rgb8(167, 192, 128),  // Bright Green   #a7c080
+                Color::from_rgb8(219, 188, 127),  // Bright Yellow  #dbbc7f
+                Color::from_rgb8(127, 187, 179),  // Bright Blue    #7fbbb3
+                Color::from_rgb8(214, 153, 182),  // Bright Magenta #d699b6
+                Color::from_rgb8(131, 192, 146),  // Bright Cyan    #83c092
+                Color::from_rgb8(211, 198, 170),  // Bright White   #d3c6aa
+            ],
+        }
+    }
+
+    /// Ayu Dark, from the ayu-theme org's own VSCode theme
+    /// (terminal.ansi* keys; the widely-shipped alacritty port drifts
+    /// slightly on the normal slots, the org values win). Cursor is
+    /// the ayu accent.
+    pub fn ayu_dark() -> Self {
+        Self {
+            foreground: Color::from_rgb8(191, 189, 182), // #bfbdb6
+            background: Color::from_rgb8(13, 16, 23),    // #0d1017
+            cursor: Color::from_rgb8(230, 180, 80),      // accent #e6b450
+            ansi: [
+                Color::from_rgb8(27, 31, 41),     // Black          #1b1f29
+                Color::from_rgb8(240, 107, 115),  // Red            #f06b73
+                Color::from_rgb8(112, 191, 86),   // Green          #70bf56
+                Color::from_rgb8(253, 176, 76),   // Yellow         #fdb04c
+                Color::from_rgb8(79, 191, 255),   // Blue           #4fbfff
+                Color::from_rgb8(208, 161, 255),  // Magenta        #d0a1ff
+                Color::from_rgb8(147, 226, 200),  // Cyan           #93e2c8
+                Color::from_rgb8(199, 199, 199),  // White          #c7c7c7
+                Color::from_rgb8(104, 104, 104),  // Bright Black   #686868
+                Color::from_rgb8(240, 113, 120),  // Bright Red     #f07178
+                Color::from_rgb8(170, 217, 76),   // Bright Green   #aad94c
+                Color::from_rgb8(255, 180, 84),   // Bright Yellow  #ffb454
+                Color::from_rgb8(89, 194, 255),   // Bright Blue    #59c2ff
+                Color::from_rgb8(210, 166, 255),  // Bright Magenta #d2a6ff
+                Color::from_rgb8(149, 230, 203),  // Bright Cyan    #95e6cb
+                Color::from_rgb8(255, 255, 255),  // Bright White   #ffffff
+            ],
+        }
+    }
+
+    /// Ayu Light, same source as Ayu Dark. Bright white is DARKER than
+    /// the near-white background by light-theme convention. The cursor
+    /// is the accent the org's VSCode theme actually ships (#f29718).
+    pub fn ayu_light() -> Self {
+        Self {
+            foreground: Color::from_rgb8(92, 97, 102),   // #5c6166
+            background: Color::from_rgb8(248, 249, 250), // #f8f9fa
+            cursor: Color::from_rgb8(242, 151, 24),      // accent #f29718
+            ansi: [
+                Color::from_rgb8(0, 0, 0),        // Black          #000000
+                Color::from_rgb8(240, 107, 108),  // Red            #f06b6c
+                Color::from_rgb8(108, 191, 67),   // Green          #6cbf43
+                Color::from_rgb8(231, 161, 0),    // Yellow         #e7a100
+                Color::from_rgb8(33, 161, 226),   // Blue           #21a1e2
+                Color::from_rgb8(161, 118, 203),  // Magenta        #a176cb
+                Color::from_rgb8(74, 188, 150),   // Cyan           #4abc96
+                Color::from_rgb8(199, 199, 199),  // White          #c7c7c7
+                Color::from_rgb8(104, 104, 104),  // Bright Black   #686868
+                Color::from_rgb8(240, 113, 113),  // Bright Red     #f07171
+                Color::from_rgb8(134, 179, 0),    // Bright Green   #86b300
+                Color::from_rgb8(235, 164, 0),    // Bright Yellow  #eba400
+                Color::from_rgb8(34, 164, 230),   // Bright Blue    #22a4e6
+                Color::from_rgb8(163, 122, 204),  // Bright Magenta #a37acc
+                Color::from_rgb8(76, 191, 153),   // Bright Cyan    #4cbf99
+                Color::from_rgb8(209, 209, 209),  // Bright White   #d1d1d1
+            ],
+        }
+    }
+
+    /// GitHub Dark (Default), from primer/github-vscode-theme's
+    /// terminal.ansi* keys (primitives 7.10, with the theme's own
+    /// foreground override). No cursor upstream, so the foreground.
+    pub fn github_dark() -> Self {
+        Self {
+            foreground: Color::from_rgb8(230, 237, 243), // #e6edf3
+            background: Color::from_rgb8(13, 17, 23),    // #0d1117
+            cursor: Color::from_rgb8(230, 237, 243),     // = foreground
+            ansi: [
+                Color::from_rgb8(72, 79, 88),     // Black          #484f58
+                Color::from_rgb8(255, 123, 114),  // Red            #ff7b72
+                Color::from_rgb8(63, 185, 80),    // Green          #3fb950
+                Color::from_rgb8(210, 153, 34),   // Yellow         #d29922
+                Color::from_rgb8(88, 166, 255),   // Blue           #58a6ff
+                Color::from_rgb8(188, 140, 255),  // Magenta        #bc8cff
+                Color::from_rgb8(57, 197, 207),   // Cyan           #39c5cf
+                Color::from_rgb8(177, 186, 196),  // White          #b1bac4
+                Color::from_rgb8(110, 118, 129),  // Bright Black   #6e7681
+                Color::from_rgb8(255, 161, 152),  // Bright Red     #ffa198
+                Color::from_rgb8(86, 211, 100),   // Bright Green   #56d364
+                Color::from_rgb8(227, 179, 65),   // Bright Yellow  #e3b341
+                Color::from_rgb8(121, 192, 255),  // Bright Blue    #79c0ff
+                Color::from_rgb8(210, 168, 255),  // Bright Magenta #d2a8ff
+                Color::from_rgb8(86, 212, 221),   // Bright Cyan    #56d4dd
+                Color::from_rgb8(255, 255, 255),  // Bright White   #ffffff
+            ],
+        }
+    }
+
+    /// GitHub Light (Default), same source. Several "bright" slots are
+    /// deliberately DARKER than their normal twin (bright-as-bold must
+    /// stay readable on white), the yellows are dark browns, and both
+    /// whites are mid greys: faithful upstream, not an error.
+    pub fn github_light() -> Self {
+        Self {
+            foreground: Color::from_rgb8(31, 35, 40),    // #1f2328
+            background: Color::from_rgb8(255, 255, 255), // #ffffff
+            cursor: Color::from_rgb8(31, 35, 40),        // = foreground
+            ansi: [
+                Color::from_rgb8(36, 41, 47),     // Black          #24292f
+                Color::from_rgb8(207, 34, 46),    // Red            #cf222e
+                Color::from_rgb8(17, 99, 41),     // Green          #116329
+                Color::from_rgb8(77, 45, 0),      // Yellow         #4d2d00
+                Color::from_rgb8(9, 105, 218),    // Blue           #0969da
+                Color::from_rgb8(130, 80, 223),   // Magenta        #8250df
+                Color::from_rgb8(27, 124, 131),   // Cyan           #1b7c83
+                Color::from_rgb8(110, 119, 129),  // White          #6e7781
+                Color::from_rgb8(87, 96, 106),    // Bright Black   #57606a
+                Color::from_rgb8(164, 14, 38),    // Bright Red     #a40e26
+                Color::from_rgb8(26, 127, 55),    // Bright Green   #1a7f37
+                Color::from_rgb8(99, 60, 1),      // Bright Yellow  #633c01
+                Color::from_rgb8(33, 139, 255),   // Bright Blue    #218bff
+                Color::from_rgb8(164, 117, 249),  // Bright Magenta #a475f9
+                Color::from_rgb8(49, 146, 170),   // Bright Cyan    #3192aa
+                Color::from_rgb8(140, 149, 159),  // Bright White   #8c959f
+            ],
+        }
+    }
+
+    /// One Light, Atom's light half, from the canonical terminal port's
+    /// own hex table (nathanbuchar/atom-one-dark-terminal COLORS, which
+    /// is verbatim atom/one-light-syntax; its .itermcolors drifts a few
+    /// units through colorspace-less floats and the mbadolato port is a
+    /// different, cruder palette). Bright 9-14 repeat normal 1-6;
+    /// bright black is the foreground.
+    pub fn one_light() -> Self {
+        Self {
+            foreground: Color::from_rgb8(56, 58, 66),    // mono-1 #383a42
+            background: Color::from_rgb8(249, 249, 249), // #f9f9f9
+            cursor: Color::from_rgb8(56, 58, 66),        // = foreground (explicit upstream)
+            ansi: [
+                Color::from_rgb8(0, 0, 0),        // Black          #000000
+                Color::from_rgb8(228, 86, 73),    // Red            #e45649
+                Color::from_rgb8(80, 161, 79),    // Green          #50a14f
+                Color::from_rgb8(152, 104, 1),    // Yellow         #986801
+                Color::from_rgb8(64, 120, 242),   // Blue           #4078f2
+                Color::from_rgb8(166, 38, 164),   // Magenta        #a626a4
+                Color::from_rgb8(1, 132, 188),    // Cyan           #0184bc
+                Color::from_rgb8(160, 161, 167),  // White          #a0a1a7
+                Color::from_rgb8(56, 58, 66),     // Bright Black   #383a42
+                Color::from_rgb8(228, 86, 73),    // Bright Red     #e45649
+                Color::from_rgb8(80, 161, 79),    // Bright Green   #50a14f
+                Color::from_rgb8(152, 104, 1),    // Bright Yellow  #986801
+                Color::from_rgb8(64, 120, 242),   // Bright Blue    #4078f2
+                Color::from_rgb8(166, 38, 164),   // Bright Magenta #a626a4
+                Color::from_rgb8(1, 132, 188),    // Bright Cyan    #0184bc
+                Color::from_rgb8(255, 255, 255),  // Bright White   #ffffff
+            ],
+        }
+    }
+
+    /// Gruvbox Light (medium contrast), from morhetz's own xresources
+    /// export next to the vim palette. The light-mode inversion is
+    /// upstream-intended: slot 0 "black" is a cream tone, slot 15
+    /// "bright white" is the DARK foreground, and the bright 9-14 row
+    /// is the faded_* set, darker than the neutral row. Slot 6/14 are
+    /// gruvbox "aqua" serving as cyan. No cursor upstream, so the
+    /// foreground.
+    pub fn gruvbox_light() -> Self {
+        Self {
+            foreground: Color::from_rgb8(60, 56, 54),    // dark1 #3c3836
+            background: Color::from_rgb8(251, 241, 199), // light0 #fbf1c7
+            cursor: Color::from_rgb8(60, 56, 54),        // = foreground
+            ansi: [
+                Color::from_rgb8(253, 244, 193),  // Black          #fdf4c1
+                Color::from_rgb8(204, 36, 29),    // Red            #cc241d
+                Color::from_rgb8(152, 151, 26),   // Green          #98971a
+                Color::from_rgb8(215, 153, 33),   // Yellow         #d79921
+                Color::from_rgb8(69, 133, 136),   // Blue           #458588
+                Color::from_rgb8(177, 98, 134),   // Magenta        #b16286
+                Color::from_rgb8(104, 157, 106),  // Cyan           #689d6a (aqua)
+                Color::from_rgb8(124, 111, 100),  // White          #7c6f64 (dark4)
+                Color::from_rgb8(146, 131, 116),  // Bright Black   #928374 (gray)
+                Color::from_rgb8(157, 0, 6),      // Bright Red     #9d0006 (faded)
+                Color::from_rgb8(121, 116, 14),   // Bright Green   #79740e (faded)
+                Color::from_rgb8(181, 118, 20),   // Bright Yellow  #b57614 (faded)
+                Color::from_rgb8(7, 102, 120),    // Bright Blue    #076678 (faded)
+                Color::from_rgb8(143, 63, 113),   // Bright Magenta #8f3f71 (faded)
+                Color::from_rgb8(66, 123, 88),    // Bright Cyan    #427b58 (faded)
+                Color::from_rgb8(60, 56, 54),     // Bright White   #3c3836 (dark1)
+            ],
+        }
+    }
+
+    /// Zenburn, via the mbadolato/iTerm2-Color-Schemes alacritty export
+    /// (the de-facto terminal mapping; the original vim scheme's bg/fg
+    /// agree). Bright black is Zenburn's famous green-grey and the
+    /// bright green/yellow are muted tans: faithful, not an error.
+    /// The port's #73635a cursor measures 1.8:1 against the background,
+    /// under this crate's own visibility floor, and the ORIGINAL scheme
+    /// leaves the cursor to reverse video, so the foreground stands in.
+    pub fn zenburn() -> Self {
+        Self {
+            foreground: Color::from_rgb8(220, 220, 204), // #dcdccc
+            background: Color::from_rgb8(63, 63, 63),    // #3f3f3f
+            cursor: Color::from_rgb8(220, 220, 204),     // = foreground (see above)
+            ansi: [
+                Color::from_rgb8(77, 77, 77),     // Black          #4d4d4d
+                Color::from_rgb8(125, 93, 93),    // Red            #7d5d5d
+                Color::from_rgb8(96, 180, 138),   // Green          #60b48a
+                Color::from_rgb8(240, 223, 175),  // Yellow         #f0dfaf
+                Color::from_rgb8(93, 109, 125),   // Blue           #5d6d7d
+                Color::from_rgb8(220, 140, 195),  // Magenta        #dc8cc3
+                Color::from_rgb8(140, 208, 211),  // Cyan           #8cd0d3
+                Color::from_rgb8(220, 220, 204),  // White          #dcdccc
+                Color::from_rgb8(112, 144, 128),  // Bright Black   #709080
+                Color::from_rgb8(220, 163, 163),  // Bright Red     #dca3a3
+                Color::from_rgb8(195, 191, 159),  // Bright Green   #c3bf9f
+                Color::from_rgb8(224, 207, 159),  // Bright Yellow  #e0cf9f
+                Color::from_rgb8(148, 191, 243),  // Bright Blue    #94bff3
+                Color::from_rgb8(236, 147, 211),  // Bright Magenta #ec93d3
+                Color::from_rgb8(147, 224, 227),  // Bright Cyan    #93e0e3
+                Color::from_rgb8(255, 255, 255),  // Bright White   #ffffff
+            ],
+        }
+    }
+
+    /// Horizon (dark), from the official VSCode theme's terminal keys.
+    /// Upstream defines only the 12 coloured slots; the black/white
+    /// four come from the faithful Windows Terminal extension of the
+    /// same values (black = background, whites = foreground; there is
+    /// no #ffffff anywhere in Horizon). The "yellow" slots are
+    /// peach/salmon by design. The upstream cursor is a translucent
+    /// grey; its opaque base colour is used here.
+    pub fn horizon() -> Self {
+        Self {
+            foreground: Color::from_rgb8(213, 216, 218), // #d5d8da
+            background: Color::from_rgb8(28, 30, 38),    // #1c1e26
+            cursor: Color::from_rgb8(108, 111, 147),     // #6c6f93
+            ansi: [
+                Color::from_rgb8(28, 30, 38),     // Black          #1c1e26 (= background)
+                Color::from_rgb8(233, 86, 120),   // Red            #e95678
+                Color::from_rgb8(41, 211, 152),   // Green          #29d398
+                Color::from_rgb8(250, 183, 149),  // Yellow         #fab795
+                Color::from_rgb8(38, 187, 217),   // Blue           #26bbd9
+                Color::from_rgb8(238, 100, 172),  // Magenta        #ee64ac
+                Color::from_rgb8(89, 225, 227),   // Cyan           #59e1e3
+                Color::from_rgb8(213, 216, 218),  // White          #d5d8da (= foreground)
+                Color::from_rgb8(46, 48, 62),     // Bright Black   #2e303e
+                Color::from_rgb8(236, 106, 136),  // Bright Red     #ec6a88
+                Color::from_rgb8(63, 218, 164),   // Bright Green   #3fdaa4
+                Color::from_rgb8(251, 195, 167),  // Bright Yellow  #fbc3a7
+                Color::from_rgb8(63, 196, 222),   // Bright Blue    #3fc4de
+                Color::from_rgb8(240, 117, 181),  // Bright Magenta #f075b5
+                Color::from_rgb8(107, 228, 230),  // Bright Cyan    #6be4e6
+                Color::from_rgb8(213, 216, 218),  // Bright White   #d5d8da
+            ],
+        }
+    }
+
     /// Resolve an alacritty Color to an iced Color.
     pub fn resolve(
         &self,
@@ -771,6 +1267,38 @@ mod tests {
                 "two built-in themes are both called {name:?}"
             );
             seen.push(name);
+        }
+    }
+
+    /// `ALL` is the picker order: the dark group, then the light group,
+    /// alphabetical by display name within each. Group membership is
+    /// MEASURED (background luminance), not hand-tagged, so a new theme
+    /// slotted into the wrong half (or dropped at the end of the list,
+    /// the natural mistake) fails here with its name.
+    #[test]
+    fn list_order_is_dark_then_light_alphabetical() {
+        let is_light = |t: &TerminalTheme| luminance(t.palette().background) >= 0.5;
+        let mut seen_light = false;
+        let mut prev: Option<(bool, String)> = None;
+        for theme in TerminalTheme::ALL {
+            let light = is_light(theme);
+            assert!(
+                !(seen_light && !light),
+                "{}: dark theme listed after the light group started",
+                theme.name()
+            );
+            seen_light |= light;
+            let key = theme.name().to_lowercase();
+            if let Some((prev_light, prev_key)) = &prev
+                && *prev_light == light
+            {
+                assert!(
+                    *prev_key < key,
+                    "{}: out of alphabetical order within its group",
+                    theme.name()
+                );
+            }
+            prev = Some((light, key));
         }
     }
 

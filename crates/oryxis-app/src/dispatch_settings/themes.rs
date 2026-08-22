@@ -806,6 +806,9 @@ impl Oryxis {
                     ));
                 }
             },
+            SettingsMessage::ThemeGalleryFilterChanged(v) => {
+                self.theme_ui.gallery_filter = v;
+            }
             SettingsMessage::ThemeImportBrowse => {
                 // Feed a scheme file into the paste modal; the existing
                 // Apply path parses it (h3 roadmap: file-picker import).

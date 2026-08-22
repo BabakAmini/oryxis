@@ -17,4 +17,9 @@ pub(crate) struct ThemeEditorUi {
     pub(crate) import_content: iced::widget::text_editor::Content,
     pub(crate) import_name: String,
     pub(crate) import_error: Option<String>,
+    /// Filter line of the Settings terminal-theme gallery. Cleared on
+    /// open so the gallery always starts showing everything.
+    pub(crate) gallery_filter: String,
+    /// Filter line of the per-host theme picker, same contract.
+    pub(crate) picker_filter: String,
 }

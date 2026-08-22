@@ -70,6 +70,9 @@ pub enum SettingsMessage {
     ThemeImportApply,
     /// Pick a scheme file from disk and load it into the import modal.
     ThemeImportBrowse,
+    /// Filter line typed in the terminal-theme gallery (matches card
+    /// labels, case-insensitive).
+    ThemeGalleryFilterChanged(String),
     /// File contents arrived from the browse dialog (or an error;
     /// "cancelled" is silent).
     ThemeImportFileLoaded(Result<String, String>),

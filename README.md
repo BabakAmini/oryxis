@@ -264,10 +264,9 @@ tracks it interactively.
   WSL layer).
 - **Utilities:** an optional network tools panel (DNS, ping /
   traceroute, port test, TLS check, WHOIS, RBL).
-- **Vault & sync:** a curated terminal theme collection plus theme file
-  import, and one-click relay deploy (the app installs `oryxis-relay`
-  on a host from your vault over SSH, with the script shown before it
-  runs).
+- **Vault & sync:** one-click relay deploy (the app installs
+  `oryxis-relay` on a host from your vault over SSH, with the script
+  shown before it runs).
 - **China & CJK:** Alibaba Cloud (ECS) and Tencent Cloud (CVM)
   providers, and an East Asian ambiguous-width option.
 - **AI ops toolkit:** the assistant graduates from generating shell

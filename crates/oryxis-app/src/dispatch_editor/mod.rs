@@ -1070,6 +1070,7 @@ impl Oryxis {
                 | EditorMessage::EditorBgDimChanged(..)
                 | EditorMessage::EditorOpenThemePicker
                 | EditorMessage::EditorCloseThemePicker
+                | EditorMessage::EditorThemePickerFilterChanged(..)
                 | EditorMessage::EditorTerminalThemeChanged(..)
                 | EditorMessage::EditorEncodingChanged(..)
                 | EditorMessage::EditorTerminalTypeChanged(..)

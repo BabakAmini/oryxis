@@ -27,6 +27,22 @@ impl Oryxis {
                 .color(OryxisColors::t().text_muted),
         ];
 
+        // Filter, matched against every card's visible label (the
+        // inherit sentinel participates too): one rule, no special
+        // cases, same contract as the Settings gallery.
+        let picker_filter = self.theme_ui.picker_filter.trim().to_lowercase();
+        let shows = |label: &str| {
+            picker_filter.is_empty() || label.to_lowercase().contains(&picker_filter)
+        };
+        let filter_input = iced::widget::text_input(
+            t("filter_placeholder"),
+            &self.theme_ui.picker_filter,
+        )
+        .on_input(|v| Message::Editor(EditorMessage::EditorThemePickerFilterChanged(v)))
+        .padding(10)
+        .size(13)
+        .style(crate::widgets::rounded_input_style);
+
         // Cards, first row is the inherit sentinel, the rest are
         // real palette previews. Click commits + closes via the
         // EditorTerminalThemeChanged handler. The inherit row renders
@@ -43,13 +59,18 @@ impl Oryxis {
             t("terminal_theme_inherit_global"),
             global_name,
         );
-        cards.push(crate::widgets::terminal_theme_card(
-            global_palette,
-            &inherit_label,
-            self.editor_form.terminal_theme.is_none(),
-            Message::Editor(EditorMessage::EditorTerminalThemeChanged(String::new())),
-        ));
+        if shows(&inherit_label) {
+            cards.push(crate::widgets::terminal_theme_card(
+                global_palette,
+                &inherit_label,
+                self.editor_form.terminal_theme.is_none(),
+                Message::Editor(EditorMessage::EditorTerminalThemeChanged(String::new())),
+            ));
+        }
         for theme in oryxis_terminal::TerminalTheme::ALL.iter() {
+            if !shows(theme.name()) {
+                continue;
+            }
             let is_selected =
                 self.editor_form.terminal_theme.as_deref() == Some(theme.name());
             cards.push(crate::widgets::terminal_theme_card(
@@ -61,6 +82,9 @@ impl Oryxis {
         }
         // User-defined themes, selectable per host like the built-ins.
         for ct in self.custom_terminal_themes.iter() {
+            if !shows(&ct.name) {
+                continue;
+            }
             let is_selected =
                 self.editor_form.terminal_theme.as_deref() == Some(ct.name.as_str());
             let palette = self.terminal_palette_for_name(&ct.name).unwrap_or_default();
@@ -98,7 +122,9 @@ impl Oryxis {
         let dialog = container(
             column![
                 header,
-                Space::new().height(16),
+                Space::new().height(12),
+                filter_input,
+                Space::new().height(12),
                 scroll_area,
                 Space::new().height(12),
                 container(close_btn)

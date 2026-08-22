@@ -45,9 +45,15 @@ impl Oryxis {
         match message {
             EditorMessage::EditorOpenThemePicker => {
                 self.panels.theme_picker = true;
+                // A stale filter from the last visit would open the
+                // picker on a mysteriously short list.
+                self.theme_ui.picker_filter.clear();
             }
             EditorMessage::EditorCloseThemePicker => {
                 self.panels.theme_picker = false;
+            }
+            EditorMessage::EditorThemePickerFilterChanged(v) => {
+                self.theme_ui.picker_filter = v;
             }
             EditorMessage::EditorTerminalThemeChanged(name) => {
                 // Empty string == "inherit the global pick".

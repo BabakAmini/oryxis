@@ -310,6 +310,9 @@ impl Oryxis {
             }
             SettingsMessage::OpenTerminalThemeGallery => {
                 self.panels.terminal_theme_gallery = true;
+                // A stale filter from the last visit would open the
+                // gallery on a mysteriously short grid.
+                self.theme_ui.gallery_filter.clear();
             }
             SettingsMessage::CloseTerminalThemeGallery => {
                 self.panels.terminal_theme_gallery = false;
