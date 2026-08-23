@@ -647,6 +647,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Закрити вкладку",
+        "reopen_closed_tab" => "Відкрити закриту вкладку",
         "close_group_title" => "Закрити цю групу?",
         "close_group_body" => "Ця вкладка містить {n} активних сеансів. Закриття завершить усі.",
         "close_group_confirm" => "Закрити групу",

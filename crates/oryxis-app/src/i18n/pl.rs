@@ -652,6 +652,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Zamknij kartę",
+        "reopen_closed_tab" => "Otwórz ponownie zamkniętą kartę",
         "close_group_title" => "Zamknąć tę grupę?",
         "close_group_body" => "Ta karta zawiera {n} aktywnych sesji. Zamknięcie zakończy je wszystkie.",
         "close_group_confirm" => "Zamknij grupę",

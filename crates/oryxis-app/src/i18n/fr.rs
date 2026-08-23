@@ -650,6 +650,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_already_has_password" => "Ce coffre a déjà un mot de passe. Saisissez-le ci-dessus pour déverrouiller.",
         "password_too_short" => "Le mot de passe doit comporter au moins 4 caractères",
         "close_tab" => "Fermer l'Onglet",
+        "reopen_closed_tab" => "Rouvrir l'Onglet Fermé",
         "close_group_title" => "Fermer ce groupe ?",
         "close_group_body" => "Cet onglet contient {n} sessions actives. Le fermer les termine toutes.",
         "close_group_confirm" => "Fermer le groupe",

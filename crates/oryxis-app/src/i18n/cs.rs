@@ -666,6 +666,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Zavřít kartu",
+        "reopen_closed_tab" => "Znovu otevřít zavřenou kartu",
         "close_group_title" => "Zavřít tuto skupinu?",
         "close_group_body" => "Tato karta obsahuje {n} aktivních relací. Zavřením je ukončíte všechny.",
         "close_group_confirm" => "Zavřít skupinu",

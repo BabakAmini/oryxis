@@ -8,10 +8,27 @@ use super::Message;
 pub enum TabsMessage {
     SelectTab(usize),
     CloseTab(usize),
+    /// The strip's own close X, as opposed to `Ctrl+W`, the tab context
+    /// menu or the terminal's close handling. Delegates to `CloseTab`
+    /// immediately, and exists only to start the close streak that arms
+    /// the next chip on arrival: after a close the strip slides the
+    /// following tab under a cursor that never moved, so a mouse close
+    /// is the one path where revealing the next X at once is what the
+    /// user asked for.
+    CloseTabFromStrip(usize),
     /// Second step of closing a GROUPED tab: the confirmation said yes,
     /// so tear it down without asking again (issue #112).
     ConfirmCloseGroupedTab(usize),
+    /// Bring back the last closed tab (issue #186), terminal or SFTP.
+    /// Pops `Oryxis::closed_tabs` and reopens it through the same spec
+    /// resolution a dormant pinned tab uses.
+    ReopenClosedTab,
     TabHovered(usize),
+    /// A chip's hover dwell expired: reveal its close X, unless the
+    /// pointer has moved on since. Carries the hover episode
+    /// (`HoverState::tab_hover_seq`) the timer was started with, which is
+    /// what tells "still resting here" from "already two tabs away".
+    TabCloseDwell(u64),
     /// Cursor left the tab at this index. It carries the index because the
     /// next tab's enter can arrive FIRST (see `HoverState::leave_tab`), so
     /// the clear has to know whose exit it is.

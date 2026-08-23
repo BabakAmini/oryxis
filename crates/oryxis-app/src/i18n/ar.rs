@@ -657,6 +657,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "إغلاق التبويب",
+        "reopen_closed_tab" => "إعادة فتح التبويب المغلق",
         "close_group_title" => "إغلاق هذه المجموعة؟",
         "close_group_body" => "تحتوي علامة التبويب هذه على {n} جلسات نشطة. إغلاقها ينهيها جميعًا.",
         "close_group_confirm" => "إغلاق المجموعة",

@@ -666,6 +666,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "टैब बंद करें",
+        "reopen_closed_tab" => "बंद टैब फिर से खोलें",
         "close_group_title" => "यह समूह बंद करें?",
         "close_group_body" => "इस टैब में {n} सक्रिय सत्र हैं। इसे बंद करने पर सभी समाप्त हो जाएंगे।",
         "close_group_confirm" => "समूह बंद करें",

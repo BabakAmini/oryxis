@@ -94,11 +94,14 @@ impl Oryxis {
                 | TabsMessage::SettingsTabUnhovered
                 | TabsMessage::TabHovered(..)
                 | TabsMessage::TabUnhovered(..)
+                | TabsMessage::TabCloseDwell(..)
             ) => self.handle_tabs_hover(m),
             m @ (
                 TabsMessage::SelectTab(..)
                 | TabsMessage::CloseTab(..)
+                | TabsMessage::CloseTabFromStrip(..)
                 | TabsMessage::ConfirmCloseGroupedTab(..)
+                | TabsMessage::ReopenClosedTab
                 | TabsMessage::CloseOtherTabs(..)
                 | TabsMessage::CloseAllTabs
                 | TabsMessage::CloseSettingsTab
@@ -206,4 +209,5 @@ mod hover;
 mod menus;
 mod pickers;
 mod rename;
+mod reopen;
 mod strip;

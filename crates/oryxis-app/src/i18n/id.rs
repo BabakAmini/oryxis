@@ -647,6 +647,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Tutup Tab",
+        "reopen_closed_tab" => "Buka Kembali Tab yang Ditutup",
         "close_group_title" => "Tutup grup ini?",
         "close_group_body" => "Tab ini berisi {n} sesi aktif. Menutupnya mengakhiri semuanya.",
         "close_group_confirm" => "Tutup grup",

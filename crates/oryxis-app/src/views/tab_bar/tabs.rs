@@ -271,7 +271,11 @@ pub(crate) fn sftp_session_tab<'a>(
 pub(crate) fn settings_tab<'a>(
     label: &'a str,
     is_active: bool,
-    is_hovered: bool,
+    // Whether the hovered chip has earned its close X: the reveal waits
+    // for a hover dwell so a pointer crossing the strip never finds a
+    // destructive target where it already is (issue #186). See
+    // `HoverState::tab_close_armed`.
+    close_revealed: bool,
     width: f32,
     close_on_right: bool,
     solid_fill: bool,
@@ -348,7 +352,7 @@ pub(crate) fn settings_tab<'a>(
         .on_press(Message::Tabs(TabsMessage::CloseSettingsTab))
         .into()
     };
-    let show_close = is_active || is_hovered;
+    let show_close = is_active || close_revealed;
     // `truncate_label` already reserves the badge + gaps; only the
     // trailing X slot is on top of that. Subtracting the badge again here
     // is what truncated "Settings" to "Sett…" on a min-width chip, so the
@@ -536,7 +540,13 @@ pub(crate) fn session_tab<'a>(
     label: &str,
     pane_count: usize,
     is_active: bool,
-    is_hovered: bool,
+    // Whether the hovered chip has earned its close X. The X REPLACES the
+    // host badge here, so it is revealed only after a hover dwell: an
+    // immediate swap put a destructive target exactly where the cursor
+    // already was, and switching tabs quickly with the mouse closed
+    // sessions instead of selecting them (issue #186). See
+    // `HoverState::tab_close_armed`.
+    close_revealed: bool,
     detected_os: Option<&str>,
     width: f32,
     close_on_right: bool,
@@ -633,7 +643,7 @@ pub(crate) fn session_tab<'a>(
     }
     let display_label = truncate_label(&display_label_full, label_width);
 
-    let show_close = is_active || is_hovered;
+    let show_close = is_active || close_revealed;
     let os_badge: Element<'_, Message> = {
         let fallback = if is_disconnected {
             OryxisColors::t().text_muted
@@ -764,13 +774,18 @@ pub(crate) fn session_tab<'a>(
                 ..Default::default()
             }
         })
-        .on_press(Message::Tabs(TabsMessage::CloseTab(idx)))
+        // The strip variant, which also starts the close streak: after
+        // this click the next chip slides under a cursor that has not
+        // moved, and it must arrive with its X already showing.
+        .on_press(Message::Tabs(TabsMessage::CloseTabFromStrip(idx)))
         .into()
     };
 
     // Leading slot follows the Termius behaviour by default (X replaces
     // badge on hover/active). When close-on-right is set, the badge
     // always stays leading and the X joins as a separate trailing slot.
+    // The swap is what makes the dwell necessary on the hover half: this
+    // is the one affordance that appears where the cursor already is.
     let leading_slot: Element<'_, Message> = if close_on_right || !show_close {
         os_badge
     } else {

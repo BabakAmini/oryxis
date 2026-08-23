@@ -198,6 +198,11 @@ impl Oryxis {
         // Closing a tab dismisses the session-group editor it spawned.
         self.panels.session_group_panel = false;
         if idx < self.tabs.len() {
+            // Before the teardown, which is also the reconnect rebuild's
+            // path: the remembering lives here, on the user close, so a
+            // reconnect cannot mint a "closed tab" for a session it is
+            // putting straight back (issue #186).
+            self.remember_closed_tab(idx);
             self.teardown_tab_at(idx);
             if self.tabs.is_empty() {
                 self.active_tab = None;
@@ -579,24 +584,27 @@ impl Oryxis {
         Task::none()
     }
 
-    /// First select of a dormant pinned tab: drop the placeholder and fire
-    /// the saved spec to reopen it (connect host / spawn local shell). The
-    /// freshly-opened tab inherits the pin.
-    fn reopen_dormant_tab(&mut self, idx: usize) -> Task<Message> {
+    /// The message that reopens `spec`, plus whether the tab it produces
+    /// arrives ASYNCHRONOUSLY.
+    ///
+    /// Resolved fresh every time: a host id maps to a different index than
+    /// it did last session, and the connection may have been deleted since
+    /// (`None`, which every caller reads as "nothing to reopen"). Cloud
+    /// sessions spawn through a plugin several updates later, so they
+    /// cannot ride a synchronous "did a tab get appended" check, and the
+    /// flag is what saves each caller from having to know which specs
+    /// those are.
+    ///
+    /// One authority for both reopen paths: a dormant PIN selected for the
+    /// first time, and a tab the user closed and asked back
+    /// (`ReopenClosedTab`, issue #186).
+    pub(super) fn spec_open_message(
+        &self,
+        spec: &crate::state::PinnedTabSpec,
+    ) -> (Option<Message>, bool) {
         use crate::state::PinnedTabSpec;
-        let Some(spec) = self
-            .tabs
-            .get_mut(idx)
-            .and_then(|t| t.pending_reopen.take())
-        else {
-            return Task::none();
-        };
-        // Resolve the open message fresh (the host id maps to a possibly
-        // different index than last session; the connection may be gone).
-        // Cloud sessions spawn asynchronously, so they can't ride the
-        // synchronous len-check below; flag them instead.
         let mut cloud = false;
-        let open = match &spec {
+        let open = match spec {
             PinnedTabSpec::Host { id, .. } => self
                 .connections
                 .iter()
@@ -646,6 +654,21 @@ impl Oryxis {
             // terminal-tab reopen path never produces an open message for them.
             PinnedTabSpec::Sftp { .. } => None,
         };
+        (open, cloud)
+    }
+
+    /// First select of a dormant pinned tab: drop the placeholder and fire
+    /// the saved spec to reopen it (connect host / spawn local shell). The
+    /// freshly-opened tab inherits the pin.
+    fn reopen_dormant_tab(&mut self, idx: usize) -> Task<Message> {
+        let Some(spec) = self
+            .tabs
+            .get_mut(idx)
+            .and_then(|t| t.pending_reopen.take())
+        else {
+            return Task::none();
+        };
+        let (open, cloud) = self.spec_open_message(&spec);
         if cloud {
             // Cloud sessions spawn asynchronously. Keep the dormant
             // placeholder in the strip (so its chip doesn't blink out) and let

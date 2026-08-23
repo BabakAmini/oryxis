@@ -167,6 +167,35 @@ impl TabPlacement {
     }
 }
 
+/// A tab the user closed, kept so `ReopenClosedTab` can bring it back
+/// (issue #186).
+///
+/// The spec is the one a PIN persists, so reopening a closed tab and
+/// reopening a pinned one resolve through the same code: a saved host by
+/// id (immune to reordering and renaming), a local shell by program +
+/// args, a cloud session by its group, an SFTP tab by both its panes.
+/// `pin_spec` answering `None` is what excludes a tab from the stack,
+/// which keeps quick-connect out of it for the reason it is out of pins:
+/// the entry dies with the tab, and holding it would mean keeping
+/// credentials the user typed once alive past the session that used
+/// them.
+///
+/// Session-only, never written to the vault. Pinning is this app's "keep
+/// this tab across restarts"; an undo affordance that cost a disk write
+/// per closed tab would be paying a persistence price for the one state
+/// that is meant to be cheap.
+#[derive(Debug, Clone)]
+pub(crate) struct ClosedTab {
+    pub spec: PinnedTabSpec,
+    /// Strip id of the chip that sat immediately to its left, so the
+    /// reopen lands back where the tab was rather than at the far end.
+    /// `None` = it was the first chip. An id rather than an index because
+    /// the neighbour may itself have closed since, and
+    /// [`TabPlacement::NextToOriginal`] already answers "that tab is gone"
+    /// by appending.
+    pub after_id: Option<Uuid>,
+}
+
 /// A Duplicate whose new tab has not been born yet.
 ///
 /// The copy is spawned by re-dispatching the source tab's own open
@@ -274,6 +303,22 @@ impl SftpTab {
             pending_reopen: None,
             state: SftpState::default(),
         }
+    }
+
+    /// A dormant SFTP tab: it shows in the strip with its saved label but
+    /// holds no mount, and re-mounts its panes the first time it is
+    /// selected (`SelectSftpTab`). Both restore paths mint one, a pin
+    /// recreated at boot and a closed tab the user asked back
+    /// (issue #186), so the local pane's starting directory is decided
+    /// here rather than twice.
+    pub(crate) fn new_dormant(label: String, spec: PinnedTabSpec) -> Self {
+        let mut tab = Self::new(label);
+        tab.state.left.local_path = std::env::var_os("HOME")
+            .or_else(|| std::env::var_os("USERPROFILE"))
+            .map(std::path::PathBuf::from)
+            .unwrap_or_else(|| std::path::PathBuf::from("/"));
+        tab.pending_reopen = Some(spec);
+        tab
     }
 
     /// Label to show in the tab strip: the user's transient rename when

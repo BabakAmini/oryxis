@@ -642,6 +642,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "destroy_vault" => "Sí, destruir cofre",
         "vault_destroy_confirm" => "Esto elimina permanentemente todo: hosts, claves, identidades, fragmentos, registros y configuración. La aplicación se restablece al primer inicio.",
         "close_tab" => "Cerrar Pestaña",
+        "reopen_closed_tab" => "Reabrir Pestaña Cerrada",
         "close_group_title" => "¿Cerrar este grupo?",
         "close_group_body" => "Esta pestaña contiene {n} sesiones activas. Cerrarla las termina todas.",
         "close_group_confirm" => "Cerrar grupo",

@@ -13,7 +13,16 @@ impl Oryxis {
         match message {
             TabsMessage::SelectTab(idx) => return self.handle_select_tab(idx),
             TabsMessage::CloseTab(idx) => return self.handle_close_tab(idx),
+            // The strip's X, which is the only close the mouse performs
+            // in a row: stamp the streak so the chip that slides under
+            // the cursor next shows its own X on arrival instead of
+            // asking for another dwell (issue #186).
+            TabsMessage::CloseTabFromStrip(idx) => {
+                self.hover.tab_close_click_at = Some(std::time::Instant::now());
+                return self.handle_close_tab(idx);
+            }
             TabsMessage::ConfirmCloseGroupedTab(idx) => return self.close_tab_now(idx),
+            TabsMessage::ReopenClosedTab => return self.handle_reopen_closed_tab(),
             TabsMessage::CloseOtherTabs(idx) => {
                 self.overlay = None;
                 if idx < self.tabs.len() {
@@ -40,6 +49,11 @@ impl Oryxis {
                     // turn comes.
                     for i in (0..self.tabs.len()).rev() {
                         if self.tabs[i]._id != target_id && !self.tabs[i].pinned {
+                            // Each one lands on the reopen stack, exactly
+                            // as if it had been closed on its own: a
+                            // "close others" that drops a screenful is
+                            // the case an undo is most wanted for.
+                            self.remember_closed_tab(i);
                             self.teardown_tab_at(i);
                         }
                     }
@@ -64,6 +78,7 @@ impl Oryxis {
                 // for the reason in `CloseOtherTabs` above.
                 for i in (0..self.tabs.len()).rev() {
                     if !self.tabs[i].pinned {
+                        self.remember_closed_tab(i);
                         self.teardown_tab_at(i);
                     }
                 }

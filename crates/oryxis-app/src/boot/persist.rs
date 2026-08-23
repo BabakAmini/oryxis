@@ -133,13 +133,8 @@ impl Oryxis {
             if matches!(spec, crate::state::PinnedTabSpec::Sftp { .. }) {
                 // SFTP pinned tabs restore into `sftp_tabs` as dormant chips;
                 // they re-mount their panes on first focus (see SelectSftpTab).
-                let mut tab = crate::state::SftpTab::new(label);
+                let mut tab = crate::state::SftpTab::new_dormant(label, spec);
                 tab.pinned = true;
-                tab.state.left.local_path = std::env::var_os("HOME")
-                    .or_else(|| std::env::var_os("USERPROFILE"))
-                    .map(std::path::PathBuf::from)
-                    .unwrap_or_else(|| std::path::PathBuf::from("/"));
-                tab.pending_reopen = Some(spec);
                 // Seed `tab_order` in the persisted (interleaved terminal+SFTP)
                 // order so the restored strip matches what was saved, instead of
                 // reconcile grouping all terminals before all SFTP tabs.

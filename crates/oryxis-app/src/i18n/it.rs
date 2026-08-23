@@ -642,6 +642,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "destroy_vault" => "Sì, distruggi il vault",
         "vault_destroy_confirm" => "Questo elimina permanentemente tutto: host, chiavi, identità, snippet, log e impostazioni. L'app torna al primo avvio.",
         "close_tab" => "Chiudi Scheda",
+        "reopen_closed_tab" => "Riapri Scheda Chiusa",
         "close_group_title" => "Chiudere questo gruppo?",
         "close_group_body" => "Questa scheda contiene {n} sessioni attive. Chiuderla le termina tutte.",
         "close_group_confirm" => "Chiudi gruppo",

@@ -642,6 +642,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "destroy_vault" => "Ja, Tresor zerstören",
         "vault_destroy_confirm" => "Dies löscht dauerhaft alles: Hosts, Schlüssel, Identitäten, Snippets, Logs und Einstellungen. Die App wird auf den ersten Start zurückgesetzt.",
         "close_tab" => "Tab Schließen",
+        "reopen_closed_tab" => "Geschlossenen Tab Öffnen",
         "close_group_title" => "Diese Gruppe schließen?",
         "close_group_body" => "Dieser Tab enthält {n} aktive Sitzungen. Beim Schließen enden alle.",
         "close_group_confirm" => "Gruppe schließen",

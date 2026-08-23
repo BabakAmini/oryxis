@@ -649,6 +649,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "password_too_short" => "パスワードは4文字以上である必要があります",
         "vault_already_has_password" => "このボールトには既にパスワードが設定されています。上に入力してロックを解除してください。",
         "close_tab" => "タブを閉じる",
+        "reopen_closed_tab" => "閉じたタブを再度開く",
         "close_group_title" => "このグループを閉じますか？",
         "close_group_body" => "このタブには {n} 個のセッションがあります。閉じるとすべて終了します。",
         "close_group_confirm" => "グループを閉じる",

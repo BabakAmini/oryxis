@@ -27,6 +27,30 @@ pub(crate) struct HoverState {
     /// The Settings chip, which is one entry rather than a list.
     pub(crate) settings_tab: bool,
 
+    /// Whether the chip under the cursor has earned its close X.
+    ///
+    /// On a session chip the X REPLACES the host badge, so revealing it
+    /// the instant the pointer arrives puts a destructive target exactly
+    /// where the cursor already is: switching tabs quickly with the mouse
+    /// closed sessions instead of selecting them (issue #186). It is
+    /// armed by a dwell timer instead (`TabsMessage::TabCloseDwell`), or
+    /// immediately while a close streak is running, so closing several
+    /// tabs in a row never waits.
+    pub(crate) tab_close_armed: bool,
+    /// Hover episode counter, bumped every time a chip takes the hover.
+    /// The dwell timer carries the value it was started with and only
+    /// arms if it is still current, so a timer belonging to a chip the
+    /// cursor already left can never arm the one it landed on.
+    pub(crate) tab_hover_seq: u64,
+    /// When a close X was last CLICKED in the strip. Within
+    /// `CLOSE_STREAK_GRACE` the next chip arms on arrival: after a close
+    /// the strip slides the following tab under a cursor that never
+    /// moved, and asking for a fresh dwell there would make closing four
+    /// tabs cost four pauses. Only the mouse path sets it; a keyboard
+    /// close leaves the cursor where it was, which is the case the dwell
+    /// exists for.
+    pub(crate) tab_close_click_at: Option<std::time::Instant>,
+
     /// Host card on the dashboard.
     pub(crate) card: Option<usize>,
     /// Group / folder card, keyed by id: folders re-sort on rename.
@@ -101,10 +125,40 @@ impl HoverState {
     /// Terminal tab chip, and the SFTP chips beside it in the same strip.
     pub(crate) fn leave_tab(&mut self, idx: usize) {
         Self::leave(&mut self.tab, idx);
+        self.end_tab_hover();
     }
 
     pub(crate) fn leave_sftp_tab(&mut self, idx: usize) {
         Self::leave(&mut self.sftp_tab, idx);
+        self.end_tab_hover();
+    }
+
+    /// A chip took the hover: retire the previous episode's dwell and
+    /// drop the arm it may have earned. Returns the new episode id for
+    /// the timer to carry back.
+    pub(crate) fn begin_tab_hover(&mut self) -> u64 {
+        self.tab_close_armed = false;
+        self.tab_hover_seq = self.tab_hover_seq.wrapping_add(1);
+        self.tab_hover_seq
+    }
+
+    /// Whether any strip chip is under the cursor.
+    pub(crate) fn any_tab_chip(&self) -> bool {
+        self.tab.is_some() || self.sftp_tab.is_some() || self.settings_tab
+    }
+
+    /// The cursor left a chip: drop the arm once no chip holds the hover.
+    ///
+    /// Deliberately does NOT bump the episode counter. Crossing from one
+    /// chip to the next publishes the arriving chip's enter FIRST (the
+    /// build-order rule this whole module exists for), so its dwell is
+    /// already running by the time this fires: bumping here would retire
+    /// the live timer instead of the expired one, and the X would never
+    /// appear on the tab the cursor is actually resting on.
+    fn end_tab_hover(&mut self) {
+        if !self.any_tab_chip() {
+            self.tab_close_armed = false;
+        }
     }
 
     /// Dashboard: host cards, folder cards, session-group cards.
@@ -229,6 +283,60 @@ mod tests {
 
         assert_eq!(hover.tab, Some(3));
         assert_eq!(hover.sftp_tab, None);
+    }
+
+    /// The dwell that keeps the close X from materializing under a cursor
+    /// that is only passing through: a chip taking the hover disarms, and
+    /// only its own timer may arm it back.
+    #[test]
+    fn a_stale_dwell_cannot_arm_the_chip_the_cursor_moved_to() {
+        let mut hover = HoverState { tab: Some(0), ..Default::default() };
+        let first = hover.begin_tab_hover();
+
+        // Cursor crosses onto tab 1 before tab 0's dwell expires.
+        hover.tab = Some(1);
+        let second = hover.begin_tab_hover();
+        hover.leave_tab(0);
+
+        assert_ne!(first, second, "each chip gets its own hover episode");
+        assert!(!hover.tab_close_armed);
+        // Tab 0's timer fires now: its episode is over, so it is ignored.
+        assert_ne!(first, hover.tab_hover_seq);
+        // Tab 1's own timer, on the other hand, is still current.
+        assert_eq!(second, hover.tab_hover_seq);
+        assert!(hover.any_tab_chip());
+    }
+
+    /// Leaving the strip entirely disarms, so coming back to the same chip
+    /// has to earn the X again.
+    #[test]
+    fn leaving_the_strip_disarms_the_close() {
+        let mut hover = HoverState { tab: Some(2), ..Default::default() };
+        hover.begin_tab_hover();
+        hover.tab_close_armed = true;
+
+        hover.leave_tab(2);
+
+        assert!(!hover.any_tab_chip());
+        assert!(!hover.tab_close_armed);
+    }
+
+    /// Crossing between chips keeps the arm off, but must not clear the
+    /// hover the arriving chip just took: the exit of the chip left behind
+    /// lands after it, exactly like every other pair in this module.
+    #[test]
+    fn crossing_between_chips_keeps_the_new_hover_disarmed() {
+        let mut hover = HoverState { sftp_tab: Some(0), ..Default::default() };
+        hover.tab_close_armed = true;
+
+        // Terminal chip 3 enters, then the SFTP chip's exit arrives.
+        hover.tab = Some(3);
+        hover.sftp_tab = None;
+        hover.begin_tab_hover();
+        hover.leave_sftp_tab(0);
+
+        assert_eq!(hover.tab, Some(3));
+        assert!(!hover.tab_close_armed);
     }
 
     /// The id-keyed lists (folder / cloud / dynamic-group cards, log rows)

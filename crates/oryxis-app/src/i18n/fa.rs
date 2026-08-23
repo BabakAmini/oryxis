@@ -649,6 +649,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "بستن برگه",
+        "reopen_closed_tab" => "بازگشایی برگه بسته‌شده",
         "close_group_title" => "این گروه بسته شود؟",
         "close_group_body" => "این زبانه {n} نشست فعال دارد. بستن آن همه را پایان می‌دهد.",
         "close_group_confirm" => "بستن گروه",

@@ -650,6 +650,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_already_has_password" => "此保險庫已設有密碼。請在上方輸入以解鎖。",
         "password_too_short" => "密碼至少需要 4 個字元",
         "close_tab" => "關閉分頁",
+        "reopen_closed_tab" => "重新開啟關閉的分頁",
         "close_group_title" => "關閉此群組？",
         "close_group_body" => "這個索引標籤包含 {n} 個作用中的工作階段，關閉會全部結束。",
         "close_group_confirm" => "關閉群組",

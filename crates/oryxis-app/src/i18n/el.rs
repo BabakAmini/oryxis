@@ -666,6 +666,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Κλείσιμο καρτέλας",
+        "reopen_closed_tab" => "Άνοιγμα κλειστής καρτέλας ξανά",
         "close_group_title" => "Κλείσιμο αυτής της ομάδας;",
         "close_group_body" => "Αυτή η καρτέλα έχει {n} ενεργές συνεδρίες. Το κλείσιμο τις τερματίζει όλες.",
         "close_group_confirm" => "Κλείσιμο ομάδας",

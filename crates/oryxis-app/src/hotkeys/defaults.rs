@@ -332,6 +332,13 @@ pub fn default_bindings() -> HotkeyMap {
     put(&mut m, NewKey, primary_ctrl, true, false, primary_logo, Char('k'));
     put(&mut m, NewIdentity, primary_ctrl, true, false, primary_logo, Char('i'));
     put(&mut m, CloseActiveTab, primary_ctrl, true, false, primary_logo, Char('w'));
+    // Ctrl+Shift+Y (Cmd+Shift+Y on macOS), NOT the browsers' Ctrl+Shift+T:
+    // that chord is the terminal world's "new tab" and `ShowNewTabPicker`
+    // owns it here, so the browser mnemonic is already spoken for. Y is
+    // the redo letter on Windows, and undoing a close is what this is.
+    // Shift for the usual reason: it lifts the chord out of the terminal
+    // control-sequence gate, so it fires from inside a live session.
+    put(&mut m, ReopenClosedTab, primary_ctrl, true, false, primary_logo, Char('y'));
     put(&mut m, OpenPortForwards, primary_ctrl, false, false, primary_logo, Char('p'));
     put(&mut m, OpenSettings, primary_ctrl, false, false, primary_logo, Punct(","));
     put(&mut m, FocusViewSearch, primary_ctrl, false, false, primary_logo, Char('f'));
@@ -513,6 +520,27 @@ mod tests {
             let b = defaults.get(&action).expect("default missing");
             assert_eq!(b.serialize(), expected);
             assert_eq!(HotkeyBindings::parse(expected).as_ref(), Some(b));
+        }
+    }
+
+    /// No two factory actions ship the same chord.
+    ///
+    /// The map is a table of hand-written `put` lines, so a new action
+    /// is added by picking a chord that "looks free" out of forty-odd
+    /// rows. A pair claimed twice fires both actions on one press, and
+    /// nothing else in the build says so: the settings editor only
+    /// resolves conflicts for chords the USER types.
+    #[test]
+    fn no_two_factory_actions_share_a_chord() {
+        let defaults = default_bindings();
+        let mut claimed: Vec<(HotkeyBinding, HotkeyAction)> = Vec::new();
+        for (&action, bindings) in &defaults {
+            for &b in bindings.iter() {
+                if let Some((_, other)) = claimed.iter().find(|(c, _)| *c == b) {
+                    panic!("{action:?} and {other:?} both ship {b:?}");
+                }
+                claimed.push((b, action));
+            }
         }
     }
 

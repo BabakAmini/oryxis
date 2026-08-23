@@ -127,6 +127,10 @@ pub enum HotkeyAction {
     /// with tabs docked to both sides (issue #102); no-op otherwise,
     /// since the primary key already reaches a lone region.
     ToggleSidebarOther,
+    /// Bring back the last closed tab (issue #186), terminal or SFTP.
+    /// Global rather than `terminal_only`: the moment it is wanted most
+    /// is right after closing the last tab, which lands on Home.
+    ReopenClosedTab,
 }
 
 impl HotkeyAction {
@@ -178,6 +182,7 @@ impl HotkeyAction {
             VaultSectionSlot,
             VaultSectionPrev,
             VaultSectionNext,
+            ReopenClosedTab,
         ]
     }
 
@@ -230,6 +235,7 @@ impl HotkeyAction {
             TerminalSelectAll => "terminal_select_all",
             ScrollbackPageUp => "scrollback_page_up",
             ScrollbackPageDown => "scrollback_page_down",
+            ReopenClosedTab => "reopen_closed_tab",
         }
     }
 
@@ -288,6 +294,9 @@ impl HotkeyAction {
             TerminalSelectAll => "select_all",
             ScrollbackPageUp => "hotkey_scrollback_page_up",
             ScrollbackPageDown => "hotkey_scrollback_page_down",
+            // Reuses the tab context menu's entry label, same pattern as
+            // `ReconnectTab` above.
+            ReopenClosedTab => "reopen_closed_tab",
         }
     }
 

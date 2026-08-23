@@ -347,6 +347,14 @@ impl Oryxis {
                         self.active_sftp = None;
                         self.tabs.clear();
                         self.active_tab = None;
+                        // The reopen stack goes with them (issue #186).
+                        // A manual lock is an explicit "I'm done" that
+                        // severs every session; leaving a chord that
+                        // dials one of them back afterwards would be the
+                        // same stale state this sweep exists to clear.
+                        // The SOFT lock deliberately keeps it, along with
+                        // the tabs and sessions it also keeps.
+                        self.closed_tabs.clear();
                         self.clear_terminal_tab_memory();
                         self.active_view = View::Dashboard;
                         // Mirror the soft-lock UI sweep: the manual lock

@@ -650,6 +650,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "vault_already_has_password" => "此保险库已设有密码。请在上方输入以解锁。",
         "password_too_short" => "密码至少需要 4 个字符",
         "close_tab" => "关闭标签页",
+        "reopen_closed_tab" => "重新打开关闭的标签页",
         "close_group_title" => "关闭此分组？",
         "close_group_body" => "该标签页包含 {n} 个活动会话，关闭将全部结束。",
         "close_group_confirm" => "关闭分组",

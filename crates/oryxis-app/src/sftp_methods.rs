@@ -1191,6 +1191,9 @@ impl Oryxis {
         };
         let mut task = Task::none();
         while let Some(idx) = self.sftp_tabs.iter().position(|t| t.id != keep_id) {
+            // Each dropped tab lands on the reopen stack, same as closing
+            // it on its own would (issue #186).
+            self.remember_closed_sftp_tab(idx);
             task = self.close_sftp_tab(idx);
         }
         task

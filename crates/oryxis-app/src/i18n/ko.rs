@@ -647,6 +647,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "탭 닫기",
+        "reopen_closed_tab" => "닫은 탭 다시 열기",
         "close_group_title" => "이 그룹을 닫을까요?",
         "close_group_body" => "이 탭에는 활성 세션이 {n}개 있습니다. 닫으면 모두 종료됩니다.",
         "close_group_confirm" => "그룹 닫기",

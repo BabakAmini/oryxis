@@ -435,6 +435,9 @@ impl Oryxis {
                     Task::none()
                 }
             }
+            // Routed through the message so the chord, the tab context
+            // menu and the command palette share one reopen path.
+            ReopenClosedTab => Task::done(Message::Tabs(TabsMessage::ReopenClosedTab)),
             OpenPortForwards => {
                 if let Some(id) = self
                     .active_tab_connection_idx()

@@ -642,6 +642,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "destroy_vault" => "Sim, destruir cofre",
         "vault_destroy_confirm" => "Isso exclui permanentemente tudo: hosts, chaves, identidades, snippets, logs e configurações. O app volta ao estado de primeira execução.",
         "close_tab" => "Fechar Aba",
+        "reopen_closed_tab" => "Reabrir Aba Fechada",
         "close_group_title" => "Fechar este grupo?",
         "close_group_body" => "Esta aba contém {n} sessões ativas. Fechá-la encerra todas.",
         "close_group_confirm" => "Fechar grupo",

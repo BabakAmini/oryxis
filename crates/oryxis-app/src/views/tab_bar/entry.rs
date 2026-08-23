@@ -13,6 +13,10 @@ pub(crate) struct StripCtx {
     /// Privacy Mode terms, one pass for the whole strip (issue #78).
     pub(crate) privacy_terms: Vec<String>,
     pub(crate) close_on_right: bool,
+    /// Whether the chip under the cursor has earned its close X: the
+    /// reveal waits for a hover dwell (issue #186). One flag for the
+    /// whole strip, because one chip holds the hover at a time.
+    pub(crate) close_armed: bool,
     pub(crate) compact_pins: bool,
     pub(crate) solid_fill: bool,
     /// A tab drag is active: every tab renders at the uniform drag
@@ -141,7 +145,7 @@ impl Oryxis {
             return settings_tab(
                 label,
                 is_active,
-                self.hover.settings_tab,
+                self.hover.settings_tab && ctx.close_armed,
                 width,
                 ctx.close_on_right,
                 ctx.solid_fill,
@@ -530,7 +534,7 @@ impl Oryxis {
                 &display_label,
                 tab.pane_count(),
                 is_active,
-                is_hovered,
+                is_hovered && ctx.close_armed,
                 detected_os.as_deref(),
                 width,
                 ctx.close_on_right,

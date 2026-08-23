@@ -666,6 +666,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
 
         // Terminal shortcuts
         "close_tab" => "Close Tab",
+        "reopen_closed_tab" => "Reopen Closed Tab",
         "close_group_title" => "Close this group?",
         "close_group_body" => "This tab holds {n} live sessions. Closing it ends all of them.",
         "close_group_confirm" => "Close group",

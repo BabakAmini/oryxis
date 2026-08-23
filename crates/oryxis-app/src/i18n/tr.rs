@@ -647,6 +647,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Sekmeyi Kapat",
+        "reopen_closed_tab" => "Kapatılan Sekmeyi Yeniden Aç",
         "close_group_title" => "Bu grup kapatılsın mı?",
         "close_group_body" => "Bu sekmede {n} etkin oturum var. Kapatmak hepsini sonlandırır.",
         "close_group_confirm" => "Grubu kapat",

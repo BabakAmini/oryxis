@@ -647,6 +647,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "Đóng tab",
+        "reopen_closed_tab" => "Mở lại tab đã đóng",
         "close_group_title" => "Đóng nhóm này?",
         "close_group_body" => "Thẻ này chứa {n} phiên đang chạy. Đóng nó sẽ kết thúc tất cả.",
         "close_group_confirm" => "Đóng nhóm",

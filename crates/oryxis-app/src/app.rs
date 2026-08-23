@@ -301,6 +301,12 @@ pub struct Oryxis {
 
     // Tabs
     pub(crate) tabs: Vec<TerminalTab>,
+    /// Tabs the user closed, newest last, capped: the stack
+    /// `ReopenClosedTab` pops (issue #186). Terminal and SFTP tabs share
+    /// it, so the chord always brings back the last chip that left the
+    /// strip whichever kind it was. See [`crate::state::ClosedTab`] for
+    /// why it holds a pin spec and why it is not persisted.
+    pub(crate) closed_tabs: Vec<crate::state::ClosedTab>,
     /// Where the tab a Duplicate is about to spawn should land in the
     /// STRIP (never in `self.tabs`, whose indices half the app holds).
     /// Armed by `handle_duplicate_tab`, consumed by

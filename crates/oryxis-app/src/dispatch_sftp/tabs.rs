@@ -58,12 +58,18 @@ impl Oryxis {
                 if self.sftp_tab_has_unsaved(idx) {
                     self.pending_sftp_close = Some(crate::state::PendingSftpClose::One(idx));
                 } else {
+                    // Remembered here rather than inside `close_sftp_tab`:
+                    // the "Open terminal" morph closes the SFTP tab as its
+                    // last step, and that tab did not die, it became the
+                    // terminal tab beside it (issue #186).
+                    self.remember_closed_sftp_tab(idx);
                     return Ok(self.close_sftp_tab(idx));
                 }
             }
             SftpMessage::ConfirmCloseSftpTab => {
                 match self.pending_sftp_close.take() {
                     Some(crate::state::PendingSftpClose::One(idx)) => {
+                        self.remember_closed_sftp_tab(idx);
                         return Ok(self.close_sftp_tab(idx));
                     }
                     Some(crate::state::PendingSftpClose::Others(idx)) => {
@@ -120,6 +126,11 @@ impl Oryxis {
                 {
                     self.slide_tab_in_order(drag.from_id, target);
                 }
+                // An SFTP chip carries its X in a reserved trailing slot,
+                // so it has no dwell of its own to wait for. It still
+                // opens a hover episode: that is what retires the timer
+                // of the session chip the cursor crossed over from.
+                return Ok(self.arm_tab_close_dwell());
             }
             SftpMessage::SftpTabUnhovered(idx) => {
                 self.hover.leave_sftp_tab(idx);

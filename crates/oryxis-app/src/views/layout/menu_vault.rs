@@ -326,6 +326,12 @@ impl Oryxis {
         }
         items = items.push(self.menu_item(iced_fonts::lucide::rotate_cw(), crate::i18n::t("reconnect"), Message::Tabs(TabsMessage::ReconnectTab(idx)), OryxisColors::t().accent));
         items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Tabs(TabsMessage::CloseTab(idx)), OryxisColors::t().text_secondary));
+        // Right under the closes, and only with something to bring back:
+        // an entry that is always there and usually does nothing reads as
+        // broken the first time it is tried (issue #186).
+        if !self.closed_tabs.is_empty() {
+            items = items.push(self.menu_item(iced_fonts::lucide::rotate_ccw(), crate::i18n::t("reopen_closed_tab"), Message::Tabs(TabsMessage::ReopenClosedTab), OryxisColors::t().text_secondary));
+        }
         items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Tabs(TabsMessage::CloseOtherTabs(idx)), OryxisColors::t().text_secondary));
         items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_all_tabs"), Message::Tabs(TabsMessage::CloseAllTabs), OryxisColors::t().error));
         items.into()
@@ -366,6 +372,12 @@ impl Oryxis {
         items = items.push(self.menu_item(iced_fonts::lucide::pen_line(), crate::i18n::t("rename_tab"), Message::Tabs(TabsMessage::StartRenameSftpTab(idx)), OryxisColors::t().text_secondary));
         items = items.push(self.menu_item(pin_icon, pin_label, Message::Sftp(SftpMessage::ToggleSftpTabPin(idx)), OryxisColors::t().text_secondary));
         items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_tab"), Message::Sftp(SftpMessage::CloseSftpTab(idx)), OryxisColors::t().text_secondary));
+        // One stack for both tab kinds, so this reaches a closed terminal
+        // tab too: what the user asks back is the last chip that left the
+        // strip, not the last one of this kind.
+        if !self.closed_tabs.is_empty() {
+            items = items.push(self.menu_item(iced_fonts::lucide::rotate_ccw(), crate::i18n::t("reopen_closed_tab"), Message::Tabs(TabsMessage::ReopenClosedTab), OryxisColors::t().text_secondary));
+        }
         if self.sftp_tabs.len() > 1 {
             items = items.push(self.menu_item(iced_fonts::lucide::x(), crate::i18n::t("close_other_tabs"), Message::Sftp(SftpMessage::CloseOtherSftpTabs(idx)), OryxisColors::t().text_secondary));
         }

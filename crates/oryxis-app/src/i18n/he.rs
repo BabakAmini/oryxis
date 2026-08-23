@@ -666,6 +666,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
 
         // Terminal shortcuts
         "close_tab" => "סגירת כרטיסייה",
+        "reopen_closed_tab" => "פתיחה מחדש של כרטיסייה שנסגרה",
         "close_group_title" => "לסגור את הקבוצה הזו?",
         "close_group_body" => "הלשונית הזו מכילה {n} הפעלות פעילות. סגירתה תסיים את כולן.",
         "close_group_confirm" => "סגירת הקבוצה",
