@@ -6,6 +6,7 @@ members = [
     "crates/oryxis-archive",
     "crates/oryxis-telnet",
     "crates/oryxis-serial",
+    "crates/oryxis-mosh",
     "crates/oryxis-zmodem",
     "crates/oryxis-terminal",
     "crates/oryxis-vault",

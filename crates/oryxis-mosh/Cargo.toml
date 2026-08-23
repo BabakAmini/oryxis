@@ -1,0 +1,21 @@
+[package]
+name = "oryxis-mosh"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# The protocol itself. `default-features = false` drops the built-in
+# vt100 screen from the graph so nothing is compiled that is not used;
+# the screen this crate hands the session is chosen in `session.rs`.
+mosh-rs = { version = "0.1", default-features = false, features = [
+    # ... except that producing BYTES for the pane needs a screen that
+    # can diff itself, and the built-in one is the only one that does.
+    # See the note in `session.rs` for why bytes and not a grid.
+    "vt100-screen",
+] }
+tokio = { workspace = true }
+tracing = { workspace = true }
+thiserror = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full", "test-util"] }

@@ -1,6 +1,6 @@
 # Architecture
 
-Oryxis is a Cargo workspace of 24 crates. The UI layer is an
+Oryxis is a Cargo workspace of 25 crates. The UI layer is an
 [iced](https://iced.rs) application on the wgpu backend; everything below it
 is a set of focused engines (SSH, Telnet, serial, vault, sync, terminal)
 that the app composes.
@@ -18,6 +18,8 @@ that the app composes.
 | oryxis-telnet  RFC 854/1143, | session logs / recordings,          |
 |   TLS, raw TCP               | .oryxis export / import             |
 | oryxis-serial  COM / tty     |                                     |
+| oryxis-mosh    mosh handover |                                     |
+|   + UDP session over SSH     |                                     |
 | oryxis-zmodem  sz/rz engine  |                                     |
 | oryxis-archive tar/zip over  |                                     |
 |   SFTP + local codecs        |                                     |
@@ -53,6 +55,7 @@ that the app composes.
 | `oryxis-core` | Shared model types: Connection, SshKey, Identity, ProxyIdentity, Group, Snippet, KnownHost, PortForwardRule, SessionGroup, CloudAccount, custom themes, LogEntry |
 | `oryxis-terminal` | Terminal widget: alacritty_terminal + custom canvas widget + PTY + themes + URL/IP/path detection |
 | `oryxis-ssh` | SSH engine: auto-auth, jump hosts, SOCKS/HTTP/Command proxy, Local/Remote/Dynamic forwarding, SFTP, TOFU, RSA-SHA2 |
+| `oryxis-mosh` | mosh carried over an SSH host: the `mosh-server` handover (remote command synthesis with shell quoting, announcement parsing) and the UDP session that follows, driving the `mosh-rs` crate and publishing escape bytes so the pane reads it like any other transport |
 | `oryxis-telnet` | Native Telnet engine: RFC 854/855 option negotiation (RFC 1143 state machine), NAWS, terminal-type, charset transcoding, TLS (`telnets`), plus the raw-TCP mode console servers expose serial lines on |
 | `oryxis-serial` | Serial console sessions: COM / `/dev/tty*`, configurable baud, framing, flow control, line endings, local echo |
 | `oryxis-zmodem` | ZMODEM transfer engine: auto-detects `sz` / `rz` on the byte stream over SSH, Telnet and serial |
