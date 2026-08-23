@@ -15,7 +15,7 @@
 
 use std::time::{Duration, Instant};
 
-use oryxis_mosh::MoshSession;
+use oryxis_mosh::{AlacrittyScreen, MoshSession};
 
 fn endpoint() -> (u16, String) {
     let port = std::env::var("MOSH_RS_TEST_PORT").expect("MOSH_RS_TEST_PORT");
@@ -23,23 +23,29 @@ fn endpoint() -> (u16, String) {
     (port.parse().expect("a port"), key)
 }
 
-/// Collect what the session says the terminal is missing, until `want`
-/// shows up or the clock runs out.
+/// Feed what the session sends into a terminal, and wait for `want` to
+/// be ON THE SCREEN.
+///
+/// Not a search of the byte stream, which is the trap this protocol
+/// sets: the client sends only what CHANGED, so a word whose spaces
+/// were already spaces arrives as two runs with a cursor move between
+/// them and no amount of grepping finds it. What is being asserted is
+/// what a terminal would be SHOWING, so a terminal is what looks.
 async fn until(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<Vec<u8>>,
-    seen: &mut Vec<u8>,
+    screen: &mut AlacrittyScreen,
     want: &str,
     limit: Duration,
 ) -> bool {
+    use mosh_rs::Screen as _;
     let deadline = Instant::now() + limit;
     while Instant::now() < deadline {
         let left = deadline.saturating_duration_since(Instant::now());
         match tokio::time::timeout(left, rx.recv()).await {
-            Ok(Some(frame)) => seen.extend_from_slice(&frame),
-            Ok(None) => return false,
-            Err(_) => return false,
+            Ok(Some(frame)) => screen.feed(&frame),
+            Ok(None) | Err(_) => return false,
         }
-        if String::from_utf8_lossy(seen).contains(want) {
+        if screen.text().contains(want) {
             return true;
         }
     }
@@ -54,18 +60,18 @@ async fn a_shell_answers_through_the_session() {
     let (session, mut rx) =
         MoshSession::connect("127.0.0.1", port, &key, 80, 24).expect("open the session");
 
-    let mut seen = Vec::new();
+    let mut seen = AlacrittyScreen::new(24, 80);
     assert!(
         until(&mut rx, &mut seen, "$", Duration::from_secs(10)).await,
         "no prompt arrived: {:?}",
-        String::from_utf8_lossy(&seen)
+        { use mosh_rs::Screen as _; seen.text() }
     );
 
     session.write(b"echo ORYXIS-MOSH-OK\r").expect("send");
     assert!(
         until(&mut rx, &mut seen, "ORYXIS-MOSH-OK", Duration::from_secs(10)).await,
         "the command never came back: {:?}",
-        String::from_utf8_lossy(&seen)
+        { use mosh_rs::Screen as _; seen.text() }
     );
     assert!(session.is_alive());
 }
@@ -76,19 +82,29 @@ async fn a_shell_answers_through_the_session() {
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "needs a live mosh-server; see the module docs"]
 async fn what_arrives_is_a_byte_stream_a_terminal_can_eat() {
+    use mosh_rs::Screen as _;
     let (port, key) = endpoint();
     let (_session, mut rx) =
         MoshSession::connect("127.0.0.1", port, &key, 80, 24).expect("open the session");
 
-    let mut seen = Vec::new();
+    // Here the RAW bytes are the claim, so here they are kept.
+    let mut raw = Vec::new();
+    let mut screen = AlacrittyScreen::new(24, 80);
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && !screen.text().contains('$') {
+        let left = deadline.saturating_duration_since(Instant::now());
+        match tokio::time::timeout(left, rx.recv()).await {
+            Ok(Some(frame)) => {
+                raw.extend_from_slice(&frame);
+                screen.feed(&frame);
+            }
+            Ok(None) | Err(_) => break,
+        }
+    }
+    assert!(screen.text().contains('$'), "no prompt arrived");
     assert!(
-        until(&mut rx, &mut seen, "$", Duration::from_secs(10)).await,
-        "no prompt arrived"
-    );
-    assert!(
-        seen.contains(&0x1b),
-        "a frame with no escape in it is not a terminal stream: {:?}",
-        String::from_utf8_lossy(&seen)
+        raw.contains(&0x1b),
+        "a frame with no escape in it is not a terminal stream"
     );
 }
 
@@ -101,7 +117,7 @@ async fn a_resize_reaches_the_shell() {
     let (session, mut rx) =
         MoshSession::connect("127.0.0.1", port, &key, 80, 24).expect("open the session");
 
-    let mut seen = Vec::new();
+    let mut seen = AlacrittyScreen::new(24, 80);
     assert!(until(&mut rx, &mut seen, "$", Duration::from_secs(10)).await, "no prompt");
 
     session.resize(100, 30);
@@ -109,7 +125,7 @@ async fn a_resize_reaches_the_shell() {
     assert!(
         until(&mut rx, &mut seen, "30 100", Duration::from_secs(10)).await,
         "the shell never saw 30x100: {:?}",
-        String::from_utf8_lossy(&seen)
+        { use mosh_rs::Screen as _; seen.text() }
     );
 }
 
@@ -123,7 +139,7 @@ async fn closing_ends_the_session_rather_than_abandoning_it() {
     let (session, mut rx) =
         MoshSession::connect("127.0.0.1", port, &key, 80, 24).expect("open the session");
 
-    let mut seen = Vec::new();
+    let mut seen = AlacrittyScreen::new(24, 80);
     assert!(until(&mut rx, &mut seen, "$", Duration::from_secs(10)).await, "no prompt");
 
     session.close();

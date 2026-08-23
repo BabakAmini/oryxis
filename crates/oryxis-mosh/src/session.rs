@@ -9,13 +9,9 @@
 //! says the terminal is missing, which is bytes, on the same channel
 //! shape Telnet and Serial use.
 //!
-//! That is also why the session is backed by the built-in screen rather
-//! than one over the alacritty terminal the pane draws with. Producing
-//! bytes means diffing two screens into escapes, `mosh_rs::DiffScreen`
-//! is what does it, and the built-in screen is the only implementation
-//! that has one. The choice is a type parameter, so an alacritty-backed
-//! screen with its own differ can replace it without anything here
-//! changing.
+//! The screen those bytes are computed against is alacritty, the SAME
+//! emulator the pane draws with, so there is one implementation and one
+//! opinion about the screen rather than two. See [`crate::screen`].
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -25,7 +21,7 @@ use mosh_rs::{Base64Key, MoshSession as Protocol};
 use tokio::sync::mpsc;
 
 /// The screen the protocol keeps its states on. See the module note.
-type Screen = mosh_rs::screen::Vt100Screen;
+type Screen = crate::screen::AlacrittyScreen;
 
 /// How long the driving task sleeps when the session has nothing due.
 ///
@@ -77,8 +73,15 @@ impl MoshSession {
         rows: u16,
     ) -> Result<(Self, mpsc::UnboundedReceiver<Vec<u8>>), MoshError> {
         let key = Base64Key::from_printable(key).map_err(|_| MoshError::BadKey)?;
-        let protocol = Protocol::<Screen>::connect_with_size(host, port, &key, cols, rows)
-            .map_err(|e| MoshError::Unreachable(format!("{host}:{port}"), e.to_string()))?;
+        // The screen is supplied rather than asked for: `connect_with_size`
+        // only exists for the built-in one, which is not in the build.
+        let protocol = Protocol::connect_with_screen(
+            host,
+            port,
+            &key,
+            Screen::new(rows, cols),
+        )
+        .map_err(|e| MoshError::Unreachable(format!("{host}:{port}"), e.to_string()))?;
 
         let (output_tx, output_rx) = mpsc::unbounded_channel::<Vec<u8>>();
         let (writer_tx, writer_rx) = mpsc::unbounded_channel::<Vec<u8>>();

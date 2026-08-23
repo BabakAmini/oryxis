@@ -4,15 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# The protocol itself. `default-features = false` drops the built-in
-# vt100 screen from the graph so nothing is compiled that is not used;
-# the screen this crate hands the session is chosen in `session.rs`.
-mosh-rs = { version = "0.1", default-features = false, features = [
-    # ... except that producing BYTES for the pane needs a screen that
-    # can diff itself, and the built-in one is the only one that does.
-    # See the note in `session.rs` for why bytes and not a grid.
-    "vt100-screen",
-] }
+# The protocol itself, with `default-features = false` so its built-in
+# vt100 screen never reaches the binary: the screen this crate hands the
+# session is backed by alacritty, the SAME emulator the pane draws with,
+# which is the point. See `screen.rs`.
+mosh-rs = { version = "0.1", default-features = false }
+# The emulator the pane already uses, pinned by the workspace so there
+# is exactly one copy of it in the build.
+alacritty_terminal = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 thiserror = { workspace = true }
