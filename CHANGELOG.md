@@ -6,8 +6,8 @@ project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
 ## [0.15.0] - 2026-08-24
 
-The mosh release, and the first release since 0.10 to carry a security
-section, which is also the largest one so far. A session
+The mosh release, and the first since 0.10 to carry a security section.
+A session
 can now be carried over mosh: an SSH host with mosh switched on dials
 exactly as it always did, prompts and host keys and proxy consent and
 all, and at the last moment hands the session to `mosh-server` and lets
@@ -72,9 +72,10 @@ finally a key Oryxis will offer.
   terminal on this machine) and Telnet over TLS. Quick connect speaks
   the same list through `scheme://`, and a bare `/dev/tty*` or `COM3` is
   Serial because it is a host under no protocol.
-- **Inline IME preedit at the caret** (#178), so composing in Japanese,
+- **Inline IME preedit at the caret**, by @shideqin (#178, for #176), so
+  composing in Japanese,
   Chinese or Korean shows what is being composed instead of nothing.
-- **Overwrite prompts on drop uploads** (#185). Dropping onto the
+- **Overwrite prompts on drop uploads**, by @shideqin (#185). Dropping onto the
   terminal or the sidebar now routes through the same conflict flow the
   SFTP panel uses (Replace / Replace if different / Duplicate / Cancel)
   instead of silently renaming or clobbering.
@@ -98,7 +99,8 @@ finally a key Oryxis will offer.
   reaching "continue" needed the mouse, at exactly the moment the hands
   are not on it.
 - **A scheme pasted into the wrong import panel is carried over**
-  (#68) instead of dead-ending on an error, with a toast saying what
+  ([discussion #68](https://github.com/wilsonglasser/oryxis/discussions/68))
+  instead of dead-ending on an error, with a toast saying what
   happened. The redirect needs positive evidence of the other kind,
   never mere absence of the marker, so a typo cannot ping-pong between
   the two panels.
@@ -132,8 +134,9 @@ finally a key Oryxis will offer.
 - **The classic Alt+Tab switcher shows the app icon** on Windows
   (#182) instead of a generic placeholder.
 - **Keystrokes no longer land in the wrong tab while another connects**
-  (#177): the gate that holds input during a dial is scoped per tab.
-- **An open side panel stopped eating the search box's Enter.**
+  by @shideqin (#177): the gate that holds input during a dial is scoped
+  per tab.
+- **An open side panel stopped eating the search box's Enter** (#175).
 - **An identity nothing links to said `???`** instead of saying so, in
   every one of the 23 languages: the string reached the lookup with no
   table entry behind it.
@@ -157,7 +160,7 @@ finally a key Oryxis will offer.
   survives roaming has no SSH connection to multiplex on, and two tabs
   with two visible lifetimes is the honest shape.
 - **Drag and drop of files into the window**, via synchronized fixes in
-  the winit and iced forks (#183).
+  the winit and iced forks, by @shideqin (#183).
 - The two lints `clippy` 1.98 started raising, plus one only visible on
   a Windows target.
 
