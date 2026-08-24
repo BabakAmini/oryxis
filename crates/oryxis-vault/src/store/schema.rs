@@ -378,6 +378,9 @@ impl VaultStore {
         // host that never turned TLS on, which is what makes an upgraded
         // vault read back as plain Telnet with verification intact.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN telnet_config TEXT;");
+        // mosh options as JSON. NULL on every host that is not carried
+        // over mosh, which is every host written before this existed.
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN mosh_config TEXT;");
         // Local-shell settings as JSON (LocalConfig: which curated local
         // terminal to spawn, and where it starts). NULL on every
         // non-local host.

@@ -1040,3 +1040,38 @@ fn per_host_highlight_rules_round_trip() {
         fancy.highlight_rules
     );
 }
+
+/// mosh options survive the column, and a host nobody configured keeps
+/// a NULL rather than growing a blob that only records a visit.
+#[test]
+fn mosh_options_round_trip_and_a_plain_host_stores_nothing() {
+    let vault = unlocked_vault();
+
+    let plain = Connection::new("plain", "10.0.0.1");
+    vault.save_connection(&plain, None).unwrap();
+
+    let mut carried = Connection::new("carried", "10.0.0.2");
+    carried.mosh = Some(oryxis_core::models::mosh::MoshOptions {
+        enabled: true,
+        server_path: "/opt/mosh/bin/mosh-server".into(),
+        port_range: "60000:60010".into(),
+        command: "tmux new -A -s main".into(),
+    });
+    vault.save_connection(&carried, None).unwrap();
+
+    // An all-default value is a host nobody configured, so it is stored
+    // as nothing at all rather than as an object full of defaults.
+    let mut visited = Connection::new("visited", "10.0.0.3");
+    visited.mosh = Some(oryxis_core::models::mosh::MoshOptions::default());
+    vault.save_connection(&visited, None).unwrap();
+
+    let list = vault.list_connections().unwrap();
+    let of = |id| list.iter().find(|c| c.id == id).unwrap().mosh.clone();
+    assert_eq!(of(plain.id), None, "an untouched host is not a mosh host");
+    assert_eq!(of(visited.id), None, "and neither is one merely opened");
+    let back = of(carried.id).expect("the options come back");
+    assert!(back.enabled);
+    assert_eq!(back.server_path, "/opt/mosh/bin/mosh-server");
+    assert_eq!(back.port_range, "60000:60010");
+    assert_eq!(back.command, "tmux new -A -s main");
+}

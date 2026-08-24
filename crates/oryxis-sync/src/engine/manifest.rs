@@ -1037,6 +1037,47 @@ mod lww_tests {
     /// rejects") is a decision about ONE appliance on ONE machine, so
     /// it must not ride the wire: a peer would otherwise disarm
     /// certificate verification on a computer whose owner never saw
+    /// mosh options travel WHOLE, and that is the deliberate half of
+    /// the same decision.
+    ///
+    /// Two of them become words in a command line, so the question of
+    /// whether they should be stripped is a fair one. They should not:
+    /// what they run runs on the REMOTE host, which is the host the
+    /// session is opening anyway, which makes them the same class as
+    /// `initial_command`. The gate on `ProxyType::Command` exists
+    /// because that one spawns a LOCAL process, on the machine the user
+    /// is sitting at, before any handshake. Nothing here does.
+    #[test]
+    fn collect_keeps_every_mosh_option() {
+        let vault = vault();
+        let mut c = Connection::new("box", "10.0.0.9");
+        c.mosh = Some(oryxis_core::models::mosh::MoshOptions {
+            enabled: true,
+            server_path: "/opt/mosh/bin/mosh-server".into(),
+            port_range: "60000:60010".into(),
+            command: "tmux new -A -s main".into(),
+        });
+        vault.lock().unwrap().save_connection(&c, None).unwrap();
+
+        let records = collect_records(
+            &vault,
+            &[protocol::DeltaRef {
+                entity_type: EntityType::Connection,
+                entity_id: c.id,
+            }],
+            Some(&SECRET),
+        )
+        .unwrap();
+        let cipher = crypto::PayloadCipher::new(&SECRET).unwrap();
+        let plain = cipher.decrypt(&records[0].payload).unwrap();
+        let wire: protocol::SyncConnection = serde_json::from_slice(&plain).unwrap();
+        let mosh = wire.connection.mosh.expect("the options travel");
+        assert!(mosh.enabled);
+        assert_eq!(mosh.server_path, "/opt/mosh/bin/mosh-server");
+        assert_eq!(mosh.port_range, "60000:60010");
+        assert_eq!(mosh.command, "tmux new -A -s main");
+    }
+
     /// that host. The TLS setting itself DOES travel, because it
     /// describes the endpoint. Same shape as the command-proxy
     /// approval, which is local-only by construction.

@@ -30,6 +30,13 @@ pub struct Connection {
     /// that skips certificate checks.
     #[serde(default)]
     pub telnet: Option<super::telnet::TelnetOptions>,
+    /// mosh options, meaningful only when `protocol` is `Ssh`. `None`
+    /// is an ordinary SSH shell, which is what every payload written
+    /// before this existed carries. mosh rides ON an SSH host rather
+    /// than replacing one, because the server is started over SSH and
+    /// answers over it; see `models::mosh`.
+    #[serde(default)]
+    pub mosh: Option<super::mosh::MoshOptions>,
     /// Local-shell settings (which curated terminal to spawn and where
     /// it starts), meaningful only when `protocol` is `Local`. `None`
     /// falls back to the user's default shell in its own default
@@ -366,6 +373,7 @@ impl Connection {
             protocol: ConnectionProtocol::Ssh,
             serial: None,
             telnet: None,
+            mosh: None,
             local: None,
             rd_kind: super::remote_desktop::RemoteDesktopKind::default(),
             rd_gateway_id: None,
