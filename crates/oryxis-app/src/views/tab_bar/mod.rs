@@ -365,6 +365,10 @@ impl Oryxis {
         )
         .on_press(Message::Tabs(TabsMessage::WindowDrag))
         .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
+        // A strip of chips is a strip, wherever it is docked: the pins
+        // parked on the chrome bar answer a right-click the same way
+        // the tab strip proper does (issue #186).
+        .on_right_press(Message::Tabs(TabsMessage::ShowTabBarMenu))
         .into()
     }
 
@@ -664,6 +668,10 @@ impl Oryxis {
         // Native title-bar convention: double-click the drag area to
         // toggle maximize.
         .on_double_click(Message::Tabs(TabsMessage::WindowMaximizeToggle))
+        // Right-click the strip's own space: the strip menu (issue
+        // #186). A chip captures its right press before this widget
+        // sees it, so the two menus can't both open.
+        .on_right_press(Message::Tabs(TabsMessage::ShowTabBarMenu))
         // Vertical wheel translates to horizontal scroll on the tab
         // strip. The horizontal scrollable inside doesn't capture a
         // pure-y wheel event (iced only steers wheel along the

@@ -142,16 +142,31 @@ impl Oryxis {
                     y: anchor.1,
                 });
             }
+            TabsMessage::ShowTabBarMenu => {
+                // The strip's own menu, at the cursor. A chip's right
+                // press is captured by the chip, so reaching here means
+                // the click landed on empty strip (issue #186).
+                let anchor = self.keynav_take_menu_anchor();
+                self.overlay = Some(OverlayState {
+                    content: OverlayContent::TabBarActions,
+                    x: anchor.0,
+                    y: anchor.1,
+                });
+            }
             TabsMessage::ShowSplitMenu => {
-                // Hover popover under `+`. Only meaningful with a terminal
-                // tab open (something to split); otherwise `+` just opens a
-                // new tab on click. Anchored under the cursor (over `+`).
-                // An open tab is the whole test: the `active_view` half
-                // this used to also require is never assigned by the
+                // Hover popover under `+`, anchored under the button.
+                // It opens when it has something to offer beyond what
+                // clicking `+` already does: a terminal tab to split, or
+                // a closed tab to bring back (issue #186, which is also
+                // why the second half matters: after closing the last
+                // tab there is no tab to split, and that is exactly the
+                // moment the reopen is being looked for).
+                // An open tab is the whole split test: the `active_view`
+                // half this used to also require is never assigned by the
                 // ordinary path (opening a host from the Dashboard pushes
                 // a tab and leaves the view where it was), so the popover
                 // was dead exactly where splitting is most wanted.
-                if self.active_tab.is_some()
+                if (self.active_tab.is_some() || !self.closed_tabs.is_empty())
                     && !matches!(
                         self.overlay.as_ref().map(|o| &o.content),
                         Some(OverlayContent::SplitMenu)

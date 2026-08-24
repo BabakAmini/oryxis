@@ -265,7 +265,11 @@ impl Oryxis {
         // never start a window move. The MouseArea wrapper is ALWAYS
         // present (handlers only bound in hidden-bar mode) so the
         // hide toggle never changes this subtree's widget type.
-        let mut area = MouseArea::new(bar);
+        // The strip menu is bound whatever the top bar is doing: it
+        // belongs to the tabs, not to the titlebar contract above
+        // (issue #186).
+        let mut area = MouseArea::new(bar)
+            .on_right_press(Message::Tabs(TabsMessage::ShowTabBarMenu));
         if hide_top_bar {
             area = area
                 .on_press(Message::Tabs(TabsMessage::WindowDrag))

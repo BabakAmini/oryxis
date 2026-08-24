@@ -89,6 +89,11 @@ pub enum TabsMessage {
     IconPickerSave,
     IconPickerResetAuto,
     ShowTabMenu(usize),
+    /// Right-click landed on the tab strip itself rather than on a chip
+    /// (issue #186): open the strip's own menu at the cursor. A chip
+    /// captures its right press, so this only ever fires from the empty
+    /// area the strip also drags the window by.
+    ShowTabBarMenu,
     ReconnectTab(usize),
     DuplicateTab(usize),
     DuplicateInNewWindow(usize),

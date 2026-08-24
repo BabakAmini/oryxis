@@ -112,6 +112,7 @@ impl Oryxis {
                 | TabsMessage::TabDragToEnd
                 | TabsMessage::TabBarWheel(..)
                 | TabsMessage::ShowTabMenu(..)
+                | TabsMessage::ShowTabBarMenu
                 | TabsMessage::ShowSplitMenu
                 | TabsMessage::SplitMenuEnter
                 | TabsMessage::SplitMenuLeave

@@ -38,8 +38,14 @@ pub(crate) enum OverlayContent {
     /// actions for the current folder.
     SidebarFilesBackground { dir: String },
     /// Hover popover under the `+` tab button: New Tab + Split actions for
-    /// the active terminal tab.
+    /// the active terminal tab, plus the reopen when a tab has been
+    /// closed (issue #186).
     SplitMenu,
+    /// Right-click on the tab strip's own empty area (issue #186): the
+    /// strip's actions rather than a chip's, the way every browser
+    /// answers a right-click next to the tabs. Deliberately holds
+    /// nothing destructive: that area is also the window-drag handle.
+    TabBarActions,
     FolderActions(Uuid),
     CloudProfileActions(Uuid),
     /// Kebab menu on a dynamic-group card (ECS / K8s service folder).

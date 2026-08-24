@@ -48,7 +48,9 @@ impl Oryxis {
             OverlayContent::SortMenu(_) => 220.0,
             // Wide enough for "Split side by side" / "Duplicate in New
             // Window" / "Close Other Tabs" to sit on one line.
-            OverlayContent::SplitMenu | OverlayContent::TabActions(_) => 210.0,
+            OverlayContent::SplitMenu
+            | OverlayContent::TabActions(_)
+            | OverlayContent::TabBarActions => 210.0,
             // Fits "Import ~/.ssh/config" / "Export all hosts" and the
             // longer translations of both on one line.
             OverlayContent::CloudProviderPicker => 210.0,
@@ -153,7 +155,10 @@ impl Oryxis {
             OverlayContent::PluginActions(_) => 3.0,
             OverlayContent::SessionGroupActions(_) => 4.0,
             OverlayContent::FolderActions(_) => 4.0,
-            OverlayContent::SplitMenu => 3.0,
+            // Both counted next to their builders, whose rows are
+            // conditional (`split_menu_rows` / `tab_bar_menu_rows`).
+            OverlayContent::SplitMenu => self.split_menu_rows(),
+            OverlayContent::TabBarActions => self.tab_bar_menu_rows(),
             OverlayContent::TerminalContextMenu(pane_id, sel) => {
                 // Copy (only with a selection) + Copy All + Paste +
                 // Clear, plus Close pane on split tabs (the same
@@ -352,6 +357,7 @@ impl Oryxis {
             OverlayContent::TabActions(idx) => self.build_menu_tab_actions(*idx),
             OverlayContent::SftpTabActions(idx) => self.build_menu_sftp_tab_actions(*idx),
             OverlayContent::SplitMenu => self.build_menu_split(),
+            OverlayContent::TabBarActions => self.build_menu_tab_bar_actions(),
             OverlayContent::SortMenu(kind) => self.build_menu_sort(*kind),
             OverlayContent::CloudDiscoverGroupPicker => {
                 self.build_menu_cloud_discover_group_picker(overlay)

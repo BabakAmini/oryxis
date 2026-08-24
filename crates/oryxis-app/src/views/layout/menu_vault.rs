@@ -401,17 +401,66 @@ impl Oryxis {
     }
 
     pub(crate) fn build_menu_split(&self) -> Element<'_, Message> {
-        let items = column![
+        let mut items = column![
             context_menu_item(iced_fonts::lucide::plus(), crate::i18n::t("new_tab"), Message::Tabs(TabsMessage::ShowNewTabPicker), OryxisColors::t().text_secondary),
-            context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Vertical)), OryxisColors::t().text_secondary),
-            context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary),
         ];
+        // The splits only exist for a tab to split. With none open the
+        // popover is here for the reopen alone, and offering to halve a
+        // pane that isn't there is the "reads as broken" case again.
+        if self.active_tab.is_some() {
+            items = items.push(context_menu_item(iced_fonts::lucide::columns_two(), crate::i18n::t("split_side_by_side"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Vertical)), OryxisColors::t().text_secondary));
+            items = items.push(context_menu_item(iced_fonts::lucide::rows_two(), crate::i18n::t("split_stacked"), Message::Terminal(TerminalMessage::SplitPane(iced::widget::pane_grid::Axis::Horizontal)), OryxisColors::t().text_secondary));
+        }
+        // Last, so the rows the popover has always had keep their
+        // places. Reaching the reopen by mouse is what issue #186 asked
+        // for after the hotkey: the `+` is where a new tab comes from,
+        // so it is where a user looks for one back.
+        if !self.closed_tabs.is_empty() {
+            items = items.push(context_menu_item(iced_fonts::lucide::rotate_ccw(), crate::i18n::t("reopen_closed_tab"), Message::Tabs(TabsMessage::ReopenClosedTab), OryxisColors::t().text_secondary));
+        }
         // Keep the popover open while the cursor is over it (hover
         // bridge from the `+` button into the menu).
         MouseArea::new(items)
             .on_enter(Message::Tabs(TabsMessage::SplitMenuEnter))
             .on_exit(Message::Tabs(TabsMessage::SplitMenuLeave))
             .into()
+    }
+
+    /// Row count of the `+` popover, next to the builder so the height
+    /// estimate follows its conditional rows instead of drifting from
+    /// them (`overlay_menu_height`).
+    pub(crate) fn split_menu_rows(&self) -> f32 {
+        let mut rows = 1.0;
+        if self.active_tab.is_some() {
+            rows += 2.0;
+        }
+        if !self.closed_tabs.is_empty() {
+            rows += 1.0;
+        }
+        rows
+    }
+
+    /// Right-click on the tab strip's empty area (issue #186). Nothing
+    /// destructive lives here: the same pixels drag the window, and a
+    /// close one flick away from a drag is the misclick the chip's own
+    /// dwell was added to prevent.
+    pub(crate) fn build_menu_tab_bar_actions(&self) -> Element<'_, Message> {
+        let mut items = column![self.menu_item(
+            iced_fonts::lucide::plus(),
+            crate::i18n::t("new_tab"),
+            Message::Tabs(TabsMessage::ShowNewTabPicker),
+            OryxisColors::t().text_secondary,
+        )];
+        if !self.closed_tabs.is_empty() {
+            items = items.push(self.menu_item(iced_fonts::lucide::rotate_ccw(), crate::i18n::t("reopen_closed_tab"), Message::Tabs(TabsMessage::ReopenClosedTab), OryxisColors::t().text_secondary));
+        }
+        items.into()
+    }
+
+    /// Row count of the strip menu, next to its builder for the reason
+    /// `split_menu_rows` is.
+    pub(crate) fn tab_bar_menu_rows(&self) -> f32 {
+        if self.closed_tabs.is_empty() { 1.0 } else { 2.0 }
     }
 
     pub(crate) fn build_menu_sort(&self, kind: crate::state::SortMenuKind) -> Element<'_, Message> {

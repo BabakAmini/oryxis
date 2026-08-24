@@ -81,6 +81,11 @@ impl Oryxis {
     /// browser's.
     pub(super) fn handle_reopen_closed_tab(&mut self) -> Task<Message> {
         use crate::state::PinnedTabSpec;
+        // Four menus reach this now (the tab chip's, the SFTP chip's,
+        // the strip's own and the `+` popover), and the row that fires
+        // it is the last thing they have to say. The hotkey path clears
+        // nothing that was open.
+        self.overlay = None;
         while let Some(entry) = self.closed_tabs.pop() {
             // An SFTP tab is recreated here rather than through
             // `spec_open_message`: it lives in `sftp_tabs`, and its
