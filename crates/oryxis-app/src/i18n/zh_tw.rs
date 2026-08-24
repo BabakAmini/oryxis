@@ -1331,6 +1331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "最近的連線",
         "personal" => "個人",
         "no_connections_yet" => "尚無連線。請從儀表板建立一個。",
+        "no_connections_identity" => "還沒有主機使用此身分。",
         "no_matches" => "沒有符合的項目。",
         "vault_setup_subtitle" => "設定主密碼，或不使用密碼繼續。",
         "master_password_optional" => "主密碼（選填）...",

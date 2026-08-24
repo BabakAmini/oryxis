@@ -1414,6 +1414,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "การเชื่อมต่อล่าสุด",
         "personal" => "ส่วนตัว",
         "no_connections_yet" => "ยังไม่มีการเชื่อมต่อ สร้างได้จากแดชบอร์ด",
+        "no_connections_identity" => "ยังไม่มีโฮสต์ใดใช้ข้อมูลระบุตัวตนนี้",
         "no_matches" => "ไม่มีรายการที่ตรงกัน",
 
         "vault_setup_subtitle" => "ตั้งรหัสผ่านหลักหรือดำเนินการต่อโดยไม่ใช้",

@@ -1318,6 +1318,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Недавние подключения",
         "personal" => "Личное",
         "no_connections_yet" => "Подключений пока нет. Создайте одно с дашборда.",
+        "no_connections_identity" => "Пока ни один хост не использует эту личность.",
         "no_matches" => "Совпадений нет.",
         "vault_setup_subtitle" => "Установите мастер-пароль или продолжите без него.",
         "master_password_optional" => "Мастер-пароль (необязательно)...",

@@ -1407,6 +1407,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "최근 연결",
         "personal" => "개인",
         "no_connections_yet" => "아직 연결이 없습니다. 대시보드에서 하나 만드세요.",
+        "no_connections_identity" => "아직 이 ID를 사용하는 호스트가 없습니다.",
         "no_matches" => "일치하는 항목이 없습니다.",
 
         "vault_setup_subtitle" => "마스터 비밀번호를 설정하거나 없이 계속하세요.",

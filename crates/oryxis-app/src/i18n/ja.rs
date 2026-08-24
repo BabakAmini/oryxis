@@ -1331,6 +1331,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "最近の接続",
         "personal" => "個人",
         "no_connections_yet" => "まだ接続がありません。ダッシュボードから作成してください。",
+        "no_connections_identity" => "このアイデンティティを使うホストはまだありません。",
         "no_matches" => "一致なし。",
         "vault_setup_subtitle" => "マスターパスワードを設定するか、設定せずに続行します。",
         "master_password_optional" => "マスターパスワード（任意）...",

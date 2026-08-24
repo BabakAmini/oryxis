@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 實際操作：連線主機、執行程式碼片段、瀏覽 SFTP">
 </p>
 
-> 本文件譯自 v0.13.0 之後的英文 README（2026-08-10 同步），採用台灣慣用詞彙。
+> 本文件譯自 v0.15.0 之後的英文 README（2026-08-24 同步），採用台灣慣用詞彙。
 > 詳細文件（[功能總覽](docs/FEATURES.md)、[架構說明](docs/ARCHITECTURE.md)）為英文。
 
 ## Oryxis 是什麼？
@@ -87,8 +87,13 @@ macOS（Apple Silicon `.dmg`）和 Windows（系統層級與使用者層級安�
   代理、Agent 轉發、獨立的 `-L`/`-R`/`-D` 連接埠轉送、面向選單式
   跳板機（JumpServer 等）的 expect/send 登入指令碼、一鍵匯入
   `~/.ssh/config`。
-- **不只 SSH**：Telnet 與序列埠主控台、ZMODEM 傳輸、本機 Shell，
-  以及透過 SSH 隧道一鍵開啟 RDP/VNC。
+- **不只 SSH**：Telnet 與序列埠主控台、給主控台伺服器用的純 TCP
+  連線、ZMODEM 傳輸、本機 Shell，以及透過 SSH 隧道一鍵開啟
+  RDP/VNC。
+- **撐得住網路變動的工作階段**：為主機開啟 mosh，Shell 就能撐過
+  睡眠、切換 Wi-Fi 與更換位址；介面會直接說明連線已經多久沒有
+  聯繫，而不是假裝一切正常。原生 Rust 用戶端，說的是官方
+  `mosh-server` 的協定，本機不必額外安裝任何東西。
 - **真正的終端機**：以 alacritty 為基礎的模擬器、分割窗格、工作階段
   群組、依主機套用主題、內建 Nerd 字型外加可下載字型包
   （JetBrains Mono、Fira Code、MesloLGS 等）、標示長時間執行指令的
@@ -146,12 +151,12 @@ macOS（Apple Silicon `.dmg`）和 Windows（系統層級與使用者層級安�
 ## 開發藍圖
 
 Oryxis 以大約每週一次的節奏持續發布，功能就緒即上線。最新穩定版為
-**v0.14.0**；完整歷史見 [CHANGELOG.md](CHANGELOG.md)，互動式藍圖見
+**v0.15.0**；完整歷史見 [CHANGELOG.md](CHANGELOG.md)，互動式藍圖見
 [藍圖討論](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推進的方向包括：原生 FIDO2（透過 USB / NFC 直接與安全金鑰通訊）、
-原生 Mosh 用戶端、多保險庫，
-以及東亞全形寬度選項。社群呼聲很高的側邊欄 tmux 工作階段管理
-器和主機樹狀檢視已在本版本推出。
+多保險庫，
+以及東亞全形寬度選項。原生 mosh 用戶端、依主機啟用的磁碟金鑰
+（`~/.ssh`）以及重新開啟上一個關閉的分頁已在本版本推出。
 
 ## 參與貢獻
 

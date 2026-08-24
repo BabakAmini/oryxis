@@ -1407,6 +1407,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Недавні підключення",
         "personal" => "Особисте",
         "no_connections_yet" => "Поки немає підключень. Створіть одне з панелі.",
+        "no_connections_identity" => "Жоден хост ще не використовує цю особу.",
         "no_matches" => "Немає збігів.",
 
         "vault_setup_subtitle" => "Встановіть майстер-пароль або продовжіть без нього.",

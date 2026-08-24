@@ -1413,6 +1413,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Nedávná připojení",
         "personal" => "Osobní",
         "no_connections_yet" => "Zatím žádná připojení. Vytvořte jedno na nástěnce.",
+        "no_connections_identity" => "Tuto identitu zatím nepoužívá žádný host.",
         "no_matches" => "Žádné shody.",
 
         "vault_setup_subtitle" => "Nastavte hlavní heslo, nebo pokračujte bez něj.",

@@ -23,8 +23,8 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis em ação: conectando, executando snippets, navegando por SFTP">
 </p>
 
-> Este documento é uma tradução do README em inglês posterior à v0.13.0
-> (sincronizado em 2026-08-10). A documentação detalhada
+> Este documento é uma tradução do README em inglês posterior à v0.15.0
+> (sincronizado em 2026-08-24). A documentação detalhada
 > ([tour de funcionalidades](docs/FEATURES.md),
 > [arquitetura](docs/ARCHITECTURE.md)) permanece em inglês.
 
@@ -84,8 +84,15 @@ binários de Windows são assinados com Authenticode.
   expect/send para bastions de menu (JumpServer e companhia) e
   importação do `~/.ssh/config` em um clique.
 - **Mais que SSH**: consoles Telnet e serial para os equipamentos que
-  nunca aprenderam SSH, transferências ZMODEM, shells locais e RDP/VNC
-  em um clique através de túnel SSH.
+  nunca aprenderam SSH, linhas TCP puras para servidores de console,
+  transferências ZMODEM, shells locais e RDP/VNC em um clique através
+  de túnel SSH.
+- **Sessões que sobrevivem à rede**: ligue o mosh num host e o shell
+  atravessa a suspensão, a troca de Wi-Fi e a troca de endereço, com a
+  interface dizendo há quanto tempo o link está sem contato em vez de
+  fingir que está tudo bem. Cliente nativo em Rust falando o protocolo
+  do `mosh-server` original, então não há nada a instalar na sua
+  máquina.
 - **Um terminal de verdade**: emulador baseado no alacritty, painéis
   divididos, grupos de sessão, temas por host, Nerd Fonts embutidas
   mais um pacote de fontes baixáveis (JetBrains Mono, Fira Code,
@@ -162,14 +169,14 @@ vulnerabilidades por canal privado.
 
 O Oryxis lança pequeno e com frequência (aproximadamente semanal), e
 as funcionalidades entram assim que ficam prontas. A última versão
-estável é a **v0.14.0**; o histórico completo está no
+estável é a **v0.15.0**; o histórico completo está no
 [CHANGELOG.md](CHANGELOG.md) e o roadmap interativo na
 [discussão de roadmap](https://github.com/wilsonglasser/oryxis/discussions/67).
 Entre as frentes em andamento: FIDO2 nativo (falar direto com a chave
-de segurança por USB / NFC), cliente Mosh nativo, múltiplos cofres e
-suporte a nuvens chinesas (Alibaba Cloud / Tencent Cloud). Os pedidos
-recentes da comunidade, o gerenciador de sessões tmux e a visão em
-árvore dos hosts, foram entregues nesta versão.
+de segurança por USB / NFC), múltiplos cofres e suporte a nuvens
+chinesas (Alibaba Cloud / Tencent Cloud). O cliente mosh nativo, a
+chave de disco (`~/.ssh`) por host e a reabertura da última aba
+fechada foram entregues nesta versão.
 
 ## Contribuindo
 

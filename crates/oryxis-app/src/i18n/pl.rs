@@ -1417,6 +1417,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Ostatnie połączenia",
         "personal" => "Osobiste",
         "no_connections_yet" => "Brak połączeń. Utwórz jedno z pulpitu.",
+        "no_connections_identity" => "Żaden host nie używa jeszcze tej tożsamości.",
         "no_matches" => "Brak dopasowań.",
 
         "vault_setup_subtitle" => "Ustaw hasło główne lub kontynuuj bez niego.",

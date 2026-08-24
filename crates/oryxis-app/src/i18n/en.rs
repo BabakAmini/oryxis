@@ -1414,6 +1414,7 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "recent_connections" => "Recent connections",
         "personal" => "Personal",
         "no_connections_yet" => "No connections yet. Create one from the dashboard.",
+        "no_connections_identity" => "No hosts use this identity yet.",
         "no_matches" => "No matches.",
 
         "vault_setup_subtitle" => "Set a master password or continue without one.",

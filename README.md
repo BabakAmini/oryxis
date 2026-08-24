@@ -112,8 +112,14 @@ matching installer. Windows binaries are Authenticode-signed (see
   SecureCRT, Xshell, FinalShell, Termius or any CSV. Pick the file
   (or the sessions folder) and the format is detected for you.
 - **More than SSH.** Telnet and serial consoles for the gear that never
-  learned SSH, ZMODEM transfers, local shells, and one-click RDP/VNC
-  through an SSH tunnel.
+  learned SSH, raw TCP lines for console servers, ZMODEM transfers,
+  local shells, and one-click RDP/VNC through an SSH tunnel.
+- **Sessions that survive the network.** Switch mosh on for a host and
+  the shell rides out sleep, a change of Wi-Fi and a change of address,
+  with the interface saying how long the link has been out of touch
+  rather than pretending it is fine. A native Rust client speaking the
+  stock `mosh-server`'s protocol, so there is nothing extra to install
+  on your machine.
 - **A real terminal.** alacritty-based emulator, split panes, session
   groups, per-host themes, an optional translucent background or
   background image, bundled
@@ -242,7 +248,7 @@ information is collected or shared as part of this process.
 
 Oryxis ships small and often (roughly weekly). This section is
 forward-looking: items land incrementally as they are ready rather than
-being tied to a specific version. Latest stable is **v0.14.0**;
+being tied to a specific version. Latest stable is **v0.15.0**;
 [CHANGELOG.md](CHANGELOG.md) has the full history, and the
 [roadmap discussion](https://github.com/wilsonglasser/oryxis/discussions/67)
 tracks it interactively.
@@ -257,11 +263,6 @@ tracks it interactively.
 - **Native FIDO2:** talk to security keys directly (USB / NFC) for
   `sk-ssh-ed25519` / `sk-ecdsa-sk`, without delegating the touch to an
   external agent.
-- **Mosh:** a native Rust client for mosh's State Synchronization
-  Protocol, interoperating with the stock `mosh-server`; sessions survive
-  IP changes and sleep, with predictive local echo. This would be the
-  first open-source mosh client to run natively on Windows (no Cygwin or
-  WSL layer).
 - **Utilities:** an optional network tools panel (DNS, ping /
   traceroute, port test, TLS check, WHOIS, RBL).
 - **Vault & sync:** one-click relay deploy (the app installs

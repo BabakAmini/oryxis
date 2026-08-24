@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 시연: 호스트 접속, 스니펫 실행, SFTP 탐색">
 </p>
 
-> 이 문서는 v0.13.0 이후의 영어 README를 번역한 것입니다(2026-08-10 동기화).
+> 이 문서는 v0.15.0 이후의 영어 README를 번역한 것입니다(2026-08-24 동기화).
 > 상세 문서([기능 소개](docs/FEATURES.md), [아키텍처](docs/ARCHITECTURE.md))는 영어로 제공됩니다.
 
 ## Oryxis란?
@@ -88,8 +88,13 @@ UI 언어를 한국어로 바꾸면 Noto Sans KR 글꼴이 자동으로 다운�
   SOCKS / HTTP / 명령 프록시, 에이전트 포워딩, 독립형
   `-L`/`-R`/`-D` 포트 포워딩, 메뉴형 배스천(JumpServer 등)을 위한
   expect/send 로그인 스크립트, `~/.ssh/config` 원클릭 가져오기.
-- **SSH만이 아닙니다.** Telnet과 시리얼 콘솔, ZMODEM 전송, 로컬
-  셸, SSH 터널을 통한 원클릭 RDP/VNC.
+- **SSH만이 아닙니다.** Telnet과 시리얼 콘솔, 콘솔 서버를 위한 순수
+  TCP 연결, ZMODEM 전송, 로컬 셸, SSH 터널을 통한 원클릭 RDP/VNC.
+- **네트워크가 바뀌어도 이어지는 세션.** 호스트에 mosh를 켜면 셸이
+  절전, Wi-Fi 전환, 주소 변경을 모두 견딥니다. 게다가 아무 일도
+  없는 척하지 않고, 링크가 얼마나 오래 끊겨 있었는지를 화면이
+  알려 줍니다. 정품 `mosh-server`의 프로토콜을 쓰는 네이티브 Rust
+  클라이언트라, 내 컴퓨터에 따로 설치할 것은 없습니다.
 - **진짜 터미널.** alacritty 기반 에뮬레이터, 분할 창, 세션 그룹,
   호스트별 테마, 번들 Nerd Fonts와 내려받는 폰트 팩(JetBrains
   Mono, Fira Code, MesloLGS 등), 오래 걸리는 명령을 알려 주는
@@ -154,13 +159,13 @@ ChaCha20-Poly1305), 호스트 키는 TOFU로 고정되며, 동기화 페이로�
 ## 로드맵
 
 Oryxis는 대략 매주 작은 단위로 릴리스하며, 기능은 준비되는 대로
-출시됩니다. 최신 안정 버전은 **v0.14.0**입니다. 전체 이력은
+출시됩니다. 최신 안정 버전은 **v0.15.0**입니다. 전체 이력은
 [CHANGELOG.md](CHANGELOG.md), 인터랙티브 로드맵은
 [로드맵 Discussion](https://github.com/wilsonglasser/oryxis/discussions/67)에서
 볼 수 있습니다. 진행 중인 방향: 네이티브 FIDO2(USB / NFC로 보안
-키와 직접 통신), 네이티브 Mosh 클라이언트, 다중 볼트, 동아시아
-모호 폭(ambiguous width) 옵션. 커뮤니티가 요청한 사이드바 tmux
-세션 관리자와 호스트 트리 뷰는 이번 버전에 출시되었습니다.
+키와 직접 통신), 다중 볼트, 동아시아 모호 폭(ambiguous width)
+옵션. 네이티브 mosh 클라이언트, 호스트별 디스크 키(`~/.ssh`),
+직전에 닫은 탭 되살리기는 이번 버전에 출시되었습니다.
 
 ## 기여하기
 

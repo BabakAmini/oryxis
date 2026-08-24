@@ -69,6 +69,18 @@
   <content_rating type="oars-1.1"/>
 
   <releases>
+    <release version="0.15.0" date="2026-08-24">
+      <description>
+        <p>
+          Adds mosh sessions that survive sleep and a change of address,
+          reopening the last closed tab, fourteen more terminal themes,
+          per-host disk keys from ~/.ssh, and a large batch of security
+          fixes covering URL handling, command proxies, host-key pins
+          and untrusted imports.
+        </p>
+      </description>
+      <url>https://github.com/wilsonglasser/oryxis/releases/tag/v0.15.0</url>
+    </release>
     <release version="0.8.0" date="2026-06-07">
       <description>
         <p>

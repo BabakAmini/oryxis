@@ -1324,6 +1324,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Conexiones recientes",
         "personal" => "Personal",
         "no_connections_yet" => "Aún no hay conexiones. Crea una desde el panel.",
+        "no_connections_identity" => "Ningún host usa esta identidad todavía.",
         "no_matches" => "Sin coincidencias.",
         "vault_setup_subtitle" => "Establece una contraseña maestra o continúa sin ella.",
         "master_password_optional" => "Contraseña maestra (opcional)...",

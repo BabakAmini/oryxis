@@ -1413,6 +1413,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "हाल के कनेक्शन",
         "personal" => "निजी",
         "no_connections_yet" => "अभी कोई कनेक्शन नहीं। डैशबोर्ड से एक बनाएं।",
+        "no_connections_identity" => "अभी तक कोई होस्ट इस पहचान का उपयोग नहीं करता।",
         "no_matches" => "कोई मेल नहीं।",
 
         "vault_setup_subtitle" => "मास्टर पासवर्ड सेट करें या बिना पासवर्ड जारी रखें।",

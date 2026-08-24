@@ -64,11 +64,20 @@ impl Oryxis {
             .find_map(|t| t.pane_grid.panes.values().find(|p| p.id == pane_id))
             .and_then(|p| p.terminal.lock().ok().map(|t| (t.cols(), t.rows())))
             .map_or((80, 24), |(c, r)| (c.max(1), r.max(1)));
-        // Where the UDP session goes. The server binds the address the
-        // SSH session arrived on (`mosh-server -s`), so the address that
-        // reached it is the address that reaches it again, and through a
-        // jump chain that is the LAST hop rather than what the user
-        // typed.
+        // Where the UDP session goes: the host as configured, because
+        // for a direct dial that IS the address already known to reach
+        // it, and `mosh-server -s` binds the one the SSH session arrived
+        // on, which is the same one.
+        //
+        // A JUMP CHAIN breaks that pairing and cannot be repaired here.
+        // The SSH connection reaches the final host FROM the last hop,
+        // so `-s` binds an address facing the bastion, while this dials
+        // what the user typed, from here. mosh is UDP and UDP does not
+        // travel down an SSH tunnel, so there is no address that would
+        // work: upstream mosh has the same limitation, for the same
+        // reason. Documented as a limitation rather than guarded,
+        // because a host reachable both ways works fine and refusing it
+        // would take away a working setup.
         let host = self.pane_dialled_host(pane_id);
 
         let command = ServerCommand {

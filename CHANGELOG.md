@@ -4,6 +4,236 @@ All notable changes to Oryxis are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the
 project uses [SemVer](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0] - 2026-08-24
+
+The mosh release, and the first release since 0.10 to carry a security
+section, which is also the largest one so far. A session
+can now be carried over mosh: an SSH host with mosh switched on dials
+exactly as it always did, prompts and host keys and proxy consent and
+all, and at the last moment hands the session to `mosh-server` and lets
+the SSH connection go, so the shell survives sleep and a change of
+address. Alongside it, a batch of fixes that mostly share one shape, a
+value somebody else authored being trusted as if the user had typed it:
+a URL printed by a remote host could run a program on Windows, a paired
+sync device could plant a proxy command that ran at boot or replace a
+host-key pin, and an imported `.oryxis` file could re-point the update
+mirror or arm a port forward that dials on next launch. Three more stop
+a remote peer from deciding how many bytes land on the local disk.
+Also: the last closed tab comes back, the
+built-in terminal themes reach 31, and a key sitting in `~/.ssh` is
+finally a key Oryxis will offer.
+
+### Added
+- **mosh, as an option on an SSH host** rather than a seventh protocol.
+  It has to be: `mosh-server` does not exist until an SSH session starts
+  it, and the port and key it answers with come back over that same
+  channel, so a mosh host needs the username, the key, the jump chain,
+  the proxy and the host-key policy the SSH side already resolved. Four
+  fields in the host editor under Credentials (on, server path, port
+  range, and a command that replaces the login shell), all of them kept
+  when the toggle goes off, because a server path somebody had to look
+  up should not have to be found again. The handover lives at the one
+  point every dial path converges, so a dial site added later inherits
+  it. New crate: `oryxis-mosh`.
+- **The link says how long it has been out of touch.** A mosh session
+  stays alive while its network does not, which is the whole point of
+  the protocol and the one thing "connected" cannot express. Two clocks,
+  mosh's own, because the link fails in two ways: nothing arriving at
+  all is no contact, things arriving with nothing acknowledged is no
+  reply, which is what a one-way path looks like. Surfaced amber on the
+  tab strip and in the connection segment, with the direction and the
+  duration in the latency slot.
+- **Bring back the last closed tab** (#186): Ctrl+Shift+Y, the tab
+  context menu and the command palette reopen the last tab that left the
+  strip, terminal or SFTP, ten deep and session-only. It resolves
+  through the same machinery a dormant pin reopens through, so a saved
+  host comes back by id rather than by name. Quick-connect tabs are
+  deliberately not remembered, for the reason they are not pinnable:
+  their credentials would have to outlive the session that typed them.
+- **Fourteen more built-in terminal themes**, taking the curated set to
+  31 (Ayu Dark/Light, Catppuccin Mocha/Latte, Everforest Dark, GitHub
+  Dark/Light, Gruvbox Light, Horizon, Kanagawa, One Light, Rosé Pine,
+  Tokyo Night, Zenburn), each faithful to its upstream terminal export
+  with the divergences documented. At 31 the lists needed a filter, so
+  the Settings gallery and the per-host picker each got one.
+- **A key in `~/.ssh` is now a key Oryxis can offer** (the third key
+  source, next to the vault and the agent). Opt-in per host, never a
+  global setting, because offering a credential the user never named
+  changes who they are to that server. The vault always wins: the disk
+  only fills a slot left empty. A passphrase-protected file is reported
+  as exactly that in the host editor rather than silently skipped, which
+  is what used to leave a user watching `ssh` authenticate while Oryxis
+  fell through to a password prompt with nothing on screen saying why.
+- **One protocol picker** (#174). Remote desktop used to be a separate
+  entry in the add menu, which is how a feature becomes invisible; every
+  protocol now lives in one list, joined by Raw (a bare TCP line for
+  console servers, which opens in silence because an unasked-for option
+  burst lands on the attached device as garbage), Local (a curated
+  terminal on this machine) and Telnet over TLS. Quick connect speaks
+  the same list through `scheme://`, and a bare `/dev/tty*` or `COM3` is
+  Serial because it is a host under no protocol.
+- **Inline IME preedit at the caret** (#178), so composing in Japanese,
+  Chinese or Korean shows what is being composed instead of nothing.
+- **Overwrite prompts on drop uploads** (#185). Dropping onto the
+  terminal or the sidebar now routes through the same conflict flow the
+  SFTP panel uses (Replace / Replace if different / Duplicate / Cancel)
+  instead of silently renaming or clobbering.
+- **Drag files out of the file browser onto the desktop**, phase two:
+  the ghost is drawn by Oryxis and the OS only takes over when the
+  cursor leaves the window, because the Windows drag API blocks the UI
+  thread for the whole gesture and escalating early froze the window
+  before a ghost could paint.
+- **Secrets-free CSV export of hosts** (Settings > Security), which
+  round-trips through the importer. There is structurally no password
+  column: the function never receives secret material at all, and the
+  encrypted portable export stays the only secrets-bearing path.
+- **A session-recording size cap** (Settings > Security), which drops
+  the oldest finished recordings the way any log rotation does. It fixes
+  an asymmetry the age rule has alone, where "1 day" deletes a 10 KB
+  recording from yesterday and keeps a 40 GB one from today.
+- **The dial prompts answer the keyboard.** The host-key and
+  command-proxy approvals record keynav rows, with the REFUSING button
+  as the default, so a stray Enter can never trust a host key or spawn a
+  command proxy. Before this the keyboard could only ever refuse:
+  reaching "continue" needed the mouse, at exactly the moment the hands
+  are not on it.
+- **A scheme pasted into the wrong import panel is carried over**
+  (#68) instead of dead-ending on an error, with a toast saying what
+  happened. The redirect needs positive evidence of the other kind,
+  never mere absence of the marker, so a typo cannot ping-pong between
+  the two panels.
+
+### Changed
+- **Portable Windows copies and Linux AppImages update in place**
+  (#180). A portable copy used to be handed the setup installer, which
+  lays down a second, installed copy instead of updating the one the
+  user runs; an AppImage now replaces the image file `$APPIMAGE` points
+  at rather than `current_exe`, which is the read-only mounted
+  squashfs. Both keep the Ed25519 signature gate.
+- **A single-file SFTP download gets the progress bar the upload
+  already had.** "Download to local" on one file ran with no bar, no
+  byte count and no cancel, which on a 900 MB file is a UI that looks
+  frozen. Both directions now share one batch runner.
+- **The transfer toasts lost their protocol name.** They say the same
+  thing for a ZMODEM transfer, an SFTP queue item and a drag-out, and
+  naming one of the three made the other two read as borrowed strings.
+
+### Fixed
+- **A jump host that itself sits behind a jump chain is now reached**
+  (#184). The route was built from the final host's chain alone, so C
+  via B, with B behind A, never got to B. OpenSSH follows a hop's own
+  `ProxyJump` recursively and so does this now, under a visited guard so
+  a cycle degrades to a direct dial rather than looping.
+- **Pasting on Wayland and WSLg** (#179). A fallback added for
+  compositors without the clipboard-control protocol fixed writing and
+  took reading with it: WSLg answers with an empty string for content
+  that reads correctly over X11, and an empty string is not an error, so
+  it arrived as a legitimately empty clipboard and paste did nothing.
+- **The classic Alt+Tab switcher shows the app icon** on Windows
+  (#182) instead of a generic placeholder.
+- **Keystrokes no longer land in the wrong tab while another connects**
+  (#177): the gate that holds input during a dial is scoped per tab.
+- **An open side panel stopped eating the search box's Enter.**
+- **An identity nothing links to said `???`** instead of saying so, in
+  every one of the 23 languages: the string reached the lookup with no
+  table entry behind it.
+- **The AI assistant knows when a command has actually finished.** Two
+  fixes with one root: the prompt was detected by finding a `$`, `#` or
+  `%` anywhere in a line, so `cat`ing a script ending in `# end of file`
+  read as "the shell is back", and a `df` row ending in `41% /run/user`
+  was the same trap one column over. Where the CURSOR sits is what
+  discriminates a prompt from a line that merely contains a marker, and
+  that is the signal now. Behind that gate the marker test can afford to
+  be loose enough for fish and oh-my-zsh prompts, which never ended a
+  capture at all before.
+- **Two mosh defects found the first time a real host was on the other
+  end**: the pane read as disconnected while the shell worked (the SSH
+  stream that dialled it reported the death of a connection the pane had
+  already replaced), and the pane carried two login banners painted over
+  each other, one per shell, because mosh's model of the screen starts
+  blank and never mentions anything SSH left behind.
+- **A file browser opened on a mosh pane now opens an SFTP tab of its
+  own** instead of silently dropping the request. A session that
+  survives roaming has no SSH connection to multiplex on, and two tabs
+  with two visible lifetimes is the honest shape.
+- **Drag and drop of files into the window**, via synchronized fixes in
+  the winit and iced forks (#183).
+- The two lints `clippy` 1.98 started raising, plus one only visible on
+  a Windows target.
+
+### Security
+- **Opening a URL on Windows went through `cmd.exe`, which parsed it.**
+  `cmd /C start "" <url>` put a shell between Oryxis and the browser,
+  and Rust quotes an argument only when it holds a space or a tab. A URL
+  holds neither, so `&`, `|` and `^` reached `cmd.exe` as operators and
+  `%VAR%` expanded: a link reading `https://host/?a=1&calc` ran `calc`
+  on the click. Both callers reach that sink with a string somebody else
+  authored, one of them being whatever the REMOTE HOST printed into the
+  terminal. Now `ShellExecuteW` with no shell in between, plus an
+  RFC 3986 scheme allowlist at each sink, because the Windows handler
+  resolves a bare path or a UNC name to a program and runs it.
+- **A command proxy now asks this machine before it runs on this
+  machine.** `ProxyType::Command` is the one connection field that
+  becomes a local process, handed to `sh -c` BEFORE the handshake, so it
+  runs regardless of host-key policy, reachability or a failed auth. And
+  that data does not always come from the person at the keyboard: a
+  paired sync device could point an existing group at a planted command
+  and get `sh -c <attacker>` on the next dial of any host in it,
+  including the auto-start forward that fires at boot with nobody
+  present. The records still replicate; what changed is that the SPAWN
+  asks. The gate is in the engine rather than its ten callers, so a dial
+  site that never heard of it fails closed; approval is keyed by the
+  command's SHA-256 and never leaves the device; unattended dials may
+  only look up an existing approval, never raise a dialog nobody
+  expected; and only a line typed into the host editor is pre-approved,
+  because a picked file is not a read file.
+- **A sync peer may add a host-key pin, not swap one.** A pin is a
+  decision a human made at a fingerprint prompt on this device, and
+  storage keeps one row per (host, port, key type), deleting the others
+  first, so a peer's record carrying a fresh id was never an insert: it
+  replaced the local fingerprint, and every later dial to that host
+  trusted the peer's key with no prompt, headless strict dials included.
+  What replaces automatic propagation of a key rotation is the ordinary
+  "changed" prompt on the next connect, which is the one moment a human
+  should be looking at a fingerprint anyway.
+- **An import file is not a source of trust.** The import dialog shows a
+  per-category count and never a list, so nothing on that path lets the
+  user see what a file changes. Settings whose value is itself a trust
+  decision now stay behind (`download_mirror` re-points every
+  GitHub-bound request including the updater's, a clipboard access level
+  of `readwrite` hands every connected server an OSC 52 clipboard READ,
+  and the agent-server four activate the local signing service and strip
+  its per-signature confirmation); host-key pins dedup by the semantic
+  key so an import cannot replace one; and port-forward rules land
+  disarmed, because `auto_start` is what turns a stored rule into a dial
+  at the next launch with nobody present.
+- **A downloaded folder owes the same name rule as its children.** The
+  recursive SFTP walk already refused unsafe server-supplied names per
+  entry, which left the two places that name the destination themselves.
+  Both build a local path from a name the SERVER chose, and splitting on
+  `/` only neutralizes `/`, so a backslash, a `..` or a `C:` prefix
+  survived it and re-rooted the join, writing outside the directory the
+  user picked.
+- **A ZMODEM batch is bounded, not just each file in it.** The only
+  ceiling reset at every file header, so a peer looping
+  `ZFILE -> ZDATA -> ZEOF` stayed inside it forever while the disk
+  filled. There is a session budget now, computed from free space.
+- **A download asks whether it fits before it starts.** Three paths let
+  a remote peer decide how many bytes land on the user's disk and none
+  of them asked. SFTP answers before the first byte moves rather than
+  failing at 90% with a stranded part file. Best-effort by construction:
+  a platform that will not answer returns nothing and the caller
+  proceeds, because a check that cannot run must never be the reason a
+  transfer refuses.
+- **A recording that fills the disk stops, and says so.** Session
+  recording wrote for as long as the peer kept printing, with no size in
+  hand at all; a full volume ended in a log line and nothing else, so
+  recording kept being attempted, every later byte was dropped, and the
+  user was never told. There is an unconditional free-space floor now
+  (not a setting: nobody switches on "do not fill my disk"), and a stop
+  both toasts and flags the row truncated, because a partial stream that
+  presents itself as a whole session is a worse failure than stopping.
+
 ## [0.14.0] - 2026-08-17
 
 The host editor and terminal typography release. The editor that every

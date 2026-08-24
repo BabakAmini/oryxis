@@ -23,7 +23,7 @@
   <img src="resources/screen_1.gif" width="720" alt="Oryxis 演示：连接主机、运行代码片段、浏览 SFTP">
 </p>
 
-> 本文档基于 v0.13.0 之后的英文 README 翻译（2026-08-10 同步）。
+> 本文档基于 v0.15.0 之后的英文 README 翻译（2026-08-24 同步）。
 > 详细文档（[功能一览](docs/FEATURES.md)、[架构说明](docs/ARCHITECTURE.md)）为英文。
 
 ## Oryxis 是什么？
@@ -91,8 +91,12 @@ Big5 编码。
 - **完整的 SSH 能力**：自动认证、多级跳板机、SOCKS / HTTP / 命令代理、
   Agent 转发、独立的 `-L`/`-R`/`-D` 端口转发、面向菜单式堡垒机
   （JumpServer 等）的 expect/send 登录脚本、一键导入 `~/.ssh/config`。
-- **不止 SSH**：Telnet 与串口控制台、ZMODEM 传输、本地 Shell，以及
-  通过 SSH 隧道一键 RDP/VNC。
+- **不止 SSH**：Telnet 与串口控制台、面向控制台服务器的裸 TCP 连接、
+  ZMODEM 传输、本地 Shell，以及通过 SSH 隧道一键 RDP/VNC。
+- **能扛住网络变化的会话**：为主机开启 mosh，Shell 就能挺过休眠、
+  切换 Wi-Fi 与更换地址；界面会直接告诉你链路已经多久没有联系，
+  而不是假装一切正常。原生 Rust 客户端，说的是官方 `mosh-server`
+  的协议，本机无需额外安装任何东西。
 - **真正的终端**：基于 alacritty 的仿真器、分屏、会话组、按主机主题、
   内置 Nerd 字体外加可下载字体包（JetBrains Mono、Fira Code、
   MesloLGS 等）、标记长时间运行命令的智能标签页、按主机命令历史。
@@ -149,12 +153,13 @@ Big5 编码。
 ## 路线图
 
 Oryxis 以大约每周一次的节奏持续发布，功能就绪即上线。最新稳定版为
-**v0.14.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
+**v0.15.0**；完整历史见 [CHANGELOG.md](CHANGELOG.md)，交互式路线图见
 [路线图讨论](https://github.com/wilsonglasser/oryxis/discussions/67)。
 正在推进的方向包括：原生 FIDO2（通过 USB / NFC 直接与安全密钥通信）、
-原生 Mosh 客户端、多保险库，
-以及面向中文用户的阿里云 / 腾讯云支持和东亚宽度选项。社区呼声
-很高的侧边栏 tmux 会话管理器和主机树形视图已在本版本发布。
+多保险库，
+以及面向中文用户的阿里云 / 腾讯云支持和东亚宽度选项。原生 mosh
+客户端、按主机启用的磁盘密钥（`~/.ssh`）以及重新打开上一个关闭的
+标签页已在本版本发布。
 
 ## 参与贡献
 

@@ -1371,6 +1371,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Conexões recentes",
         "personal" => "Pessoal",
         "no_connections_yet" => "Nenhuma conexão ainda. Crie uma a partir do dashboard.",
+        "no_connections_identity" => "Nenhum host usa esta identidade ainda.",
         "no_matches" => "Sem correspondências.",
         "vault_setup_subtitle" => "Defina uma senha mestre ou continue sem uma.",
         "master_password_optional" => "Senha mestre (opcional)...",

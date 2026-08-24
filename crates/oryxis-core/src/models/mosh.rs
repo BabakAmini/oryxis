@@ -24,9 +24,15 @@
 //! because it spawns a LOCAL process before any handshake, on the
 //! machine the user is sitting at. Nothing here does that.
 //!
-//! They still reach a shell, so `oryxis_mosh::ServerCommand` quotes
-//! them: a value that arrived from a sync peer is a value nobody here
-//! typed.
+//! They still reach a shell, so `oryxis_mosh::ServerCommand`
+//! single-quotes the two that are single VALUES (`server_path` and
+//! `port_range`): one arriving from a sync peer is a value nobody here
+//! typed, and neither has any business becoming more than one word.
+//! `command` is deliberately NOT quoted, because it is a command LINE
+//! rather than a value: quoting `tmux new -A -s work` whole would hand
+//! the host one impossible word. That puts it in exactly the class
+//! `initial_command` is in, which is the paragraph above and not an
+//! exception to it.
 
 use serde::{Deserialize, Serialize};
 

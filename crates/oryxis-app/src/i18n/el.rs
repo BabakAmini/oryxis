@@ -1413,6 +1413,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Πρόσφατες συνδέσεις",
         "personal" => "Προσωπικό",
         "no_connections_yet" => "Καμία σύνδεση ακόμη. Δημιουργήστε μία από τον πίνακα.",
+        "no_connections_identity" => "Κανένας κεντρικός υπολογιστής δεν χρησιμοποιεί ακόμη αυτήν την ταυτότητα.",
         "no_matches" => "Κανένα αποτέλεσμα.",
 
         "vault_setup_subtitle" => "Ορίστε κύριο κωδικό ή συνεχίστε χωρίς κωδικό.",

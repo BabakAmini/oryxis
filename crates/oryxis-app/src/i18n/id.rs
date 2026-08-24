@@ -1407,6 +1407,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Koneksi terbaru",
         "personal" => "Pribadi",
         "no_connections_yet" => "Belum ada koneksi. Buat satu dari dashboard.",
+        "no_connections_identity" => "Belum ada host yang memakai identitas ini.",
         "no_matches" => "Tidak ada yang cocok.",
 
         "vault_setup_subtitle" => "Atur kata sandi master atau lanjutkan tanpa kata sandi.",

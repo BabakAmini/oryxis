@@ -1413,6 +1413,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "חיבורים אחרונים",
         "personal" => "אישי",
         "no_connections_yet" => "אין עדיין חיבורים. צרו אחד מהדשבורד.",
+        "no_connections_identity" => "עדיין אין מארח שמשתמש בזהות הזו.",
         "no_matches" => "אין התאמות.",
 
         "vault_setup_subtitle" => "הגדירו סיסמה ראשית או המשיכו בלעדיה.",

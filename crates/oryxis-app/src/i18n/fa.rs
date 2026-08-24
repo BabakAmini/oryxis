@@ -1401,6 +1401,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "اتصال‌های اخیر",
         "personal" => "شخصی",
         "no_connections_yet" => "هنوز اتصالی وجود ندارد. از داشبورد یک اتصال ایجاد کنید.",
+        "no_connections_identity" => "هنوز هیچ میزبانی از این هویت استفاده نمی‌کند.",
         "no_matches" => "موردی پیدا نشد.",
         "vault_setup_subtitle" => "گذرواژه اصلی را تعیین کنید یا بدون آن ادامه دهید.",
         "master_password_optional" => "گذرواژه اصلی (اختیاری)...",

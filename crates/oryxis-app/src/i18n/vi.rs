@@ -1407,6 +1407,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Kết nối gần đây",
         "personal" => "Cá nhân",
         "no_connections_yet" => "Chưa có kết nối nào. Tạo một cái từ bảng điều khiển.",
+        "no_connections_identity" => "Chưa có máy chủ nào dùng danh tính này.",
         "no_matches" => "Không có kết quả phù hợp.",
 
         "vault_setup_subtitle" => "Đặt mật khẩu chính hoặc tiếp tục không cần mật khẩu.",

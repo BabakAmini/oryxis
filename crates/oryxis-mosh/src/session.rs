@@ -139,8 +139,12 @@ impl MoshSession {
     /// `host` is where the SSH connection went, not what the server
     /// reported: the server binds the address the SSH session arrived
     /// on (`mosh-server -s`), which is the address already known to be
-    /// reachable from here. A jump chain makes that the LAST hop, and
-    /// this is the one place that difference matters.
+    /// reachable from here.
+    ///
+    /// That pairing holds for a direct dial and NOT through a jump
+    /// chain, where SSH arrives from the last hop and the caller dials
+    /// from somewhere else. It is not repairable at this layer, or any
+    /// other: mosh is UDP, and UDP does not travel down an SSH tunnel.
     pub fn connect(
         host: &str,
         port: u16,

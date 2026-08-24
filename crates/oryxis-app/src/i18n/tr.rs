@@ -1407,6 +1407,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "Son bağlantılar",
         "personal" => "Kişisel",
         "no_connections_yet" => "Henüz bağlantı yok. Panodan bir tane oluşturun.",
+        "no_connections_identity" => "Bu kimliği henüz hiçbir sunucu kullanmıyor.",
         "no_matches" => "Eşleşme yok.",
 
         "vault_setup_subtitle" => "Bir ana parola belirleyin veya parolasız devam edin.",

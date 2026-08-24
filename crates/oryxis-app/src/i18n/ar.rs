@@ -1421,6 +1421,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "recent_connections" => "الاتصالات الأخيرة",
         "personal" => "شخصي",
         "no_connections_yet" => "لا توجد اتصالات بعد. أنشئ واحدًا من لوحة التحكم.",
+        "no_connections_identity" => "لا يستخدم أي مضيف هذه الهوية بعد.",
         "no_matches" => "لا توجد نتائج.",
         "vault_setup_subtitle" => "عيّن كلمة مرور رئيسية أو تابع بدونها.",
         "master_password_optional" => "كلمة المرور الرئيسية (اختياري)...",

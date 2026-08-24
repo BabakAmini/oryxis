@@ -84,10 +84,51 @@ coming next, see the [Roadmap](../README.md#roadmap).
   and wake the machine from the host card's menu with a magic-packet
   broadcast, before SSH, RDP or anything else can reach it.
 
+## mosh
+
+- **A session that survives the network.** Switch mosh on for a host and
+  the shell rides out sleep, a change of Wi-Fi and a change of address.
+  Native Rust client speaking the stock `mosh-server`'s protocol, so
+  nothing extra is installed on your machine; the host needs `mosh` and
+  a reachable UDP port.
+- **An option on the SSH host, not a separate protocol.** `mosh-server`
+  does not exist until an SSH session starts it, and the port and key it
+  answers with come back over that same channel, so a mosh host reuses
+  the username, key, jump chain, proxy and host-key policy the SSH side
+  already resolves. Four fields under Credentials: the toggle, the
+  server path, a UDP port range for hosts behind a restrictive firewall,
+  and a command that replaces the login shell. They are kept when the
+  toggle goes off.
+- **The link says how long it has been out of touch.** "Connected"
+  cannot express a session that is alive while its network is not, so
+  two clocks report it: no contact when nothing is arriving, no reply
+  when things arrive but nothing sent is acknowledged, which is what a
+  one-way path looks like. Amber on the tab strip and in the connection
+  segment, with the direction and duration in the latency slot.
+- **Files open in a tab of their own.** A roaming session holds no SSH
+  connection to multiplex SFTP on, so the request becomes a standalone
+  SFTP tab against the same host, with its own visible lifetime.
+- Not supported through a jump chain: SSH reaches the final host from
+  the last hop, so the server binds an address facing the bastion, and
+  UDP does not travel down an SSH tunnel. Upstream mosh has the same
+  limitation.
+
 ## Telnet, serial & ZMODEM
 
-- **Per-host protocol selector.** A host can be SSH, Telnet or serial; the
-  editor swaps to a reduced form per protocol.
+- **Per-host protocol selector.** One picker per host: SSH, Telnet, raw
+  TCP, serial, a local shell or a remote desktop. The editor swaps to a
+  reduced form per protocol, hiding the rows that protocol cannot use
+  rather than showing them and ignoring them.
+- **Raw TCP lines.** A bare socket for console servers and appliances
+  that speak no protocol at all. It opens in silence, with no client
+  greeting: a console server forwards what it receives down the serial
+  line, and an unasked-for option burst lands on the attached device as
+  garbage.
+- **Telnet over TLS.** A toggle on the Telnet form rather than a
+  protocol of its own, since there is no in-band upgrade to negotiate.
+  Certificate verification is on by default against the webpki roots,
+  with a per-host escape for appliances carrying self-signed
+  certificates.
 - **Native Telnet engine.** RFC 854/855 option negotiation with the
   loop-proof RFC 1143 state machine, NAWS window sizing, terminal-type,
   charset transcoding, and prompt-driven credential autofill. The editor
