@@ -89,7 +89,12 @@ pub(crate) static SETTINGS_INDEX: &[SettingsIndexEntry] = &[
     e(S::Interface, "show_status_bar", "status bar show bottom"),
     e(S::Interface, "status_show_connection", "status bar connection segment"),
     e(S::Interface, "status_show_version", "status bar version segment"),
-    e(S::Interface, "status_show_latency", "status bar latency ping segment"),
+    // Named for the SSH reading it started as, but the segment answers
+    // for whichever transport the pane holds: on mosh it reports how
+    // long the link has been quiet, since there is no round trip to
+    // report. The keywords carry that, so searching "link" or "mosh"
+    // finds the toggle without renaming a setting people already know.
+    e(S::Interface, "status_show_latency", "status bar latency ping rtt segment link mosh quiet contact"),
     e(S::Interface, "status_show_dimensions", "status bar terminal size dimensions rows columns"),
     e(S::Interface, "status_show_cwd", "status bar current directory path cwd"),
     e(S::Interface, "status_bar_align_left", "status bar align content left leading edge alignment position"),
