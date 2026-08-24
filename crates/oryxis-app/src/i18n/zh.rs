@@ -2119,6 +2119,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server 未能启动：{reason}",
         "mosh_error_no_answer" => "启动 mosh-server 期间主机始终没有响应。",
         "mosh_error_open" => "无法打开 mosh 会话：{reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "通过 mosh 承载会话",
+        "mosh_enabled_desc" => "会话经由 SSH 启动，随后通过 UDP 承载，因此可以在换网络和睡眠后继续。主机需要安装 mosh。",
+        "mosh_server_path" => "mosh-server 路径",
+        "mosh_server_path_placeholder" => "留空则在 PATH 中查找",
+        "mosh_port_range" => "UDP 端口范围",
+        "mosh_port_range_desc" => "仅在防火墙只开放少量端口时需要。留空由主机自行选择。",
+        "mosh_port_range_placeholder" => "例如 60000:60010",
+        "mosh_command" => "命令",
+        "mosh_command_desc" => "替代登录 shell，因此它才是断线后仍在运行的东西。",
+        "mosh_command_placeholder" => "留空使用登录 shell",
 _ => return None,
     })
 }

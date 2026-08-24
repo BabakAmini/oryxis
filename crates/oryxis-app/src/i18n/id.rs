@@ -2152,6 +2152,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server tidak mau berjalan: {reason}",
         "mosh_error_no_answer" => "Host tidak pernah menjawab saat mosh-server dijalankan.",
         "mosh_error_open" => "Tidak bisa membuka sesi mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Bawa sesi lewat mosh",
+        "mosh_enabled_desc" => "Sesi dimulai lewat SSH lalu dibawa lewat UDP, jadi tetap hidup saat ganti jaringan dan saat perangkat tidur. Host harus punya mosh.",
+        "mosh_server_path" => "Jalur mosh-server",
+        "mosh_server_path_placeholder" => "Kosongkan untuk mencari di PATH",
+        "mosh_port_range" => "Rentang porta UDP",
+        "mosh_port_range_desc" => "Hanya perlu bila firewall hanya membuka sedikit porta. Kosong berarti host yang memilih.",
+        "mosh_port_range_placeholder" => "mis. 60000:60010",
+        "mosh_command" => "Perintah",
+        "mosh_command_desc" => "Menggantikan shell login, jadi inilah yang bertahan setelah terputus.",
+        "mosh_command_placeholder" => "Kosongkan untuk shell login",
 _ => return None,
     })
 }

@@ -227,12 +227,21 @@ impl Oryxis {
         // record dead keyboard stops for fields nothing reads).
         let cred_items = self.hp_cred_items(is_serial || is_raw || is_local, is_ssh);
         let protocol_section: Element<'_, Message> = if is_ssh {
+            // mosh sits under the credentials rather than in a card of
+            // its own: it is how this SSH session is CARRIED, not a
+            // different kind of host, and every field above is a field
+            // it needs.
+            let mosh_block = self.hp_mosh_block();
             panel_section(
                 column![proto_header]
                     .push(group_sep())
                     .push(section_header(t("credentials")))
                     .push(Space::new().height(ROW_GAP))
-                    .push(cred_items),
+                    .push(cred_items)
+                    .push(group_sep())
+                    .push(section_header(t("mosh_section")))
+                    .push(Space::new().height(ROW_GAP))
+                    .push(mosh_block),
             )
         } else if is_serial {
             // Serial card: the line-parameter block under the header.

@@ -2152,6 +2152,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server không khởi động được: {reason}",
         "mosh_error_no_answer" => "Máy chủ không hề trả lời trong lúc khởi động mosh-server.",
         "mosh_error_open" => "Không mở được phiên mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Mang phiên qua mosh",
+        "mosh_enabled_desc" => "Phiên khởi động qua SSH rồi được mang qua UDP, nên sống sót khi đổi mạng và khi máy ngủ. Máy chủ cần cài mosh.",
+        "mosh_server_path" => "Đường dẫn mosh-server",
+        "mosh_server_path_placeholder" => "Để trống để tìm trong PATH",
+        "mosh_port_range" => "Dải cổng UDP",
+        "mosh_port_range_desc" => "Chỉ cần khi tường lửa chỉ mở vài cổng. Để trống thì máy chủ tự chọn.",
+        "mosh_port_range_placeholder" => "ví dụ 60000:60010",
+        "mosh_command" => "Lệnh",
+        "mosh_command_desc" => "Thay cho shell đăng nhập, nên đây mới là thứ sống sót sau khi mất kết nối.",
+        "mosh_command_placeholder" => "Để trống để dùng shell đăng nhập",
 _ => return None,
     })
 }

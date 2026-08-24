@@ -478,6 +478,30 @@ impl Oryxis {
         } else {
             None
         };
+        // mosh options, same rule and the same reason: cleared on any
+        // protocol that is not SSH, because mosh is carried over SSH
+        // and nothing else, and `None` when nothing was configured so a
+        // host nobody touched stays byte-identical to one saved before
+        // the field existed.
+        //
+        // The three settings are kept when the toggle is off, unlike
+        // the Telnet escape above: they are facts about the host rather
+        // than a trust decision, so nothing is armed by remembering
+        // them, and a server path somebody had to look up is not
+        // something to make them find again.
+        conn.mosh = if self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+        {
+            let opts = oryxis_core::models::mosh::MoshOptions {
+                enabled: self.editor_form.mosh_enabled,
+                server_path: self.editor_form.mosh_server_path.trim().to_string(),
+                port_range: self.editor_form.mosh_port_range.trim().to_string(),
+                command: self.editor_form.mosh_command.trim().to_string(),
+            };
+            (!opts.is_default()).then_some(opts)
+        } else {
+            None
+        };
         // Local-shell settings, same rule: cleared on any other
         // protocol, and `None` when the host just takes the default
         // shell in the default directory.
@@ -825,6 +849,18 @@ impl Oryxis {
             rd_gateway_id: conn.rd_gateway_id,
             telnet_tls: conn.telnet.map(|t| t.tls).unwrap_or(false),
             telnet_tls_insecure: conn.telnet.map(|t| t.tls_insecure).unwrap_or(false),
+            mosh_enabled: conn.mosh.as_ref().is_some_and(|m| m.enabled),
+            mosh_server_path: conn
+                .mosh
+                .as_ref()
+                .map(|m| m.server_path.clone())
+                .unwrap_or_default(),
+            mosh_port_range: conn
+                .mosh
+                .as_ref()
+                .map(|m| m.port_range.clone())
+                .unwrap_or_default(),
+            mosh_command: conn.mosh.as_ref().map(|m| m.command.clone()).unwrap_or_default(),
             // The saved id first, then the saved label: on the machine
             // that wrote the host the id resolves; on a second one it
             // was minted elsewhere, and the label is what still names
@@ -1033,6 +1069,10 @@ impl Oryxis {
                 | EditorMessage::EditorAddressFamilyChanged(..)
                 | EditorMessage::EditorToggleTelnetTls
                 | EditorMessage::EditorToggleTelnetTlsInsecure
+                | EditorMessage::EditorToggleMosh
+                | EditorMessage::EditorMoshServerPathChanged(_)
+                | EditorMessage::EditorMoshPortRangeChanged(_)
+                | EditorMessage::EditorMoshCommandChanged(_)
                 | EditorMessage::EditorLocalTerminalChanged(..)
                 | EditorMessage::EditorLocalCwdChanged(..)
             ) => self.handle_editor_identity(m),

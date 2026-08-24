@@ -2158,6 +2158,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server เริ่มทำงานไม่ได้: {reason}",
         "mosh_error_no_answer" => "โฮสต์ไม่ตอบเลยระหว่างที่เริ่ม mosh-server",
         "mosh_error_open" => "เปิดเซสชัน mosh ไม่ได้: {reason}",
-        _ => return None,
+                "mosh_section" => "Mosh",
+        "mosh_enabled" => "ให้เซสชันวิ่งผ่าน mosh",
+        "mosh_enabled_desc" => "เซสชันเริ่มด้วย SSH แล้ววิ่งต่อบน UDP จึงอยู่รอดเมื่อเปลี่ยนเครือข่ายและเมื่อเครื่องหลับ โฮสต์ต้องติดตั้ง mosh",
+        "mosh_server_path" => "พาธของ mosh-server",
+        "mosh_server_path_placeholder" => "เว้นว่างเพื่อค้นหาใน PATH",
+        "mosh_port_range" => "ช่วงพอร์ต UDP",
+        "mosh_port_range_desc" => "จำเป็นเฉพาะเมื่อไฟร์วอลล์เปิดพอร์ตไว้ไม่กี่พอร์ต เว้นว่างให้โฮสต์เลือกเอง",
+        "mosh_port_range_placeholder" => "เช่น 60000:60010",
+        "mosh_command" => "คำสั่ง",
+        "mosh_command_desc" => "แทนที่เชลล์ล็อกอิน จึงเป็นสิ่งที่อยู่รอดหลังหลุดการเชื่อมต่อ",
+        "mosh_command_placeholder" => "เว้นว่างเพื่อใช้เชลล์ล็อกอิน",
+_ => return None,
     })
 }

@@ -2119,6 +2119,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server no arrancó: {reason}",
         "mosh_error_no_answer" => "El host no respondió mientras arrancaba mosh-server.",
         "mosh_error_open" => "No se pudo abrir la sesión mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Llevar la sesión por mosh",
+        "mosh_enabled_desc" => "La sesión se inicia por SSH y luego viaja por UDP, así que sobrevive a cambios de red y a suspender el equipo. El host necesita mosh instalado.",
+        "mosh_server_path" => "Ruta de mosh-server",
+        "mosh_server_path_placeholder" => "Vacío lo busca en PATH",
+        "mosh_port_range" => "Rango de puertos UDP",
+        "mosh_port_range_desc" => "Solo hace falta cuando un firewall abre pocos puertos. Vacío deja elegir al host.",
+        "mosh_port_range_placeholder" => "p. ej. 60000:60010",
+        "mosh_command" => "Comando",
+        "mosh_command_desc" => "Sustituye al shell de inicio, así que es lo que sobrevive a una desconexión.",
+        "mosh_command_placeholder" => "Vacío usa el shell de inicio",
 _ => return None,
     })
 }

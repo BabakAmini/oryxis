@@ -2151,6 +2151,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server başlatılamadı: {reason}",
         "mosh_error_no_answer" => "mosh-server başlatılırken sunucu hiç yanıt vermedi.",
         "mosh_error_open" => "mosh oturumu açılamadı: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Oturumu mosh üzerinden taşı",
+        "mosh_enabled_desc" => "Oturum SSH ile başlar, sonra UDP üzerinden taşınır; böylece ağ değişimine ve uykuya dayanır. Sunucuda mosh kurulu olmalı.",
+        "mosh_server_path" => "mosh-server yolu",
+        "mosh_server_path_placeholder" => "Boş bırakılırsa PATH'te aranır",
+        "mosh_port_range" => "UDP bağlantı noktası aralığı",
+        "mosh_port_range_desc" => "Yalnızca güvenlik duvarı az sayıda bağlantı noktası açtığında gerekir. Boş bırakılırsa sunucu seçer.",
+        "mosh_port_range_placeholder" => "örn. 60000:60010",
+        "mosh_command" => "Komut",
+        "mosh_command_desc" => "Oturum kabuğunun yerini alır, yani kopmadan sonra ayakta kalan budur.",
+        "mosh_command_placeholder" => "Boş bırakılırsa oturum kabuğu",
 _ => return None,
     })
 }

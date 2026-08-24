@@ -2120,6 +2120,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server を起動できませんでした: {reason}",
         "mosh_error_no_answer" => "mosh-server の起動中、ホストから応答がありませんでした。",
         "mosh_error_open" => "mosh セッションを開けませんでした: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "セッションを mosh で運ぶ",
+        "mosh_enabled_desc" => "セッションは SSH で開始してから UDP で運ばれるため、ネットワークの切り替えやスリープを越えて残ります。ホストに mosh が必要です。",
+        "mosh_server_path" => "mosh-server のパス",
+        "mosh_server_path_placeholder" => "空欄なら PATH から探します",
+        "mosh_port_range" => "UDP ポート範囲",
+        "mosh_port_range_desc" => "ファイアウォールが少数のポートしか開けていない場合にだけ必要です。空欄ならホストが選びます。",
+        "mosh_port_range_placeholder" => "例: 60000:60010",
+        "mosh_command" => "コマンド",
+        "mosh_command_desc" => "ログインシェルを置き換えるため、切断後に残るのはこちらです。",
+        "mosh_command_placeholder" => "空欄ならログインシェル",
 _ => return None,
     })
 }

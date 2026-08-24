@@ -2119,6 +2119,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server startete nicht: {reason}",
         "mosh_error_no_answer" => "Der Host antwortete nicht, während mosh-server startete.",
         "mosh_error_open" => "Die mosh-Sitzung konnte nicht geöffnet werden: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Sitzung über mosh führen",
+        "mosh_enabled_desc" => "Die Sitzung startet über SSH und läuft dann über UDP, überlebt also Netzwechsel und Ruhezustand. Auf dem Host muss mosh installiert sein.",
+        "mosh_server_path" => "Pfad zu mosh-server",
+        "mosh_server_path_placeholder" => "Leer: im PATH suchen",
+        "mosh_port_range" => "UDP-Portbereich",
+        "mosh_port_range_desc" => "Nur nötig, wenn eine Firewall nur wenige Ports öffnet. Leer lässt den Host wählen.",
+        "mosh_port_range_placeholder" => "z. B. 60000:60010",
+        "mosh_command" => "Befehl",
+        "mosh_command_desc" => "Ersetzt die Login-Shell und ist damit das, was eine Trennung überlebt.",
+        "mosh_command_placeholder" => "Leer: Login-Shell",
 _ => return None,
     })
 }

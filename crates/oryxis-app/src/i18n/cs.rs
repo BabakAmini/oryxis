@@ -2156,6 +2156,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server se nespustil: {reason}",
         "mosh_error_no_answer" => "Host během spouštění mosh-serveru vůbec neodpověděl.",
         "mosh_error_open" => "Relaci mosh se nepodařilo otevřít: {reason}",
-        _ => return None,
+                "mosh_section" => "Mosh",
+        "mosh_enabled" => "Vést relaci přes mosh",
+        "mosh_enabled_desc" => "Relace startuje přes SSH a dál jde po UDP, takže přežije změnu sítě i uspání. Na hostu musí být nainstalován mosh.",
+        "mosh_server_path" => "Cesta k mosh-server",
+        "mosh_server_path_placeholder" => "Prázdné: hledat v PATH",
+        "mosh_port_range" => "Rozsah UDP portů",
+        "mosh_port_range_desc" => "Potřeba jen když firewall otevírá jen pár portů. Prázdné nechá vybrat hosta.",
+        "mosh_port_range_placeholder" => "např. 60000:60010",
+        "mosh_command" => "Příkaz",
+        "mosh_command_desc" => "Nahrazuje přihlašovací shell, takže právě on přežije odpojení.",
+        "mosh_command_placeholder" => "Prázdné: přihlašovací shell",
+_ => return None,
     })
 }

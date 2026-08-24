@@ -202,6 +202,22 @@ impl Oryxis {
             EditorMessage::EditorToggleTelnetTlsInsecure => {
                 self.editor_form.telnet_tls_insecure = !self.editor_form.telnet_tls_insecure;
             }
+            EditorMessage::EditorToggleMosh => {
+                self.editor_form.mosh_enabled = !self.editor_form.mosh_enabled;
+                // The three settings below it are KEPT. Unlike the
+                // Telnet certificate escape, they arm nothing: they are
+                // facts about the host, and a server path somebody had
+                // to look up should not have to be found again.
+            }
+            EditorMessage::EditorMoshServerPathChanged(v) => {
+                self.editor_form.mosh_server_path = v;
+            }
+            EditorMessage::EditorMoshPortRangeChanged(v) => {
+                self.editor_form.mosh_port_range = v;
+            }
+            EditorMessage::EditorMoshCommandChanged(v) => {
+                self.editor_form.mosh_command = v;
+            }
             EditorMessage::EditorLocalTerminalChanged(id) => {
                 self.editor_form.local_terminal_id = id;
             }

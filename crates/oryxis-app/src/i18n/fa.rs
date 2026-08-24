@@ -2139,6 +2139,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server اجرا نشد: {reason}",
         "mosh_error_no_answer" => "میزبان هنگام راه‌اندازی mosh-server هرگز پاسخ نداد.",
         "mosh_error_open" => "نشست mosh باز نشد: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "انتقال نشست از طریق mosh",
+        "mosh_enabled_desc" => "نشست با SSH آغاز می‌شود و سپس روی UDP حمل می‌شود، پس تغییر شبکه و خواب رفتن دستگاه را تاب می‌آورد. میزبان باید mosh داشته باشد.",
+        "mosh_server_path" => "مسیر mosh-server",
+        "mosh_server_path_placeholder" => "خالی یعنی جست‌وجو در PATH",
+        "mosh_port_range" => "بازهٔ پورت UDP",
+        "mosh_port_range_desc" => "فقط وقتی لازم است که فایروال چند پورت محدود باز کرده باشد. خالی یعنی میزبان انتخاب کند.",
+        "mosh_port_range_placeholder" => "مثلاً 60000:60010",
+        "mosh_command" => "فرمان",
+        "mosh_command_desc" => "جای پوستهٔ ورود را می‌گیرد، پس همین است که پس از قطع ارتباط باقی می‌ماند.",
+        "mosh_command_placeholder" => "خالی یعنی پوستهٔ ورود",
 _ => return None,
     })
 }

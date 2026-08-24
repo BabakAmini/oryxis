@@ -326,6 +326,100 @@ impl Oryxis {
         col.into()
     }
 
+    /// One of the mosh text rows, recorded on the panel ring so the
+    /// keyboard reaches it like every other field here.
+    fn hp_mosh_field<'a>(
+        &'a self,
+        id: &'static str,
+        value: &'a str,
+        placeholder: &'static str,
+        make: fn(String) -> EditorMessage,
+    ) -> Element<'a, Message> {
+        self.panel_nav_slot(
+            crate::keynav::RowAction::input(iced::widget::Id::new(id)),
+            10.0,
+            text_input(t(placeholder), value)
+                .id(iced::widget::Id::new(id))
+                .on_input(move |v| Message::Editor(make(v)))
+                .on_submit_maybe(self.hp_submit())
+                .padding(10)
+                .style(crate::widgets::rounded_input_style)
+                .align_x(dir_align_x())
+                .into(),
+        )
+    }
+
+    /// The mosh rows: one toggle, and three settings that only mean
+    /// anything while it is on.
+    ///
+    /// On the SSH form rather than under a protocol of its own, because
+    /// mosh is carried over SSH and cannot exist without it: the server
+    /// is started by an SSH session and answers over the same channel,
+    /// so a mosh host needs the username, the key, the jump chain and
+    /// the proxy this form already collects. Same shape as
+    /// Telnet-over-TLS being a toggle on the Telnet form.
+    ///
+    /// The three are nested under the toggle for the reason the TLS
+    /// escape is: a server path on a host that does not use mosh reads
+    /// as a setting that is doing something.
+    pub(super) fn hp_mosh_block(&self) -> Element<'_, Message> {
+        let on = self.editor_form.mosh_enabled;
+        let toggle_row = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(Message::Editor(EditorMessage::EditorToggleMosh)),
+            8.0,
+            panel_option_row(
+                iced_fonts::lucide::radio(),
+                t("mosh_enabled"),
+                hp_toggle_button(on, Message::Editor(EditorMessage::EditorToggleMosh)),
+            ),
+        );
+        let mut col = column![toggle_row];
+        if !on {
+            return col
+                .push(
+                    text(t("mosh_enabled_desc")).size(11).color(OryxisColors::t().text_muted),
+                )
+                .into();
+        }
+
+        col = col
+            .push(Space::new().height(ROW_GAP))
+            .push(panel_field(
+                t("mosh_server_path"),
+                self.hp_mosh_field(
+                    "editor-mosh-server-path",
+                    &self.editor_form.mosh_server_path,
+                    "mosh_server_path_placeholder",
+                    EditorMessage::EditorMoshServerPathChanged,
+                ),
+            ))
+            .push(Space::new().height(ROW_GAP))
+            .push(panel_field(
+                t("mosh_port_range"),
+                self.hp_mosh_field(
+                    "editor-mosh-port-range",
+                    &self.editor_form.mosh_port_range,
+                    "mosh_port_range_placeholder",
+                    EditorMessage::EditorMoshPortRangeChanged,
+                ),
+            ))
+            .push(
+                text(t("mosh_port_range_desc")).size(11).color(OryxisColors::t().text_muted),
+            )
+            .push(Space::new().height(ROW_GAP))
+            .push(panel_field(
+                t("mosh_command"),
+                self.hp_mosh_field(
+                    "editor-mosh-command",
+                    &self.editor_form.mosh_command,
+                    "mosh_command_placeholder",
+                    EditorMessage::EditorMoshCommandChanged,
+                ),
+            ))
+            .push(text(t("mosh_command_desc")).size(11).color(OryxisColors::t().text_muted));
+        col.into()
+    }
+
     /// Local-host rows: which curated terminal to spawn, and the folder
     /// it starts in.
     ///

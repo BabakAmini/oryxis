@@ -2157,6 +2157,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server शुरू नहीं हुआ: {reason}",
         "mosh_error_no_answer" => "mosh-server शुरू होते समय होस्ट ने कोई जवाब नहीं दिया।",
         "mosh_error_open" => "mosh सत्र खोला नहीं जा सका: {reason}",
-        _ => return None,
+                "mosh_section" => "Mosh",
+        "mosh_enabled" => "सत्र को mosh से ले जाएँ",
+        "mosh_enabled_desc" => "सत्र SSH से शुरू होता है और फिर UDP पर चलता है, इसलिए नेटवर्क बदलने और मशीन के सोने के बाद भी बना रहता है। होस्ट पर mosh इंस्टॉल होना चाहिए।",
+        "mosh_server_path" => "mosh-server का पथ",
+        "mosh_server_path_placeholder" => "खाली छोड़ें तो PATH में खोजा जाएगा",
+        "mosh_port_range" => "UDP पोर्ट सीमा",
+        "mosh_port_range_desc" => "केवल तब चाहिए जब फ़ायरवॉल कुछ ही पोर्ट खोलता हो। खाली छोड़ने पर होस्ट चुनेगा।",
+        "mosh_port_range_placeholder" => "जैसे 60000:60010",
+        "mosh_command" => "कमांड",
+        "mosh_command_desc" => "लॉगिन शेल की जगह लेता है, इसलिए डिस्कनेक्ट के बाद यही बचा रहता है।",
+        "mosh_command_placeholder" => "खाली छोड़ें तो लॉगिन शेल",
+_ => return None,
     })
 }

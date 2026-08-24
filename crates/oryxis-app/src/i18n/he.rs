@@ -2157,6 +2157,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server לא עלה: {reason}",
         "mosh_error_no_answer" => "המארח לא ענה בזמן ההפעלה של mosh-server.",
         "mosh_error_open" => "לא ניתן לפתוח את הפעלת mosh: {reason}",
-        _ => return None,
+                "mosh_section" => "Mosh",
+        "mosh_enabled" => "להעביר את ההפעלה דרך mosh",
+        "mosh_enabled_desc" => "ההפעלה מתחילה ב‑SSH וממשיכה ב‑UDP, ולכן שורדת החלפת רשת ומצב שינה. במארח צריך להיות mosh מותקן.",
+        "mosh_server_path" => "נתיב ל‑mosh-server",
+        "mosh_server_path_placeholder" => "ריק: לחפש ב‑PATH",
+        "mosh_port_range" => "טווח פורטי UDP",
+        "mosh_port_range_desc" => "נדרש רק כשחומת אש פותחת מעט פורטים. ריק מאפשר למארח לבחור.",
+        "mosh_port_range_placeholder" => "לדוגמה 60000:60010",
+        "mosh_command" => "פקודה",
+        "mosh_command_desc" => "מחליף את מעטפת הכניסה, ולכן זה מה ששורד ניתוק.",
+        "mosh_command_placeholder" => "ריק: מעטפת הכניסה",
+_ => return None,
     })
 }

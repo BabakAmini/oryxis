@@ -2119,6 +2119,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server non è partito: {reason}",
         "mosh_error_no_answer" => "L'host non ha risposto mentre mosh-server si avviava.",
         "mosh_error_open" => "Impossibile aprire la sessione mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Trasportare la sessione via mosh",
+        "mosh_enabled_desc" => "La sessione parte via SSH e poi viaggia su UDP, quindi sopravvive ai cambi di rete e alla sospensione. L'host deve avere mosh installato.",
+        "mosh_server_path" => "Percorso di mosh-server",
+        "mosh_server_path_placeholder" => "Vuoto: cercato nel PATH",
+        "mosh_port_range" => "Intervallo di porte UDP",
+        "mosh_port_range_desc" => "Serve solo quando un firewall apre poche porte. Vuoto lascia scegliere all'host.",
+        "mosh_port_range_placeholder" => "es. 60000:60010",
+        "mosh_command" => "Comando",
+        "mosh_command_desc" => "Sostituisce la shell di login, quindi è ciò che sopravvive a una disconnessione.",
+        "mosh_command_placeholder" => "Vuoto: shell di login",
 _ => return None,
     })
 }

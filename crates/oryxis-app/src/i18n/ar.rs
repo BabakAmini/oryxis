@@ -2138,6 +2138,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "لم يبدأ mosh-server: {reason}",
         "mosh_error_no_answer" => "لم يستجب المضيف أثناء بدء تشغيل mosh-server.",
         "mosh_error_open" => "تعذّر فتح جلسة mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "نقل الجلسة عبر mosh",
+        "mosh_enabled_desc" => "تبدأ الجلسة عبر SSH ثم تُنقل عبر UDP، فتصمد أمام تغيير الشبكة وإسبات الجهاز. يجب أن يكون mosh مثبّتًا على المضيف.",
+        "mosh_server_path" => "مسار mosh-server",
+        "mosh_server_path_placeholder" => "اتركه فارغًا للبحث في PATH",
+        "mosh_port_range" => "نطاق منافذ UDP",
+        "mosh_port_range_desc" => "لا يلزم إلا عندما يفتح الجدار الناري منافذ قليلة. الفارغ يترك الاختيار للمضيف.",
+        "mosh_port_range_placeholder" => "مثال 60000:60010",
+        "mosh_command" => "الأمر",
+        "mosh_command_desc" => "يحل محل صدفة الدخول، فهو ما يبقى بعد انقطاع الاتصال.",
+        "mosh_command_placeholder" => "اتركه فارغًا لصدفة الدخول",
 _ => return None,
     })
 }

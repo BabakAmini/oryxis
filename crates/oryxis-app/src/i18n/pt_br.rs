@@ -2120,6 +2120,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "O mosh-server não iniciou: {reason}",
         "mosh_error_no_answer" => "O host não respondeu enquanto o mosh-server iniciava.",
         "mosh_error_open" => "Não foi possível abrir a sessão mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Carregar a sessão pelo mosh",
+        "mosh_enabled_desc" => "A sessão nasce por SSH e depois é carregada por UDP, então sobrevive a trocas de rede e a suspender a máquina. O host precisa ter o mosh instalado.",
+        "mosh_server_path" => "Caminho do mosh-server",
+        "mosh_server_path_placeholder" => "Vazio procura no PATH",
+        "mosh_port_range" => "Faixa de portas UDP",
+        "mosh_port_range_desc" => "Só é preciso quando um firewall abre poucas portas. Vazio deixa o host escolher.",
+        "mosh_port_range_placeholder" => "ex.: 60000:60010",
+        "mosh_command" => "Comando",
+        "mosh_command_desc" => "Substitui o shell de login, então é o que sobrevive a uma desconexão.",
+        "mosh_command_placeholder" => "Vazio usa o shell de login",
 _ => return None,
     })
 }

@@ -2160,6 +2160,17 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "mosh_error_refused" => "mosh-server would not start: {reason}",
         "mosh_error_no_answer" => "The host never answered while starting mosh-server.",
         "mosh_error_open" => "Could not open the mosh session: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Carry the session over mosh",
+        "mosh_enabled_desc" => "The session is started over SSH and then carried over UDP, so it survives changing networks and sleeping. The host needs mosh installed.",
+        "mosh_server_path" => "mosh-server path",
+        "mosh_server_path_placeholder" => "Leave empty to find it on PATH",
+        "mosh_port_range" => "UDP port range",
+        "mosh_port_range_desc" => "Only needed when a firewall opens a few ports. Empty lets the host choose.",
+        "mosh_port_range_placeholder" => "e.g. 60000:60010",
+        "mosh_command" => "Command",
+        "mosh_command_desc" => "Replaces the login shell, so it is what survives a disconnect.",
+        "mosh_command_placeholder" => "Leave empty for the login shell",
         _ => "???",
     }
 }

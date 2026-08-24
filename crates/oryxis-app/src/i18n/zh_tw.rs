@@ -2119,6 +2119,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server 無法啟動：{reason}",
         "mosh_error_no_answer" => "啟動 mosh-server 期間主機始終沒有回應。",
         "mosh_error_open" => "無法開啟 mosh 工作階段：{reason}",
-        _ => return None,
+                "mosh_section" => "Mosh",
+        "mosh_enabled" => "透過 mosh 承載工作階段",
+        "mosh_enabled_desc" => "工作階段經由 SSH 啟動，隨後透過 UDP 承載，因此可以在換網路與睡眠後繼續。主機需要安裝 mosh。",
+        "mosh_server_path" => "mosh-server 路徑",
+        "mosh_server_path_placeholder" => "留空則在 PATH 中尋找",
+        "mosh_port_range" => "UDP 連接埠範圍",
+        "mosh_port_range_desc" => "僅在防火牆只開放少量連接埠時需要。留空由主機自行選擇。",
+        "mosh_port_range_placeholder" => "例如 60000:60010",
+        "mosh_command" => "命令",
+        "mosh_command_desc" => "取代登入 shell，因此它才是斷線後仍在執行的東西。",
+        "mosh_command_placeholder" => "留空使用登入 shell",
+_ => return None,
     })
 }

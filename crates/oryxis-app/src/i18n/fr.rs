@@ -2118,6 +2118,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server n'a pas démarré : {reason}",
         "mosh_error_no_answer" => "L'hôte n'a jamais répondu pendant le démarrage de mosh-server.",
         "mosh_error_open" => "Impossible d'ouvrir la session mosh : {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Transporter la session via mosh",
+        "mosh_enabled_desc" => "La session démarre par SSH puis passe en UDP, elle survit donc aux changements de réseau et à la mise en veille. L'hôte doit avoir mosh installé.",
+        "mosh_server_path" => "Chemin de mosh-server",
+        "mosh_server_path_placeholder" => "Vide : recherché dans PATH",
+        "mosh_port_range" => "Plage de ports UDP",
+        "mosh_port_range_desc" => "Utile seulement quand un pare-feu n'ouvre que quelques ports. Vide laisse l'hôte choisir.",
+        "mosh_port_range_placeholder" => "ex. 60000:60010",
+        "mosh_command" => "Commande",
+        "mosh_command_desc" => "Remplace le shell de connexion, c'est donc ce qui survit à une déconnexion.",
+        "mosh_command_placeholder" => "Vide : shell de connexion",
 _ => return None,
     })
 }

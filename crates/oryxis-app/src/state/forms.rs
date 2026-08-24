@@ -250,6 +250,21 @@ pub(crate) struct ConnectionForm {
     /// Accept a server certificate the trust store rejects. Only
     /// meaningful (and only shown) while `telnet_tls` is on.
     pub telnet_tls_insecure: bool,
+    /// Carry this SSH host's session over mosh. The three below are
+    /// meaningful (and only shown) while it is on, and they are KEPT
+    /// when it goes off: a server path somebody had to look up is not
+    /// something to make them find again.
+    pub mosh_enabled: bool,
+    /// Where `mosh-server` lives on the host. Empty means find it on
+    /// `PATH`.
+    pub mosh_server_path: String,
+    /// UDP ports the server may bind, in mosh's `-p` spelling. Empty
+    /// lets it choose from its own range.
+    pub mosh_port_range: String,
+    /// What to run instead of the login shell. Not the connection's
+    /// startup command: that one is typed at a shell once it is up,
+    /// this one REPLACES the shell and is what survives a disconnect.
+    pub mosh_command: String,
     /// Which curated local terminal a Local host spawns, or `None` for
     /// the user's default shell. Saved into `Connection.local`.
     pub local_terminal_id: Option<uuid::Uuid>,
@@ -1324,6 +1339,10 @@ impl Default for ConnectionForm {
             rd_gateway_id: None,
             telnet_tls: false,
             telnet_tls_insecure: false,
+            mosh_enabled: false,
+            mosh_server_path: String::new(),
+            mosh_port_range: String::new(),
+            mosh_command: String::new(),
             local_terminal_id: None,
             local_cwd: String::new(),
             address_family: oryxis_core::models::connection::AddressFamily::default(),

@@ -2152,6 +2152,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server가 시작되지 않았습니다: {reason}",
         "mosh_error_no_answer" => "mosh-server를 시작하는 동안 호스트가 응답하지 않았습니다.",
         "mosh_error_open" => "mosh 세션을 열 수 없습니다: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "세션을 mosh로 운반",
+        "mosh_enabled_desc" => "세션은 SSH로 시작한 뒤 UDP로 운반되므로 네트워크 변경과 절전을 견딥니다. 호스트에 mosh가 설치되어 있어야 합니다.",
+        "mosh_server_path" => "mosh-server 경로",
+        "mosh_server_path_placeholder" => "비우면 PATH에서 찾습니다",
+        "mosh_port_range" => "UDP 포트 범위",
+        "mosh_port_range_desc" => "방화벽이 소수의 포트만 열어둔 경우에만 필요합니다. 비우면 호스트가 고릅니다.",
+        "mosh_port_range_placeholder" => "예: 60000:60010",
+        "mosh_command" => "명령",
+        "mosh_command_desc" => "로그인 셸을 대체하므로 연결이 끊겨도 남는 것은 이쪽입니다.",
+        "mosh_command_placeholder" => "비우면 로그인 셸",
 _ => return None,
     })
 }

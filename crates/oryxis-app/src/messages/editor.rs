@@ -104,6 +104,12 @@ pub enum EditorMessage {
     /// Host editor: Telnet over TLS (`telnets`). Turning it off also
     /// hides (and, on save, clears) the verification escape below it.
     EditorToggleTelnetTls,
+    /// Carry this SSH host over mosh, and the three settings that only
+    /// mean anything while it is on.
+    EditorToggleMosh,
+    EditorMoshServerPathChanged(String),
+    EditorMoshPortRangeChanged(String),
+    EditorMoshCommandChanged(String),
     /// Host editor: accept a server certificate the trust store
     /// rejects. Per host, and only reachable while TLS is on.
     EditorToggleTelnetTlsInsecure,

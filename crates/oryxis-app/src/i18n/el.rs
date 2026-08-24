@@ -2156,6 +2156,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "Το mosh-server δεν ξεκίνησε: {reason}",
         "mosh_error_no_answer" => "Ο κόμβος δεν απάντησε ποτέ ενώ ξεκινούσε το mosh-server.",
         "mosh_error_open" => "Δεν ήταν δυνατό το άνοιγμα της συνεδρίας mosh: {reason}",
-        _ => return None,
+                "mosh_section" => "Mosh",
+        "mosh_enabled" => "Μεταφορά της συνεδρίας μέσω mosh",
+        "mosh_enabled_desc" => "Η συνεδρία ξεκινά μέσω SSH και μετά μεταφέρεται πάνω από UDP, οπότε επιβιώνει από αλλαγές δικτύου και από αναστολή. Ο κόμβος χρειάζεται εγκατεστημένο mosh.",
+        "mosh_server_path" => "Διαδρομή του mosh-server",
+        "mosh_server_path_placeholder" => "Κενό: αναζήτηση στο PATH",
+        "mosh_port_range" => "Εύρος θυρών UDP",
+        "mosh_port_range_desc" => "Χρειάζεται μόνο όταν ένα τείχος προστασίας ανοίγει λίγες θύρες. Κενό αφήνει τον κόμβο να επιλέξει.",
+        "mosh_port_range_placeholder" => "π.χ. 60000:60010",
+        "mosh_command" => "Εντολή",
+        "mosh_command_desc" => "Αντικαθιστά το κέλυφος σύνδεσης, άρα αυτό είναι που επιβιώνει μιας αποσύνδεσης.",
+        "mosh_command_placeholder" => "Κενό: κέλυφος σύνδεσης",
+_ => return None,
     })
 }

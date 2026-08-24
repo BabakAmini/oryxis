@@ -2151,6 +2151,17 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "mosh_error_refused" => "mosh-server не запустився: {reason}",
         "mosh_error_no_answer" => "Вузол не відповів, поки запускався mosh-server.",
         "mosh_error_open" => "Не вдалося відкрити сеанс mosh: {reason}",
+        "mosh_section" => "Mosh",
+        "mosh_enabled" => "Вести сеанс через mosh",
+        "mosh_enabled_desc" => "Сеанс починається через SSH, а далі йде по UDP, тож переживає зміну мережі та сон. На вузлі має бути встановлено mosh.",
+        "mosh_server_path" => "Шлях до mosh-server",
+        "mosh_server_path_placeholder" => "Порожньо: шукати в PATH",
+        "mosh_port_range" => "Діапазон портів UDP",
+        "mosh_port_range_desc" => "Потрібен лише коли брандмауер відкриває кілька портів. Порожньо: вузол обере сам.",
+        "mosh_port_range_placeholder" => "напр. 60000:60010",
+        "mosh_command" => "Команда",
+        "mosh_command_desc" => "Замінює оболонку входу, тож саме вона переживає розрив зв'язку.",
+        "mosh_command_placeholder" => "Порожньо: оболонка входу",
 _ => return None,
     })
 }
