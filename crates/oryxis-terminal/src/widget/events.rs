@@ -173,6 +173,12 @@ impl<Message> TerminalView<Message> {
                 widget_state.mouse_hint_emitted = false;
                 let bytes =
                     mouse_report::encode(mode, MouseEventKind::Press, rb, col, row, mods)?;
+                // The one gesture outcome a report can't distinguish from a
+                // broken app: a right / middle click the remote program asked
+                // for is the same "nothing happened" on screen as a paste that
+                // never fired (issue #181). Presses only, so a tracked drag
+                // can't turn the log into a firehose.
+                tracing::debug!(?btn, col, row, "mouse press reported to the remote app");
                 Some(self.emit_input(bytes))
             }
             iced::Event::Mouse(mouse::Event::ButtonReleased(btn)) => {

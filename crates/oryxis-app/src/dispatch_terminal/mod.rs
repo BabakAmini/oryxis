@@ -29,8 +29,9 @@ use iced::Task;
 use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
 
 /// Paste-funnel tracing (debug log), one line per stage: the gesture
-/// asking for the clipboard, what came back, which gate the text hit,
-/// and the bytes handed to the session. Issue #181 is why it exists:
+/// asking for the clipboard, which buffer a selection paste resolved
+/// against, what came back, which gate the text hit, and the bytes
+/// handed to the session. Issue #181 is why it exists:
 /// a paste that "does nothing" is invisible in a log today, because a
 /// chord consumed by the router never reaches the `key-encode` line and
 /// every stage after it is silent, so a report cannot tell a gesture
@@ -614,6 +615,7 @@ impl Oryxis {
                 // but the context menu can outlive a focus change.
                 let Some(tab_id) = self.pane_tab_index(pane_id).and_then(|i| self.tabs.get(i)).map(|t| t._id)
                 else {
+                    paste_trace("selection", "pane has no tab", &text, None);
                     return Task::none();
                 };
                 // On X11 / Wayland the desktop owns PRIMARY, so ask it
@@ -622,6 +624,7 @@ impl Oryxis {
                 // The widget publishes here even with nothing remembered
                 // for exactly this case.
                 if oryxis_terminal::has_primary_selection() {
+                    paste_trace("selection", "primary read", &text, None);
                     return crate::dispatch_global::read_primary_text(move |primary| {
                         Message::Terminal(TerminalMessage::TerminalPasteSelectionResolved(
                             tab_id,
@@ -631,8 +634,10 @@ impl Oryxis {
                     });
                 }
                 if text.is_empty() {
+                    paste_trace("selection", "nothing remembered", &text, None);
                     return Task::none();
                 }
+                paste_trace("selection", "remembered text", &text, None);
                 // Deliberately does NOT touch the system clipboard: PRIMARY
                 // is a separate buffer, and `copy_on_select` is the setting
                 // for people who also want selections on the clipboard.
@@ -645,14 +650,19 @@ impl Oryxis {
                 let remembered = remembered.into_inner();
 
                 match primary.filter(|text| !text.is_empty()) {
-                    Some(text) => self.paste_text_into_tab(tab_id, &text),
+                    Some(text) => {
+                        paste_trace("selection", "system primary", &text, None);
+                        self.paste_text_into_tab(tab_id, &text)
+                    }
                     None if !remembered.is_empty() => {
+                        paste_trace("selection", "remembered text", &remembered, None);
                         self.paste_text_into_tab(tab_id, &remembered);
                     }
                     // Nothing anywhere: fall through to the clipboard, the
                     // long-standing behaviour of the gesture in a pane that
                     // was never selected in.
                     None => {
+                        paste_trace("selection", "clipboard fallback", "", None);
                         return crate::dispatch_global::read_clipboard_text(move |text| {
                             Message::Terminal(TerminalMessage::TerminalPasteResolved(
                                 tab_id,
