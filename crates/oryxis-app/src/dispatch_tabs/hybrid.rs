@@ -10,6 +10,24 @@ use iced::Task;
 use crate::app::{TabsMessage, SshMessage, Message, Oryxis, SftpMessage};
 
 impl Oryxis {
+    /// Open a standalone SFTP tab against the host the focused pane of
+    /// `idx` belongs to.
+    ///
+    /// `None` when the pane has no saved connection behind it: an
+    /// ad-hoc session has nothing to mount by, and offering a tab that
+    /// asks for a host would be answering a different question than the
+    /// one the gesture asked.
+    pub(super) fn sftp_tab_for_pane_host(&mut self, idx: usize) -> Option<Task<Message>> {
+        let conn_id = match self.tabs.get(idx)?.active().origin {
+            crate::state::PaneOrigin::Host(id) => id,
+            _ => return None,
+        };
+        let position = self.connections.iter().position(|c| c.id == conn_id)?;
+        Some(self.update(Message::Sftp(
+            crate::messages::SftpMessage::OpenSftpForConnection(position),
+        )))
+    }
+
     pub(super) fn handle_toggle_tab_files_mode(&mut self, idx: usize) -> Task<Message> {
         // Fired from the tab context menu (among others):
         // dismiss it so it doesn't linger over the new surface.
@@ -43,6 +61,20 @@ impl Oryxis {
         if !self.sftp_enabled {
             self.sftp_open_at_path = None;
             return select;
+        }
+        // A session that survives roaming has no SSH to multiplex on:
+        // the one that started it was let go because it would not have
+        // survived either, and a Files surface inside this tab would
+        // have stopped working the first time the address changed while
+        // the shell kept going. So the request becomes a tab of its
+        // own, against the same host, where the connection is visibly
+        // separate and can die without taking the session with it.
+        if self.tabs[idx].active().session.as_ref().is_some_and(|s| s.survives_roaming()) {
+            self.sftp_open_at_path = None;
+            return match self.sftp_tab_for_pane_host(idx) {
+                Some(task) => Task::batch(vec![select, task]),
+                None => select,
+            };
         }
         // Files mode needs a live SSH session (SFTP is an SSH
         // subsystem; local / Telnet / serial tabs never show the

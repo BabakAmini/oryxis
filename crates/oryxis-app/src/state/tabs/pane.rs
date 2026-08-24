@@ -104,6 +104,20 @@ impl TerminalTransport {
     }
 
 
+    /// Whether this session outlives the network changing underneath
+    /// it.
+    ///
+    /// What it decides is where the tab's file browsing LIVES. The
+    /// hybrid surfaces multiplex SFTP on the pane's own SSH connection,
+    /// and a session that survives roaming does not have one to
+    /// multiplex on: the SSH that started it was let go precisely
+    /// because it would not have survived. So those surfaces open a
+    /// tab of their own instead, where the connection is visibly its
+    /// own thing and can die without taking the shell with it.
+    pub fn survives_roaming(&self) -> bool {
+        matches!(self, TerminalTransport::Mosh(_))
+    }
+
     pub fn write(&self, data: &[u8]) -> Result<(), String> {
         match self {
             TerminalTransport::Ssh(s) => s.write(data).map_err(|e| e.to_string()),

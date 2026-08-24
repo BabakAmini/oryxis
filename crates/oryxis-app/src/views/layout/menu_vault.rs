@@ -218,8 +218,14 @@ impl Oryxis {
             .map(|t| {
                 let base = t.label.trim_end_matches(" (disconnected)");
                 // Telnet transports (and Telnet-protocol saved
-                // hosts) carry no SSH handle to mount SFTP on.
-                t.active().session.as_ref().is_some_and(|s| s.ssh().is_some())
+                // hosts) carry no SSH handle to mount SFTP on. A
+                // session that survives roaming has none either, and
+                // for the opposite reason: it let its SSH go. That one
+                // still gets the entry, because it opens a TAB of its
+                // own rather than a surface inside this one.
+                t.active().session.as_ref().is_some_and(|s| {
+                    s.ssh().is_some() || s.survives_roaming()
+                })
                     || self.connections.iter().any(|c| {
                         c.label == base
                             && c.protocol
@@ -247,6 +253,16 @@ impl Oryxis {
                 (iced_fonts::lucide::terminal(), crate::i18n::t("tab_show_terminal"))
             } else if has_session {
                 (iced_fonts::lucide::folder_tree(), crate::i18n::t("tab_show_files"))
+            } else if self
+                .tabs
+                .get(idx)
+                .and_then(|t| t.active().session.as_ref())
+                .is_some_and(|s| s.survives_roaming())
+            {
+                // Says what it does: this one opens a separate tab,
+                // and the wording is the difference between a surface
+                // appearing here and a new tab appearing there.
+                (iced_fonts::lucide::folder_tree(), crate::i18n::t("open_sftp_tab"))
             } else {
                 (iced_fonts::lucide::folder_tree(), crate::i18n::t("tab_open_sftp_session"))
             };
