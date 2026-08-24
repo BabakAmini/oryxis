@@ -28,6 +28,29 @@ use iced::Task;
 
 use crate::app::{TabsMessage, TerminalMessage, Message, Oryxis};
 
+/// Paste-funnel tracing (debug log), one line per stage: the gesture
+/// asking for the clipboard, what came back, which gate the text hit,
+/// and the bytes handed to the session. Issue #181 is why it exists:
+/// a paste that "does nothing" is invisible in a log today, because a
+/// chord consumed by the router never reaches the `key-encode` line and
+/// every stage after it is silent, so a report cannot tell a gesture
+/// that never arrived from a clipboard that read back empty from text
+/// that reached the wire and was swallowed by the remote application.
+///
+/// Never the CONTENT: a clipboard carries whatever the user copied last,
+/// and a debug log is the one place a password would end up on disk in
+/// clear. Shape only (character count, line count, bracketed mode).
+fn paste_trace(stage: &str, outcome: &str, text: &str, bracketed: Option<bool>) {
+    tracing::debug!(
+        stage,
+        outcome,
+        chars = text.chars().count(),
+        lines = text.lines().count(),
+        ?bracketed,
+        "paste"
+    );
+}
+
 impl Oryxis {
     /// Tear down every remote session (SSH or Telnet) in a tab.
     /// Dropping the pane alone is not enough: the connect stream task
@@ -66,6 +89,7 @@ impl Oryxis {
     /// hazard `pending_pane_split` had.
     pub(crate) fn paste_text_into_tab(&mut self, tab_id: uuid::Uuid, text: &str) {
         if self.tab_index_by_id(tab_id).is_none() {
+            paste_trace("gate", "target tab gone", text, None);
             return;
         }
         // Two independent gates (owner call: each has its own setting):
@@ -77,6 +101,7 @@ impl Oryxis {
             || (self.prefs.paste_guard
                 && !crate::paste_guard::paste_warnings(text).is_empty())
         {
+            paste_trace("gate", "parked for confirm", text, None);
             self.pending_paste = Some((tab_id, text.to_string()));
             // An ordinary paste park replaces whatever was parked; a
             // stale install marker (issue #147) must not survive to
@@ -95,9 +120,11 @@ impl Oryxis {
     /// reason in [`Self::paste_text_into_tab`].
     pub(crate) fn write_paste_to_tab(&mut self, tab_id: uuid::Uuid, text: &str) {
         let Some(tab_idx) = self.tab_index_by_id(tab_id) else {
+            paste_trace("write", "target tab gone", text, None);
             return;
         };
         let Some(tab) = self.tabs.get(tab_idx) else {
+            paste_trace("write", "target tab gone", text, None);
             return;
         };
         let bracketed = tab
@@ -107,6 +134,7 @@ impl Oryxis {
             .map(|s| s.bracketed_paste_enabled())
             .unwrap_or(false);
         let payload = oryxis_terminal::wrap_paste(text, bracketed);
+        paste_trace("write", "to session", text, Some(bracketed));
         self.write_input_to_tab(tab_idx, &payload);
     }
 
@@ -124,8 +152,10 @@ impl Oryxis {
         // Capture the target tab NOW, not when the text comes back, and
         // capture its id rather than its index: see `paste_text_into_tab`.
         let Some(tab_id) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t._id) else {
+            paste_trace("request", "no active tab", "", None);
             return Task::none();
         };
+        paste_trace("request", "clipboard read", "", None);
         crate::dispatch_global::read_clipboard_text(move |text| {
             Message::Terminal(TerminalMessage::TerminalPasteResolved(
                 tab_id,
@@ -535,10 +565,13 @@ impl Oryxis {
             // Clipboard text came back from the runtime (the only place
             // allowed to touch it). `None` = empty or unavailable.
             TerminalMessage::TerminalPasteResolved(tab_id, text) => {
-                if let Some(text) = text.map(crate::messages::Redacted::into_inner)
-                    && !text.is_empty()
-                {
-                    self.paste_text_into_tab(tab_id, &text);
+                match text.map(crate::messages::Redacted::into_inner) {
+                    Some(text) if !text.is_empty() => {
+                        paste_trace("resolved", "clipboard text", &text, None);
+                        self.paste_text_into_tab(tab_id, &text);
+                    }
+                    Some(_) => paste_trace("resolved", "clipboard empty", "", None),
+                    None => paste_trace("resolved", "clipboard unavailable", "", None),
                 }
             }
             TerminalMessage::ShowTerminalContextMenu(pane_id, x, y, selection) => {
