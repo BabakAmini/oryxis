@@ -112,6 +112,17 @@ coming next, see the [Roadmap](../README.md#roadmap).
   the last hop, so the server binds an address facing the bastion, and
   UDP does not travel down an SSH tunnel. Upstream mosh has the same
   limitation.
+- **The login banner (MOTD) usually does not appear, and that is the
+  server's rule rather than ours.** Ubuntu prints it twice over, from
+  two places with different rules. `pam_motd` runs in sshd's own PAM
+  stack and fires on EVERY SSH login, which is why the banner is always
+  there on an SSH tab. mosh's shell is started by `mosh-server`, not by
+  sshd, so that path never runs for it; the only one left is
+  `/etc/profile.d/update-motd.sh`, which a login shell runs and which
+  stamps `~/.motd_shown` and then stays quiet for the REST OF THE DAY.
+  So the first mosh session of the day shows a banner and the rest show
+  none. Deleting that stamp brings it back once. Upstream mosh behaves
+  identically, for the same reason.
 
 ## Telnet, serial & ZMODEM
 
