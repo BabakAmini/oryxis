@@ -678,6 +678,60 @@ mod tests {
         assert_eq!(back.totp_secret.as_deref(), Some("JBSWY3DPEHPK3PXP"));
     }
 
+    /// mosh options ride the flattened `Connection`, which is the kind
+    /// of thing that is true by construction right up until it is not:
+    /// a `#[serde(flatten)]` carries a field only while that field
+    /// serializes, and nothing on the wrapper mentions `mosh` for a
+    /// reader to notice. So the wire is asked directly.
+    ///
+    /// A host reached over mosh whose options did not travel would come
+    /// out of a sync as a plain SSH host, silently, on the device that
+    /// had never been told.
+    #[test]
+    fn sync_connection_carries_mosh_options() {
+        let mut conn = oryxis_core::models::Connection::new("roamer", "10.0.0.1");
+        conn.mosh = Some(oryxis_core::models::mosh::MoshOptions {
+            enabled: true,
+            server_path: "/opt/mosh/bin/mosh-server".into(),
+            port_range: "60000:60010".into(),
+            command: "tmux new -A -s main".into(),
+        });
+        let wrapper = SyncConnection {
+            connection: conn.clone(),
+            password: None,
+            password_cleared: false,
+            proxy_password: None,
+            proxy_password_cleared: false,
+            totp_secret: None,
+            totp_secret_cleared: false,
+            target_password: None,
+            target_password_cleared: false,
+        };
+        let bytes = serde_json::to_vec(&wrapper).unwrap();
+        let back: SyncConnection = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(
+            back.connection.mosh, conn.mosh,
+            "the whole option travelled or none of it did",
+        );
+    }
+
+    /// The other direction, and the one that decides whether a peer
+    /// that has never heard of mosh can still be synced with: its
+    /// payload has no `mosh` key at all, and that has to read as an
+    /// ordinary SSH host rather than a refused message.
+    #[test]
+    fn a_peer_that_never_heard_of_mosh_is_still_understood() {
+        let conn = oryxis_core::models::Connection::new("older-peer", "10.0.0.1");
+        let mut bare: serde_json::Value = serde_json::to_value(&conn).unwrap();
+        bare.as_object_mut().unwrap().remove("mosh");
+        assert!(
+            bare.get("mosh").is_none(),
+            "the field has to be absent for this to prove anything",
+        );
+        let wrapped: SyncConnection = serde_json::from_value(bare).unwrap();
+        assert_eq!(wrapped.connection.mosh, None);
+    }
+
     /// When no password is set we must NOT emit empty fields, keeps
     /// the wire payload byte-identical to the legacy format so older
     /// receivers don't see noise.

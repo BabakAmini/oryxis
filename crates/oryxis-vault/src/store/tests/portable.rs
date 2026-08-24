@@ -130,6 +130,80 @@ fn export_import_protocol_and_serial_round_trip() {
     assert_eq!(d.rd_gateway_id, Some(gateway_id));
 }
 
+/// mosh options must survive export → import, and a host that never
+/// asked for mosh must come back without any.
+///
+/// Both halves matter and they fail in opposite directions. Options
+/// that did not travel turn a roaming host into a plain SSH one on the
+/// machine that imported it, silently, and the person there never chose
+/// that. Options invented for a host that had none would carry an
+/// enabled flag nobody set, and the flag is what puts a command on a
+/// remote shell.
+///
+/// It rides the model flatten, the same way `serial` and the
+/// remote-desktop fields above do, which is exactly why it is asked
+/// rather than assumed: a flatten carries what it is given, and nothing
+/// in `portable.rs` names this field for a reader to notice it missing.
+#[test]
+fn export_import_mosh_round_trip() {
+    use crate::portable::{export_vault, import_vault, ExportFilter, ExportOptions};
+    use oryxis_core::models::mosh::MoshOptions;
+
+    let vault = unlocked_vault();
+    let options = MoshOptions {
+        enabled: true,
+        server_path: "/opt/mosh/bin/mosh-server".into(),
+        port_range: "60000:60010".into(),
+        command: "tmux new -A -s main".into(),
+    };
+    let mut roamer = Connection::new("roamer", "10.0.0.7");
+    roamer.mosh = Some(options.clone());
+    vault.save_connection(&roamer, None).unwrap();
+
+    // Filled in and then switched off: the settings are kept so turning
+    // it back on does not mean typing the path again, and an export that
+    // dropped them would quietly undo that.
+    let mut parked = Connection::new("parked", "10.0.0.8");
+    parked.mosh = Some(MoshOptions {
+        enabled: false,
+        server_path: "/usr/local/bin/mosh-server".into(),
+        ..Default::default()
+    });
+    vault.save_connection(&parked, None).unwrap();
+
+    let plain = Connection::new("plain", "10.0.0.9");
+    vault.save_connection(&plain, None).unwrap();
+
+    let data = export_vault(
+        &vault,
+        "export-pw",
+        ExportOptions {
+            include_private_keys: false,
+            filter: ExportFilter::All,
+            selection: crate::portable::ExportSelection::all(),
+        },
+    )
+    .unwrap();
+
+    let vault2 = unlocked_vault();
+    import_vault(&vault2, &data, "export-pw", &crate::portable::ExportSelection::all()).unwrap();
+
+    let conns = vault2.list_connections().unwrap();
+    let of = |label: &str| {
+        conns
+            .iter()
+            .find(|c| c.label == label)
+            .unwrap_or_else(|| panic!("{label} did not survive the import"))
+            .mosh
+            .clone()
+    };
+    assert_eq!(of("roamer"), Some(options), "the whole option travelled or none of it did");
+    let parked = of("parked").expect("settings outlive being switched off");
+    assert!(!parked.enabled);
+    assert_eq!(parked.server_path, "/usr/local/bin/mosh-server");
+    assert_eq!(of("plain"), None, "an untouched host is not a mosh host");
+}
+
 /// Round-trip a connection that uses both an inline proxy (with
 /// password in its own encrypted column) and a saved proxy
 /// identity (with its own password). Both passwords + the
