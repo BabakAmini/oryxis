@@ -2152,6 +2152,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Τα κλειδιά υλικού φτάνουν στον πράκτορα μέσω του ssh-add: το -K φορτώνει μόνιμα (resident) κλειδιά FIDO2, το -s <module> φορτώνει έξυπνες κάρτες PKCS#11.",
         "sk_agent_hint" => "Οι ταυτότητες κλειδιών ασφαλείας πρέπει πρώτα να φορτωθούν στο ssh-agent του λειτουργικού συστήματος (ssh-add -K με το token συνδεδεμένο).",
         "public_key_only_error" => "Αυτό μοιάζει με υλικό ιδιωτικού κλειδιού. Επικολλήστε το στο πεδίο Ιδιωτικό κλειδί.",
+        "mosh_error_not_installed" => "Αυτός ο κόμβος δεν έχει mosh-server. Εγκαταστήστε εκεί το mosh (πακέτο \"mosh\") ή απενεργοποιήστε το mosh για αυτόν τον κόμβο.",
+        "mosh_error_refused" => "Το mosh-server δεν ξεκίνησε: {reason}",
+        "mosh_error_no_answer" => "Ο κόμβος δεν απάντησε ποτέ ενώ ξεκινούσε το mosh-server.",
+        "mosh_error_open" => "Δεν ήταν δυνατό το άνοιγμα της συνεδρίας mosh: {reason}",
         _ => return None,
     })
 }

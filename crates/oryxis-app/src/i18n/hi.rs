@@ -2153,6 +2153,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "हार्डवेयर कुंजियाँ ssh-add के माध्यम से एजेंट तक पहुँचती हैं: -K FIDO2 रेज़िडेंट कुंजियाँ लोड करता है, -s <module> PKCS#11 स्मार्टकार्ड लोड करता है।",
         "sk_agent_hint" => "सुरक्षा-कुंजी पहचानें पहले OS ssh-agent में लोड होनी चाहिए (टोकन लगाकर ssh-add -K)।",
         "public_key_only_error" => "यह निजी कुंजी सामग्री जैसा लगता है; इसे निजी कुंजी फ़ील्ड में चिपकाएँ।",
+        "mosh_error_not_installed" => "इस होस्ट पर mosh-server नहीं है। वहाँ mosh इंस्टॉल करें (पैकेज \"mosh\"), या इस होस्ट के लिए mosh बंद कर दें।",
+        "mosh_error_refused" => "mosh-server शुरू नहीं हुआ: {reason}",
+        "mosh_error_no_answer" => "mosh-server शुरू होते समय होस्ट ने कोई जवाब नहीं दिया।",
+        "mosh_error_open" => "mosh सत्र खोला नहीं जा सका: {reason}",
         _ => return None,
     })
 }

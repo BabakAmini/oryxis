@@ -2115,6 +2115,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Аппаратные ключи попадают в агент через ssh-add: -K загружает резидентные ключи FIDO2, -s <module> загружает смарт-карты PKCS#11.",
         "sk_agent_hint" => "Идентичности ключей безопасности нужно сначала загрузить в системный ssh-agent (ssh-add -K с подключённым токеном).",
         "public_key_only_error" => "Похоже на материал приватного ключа; вставьте его в поле Приватный ключ.",
+        "mosh_error_not_installed" => "На этом узле нет mosh-server. Установите там mosh (пакет \"mosh\") или отключите mosh для этого узла.",
+        "mosh_error_refused" => "mosh-server не запустился: {reason}",
+        "mosh_error_no_answer" => "Узел не ответил, пока запускался mosh-server.",
+        "mosh_error_open" => "Не удалось открыть сеанс mosh: {reason}",
 _ => return None,
     })
 }

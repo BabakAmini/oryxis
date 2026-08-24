@@ -136,6 +136,7 @@ oryxis-core = { path = "crates/oryxis-core" }
 oryxis-ssh = { path = "crates/oryxis-ssh" }
 oryxis-archive = { path = "crates/oryxis-archive" }
 oryxis-telnet = { path = "crates/oryxis-telnet" }
+oryxis-mosh = { path = "crates/oryxis-mosh" }
 oryxis-serial = { path = "crates/oryxis-serial" }
 oryxis-zmodem = { path = "crates/oryxis-zmodem" }
 oryxis-terminal = { path = "crates/oryxis-terminal" }

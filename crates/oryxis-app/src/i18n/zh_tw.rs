@@ -2115,6 +2115,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "硬體金鑰透過 ssh-add 載入代理：-K 載入 FIDO2 常駐金鑰，-s <module> 載入 PKCS#11 智慧卡。",
         "sk_agent_hint" => "安全金鑰身分必須先載入作業系統的 ssh-agent（插入權杖後執行 ssh-add -K）。",
         "public_key_only_error" => "這看起來是私鑰內容；請改貼到私鑰欄位。",
+        "mosh_error_not_installed" => "此主機沒有 mosh-server。請在該主機上安裝 mosh（套件 \"mosh\"），或為此主機關閉 mosh。",
+        "mosh_error_refused" => "mosh-server 無法啟動：{reason}",
+        "mosh_error_no_answer" => "啟動 mosh-server 期間主機始終沒有回應。",
+        "mosh_error_open" => "無法開啟 mosh 工作階段：{reason}",
         _ => return None,
     })
 }

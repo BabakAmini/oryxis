@@ -70,6 +70,19 @@ impl Oryxis {
                     }
                     return Task::none();
                 }
+                // A mosh host is an SSH host right up to here, and stops
+                // being one on this line. The handover runs where every
+                // dial path CONVERGES rather than at the three that mint
+                // an SSH transport, so a fourth added later inherits it
+                // and cannot be written without it. Re-entry is not a
+                // risk: what comes back is a Mosh transport, whose
+                // `ssh()` is None.
+                if let Some(ssh) = session.ssh()
+                    && let Some(options) = self.pane_mosh_options(pane_id)
+                {
+                    let ssh = std::sync::Arc::clone(ssh);
+                    return self.begin_mosh_handover(pane_id, ssh, options);
+                }
                 // Terminfo fallback (issue #88): by the time the PTY is up
                 // the progress card is gone, so the timeline log alone is
                 // easy to miss; a toast tells the user why TERM differs

@@ -2156,6 +2156,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "sk_agent_hint" => "Security-key identities must be loaded into the OS ssh-agent first (ssh-add -K with the token plugged in).",
         "public_key_only_error" => "That looks like private key material; paste it into the Private Key field instead.",
 
+        "mosh_error_not_installed" => "This host has no mosh-server. Install mosh there (package \"mosh\"), or turn mosh off for this host.",
+        "mosh_error_refused" => "mosh-server would not start: {reason}",
+        "mosh_error_no_answer" => "The host never answered while starting mosh-server.",
+        "mosh_error_open" => "Could not open the mosh session: {reason}",
         _ => "???",
     }
 }

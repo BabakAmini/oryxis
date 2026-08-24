@@ -28,6 +28,7 @@ mod errors;
 mod hostkey;
 mod kbi;
 mod launch;
+mod mosh;
 mod progress;
 mod session;
 

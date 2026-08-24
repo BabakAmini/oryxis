@@ -2134,6 +2134,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "تصل المفاتيح العتادية إلى الوكيل عبر ssh-add: يحمّل -K مفاتيح FIDO2 المقيمة، ويحمّل -s <module> البطاقات الذكية PKCS#11.",
         "sk_agent_hint" => "يجب أولاً تحميل هويات مفاتيح الأمان في ssh-agent الخاص بنظام التشغيل (ssh-add -K مع توصيل الرمز).",
         "public_key_only_error" => "يبدو هذا محتوى مفتاح خاص؛ الصقه في حقل المفتاح الخاص بدلاً من ذلك.",
+        "mosh_error_not_installed" => "لا يحتوي هذا المضيف على mosh-server. ثبّت mosh هناك (الحزمة \"mosh\") أو أوقف mosh لهذا المضيف.",
+        "mosh_error_refused" => "لم يبدأ mosh-server: {reason}",
+        "mosh_error_no_answer" => "لم يستجب المضيف أثناء بدء تشغيل mosh-server.",
+        "mosh_error_open" => "تعذّر فتح جلسة mosh: {reason}",
 _ => return None,
     })
 }

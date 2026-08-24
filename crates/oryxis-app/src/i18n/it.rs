@@ -2115,6 +2115,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Le chiavi hardware raggiungono l'agente tramite ssh-add: -K carica le chiavi residenti FIDO2, -s <module> carica le smartcard PKCS#11.",
         "sk_agent_hint" => "Le identità con chiave di sicurezza devono prima essere caricate nello ssh-agent del sistema (ssh-add -K con il token collegato).",
         "public_key_only_error" => "Sembra materiale di chiave privata; incollalo invece nel campo Chiave Privata.",
+        "mosh_error_not_installed" => "Questo host non ha mosh-server. Installa mosh lì (pacchetto \"mosh\") o disattiva mosh per questo host.",
+        "mosh_error_refused" => "mosh-server non è partito: {reason}",
+        "mosh_error_no_answer" => "L'host non ha risposto mentre mosh-server si avviava.",
+        "mosh_error_open" => "Impossibile aprire la sessione mosh: {reason}",
 _ => return None,
     })
 }

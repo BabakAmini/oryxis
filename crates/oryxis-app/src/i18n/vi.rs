@@ -2148,6 +2148,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Khóa phần cứng đến agent qua ssh-add: -K nạp khóa thường trú FIDO2, -s <module> nạp thẻ thông minh PKCS#11.",
         "sk_agent_hint" => "Danh tính khóa bảo mật phải được nạp vào ssh-agent của hệ điều hành trước (ssh-add -K khi đã cắm token).",
         "public_key_only_error" => "Nội dung này giống khóa riêng; hãy dán vào trường Khóa riêng.",
+        "mosh_error_not_installed" => "Máy chủ này không có mosh-server. Hãy cài mosh ở đó (gói \"mosh\"), hoặc tắt mosh cho máy chủ này.",
+        "mosh_error_refused" => "mosh-server không khởi động được: {reason}",
+        "mosh_error_no_answer" => "Máy chủ không hề trả lời trong lúc khởi động mosh-server.",
+        "mosh_error_open" => "Không mở được phiên mosh: {reason}",
 _ => return None,
     })
 }

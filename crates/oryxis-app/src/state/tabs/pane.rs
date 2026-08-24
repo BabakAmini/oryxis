@@ -83,6 +83,13 @@ pub(crate) enum TerminalTransport {
     Ssh(Arc<SshSession>),
     Telnet(Arc<oryxis_telnet::TelnetSession>),
     Serial(Arc<oryxis_serial::SerialSession>),
+    /// A session carried over mosh. It was STARTED by SSH and does not
+    /// hold on to it: the SSH connection is TCP and dies the moment the
+    /// address changes, which is the moment mosh exists for, so keeping
+    /// it would give the tab two lifetimes and let half of it break
+    /// exactly when the other half proved its worth. What needs SSH
+    /// asks for its own; see `mosh_files_open_in_new_tab`.
+    Mosh(Arc<oryxis_mosh::MoshSession>),
 }
 
 impl TerminalTransport {
@@ -90,15 +97,19 @@ impl TerminalTransport {
     pub fn ssh(&self) -> Option<&Arc<SshSession>> {
         match self {
             TerminalTransport::Ssh(s) => Some(s),
-            TerminalTransport::Telnet(_) | TerminalTransport::Serial(_) => None,
+            TerminalTransport::Telnet(_)
+            | TerminalTransport::Serial(_)
+            | TerminalTransport::Mosh(_) => None,
         }
     }
+
 
     pub fn write(&self, data: &[u8]) -> Result<(), String> {
         match self {
             TerminalTransport::Ssh(s) => s.write(data).map_err(|e| e.to_string()),
             TerminalTransport::Telnet(s) => s.write(data).map_err(|e| e.to_string()),
             TerminalTransport::Serial(s) => s.write(data).map_err(|e| e.to_string()),
+            TerminalTransport::Mosh(s) => s.write(data).map_err(|e| e.to_string()),
         }
     }
 
@@ -106,6 +117,7 @@ impl TerminalTransport {
         match self {
             TerminalTransport::Ssh(s) => s.resize(cols, rows),
             TerminalTransport::Telnet(s) => s.resize(cols, rows),
+            TerminalTransport::Mosh(s) => s.resize(cols, rows),
             // A serial line has no window size; resize is a no-op.
             TerminalTransport::Serial(_) => {}
         }
@@ -118,6 +130,7 @@ impl TerminalTransport {
         match self {
             TerminalTransport::Ssh(s) => Some(s.resize_sender()),
             TerminalTransport::Telnet(s) => Some(s.resize_sender()),
+            TerminalTransport::Mosh(s) => Some(s.resize_sender()),
             TerminalTransport::Serial(_) => None,
         }
     }
@@ -129,6 +142,7 @@ impl TerminalTransport {
             TerminalTransport::Ssh(s) => s.write_sender(),
             TerminalTransport::Telnet(s) => s.write_sender(),
             TerminalTransport::Serial(s) => s.write_sender(),
+            TerminalTransport::Mosh(s) => s.write_sender(),
         }
     }
 
@@ -137,6 +151,7 @@ impl TerminalTransport {
             TerminalTransport::Ssh(s) => s.is_alive(),
             TerminalTransport::Telnet(s) => s.is_alive(),
             TerminalTransport::Serial(s) => s.is_alive(),
+            TerminalTransport::Mosh(s) => s.is_alive(),
         }
     }
 
@@ -146,6 +161,7 @@ impl TerminalTransport {
             TerminalTransport::Ssh(s) => s.close(),
             TerminalTransport::Telnet(s) => s.close(),
             TerminalTransport::Serial(s) => s.close(),
+            TerminalTransport::Mosh(s) => s.close(),
         }
     }
 }

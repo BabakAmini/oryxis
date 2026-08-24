@@ -2153,6 +2153,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "מפתחות חומרה מגיעים לסוכן דרך ssh-add: -K טוען מפתחות FIDO2 שוכנים, -s <module> טוען כרטיסים חכמים של PKCS#11.",
         "sk_agent_hint" => "יש לטעון זהויות של מפתח אבטחה תחילה אל ssh-agent של מערכת ההפעלה (ssh-add -K כשהאסימון מחובר).",
         "public_key_only_error" => "זה נראה כמו תוכן של מפתח פרטי; הדבק אותו בשדה מפתח פרטי במקום.",
+        "mosh_error_not_installed" => "למארח הזה אין mosh-server. התקינו שם את mosh (החבילה \"mosh\") או כבו את mosh עבור המארח הזה.",
+        "mosh_error_refused" => "mosh-server לא עלה: {reason}",
+        "mosh_error_no_answer" => "המארח לא ענה בזמן ההפעלה של mosh-server.",
+        "mosh_error_open" => "לא ניתן לפתוח את הפעלת mosh: {reason}",
         _ => return None,
     })
 }

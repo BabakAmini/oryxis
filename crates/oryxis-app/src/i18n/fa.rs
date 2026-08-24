@@ -2135,6 +2135,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "کلیدهای سخت‌افزاری از طریق ssh-add به عامل می‌رسند: -K کلیدهای مقیم FIDO2 را و -s <module> کارت‌های هوشمند PKCS#11 را بارگذاری می‌کند.",
         "sk_agent_hint" => "هویت‌های کلید امنیتی باید ابتدا در ssh-agent سیستم‌عامل بارگذاری شوند (ssh-add -K با توکن متصل).",
         "public_key_only_error" => "این محتوا شبیه کلید خصوصی است؛ آن را در فیلد کلید خصوصی جای‌گذاری کنید.",
+        "mosh_error_not_installed" => "این میزبان mosh-server ندارد. mosh را روی آن نصب کنید (بستهٔ \"mosh\") یا mosh را برای این میزبان خاموش کنید.",
+        "mosh_error_refused" => "mosh-server اجرا نشد: {reason}",
+        "mosh_error_no_answer" => "میزبان هنگام راه‌اندازی mosh-server هرگز پاسخ نداد.",
+        "mosh_error_open" => "نشست mosh باز نشد: {reason}",
 _ => return None,
     })
 }

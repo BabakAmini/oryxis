@@ -2147,6 +2147,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Donanım anahtarları aracıya ssh-add üzerinden ulaşır: -K, FIDO2 yerleşik anahtarlarını yükler; -s <module>, PKCS#11 akıllı kartlarını yükler.",
         "sk_agent_hint" => "Güvenlik anahtarı kimlikleri önce işletim sisteminin ssh-agent'ına yüklenmelidir (token takılıyken ssh-add -K).",
         "public_key_only_error" => "Bu, özel anahtar malzemesine benziyor; bunun yerine Özel Anahtar alanına yapıştırın.",
+        "mosh_error_not_installed" => "Bu sunucuda mosh-server yok. Sunucuya mosh kurun (\"mosh\" paketi) veya bu sunucu için mosh'u kapatın.",
+        "mosh_error_refused" => "mosh-server başlatılamadı: {reason}",
+        "mosh_error_no_answer" => "mosh-server başlatılırken sunucu hiç yanıt vermedi.",
+        "mosh_error_open" => "mosh oturumu açılamadı: {reason}",
 _ => return None,
     })
 }

@@ -2154,6 +2154,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "กุญแจฮาร์ดแวร์เข้าถึง agent ผ่าน ssh-add: -K โหลดกุญแจ FIDO2 แบบ resident ส่วน -s <module> โหลดสมาร์ตการ์ด PKCS#11",
         "sk_agent_hint" => "ต้องโหลดข้อมูลประจำตัวของกุญแจความปลอดภัยเข้า ssh-agent ของระบบปฏิบัติการก่อน (ssh-add -K ขณะเสียบโทเคนอยู่)",
         "public_key_only_error" => "ดูเหมือนว่านี่คือเนื้อหาคีย์ส่วนตัว โปรดวางลงในช่องคีย์ส่วนตัวแทน",
+        "mosh_error_not_installed" => "โฮสต์นี้ไม่มี mosh-server ติดตั้ง mosh บนโฮสต์ (แพ็กเกจ \"mosh\") หรือปิด mosh สำหรับโฮสต์นี้",
+        "mosh_error_refused" => "mosh-server เริ่มทำงานไม่ได้: {reason}",
+        "mosh_error_no_answer" => "โฮสต์ไม่ตอบเลยระหว่างที่เริ่ม mosh-server",
+        "mosh_error_open" => "เปิดเซสชัน mosh ไม่ได้: {reason}",
         _ => return None,
     })
 }

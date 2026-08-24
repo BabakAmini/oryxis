@@ -54,6 +54,7 @@ oryxis-core = { workspace = true }
 oryxis-ssh = { workspace = true }
 oryxis-archive = { workspace = true }
 oryxis-telnet = { workspace = true }
+oryxis-mosh = { workspace = true }
 oryxis-serial = { workspace = true }
 oryxis-zmodem = { workspace = true }
 oryxis-terminal = { workspace = true }

@@ -2152,6 +2152,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Hardwarové klíče se do agenta dostávají přes ssh-add: -K načte rezidentní klíče FIDO2, -s <module> načte čipové karty PKCS#11.",
         "sk_agent_hint" => "Identity bezpečnostních klíčů je nejprve potřeba načíst do systémového ssh-agenta (ssh-add -K s připojeným tokenem).",
         "public_key_only_error" => "Vypadá to jako materiál privátního klíče; vložte ho místo toho do pole Privátní klíč.",
+        "mosh_error_not_installed" => "Tento host nemá mosh-server. Nainstalujte na něm mosh (balíček \"mosh\"), nebo pro tento host mosh vypněte.",
+        "mosh_error_refused" => "mosh-server se nespustil: {reason}",
+        "mosh_error_no_answer" => "Host během spouštění mosh-serveru vůbec neodpověděl.",
+        "mosh_error_open" => "Relaci mosh se nepodařilo otevřít: {reason}",
         _ => return None,
     })
 }

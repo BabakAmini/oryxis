@@ -46,6 +46,7 @@ pub enum MoshError {
 ///
 /// The same surface a `TelnetSession` offers, so the pane that holds it
 /// does not have to know which one it has.
+#[derive(Debug)]
 pub struct MoshSession {
     writer_tx: mpsc::UnboundedSender<Vec<u8>>,
     resize_tx: mpsc::UnboundedSender<(u16, u16)>,

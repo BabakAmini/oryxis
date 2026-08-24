@@ -2148,6 +2148,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "Kunci perangkat keras mencapai agen melalui ssh-add: -K memuat kunci residen FIDO2, -s <module> memuat kartu pintar PKCS#11.",
         "sk_agent_hint" => "Identitas kunci keamanan harus dimuat ke ssh-agent OS terlebih dahulu (ssh-add -K dengan token terpasang).",
         "public_key_only_error" => "Itu tampak seperti materi kunci privat; tempelkan ke bidang Kunci Privat.",
+        "mosh_error_not_installed" => "Host ini tidak punya mosh-server. Pasang mosh di sana (paket \"mosh\"), atau matikan mosh untuk host ini.",
+        "mosh_error_refused" => "mosh-server tidak mau berjalan: {reason}",
+        "mosh_error_no_answer" => "Host tidak pernah menjawab saat mosh-server dijalankan.",
+        "mosh_error_open" => "Tidak bisa membuka sesi mosh: {reason}",
 _ => return None,
     })
 }

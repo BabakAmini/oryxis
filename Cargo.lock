@@ -5140,6 +5140,7 @@ dependencies = [
  "oryxis-biometric",
  "oryxis-cloud",
  "oryxis-core",
+ "oryxis-mosh",
  "oryxis-plugin-protocol",
  "oryxis-serial",
  "oryxis-ssh",

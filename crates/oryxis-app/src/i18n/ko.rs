@@ -2148,6 +2148,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "하드웨어 키는 ssh-add를 통해 에이전트에 로드됩니다: -K는 FIDO2 상주 키를, -s <module>은 PKCS#11 스마트카드를 로드합니다.",
         "sk_agent_hint" => "보안 키 신원은 먼저 OS ssh-agent에 로드해야 합니다(토큰을 꽂은 상태에서 ssh-add -K).",
         "public_key_only_error" => "개인 키 내용으로 보입니다. 개인 키 필드에 붙여넣으세요.",
+        "mosh_error_not_installed" => "이 호스트에는 mosh-server가 없습니다. 해당 호스트에 mosh(패키지 \"mosh\")를 설치하거나 이 호스트의 mosh를 끄세요.",
+        "mosh_error_refused" => "mosh-server가 시작되지 않았습니다: {reason}",
+        "mosh_error_no_answer" => "mosh-server를 시작하는 동안 호스트가 응답하지 않았습니다.",
+        "mosh_error_open" => "mosh 세션을 열 수 없습니다: {reason}",
 _ => return None,
     })
 }

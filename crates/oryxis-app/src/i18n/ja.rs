@@ -2116,6 +2116,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "pkcs11_help" => "ハードウェアキーは ssh-add でエージェントに読み込みます: -K は FIDO2 レジデントキーを、-s <module> は PKCS#11 スマートカードを読み込みます。",
         "sk_agent_hint" => "セキュリティキーの ID は先に OS の ssh-agent へ読み込む必要があります（トークンを接続した状態で ssh-add -K）。",
         "public_key_only_error" => "これは秘密鍵の内容のようです。秘密鍵フィールドに貼り付けてください。",
+        "mosh_error_not_installed" => "このホストには mosh-server がありません。ホストに mosh（パッケージ \"mosh\"）をインストールするか、このホストの mosh を無効にしてください。",
+        "mosh_error_refused" => "mosh-server を起動できませんでした: {reason}",
+        "mosh_error_no_answer" => "mosh-server の起動中、ホストから応答がありませんでした。",
+        "mosh_error_open" => "mosh セッションを開けませんでした: {reason}",
 _ => return None,
     })
 }
