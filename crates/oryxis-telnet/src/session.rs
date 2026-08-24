@@ -121,6 +121,10 @@ pub struct TelnetSession {
     /// Latched by `close()` so teardown runs exactly once even when
     /// both an explicit close and the `Drop` backstop fire.
     closed: AtomicBool,
+    /// Set by the reader on its way out, BEFORE it drops the output
+    /// sender. See [`TelnetSession::is_alive`] for why the order is the
+    /// whole point.
+    reader_done: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for TelnetSession {
@@ -265,6 +269,11 @@ impl TelnetSession {
         };
         let binary_inbound = Arc::new(AtomicBool::new(false));
         let reader_binary = Arc::clone(&binary_inbound);
+        // Published by the reader before the output sender is dropped,
+        // so the session reads as dead by the time the app notices the
+        // stream ended. See `is_alive`.
+        let reader_done = Arc::new(AtomicBool::new(false));
+        let reader_flag = Arc::clone(&reader_done);
         let reader_task = tokio::spawn(async move {
             let mut buf = vec![0u8; 8192];
             // Stateful decoder so a multi-byte char split across two
@@ -327,8 +336,14 @@ impl TelnetSession {
                     break;
                 }
             }
-            // Dropping output_tx here ends the app-side stream cleanly
-            // (recv returns None) instead of hanging on a dead session.
+            // Dead BEFORE silent, and in that order on purpose: the
+            // app takes the end of this stream as the disconnect notice
+            // and asks `is_alive()` before acting on it, so the answer
+            // has to be settled first. Dropping output_tx then ends the
+            // app-side stream cleanly (recv returns None) instead of
+            // hanging on a dead session.
+            reader_flag.store(true, Ordering::SeqCst);
+            drop(output_tx);
         });
 
         // Writer task: input encoding + negotiation replies + NAWS.
@@ -402,6 +417,7 @@ impl TelnetSession {
                 reader_task,
                 writer_task,
                 closed: AtomicBool::new(false),
+                reader_done,
             },
             output_rx,
         )
@@ -451,7 +467,17 @@ impl TelnetSession {
     }
 
     pub fn is_alive(&self) -> bool {
-        !self.writer_tx.is_closed()
+        // `reader_done` is what makes this answer ORDERED rather than
+        // merely eventual. The app reads the end of the output stream as
+        // the disconnect notice and asks this before acting on it; the
+        // writer channel closes only once the WRITER TASK has noticed
+        // the reader is gone and returned, which is a separate task and
+        // therefore a separate scheduling decision. A notice that
+        // overtook it would read as coming from a session the pane has
+        // already replaced, and be discarded. The flag is set by the
+        // reader itself, before it drops the output sender, with no
+        // await in between.
+        !self.reader_done.load(Ordering::SeqCst) && !self.writer_tx.is_closed()
     }
 
     /// Tear the session down. Idempotent: only the first call acts.
@@ -572,6 +598,64 @@ mod tests {
             );
             tokio::time::sleep(Duration::from_millis(10)).await;
         }
+    }
+
+    /// A server hanging up must leave the session reading as DEAD BY
+    /// THE TIME the output stream ends, not merely soon after.
+    ///
+    /// The app takes the end of this stream as the disconnect notice
+    /// (`SshDisconnected`) and asks `is_alive()` before acting on it,
+    /// discarding a notice whose pane still holds a live transport as
+    /// one from a session the pane already replaced. A session still
+    /// reporting alive at that instant would get its own disconnect
+    /// thrown away, and the tab would read connected over a dead socket
+    /// until the 30 s liveness sweep happened to catch it (longer while
+    /// the vault is soft-locked, which unmounts that sweep).
+    ///
+    /// What this test is and is not: it PASSES on the old code too,
+    /// because `writer_tx.is_closed()` becoming true depends on the
+    /// writer TASK being polled, and it wins that scheduling here every
+    /// time. So this is a contract guard, not a race reproduction, and
+    /// it is deliberately written without a sleep or a retry loop so it
+    /// keeps asserting "already settled" rather than "settles soon".
+    /// The property is made true by construction instead: the reader
+    /// stores `reader_done` before dropping the output sender, in the
+    /// same task with no await between.
+    #[tokio::test]
+    async fn is_alive_is_false_by_the_time_the_stream_ends() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = tokio::spawn(async move {
+            let (mut sock, _) = listener.accept().await.unwrap();
+            sock.write_all(b"bye").await.unwrap();
+            // Hang up. Not a close() on our side: the point is the far
+            // end vanishing, which is what an outage looks like.
+            drop(sock);
+        });
+
+        let (session, mut output) = TelnetSession::connect(TelnetConfig {
+            host: addr.ip().to_string(),
+            port: addr.port(),
+            ..TelnetConfig::default()
+        })
+        .await
+        .unwrap();
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(5);
+        loop {
+            match tokio::time::timeout_at(deadline, output.recv()).await {
+                Ok(Some(_)) => continue,
+                Ok(None) => break,
+                Err(_) => panic!("output stream never closed after the server hung up"),
+            }
+        }
+        assert!(
+            !session.is_alive(),
+            "the stream ended while the session still read as alive: \
+             the app would discard this disconnect as stale",
+        );
+        server.await.unwrap();
     }
 
     /// Raw mode against a fake console server: the client must open in

@@ -119,6 +119,19 @@ finally a key Oryxis will offer.
 - **The transfer toasts lost their protocol name.** They say the same
   thing for a ZMODEM transfer, an SFTP queue item and a drag-out, and
   naming one of the three made the other two read as borrowed strings.
+- **Every transport reads as dead before its output stream ends.** The
+  end of that stream is what tells the app a session disconnected, and
+  the app now discards such a notice while the pane's transport is still
+  alive, because the mosh handover makes a superseded session an
+  ordinary event rather than an exotic one. That test is only safe if a
+  session that really died can never still answer "alive" at that
+  instant, so each reader now publishes its own death before dropping
+  the output sender, in the same task. SSH previously leaned on the
+  reader task's join handle and Telnet / Serial on a channel the WRITER
+  task closes, both of which settle a scheduling decision later than the
+  notice travels. Nobody reported it and no test could reproduce it, but
+  the guard's correctness rested on winning that race rather than on not
+  having one.
 
 ### Fixed
 - **A jump host that itself sits behind a jump chain is now reached**

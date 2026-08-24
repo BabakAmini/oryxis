@@ -26,6 +26,7 @@
 //! line-ending map would corrupt raw frames containing 0x0D.
 
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use oryxis_core::models::serial::{
     SerialFlowControl, SerialLineEnding, SerialParams, SerialParity, SerialStopBits,
@@ -63,6 +64,10 @@ pub struct SerialSession {
     reader_task: tokio::task::JoinHandle<()>,
     writer_task: tokio::task::JoinHandle<()>,
     closed: AtomicBool,
+    /// Set by the reader on its way out, BEFORE it drops the output
+    /// sender. See [`SerialSession::is_alive`] for why the order is the
+    /// whole point.
+    reader_done: Arc<AtomicBool>,
 }
 
 impl std::fmt::Debug for SerialSession {
@@ -189,6 +194,12 @@ impl SerialSession {
         // would keep reporting a dead port as alive.
         let (reader_gone_tx, mut reader_gone_rx) = tokio::sync::oneshot::channel::<()>();
 
+        // Published by the reader before the output sender is dropped,
+        // so the session reads as dead by the time the app notices the
+        // stream ended. See `is_alive`.
+        let reader_done = Arc::new(AtomicBool::new(false));
+        let reader_flag = Arc::clone(&reader_done);
+
         // Reader task: port + echo -> output stream. Raw passthrough (no
         // sniffing, no transcode): the terminal emulator owns decoding.
         let reader_task = tokio::spawn(async move {
@@ -223,8 +234,14 @@ impl SerialSession {
                     }
                 }
             }
-            // Dropping `output_tx` here ends the app-side stream cleanly
-            // (recv -> None), so the disconnect propagates on unplug.
+            // Dead BEFORE silent, and in that order on purpose: the
+            // app takes the end of this stream as the disconnect notice
+            // and asks `is_alive()` before acting on it, so the answer
+            // has to be settled first. Dropping `output_tx` then ends
+            // the app-side stream cleanly (recv -> None), so the
+            // disconnect propagates on unplug.
+            reader_flag.store(true, Ordering::SeqCst);
+            drop(output_tx);
         });
 
         // Writer task: user input gets the line-ending map and the
@@ -279,6 +296,7 @@ impl SerialSession {
                 reader_task,
                 writer_task,
                 closed: AtomicBool::new(false),
+                reader_done,
             },
             output_rx,
         )
@@ -304,7 +322,16 @@ impl SerialSession {
     }
 
     pub fn is_alive(&self) -> bool {
-        !self.writer_tx.is_closed()
+        // `reader_done` is what makes this answer ORDERED rather than
+        // merely eventual. The app reads the end of the output stream as
+        // the disconnect notice and asks this before acting on it; the
+        // writer channel closes only after the oneshot cascade above has
+        // woken the WRITER TASK and it has returned, which is a separate
+        // task and therefore a separate scheduling decision. A notice
+        // that overtook it would read as coming from a session the pane
+        // has already replaced, and be discarded. The flag is set by the
+        // reader itself, before it drops the output sender.
+        !self.reader_done.load(Ordering::SeqCst) && !self.writer_tx.is_closed()
     }
 
     /// Tear the session down. Idempotent: only the first call acts.
@@ -434,12 +461,29 @@ mod tests {
         });
     }
 
-    /// After an unplug only the reader sees the EOF; the death cascade
-    /// must take the writer down with it so `is_alive()` flips to false.
-    /// Before the cascade the writer parked in `recv()` forever and the
-    /// dead session kept reporting alive.
+    /// After an unplug the session must read as DEAD BY THE TIME the
+    /// output stream ends, not merely soon after.
+    ///
+    /// The app takes the end of this stream as the disconnect notice
+    /// (`SshDisconnected`) and asks `is_alive()` before acting on it,
+    /// discarding a notice whose pane still holds a live transport as
+    /// one from a session the pane already replaced. So a session that
+    /// is still reporting alive at that instant gets its own disconnect
+    /// thrown away, and the tab reads connected over a dead port until
+    /// the 30 s liveness sweep happens to catch it (longer still while
+    /// the vault is soft-locked, which unmounts that sweep).
+    ///
+    /// What this test is and is not: it PASSES on the old code too,
+    /// because the death cascade that closes the input channels wins its
+    /// scheduling here every time. So this is a contract guard, not a
+    /// race reproduction, and it is deliberately written without a sleep
+    /// or a retry loop (which is what it replaced) so it keeps asserting
+    /// "already settled" rather than "settles soon". The property is
+    /// made true by construction instead: the reader stores
+    /// `reader_done` before dropping the output sender, in the same task
+    /// with no await between.
     #[test]
-    fn is_alive_flips_after_unplug() {
+    fn is_alive_is_false_by_the_time_the_stream_ends() {
         let rt = tokio::runtime::Builder::new_multi_thread()
             .worker_threads(1)
             .enable_all()
@@ -454,7 +498,6 @@ mod tests {
             // directly.
             drop(device);
             let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(5);
-            // The output stream ends first (the reader died)...
             loop {
                 match tokio::time::timeout_at(deadline, output.recv()).await {
                     Ok(Some(_)) => continue,
@@ -462,15 +505,11 @@ mod tests {
                     Err(_) => panic!("output stream never closed on unplug"),
                 }
             }
-            // ...then the cascade ends the writer, closing the input
-            // channels the session holds.
-            while session.is_alive() {
-                assert!(
-                    tokio::time::Instant::now() < deadline,
-                    "session still alive after unplug (writer never died)"
-                );
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
+            assert!(
+                !session.is_alive(),
+                "the stream ended while the session still read as alive: \
+                 the app would discard this disconnect as stale",
+            );
         });
     }
 

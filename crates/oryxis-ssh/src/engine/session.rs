@@ -81,6 +81,10 @@ pub struct SshSession {
     /// Latched by `close()` so teardown runs exactly once even when both
     /// an explicit close and the `Drop` backstop fire.
     pub(crate) closed: std::sync::atomic::AtomicBool,
+    /// Set by the reader task on its way out, BEFORE it drops the output
+    /// sender. See [`SshSession::is_alive`] for why the order is the
+    /// whole point.
+    pub(crate) reader_done: Arc<std::sync::atomic::AtomicBool>,
     /// Cap on how long `open_sftp` (and the per-sibling open in the
     /// transfer pool) wait before giving up. Set by `SshEngine`'s
     /// builder so the user can tune it from the SFTP settings panel.
@@ -254,13 +258,29 @@ impl SshSession {
     }
 
     pub fn is_alive(&self) -> bool {
-        // Three death signals, any one of which means the session is
+        // Four death signals, any one of which means the session is
         // unusable: an explicit `close()` (latch, the task aborts it
         // triggers land asynchronously), the reader task having exited
         // (EOF / exit-status / transport drop; the writer task alone
         // can't notice, it blocks on its queue forever when nothing
-        // writes), and the writer channel being gone.
+        // writes), the writer channel being gone, and `reader_done`.
+        //
+        // `reader_done` looks redundant next to `reader_task` and is
+        // not, because it is the only one with a guaranteed ORDER. The
+        // app reads the end of the output stream as the session's death
+        // notice (`SshDisconnected`) and asks this before acting on it,
+        // so a notice arriving while this still says "alive" reads as a
+        // notice from a session the pane has already replaced, and is
+        // discarded. `reader_task.is_finished()` cannot carry that
+        // weight: the output sender is dropped as the task's future
+        // returns, and the handle is not marked finished until that
+        // return completes, so a reader watching from another thread
+        // can legally observe the closed channel first. The flag is set
+        // by the reader itself, before the drop, in the same task with
+        // no await in between, which makes "dead before silent" true by
+        // construction rather than by scheduling luck.
         !self.closed.load(std::sync::atomic::Ordering::SeqCst)
+            && !self.reader_done.load(std::sync::atomic::Ordering::SeqCst)
             && !self.reader_task.is_finished()
             && !self.writer_tx.is_closed()
     }

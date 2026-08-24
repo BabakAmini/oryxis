@@ -227,6 +227,12 @@ impl SshEngine {
 
         let mut channel_writer = channel.make_writer();
 
+        // Published by the reader on its way out, before the output
+        // sender is dropped, so the session reads as dead by the time
+        // the app notices the stream ended. See `SshSession::is_alive`.
+        let reader_done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let reader_flag = std::sync::Arc::clone(&reader_done);
+
         // Reader task, multiplexes incoming PTY data with outgoing
         // window-change requests so we only own `channel` in one place.
         let reader_task = tokio::spawn(async move {
@@ -319,6 +325,13 @@ impl SshEngine {
                     }
                 }
             }
+            // Dead BEFORE silent, and in that order on purpose: the app
+            // takes the end of this stream as the disconnect notice and
+            // asks `is_alive()` before acting on it, so the answer has
+            // to be settled first. Same task, no await between, which
+            // is what makes it an ordering rather than a race.
+            reader_flag.store(true, std::sync::atomic::Ordering::SeqCst);
+            drop(output_tx);
         });
 
         // Writer task
@@ -361,6 +374,7 @@ impl SshEngine {
                 reader_task,
                 writer_task,
                 closed: std::sync::atomic::AtomicBool::new(false),
+                reader_done,
                 // Default, overridden by the engine right after this
                 // returns via `sftp_open_timeout` assignment.
                 sftp_open_timeout: std::time::Duration::from_secs(10),

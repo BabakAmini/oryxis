@@ -322,7 +322,18 @@ async fn drive(
             break;
         }
     }
+    // Dead BEFORE silent, and in that order on purpose. The app takes
+    // the end of this stream as the disconnect notice and asks
+    // `is_alive()` before acting on it, discarding a notice whose pane
+    // still holds a live transport as one from a session it already
+    // replaced. So a session that really ended must never still answer
+    // "alive" here. Same task, no await between, which is what makes it
+    // an ordering rather than a race; the SSH, Telnet and Serial readers
+    // uphold the same contract through their own `reader_done` flag.
+    // The drop is explicit so the pair reads as one statement rather
+    // than as a store followed by an accident of scope.
     alive.store(false, Ordering::SeqCst);
+    drop(output_tx);
 }
 
 #[cfg(test)]

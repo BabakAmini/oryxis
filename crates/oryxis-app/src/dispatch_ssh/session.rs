@@ -238,6 +238,23 @@ impl Oryxis {
                 // the same however it arose: an in-place reconnect that
                 // landed while the old session was still tearing down
                 // reaches here too.
+                //
+                // What makes that test SAFE is an invariant every
+                // transport now upholds: it reads as dead BEFORE its
+                // output stream ends. The stream ending is what produces
+                // this message, so a session that really died can never
+                // still answer `is_alive()` here, and only a genuinely
+                // superseded one can. Each reader stores its own death
+                // flag before dropping the output sender, in the same
+                // task with no await between (`reader_done` on the SSH /
+                // Telnet / Serial sessions, `alive` on mosh). Before
+                // that, SSH leaned on `JoinHandle::is_finished` and
+                // Telnet / Serial on a channel the WRITER task closes,
+                // both of which settle a scheduling decision later than
+                // the message travels, so a real disconnect could be
+                // discarded here and the tab would read connected until
+                // the 30 s liveness sweep caught it. Do not weaken any
+                // of the four without moving this guard first.
                 if self
                     .tabs
                     .iter()
