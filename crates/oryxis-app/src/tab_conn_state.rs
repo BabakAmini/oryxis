@@ -25,6 +25,23 @@ pub(crate) enum TabConnState {
     Reconnecting,
     /// The transport is up.
     Connected,
+    /// The transport is up and OUT OF TOUCH: a mosh session that has not
+    /// heard from its server, or is not being acknowledged by it.
+    ///
+    /// Deliberately not [`TabConnState::Lost`], and the distinction is
+    /// the whole of what mosh is for. A mosh session survives its
+    /// network: the address can change, the link can go away for an hour
+    /// and come back, and the shell on the far side never noticed. So
+    /// reading this as lost would be wrong twice over, once about the
+    /// session and once about the protocol, and anything that tears down
+    /// on `Lost` would tear down exactly the sessions built not to need
+    /// it.
+    ///
+    /// It is also not [`TabConnState::Connected`], which is what it read
+    /// as before: a link silent for a minute showed the same green dot
+    /// as one answering instantly, so the one moment the protocol earns
+    /// its keep was the one moment the interface said nothing.
+    NoContact,
     /// The transport is gone: a remote pane whose session died, or a
     /// plugin-backed cloud tab whose process exited.
     Lost,
@@ -83,10 +100,19 @@ pub(crate) fn derive_conn_state(
         // fires for single-pane tabs, so its live siblings keep the tab
         // connected), which makes the handle the only witness that the
         // FOCUSED pane died.
-        return if session.is_alive() {
-            TabConnState::Connected
-        } else {
-            TabConnState::Lost
+        if !session.is_alive() {
+            return TabConnState::Lost;
+        }
+        // A live mosh session has a second question to answer, and only
+        // mosh has it: is anyone on the other end right now. Read from
+        // the transport rather than passed in like `DialProgress`,
+        // because it is the transport's own state and the pane already
+        // reaches into `session` on the line above.
+        return match session.mosh().map(|m| m.link_state()) {
+            Some(oryxis_mosh::LinkState::NoContact { .. } | oryxis_mosh::LinkState::NoReply { .. }) => {
+                TabConnState::NoContact
+            }
+            _ => TabConnState::Connected,
         };
     }
     // No handle at all. `PaneOrigin::Ephemeral` is the field's DEFAULT,

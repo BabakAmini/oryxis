@@ -365,6 +365,32 @@ impl Oryxis {
             );
         }
 
+        // The same freeze, for the transport where it matters most. A
+        // mosh session that has gone quiet emits NOTHING by definition,
+        // so without a tick the one reading that is growing is the one
+        // reading that never repaints, and the interface would sit on
+        // "no contact 6s" for the rest of the outage. One second rather
+        // than three because both surfaces print whole seconds, and a
+        // clock that skips two out of every three is a clock that looks
+        // broken.
+        //
+        // Not gated on the status bar the way the SSH tick above is:
+        // this state also tints the tab strip's dot, which is on with
+        // the bar hidden. Gating it there would leave the dot amber for
+        // an outage that ended. Unmounted the moment the focused pane is
+        // not on mosh, like every other periodic subscription here.
+        if self.vault_ui.state == crate::state::VaultState::Unlocked
+            && self
+                .active_tab
+                .and_then(|i| self.tabs.get(i))
+                .and_then(|t| t.active().session.as_ref().and_then(|s| s.mosh()))
+                .is_some_and(|m| m.is_alive())
+        {
+            subs.push(
+                iced::time::every(std::time::Duration::from_secs(1)).map(|_| Message::NoOp),
+            );
+        }
+
         // Unlocked-gated like the monitor above: the soft-lock sweep
         // clears every watch, but the gate makes the invariant structural
         // (no save can upload behind the lock screen even if a watch

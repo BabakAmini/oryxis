@@ -340,9 +340,15 @@ impl Oryxis {
         // dotless (its transport is a plugin process, not a handle).
         let status_dot: Option<Color> = if self.prefs.show_tab_status_dot {
             match self.tab_conn_state(idx) {
-                TabConnState::Connecting | TabConnState::Reconnecting => {
-                    Some(OryxisColors::t().warning)
-                }
+                // A mosh session out of touch shares the amber of a dial
+                // in flight, and means the same thing to the person
+                // looking: it is working on it, and it is not there yet.
+                // Amber rather than red because the session is not gone,
+                // and rather than green because it is what the strip has
+                // to say at the one moment mosh earns its keep.
+                TabConnState::Connecting
+                | TabConnState::Reconnecting
+                | TabConnState::NoContact => Some(OryxisColors::t().warning),
                 TabConnState::Lost => Some(OryxisColors::t().error),
                 TabConnState::Connected => Some(OryxisColors::t().success),
                 TabConnState::Idle => None,

@@ -103,6 +103,20 @@ impl TerminalTransport {
         }
     }
 
+    /// The inner mosh session, for the one thing only mosh can answer.
+    ///
+    /// Every other transport reports its health by being up or down, and
+    /// `is_alive` covers both. mosh is up while it is out of touch, on
+    /// purpose, so "alive" stops being the whole answer and something
+    /// has to carry the rest.
+    pub fn mosh(&self) -> Option<&Arc<oryxis_mosh::MoshSession>> {
+        match self {
+            TerminalTransport::Mosh(s) => Some(s),
+            TerminalTransport::Ssh(_)
+            | TerminalTransport::Telnet(_)
+            | TerminalTransport::Serial(_) => None,
+        }
+    }
 
     /// Whether this session outlives the network changing underneath
     /// it.

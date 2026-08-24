@@ -44,6 +44,13 @@ impl Oryxis {
                     with("status_bar_reconnecting", c.warning)
                 }
                 TabConnState::Connected => with("status_bar_connected", c.success),
+                // The always-visible half of a mosh link's health: this
+                // segment is on by default and the latency one is not,
+                // so if the state only rode the latency segment the
+                // people who never turned it on would still be told a
+                // silent link was connected. How long, and in which
+                // direction, is the detail the latency segment carries.
+                TabConnState::NoContact => with("status_bar_no_contact", c.warning),
                 TabConnState::Lost => with("status_bar_disconnected", c.error),
                 // A local shell has no connection to report, and a
                 // dormant pinned tab hasn't dialed yet: name the tab and
@@ -99,13 +106,26 @@ impl Oryxis {
         // and individually toggleable, so the bar only carries what the
         // user asked for. Muted labels, so they read as ambient info.
         if let Some(pane) = self.active_tab.and_then(|i| self.tabs.get(i)).map(|t| t.active()) {
+            // One slot, read from whichever transport the pane holds.
+            // mosh rides the latency toggle rather than a setting of its
+            // own because this is the "how is the network under this
+            // pane" slot, and a second toggle would make the user work
+            // out which transport they were on before knowing which one
+            // to turn on. It has no round trip to report, so it reports
+            // silence, exactly as the SSH arm already does when its
+            // probe goes unanswered.
             if self.prefs.status_show_latency
-                && let Some(ssh) = pane.session.as_ref().and_then(|s| s.ssh())
-                && let Some(segment) =
-                    latency_segment(&ssh.net_quality(), self.pane_shares_connection(pane))
+                && let Some(transport) = pane.session.as_ref()
             {
-                items.push(segment);
-                items.push(Space::new().width(12).into());
+                let segment = if let Some(ssh) = transport.ssh() {
+                    latency_segment(&ssh.net_quality(), self.pane_shares_connection(pane))
+                } else {
+                    transport.mosh().and_then(|m| mosh_link_segment(m.link_state()))
+                };
+                if let Some(segment) = segment {
+                    items.push(segment);
+                    items.push(Space::new().width(12).into());
+                }
             }
             if self.prefs.status_show_dimensions
                 && let Ok(term) = pane.terminal.lock()
@@ -442,6 +462,56 @@ fn latency_segment(
     Some(crate::views::terminal::icon_tooltip_owned(segment, tip))
 }
 
+/// Colour and text for a mosh link, or `None` while it is in touch.
+///
+/// Silence IS the reading here, rather than a fallback for when the
+/// measurement is missing: mosh reports no round trip, and the number
+/// people actually want from it is how long it has been out of touch.
+/// Its own client shows exactly this and nothing when the link is fine.
+///
+/// Amber, where the SSH arm's stall is red, and the difference is not
+/// cosmetic. A silent SSH session is very probably a dead one; a silent
+/// mosh session is a working one whose network is away, which is the
+/// case the protocol was built for. Red would report a loss that has not
+/// happened.
+fn mosh_link_reading(state: oryxis_mosh::LinkState) -> Option<(String, Color)> {
+    let (key, ms) = match state {
+        oryxis_mosh::LinkState::Healthy => return None,
+        oryxis_mosh::LinkState::NoContact { ms } => ("net_no_contact", ms),
+        oryxis_mosh::LinkState::NoReply { ms } => ("net_no_reply", ms),
+    };
+    let text = crate::i18n::t(key).replace("{t}", &elapsed_short(ms / 1000));
+    Some((text, OryxisColors::t().warning))
+}
+
+/// Elapsed seconds as a status bar can afford to print them: `12s`, then
+/// `5:12`, then `1:05:12`. A link that has been away for five minutes
+/// reading `312s` is a number the reader has to do arithmetic on.
+fn elapsed_short(seconds: u64) -> String {
+    if seconds < 60 {
+        format!("{seconds}s")
+    } else if seconds < 3600 {
+        format!("{}:{:02}", seconds / 60, seconds % 60)
+    } else {
+        format!("{}:{:02}:{:02}", seconds / 3600, (seconds / 60) % 60, seconds % 60)
+    }
+}
+
+/// The mosh link segment, with what silence actually means on hover.
+///
+/// The tooltip is the half that stops the amber from reading as a
+/// failure: a session out of touch is still there, with its shell and
+/// its scrollback, and it picks up where it left off. Nobody guesses
+/// that from a coloured dot.
+fn mosh_link_segment(state: oryxis_mosh::LinkState) -> Option<Element<'static, Message>> {
+    let (value, color) = mosh_link_reading(state)?;
+    let segment = vital(crate::i18n::t("status_link"), value, color);
+    Some(crate::views::terminal::icon_tooltip_owned(
+        segment,
+        crate::i18n::t("net_mosh_quiet_tip").to_string(),
+    ))
+}
+
 fn vital(label: &str, value: String, color: Color) -> Element<'static, Message> {
     crate::widgets::dir_row(vec![
         text(label.to_string())
@@ -622,5 +692,46 @@ mod tests {
     fn the_reading_is_in_milliseconds() {
         let (text, _) = latency_reading(&snapshot(Some(42), None)).unwrap();
         assert_eq!(text, "42 ms");
+    }
+
+    /// mosh's client says nothing while the link is fine, and so does
+    /// this: the reading answers a question, it is not a status display.
+    #[test]
+    fn a_mosh_link_in_touch_renders_nothing() {
+        assert!(mosh_link_reading(oryxis_mosh::LinkState::Healthy).is_none());
+    }
+
+    /// A silent mosh session is a WORKING session whose network is
+    /// away, so it must not borrow the colour the bar uses for a
+    /// connection that is gone.
+    #[test]
+    fn a_quiet_mosh_link_reads_amber_not_red() {
+        let c = OryxisColors::t();
+        let (_, color) =
+            mosh_link_reading(oryxis_mosh::LinkState::NoContact { ms: 30_000 }).unwrap();
+        assert_eq!(color, c.warning);
+        assert_ne!(color, c.error);
+    }
+
+    /// The two directions are different failures and the segment has to
+    /// name the one that happened.
+    #[test]
+    fn the_two_directions_read_differently() {
+        let (contact, _) =
+            mosh_link_reading(oryxis_mosh::LinkState::NoContact { ms: 12_000 }).unwrap();
+        let (reply, _) =
+            mosh_link_reading(oryxis_mosh::LinkState::NoReply { ms: 12_000 }).unwrap();
+        assert_ne!(contact, reply, "both directions said the same thing");
+    }
+
+    #[test]
+    fn elapsed_grows_units_rather_than_digits() {
+        assert_eq!(elapsed_short(0), "0s");
+        assert_eq!(elapsed_short(59), "59s");
+        assert_eq!(elapsed_short(60), "1:00");
+        assert_eq!(elapsed_short(312), "5:12");
+        assert_eq!(elapsed_short(3599), "59:59");
+        assert_eq!(elapsed_short(3600), "1:00:00");
+        assert_eq!(elapsed_short(3912), "1:05:12");
     }
 }

@@ -14,10 +14,10 @@
 //! opinion about the screen rather than two. See [`crate::screen`].
 
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::time::Duration;
 
-use mosh_rs::{Base64Key, MoshSession as Protocol};
+use mosh_rs::{Base64Key, LinkHealth, MoshSession as Protocol};
 use tokio::sync::mpsc;
 
 /// The screen the protocol keeps its states on. See the module note.
@@ -30,6 +30,69 @@ type Screen = crate::screen::AlacrittyScreen;
 /// idle session goes between looking at its own clock, which is what
 /// keeps the link-health figures moving on a link that has gone quiet.
 const IDLE_TICK: Duration = Duration::from_millis(100);
+
+/// Nothing heard from the server for this long and the link is worth
+/// mentioning.
+///
+/// mosh's own client thresholds (`terminaloverlay.cc`), which is the
+/// point: a user who knows mosh should find Oryxis saying the same thing
+/// at the same moment, and the numbers are tuned against a protocol that
+/// heartbeats several times a second.
+const SERVER_LATE_MS: u64 = 6_500;
+
+/// Nothing WE sent acknowledged for this long, same.
+///
+/// Longer than [`SERVER_LATE_MS`] because an acknowledgement only comes
+/// back when there was something to acknowledge; a link nobody is typing
+/// on takes longer to prove itself broken in this direction.
+const REPLY_LATE_MS: u64 = 10_000;
+
+/// What a mosh link's silence means, once it has gone on long enough to
+/// be worth saying.
+///
+/// Two clocks, because the link fails in two different ways and naming
+/// the wrong one sends someone debugging in the wrong direction: nothing
+/// arriving at all is [`LinkState::NoContact`], while things arriving
+/// with nothing we send acknowledged is [`LinkState::NoReply`], which is
+/// what a one-way path looks like.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LinkState {
+    /// In touch. mosh says nothing at all here, and neither do we: the
+    /// reading is an answer to a question the user is already asking,
+    /// not a status display.
+    Healthy,
+    /// Nothing has arrived at all.
+    NoContact {
+        /// How long the server has been silent, in milliseconds.
+        ms: u64,
+    },
+    /// Things arrive, but nothing we sent is being acknowledged: the
+    /// path back is the broken one.
+    NoReply {
+        /// How long our own state has gone unacknowledged, in
+        /// milliseconds.
+        ms: u64,
+    },
+}
+
+/// Read a link's health as one of the three things worth reporting.
+///
+/// `NoContact` wins a tie because it is the broader failure: a link
+/// nothing arrives on is not acknowledging us either, and reporting the
+/// narrower "no reply" there would describe a one-way path that is
+/// actually a dead one.
+#[must_use]
+pub fn classify(health: LinkHealth) -> LinkState {
+    let no_contact = health.since_heard_ms > SERVER_LATE_MS;
+    let no_reply = health.since_ack_ms > REPLY_LATE_MS;
+    if no_contact {
+        LinkState::NoContact { ms: health.since_heard_ms }
+    } else if no_reply {
+        LinkState::NoReply { ms: health.since_ack_ms }
+    } else {
+        LinkState::Healthy
+    }
+}
 
 /// Why a session could not be started or could not go on.
 #[derive(Debug, thiserror::Error)]
@@ -55,6 +118,18 @@ pub struct MoshSession {
     /// driving task says goodbye to the server rather than vanishing
     /// and leaving it to time out with a shell still open.
     closing: Arc<AtomicBool>,
+    /// The link's two clocks, republished by the driving task every
+    /// cycle.
+    ///
+    /// Copies rather than a reference to the protocol, because the
+    /// protocol is OWNED by that task and the interface has to read this
+    /// from `view()`. Atomics rather than a lock for the same reason: a
+    /// render pass that could block behind the network is a render pass
+    /// that stutters when the network is exactly what has gone wrong.
+    /// The task loops at least every [`IDLE_TICK`], so these are never
+    /// more than that stale.
+    since_heard_ms: Arc<AtomicU64>,
+    since_ack_ms: Arc<AtomicU64>,
 }
 
 impl MoshSession {
@@ -89,6 +164,8 @@ impl MoshSession {
         let (resize_tx, resize_rx) = mpsc::unbounded_channel::<(u16, u16)>();
         let alive = Arc::new(AtomicBool::new(true));
         let closing = Arc::new(AtomicBool::new(false));
+        let since_heard_ms = Arc::new(AtomicU64::new(0));
+        let since_ack_ms = Arc::new(AtomicU64::new(0));
 
         tokio::spawn(drive(
             protocol,
@@ -97,9 +174,34 @@ impl MoshSession {
             resize_rx,
             Arc::clone(&alive),
             Arc::clone(&closing),
+            Health {
+                since_heard_ms: Arc::clone(&since_heard_ms),
+                since_ack_ms: Arc::clone(&since_ack_ms),
+            },
         ));
 
-        Ok((Self { writer_tx, resize_tx, alive, closing }, output_rx))
+        Ok((
+            Self { writer_tx, resize_tx, alive, closing, since_heard_ms, since_ack_ms },
+            output_rx,
+        ))
+    }
+
+    /// How long the link has been quiet, in each direction.
+    ///
+    /// Cheap enough to call from a render pass, which is where it is
+    /// called from.
+    #[must_use]
+    pub fn link_health(&self) -> LinkHealth {
+        LinkHealth {
+            since_heard_ms: self.since_heard_ms.load(Ordering::SeqCst),
+            since_ack_ms: self.since_ack_ms.load(Ordering::SeqCst),
+        }
+    }
+
+    /// [`classify`] of this session's current health.
+    #[must_use]
+    pub fn link_state(&self) -> LinkState {
+        classify(self.link_health())
     }
 
     /// Send what the user typed.
@@ -144,6 +246,12 @@ impl MoshSession {
     }
 }
 
+/// The two clocks the driving task republishes for readers outside it.
+struct Health {
+    since_heard_ms: Arc<AtomicU64>,
+    since_ack_ms: Arc<AtomicU64>,
+}
+
 /// The task that owns the protocol session.
 ///
 /// Everything the session needs to be told arrives on a channel, and
@@ -157,6 +265,7 @@ async fn drive(
     mut resize_rx: mpsc::UnboundedReceiver<(u16, u16)>,
     alive: Arc<AtomicBool>,
     closing: Arc<AtomicBool>,
+    health: Health,
 ) {
     let mut said_goodbye = false;
     loop {
@@ -189,6 +298,14 @@ async fn drive(
             break;
         }
 
+        // Published every cycle rather than on change, because the
+        // interesting value is the one that grows while NOTHING happens:
+        // a link that has gone quiet produces no event to hang an update
+        // on, and that silence is precisely what is worth reporting.
+        let reading = protocol.link_health();
+        health.since_heard_ms.store(reading.since_heard_ms, Ordering::SeqCst);
+        health.since_ack_ms.store(reading.since_ack_ms, Ordering::SeqCst);
+
         // What the terminal is missing, and nothing more. Empty on most
         // passes, which is what makes a retransmitted frame free.
         let frame = protocol.render();
@@ -214,6 +331,43 @@ mod tests {
         assert!(matches!(opened, Err(MoshError::BadKey)));
     }
 
+    fn health(heard: u64, ack: u64) -> LinkHealth {
+        LinkHealth { since_heard_ms: heard, since_ack_ms: ack }
+    }
+
+    #[test]
+    fn a_link_in_touch_reports_nothing() {
+        assert_eq!(classify(health(0, 0)), LinkState::Healthy);
+        assert_eq!(classify(health(6_500, 10_000)), LinkState::Healthy);
+    }
+
+    /// The boundaries belong to the healthy side, so a link sitting
+    /// exactly on one never reads worse than it is.
+    #[test]
+    fn each_clock_crosses_at_its_own_threshold() {
+        assert_eq!(classify(health(6_501, 0)), LinkState::NoContact { ms: 6_501 });
+        assert_eq!(classify(health(0, 10_001)), LinkState::NoReply { ms: 10_001 });
+    }
+
+    /// The whole reason there are two clocks: a link nothing arrives on
+    /// is not acknowledging us either, so reporting "no reply" there
+    /// would describe a one-way path when the path is dead in both
+    /// directions, and send someone debugging the wrong half.
+    #[test]
+    fn silence_in_both_directions_reads_as_no_contact() {
+        assert_eq!(
+            classify(health(30_000, 30_000)),
+            LinkState::NoContact { ms: 30_000 }
+        );
+    }
+
+    /// Things arriving while nothing we sent is acknowledged IS the
+    /// narrow case, and it has to survive the branch above.
+    #[test]
+    fn a_one_way_path_reads_as_no_reply() {
+        assert_eq!(classify(health(200, 15_000)), LinkState::NoReply { ms: 15_000 });
+    }
+
     #[tokio::test]
     async fn a_session_with_nowhere_to_go_still_opens_and_stays_alive() {
         // Pointed at a port nothing answers on. mosh is a protocol for
@@ -233,5 +387,26 @@ mod tests {
         session.resize(100, 30);
         tokio::time::sleep(Duration::from_millis(50)).await;
         assert!(session.is_alive(), "silence is not the end of a mosh session");
+    }
+
+    /// The clock has to advance with no server, no packets and nobody
+    /// typing, because that is the only condition under which anyone
+    /// looks at it. A reading that only moved when something arrived
+    /// would read healthy forever on a link that had stopped.
+    #[tokio::test]
+    async fn the_quiet_clock_runs_with_nothing_arriving() {
+        let (session, _rx) =
+            MoshSession::connect("127.0.0.1", 1, "AAAAAAAAAAAAAAAAAAAAAA", 80, 24)
+                .expect("a socket is all it takes to start");
+        // Two idle cycles' worth, so the reading is one the driving task
+        // published rather than the zero it was born with.
+        tokio::time::sleep(IDLE_TICK * 3).await;
+        let first = session.link_health().since_heard_ms;
+        assert!(first > 0, "the clock never started: {first} ms");
+        tokio::time::sleep(IDLE_TICK * 3).await;
+        assert!(
+            session.link_health().since_heard_ms > first,
+            "the clock stopped at {first} ms",
+        );
     }
 }

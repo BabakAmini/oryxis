@@ -31,4 +31,4 @@ pub mod session;
 
 pub use bootstrap::{BootstrapError, Handover, ServerCommand, parse};
 pub use screen::AlacrittyScreen;
-pub use session::{MoshError, MoshSession};
+pub use session::{LinkState, MoshError, MoshSession, classify};
