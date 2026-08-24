@@ -222,6 +222,31 @@ impl Oryxis {
                 tracing::info!("OS detected for {}: {:?}", conn_id, os);
             }
             SshMessage::SshDisconnected(pane_id) => {
+                // A disconnect for a pane whose transport is ALIVE is a
+                // notification from a session this pane no longer has.
+                // The mosh handover makes that ordinary rather than
+                // exotic: the SSH stream that dialled the pane is still
+                // running when the handover closes the SSH session it
+                // started, so it reports the death of a connection the
+                // pane replaced a moment earlier. Marking the pane
+                // disconnected there is wrong twice over, because the
+                // session it names is working and the one that died was
+                // meant to.
+                //
+                // The test is the pane's own transport rather than which
+                // session sent this, because a stale disconnect looks
+                // the same however it arose: an in-place reconnect that
+                // landed while the old session was still tearing down
+                // reaches here too.
+                if self
+                    .tabs
+                    .iter()
+                    .find_map(|t| t.pane_grid.panes.values().find(|p| p.id == pane_id))
+                    .and_then(|p| p.session.as_ref())
+                    .is_some_and(|s| s.is_alive())
+                {
+                    return Task::none();
+                }
                 // Persist whatever this pane recorded before we mark the
                 // log ended; otherwise the tail of the session is lost.
                 self.flush_session_logs_final();

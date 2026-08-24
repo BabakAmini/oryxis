@@ -149,6 +149,21 @@ impl Oryxis {
             // only be a second thing to die.
             ssh.close();
 
+            // Wipe what SSH left on the pane, because mosh's model of
+            // the screen starts BLANK and it only ever sends the
+            // difference against that. The SSH session opened a shell of
+            // its own on the way in, so the pane is already carrying a
+            // login banner and a prompt that mosh will never mention
+            // again: they would sit there under the real session for the
+            // rest of its life. Clearing makes the pane match the model,
+            // which is the whole contract the diff depends on.
+            let _ = sender
+                .send(Message::Terminal(TerminalMessage::PtyOutput(
+                    pane_id,
+                    b"\x1b[H\x1b[2J\x1b[3J\x1b[m".to_vec(),
+                )))
+                .await;
+
             let transport = TerminalTransport::Mosh(Arc::new(session));
             let _ = sender
                 .send(Message::Ssh(SshMessage::SshConnected(pane_id, transport)))
