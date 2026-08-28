@@ -25,6 +25,12 @@ expect "SSH Agent"
 # bounds with `texts` when it drifts again; the label sits ~16 px above
 # the toggle's centre.
 click (1141, 395)
+# The agent runtime is a LISTENER, so from here on the boot task never
+# reports done and every instruction waits out the per-instruction
+# timeout instead. Same reason terminal-primary-selection.ice drops it
+# once a PTY is live; declared here rather than in the header so the
+# steps above keep the patient default. Measured: 63s -> 18s.
+timeout 5000
 settle 300
 click "SSH Agent"
 expect "Confirm each use"

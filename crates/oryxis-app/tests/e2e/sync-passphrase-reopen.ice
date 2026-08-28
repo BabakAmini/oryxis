@@ -27,6 +27,12 @@ settle
 click "Features & Plugins"
 settle
 click (1338, 207)
+# Enabling sync mounts an engine that keeps running, so from here on no
+# instruction reports done and each one waits out the per-instruction
+# timeout instead. Same rule the agent and PTY tests follow; declared
+# here rather than in the header so the steps above keep the patient
+# default. Measured: 91s -> 30s.
+timeout 5000
 settle
 # The sidebar gained "Sync" under SFTP (fixed-height rows: y 418).
 click (60, 418)
