@@ -280,3 +280,78 @@ fn sftp_state_unsaved_covers_edit_watches() {
     st.edit_watches.clear();
     assert!(!crate::sftp_methods::sftp_state_has_unsaved(&st));
 }
+
+// --- SFTP console gating (issue #188) --------------------------------
+
+/// A console dials through `start_ssh_tab`, and `start_ssh_tab` forwards
+/// every non-SSH protocol to its own connect path. None of those reach
+/// `SshConnected`, so a console asked for on one would never open AND
+/// its one-shot purpose flag would never be consumed: the next ordinary
+/// SSH tab would be born a console. The gate is what prevents both.
+#[test]
+fn only_ssh_hosts_can_carry_a_console() {
+    use oryxis_core::models::connection::ConnectionProtocol;
+
+    let mut conn = oryxis_core::models::Connection::new("host", "example.com");
+    conn.protocol = ConnectionProtocol::Ssh;
+    assert!(Oryxis::host_can_console(&conn));
+
+    for protocol in [
+        ConnectionProtocol::Telnet,
+        ConnectionProtocol::Raw,
+        ConnectionProtocol::Serial,
+        ConnectionProtocol::Local,
+        ConnectionProtocol::RemoteDesktop,
+    ] {
+        conn.protocol = protocol;
+        assert!(
+            !Oryxis::host_can_console(&conn),
+            "{protocol:?} offered a console"
+        );
+    }
+}
+
+/// A mosh host branches ONE LINE ABOVE the console in `SshConnected`,
+/// deliberately, because mosh closes the SSH session it is handed. So
+/// asking for a console on one would silently deliver a mosh shell. An
+/// open mosh tab is already covered by `transport.ssh()` answering None;
+/// this is what covers the host card, where there is no tab to ask.
+#[test]
+fn a_mosh_host_does_not_offer_a_console() {
+    let mut conn = oryxis_core::models::Connection::new("host", "example.com");
+    conn.protocol = oryxis_core::models::connection::ConnectionProtocol::Ssh;
+    assert!(Oryxis::host_can_console(&conn));
+
+    conn.mosh = Some(oryxis_core::models::mosh::MoshOptions::default());
+    assert!(!Oryxis::host_can_console(&conn));
+}
+
+/// The invariant the compiler cannot hold: a pane's purpose has to
+/// survive `spawn_ssh_for_pane_conn` rebuilding its session in place,
+/// or a console whose link dropped comes back as a SHELL, changing what
+/// the tab is without anybody asking. Both values are legal at every
+/// point, so only a test can say which one is right.
+#[test]
+fn a_panes_purpose_survives_a_session_rebuild() {
+    use crate::state::{Pane, PanePurpose};
+
+    let terminal = std::sync::Arc::new(std::sync::Mutex::new(
+        oryxis_terminal::widget::TerminalState::new_no_pty(80, 24).expect("terminal"),
+    ));
+    let mut pane = Pane::new("console".to_string(), std::sync::Arc::clone(&terminal));
+    assert_eq!(pane.purpose, PanePurpose::Shell, "wrong default");
+
+    pane.purpose = PanePurpose::SftpConsole;
+    // What an in-place reconnect actually replaces: the transport and
+    // the emulator behind the pane. Everything else, this field
+    // included, is the pane's own identity and must ride through.
+    pane.session = None;
+    pane.terminal = std::sync::Arc::new(std::sync::Mutex::new(
+        oryxis_terminal::widget::TerminalState::new_no_pty(80, 24).expect("terminal"),
+    ));
+    assert_eq!(
+        pane.purpose,
+        PanePurpose::SftpConsole,
+        "a reconnected console came back as a shell"
+    );
+}

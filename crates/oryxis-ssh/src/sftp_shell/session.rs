@@ -399,20 +399,21 @@ async fn complete(
     state: &ShellState,
     editor: &mut LineEditor,
 ) -> Vec<u8> {
+    // Three cases, and the first version collapsed two of them: NO slash
+    // typed (complete against the working directory) is not the same as
+    // a slash typed with nothing before it (complete against the ROOT).
+    // Conflating them made `/var<Tab>` list the working directory and
+    // then replace the typed `/var` with a relative `var`, quietly
+    // corrupting the line the user was editing.
     let (dir, prefix) = match word.rsplit_once('/') {
-        Some((dir, prefix)) => (dir.to_string(), prefix.to_string()),
-        None => (String::new(), word.to_string()),
+        Some((dir, prefix)) => (Some(dir.to_string()), prefix.to_string()),
+        None => (None, word.to_string()),
     };
-    let listing_dir = if dir.is_empty() {
-        state.remote_cwd.clone()
-    } else if dir.starts_with('/') {
-        if dir.is_empty() {
-            "/".to_string()
-        } else {
-            dir.clone()
-        }
-    } else {
-        format!("{}/{}", state.remote_cwd.trim_end_matches('/'), dir)
+    let listing_dir = match dir.as_deref() {
+        None => state.remote_cwd.clone(),
+        Some("") => "/".to_string(),
+        Some(d) if d.starts_with('/') => d.to_string(),
+        Some(d) => format!("{}/{}", state.remote_cwd.trim_end_matches('/'), d),
     };
     let Ok(entries) = client.list_dir(&listing_dir).await else {
         return Vec::new();
@@ -433,20 +434,24 @@ async fn complete(
     let completed = if matches.len() == 1 {
         let only = matches[0];
         let sep = if only.is_dir { "/" } else { " " };
-        format!("{}{}{}", rebuild(&dir, &only.name), "", sep)
+        format!("{}{sep}", rebuild(dir.as_deref(), &only.name))
     } else {
-        rebuild(&dir, &common)
+        rebuild(dir.as_deref(), &common)
     };
     editor.apply_completion(&completed)
 }
 
 /// Put a completed name back under the directory the user had typed, so
 /// `get /var/lo<Tab>` becomes `/var/log/` rather than `log/`.
-fn rebuild(dir: &str, name: &str) -> String {
-    if dir.is_empty() {
-        name.to_string()
-    } else {
-        format!("{dir}/{name}")
+/// `None` means no slash was typed, so the name stands alone.
+/// `Some("")` means a leading slash and nothing else, so the name
+/// belongs under the ROOT: returning it bare there would turn an
+/// absolute path the user typed into a relative one.
+fn rebuild(dir: Option<&str>, name: &str) -> String {
+    match dir {
+        None => name.to_string(),
+        Some("") => format!("/{name}"),
+        Some(d) => format!("{d}/{name}"),
     }
 }
 
@@ -682,7 +687,16 @@ mod tests {
 
     #[test]
     fn rebuild_puts_the_name_back_under_its_directory() {
-        assert_eq!(rebuild("/var/lo", "log"), "/var/lo/log");
-        assert_eq!(rebuild("", "access.log"), "access.log");
+        assert_eq!(rebuild(Some("/var/lo"), "log"), "/var/lo/log");
+        assert_eq!(rebuild(None, "access.log"), "access.log");
+    }
+
+    /// A leading slash with nothing before it is the ROOT, not "no
+    /// directory". Confusing the two replaced the `/var` the user had
+    /// typed with a relative `var`.
+    #[test]
+    fn rebuild_keeps_an_absolute_path_absolute() {
+        assert_eq!(rebuild(Some(""), "var"), "/var");
+        assert_ne!(rebuild(Some(""), "var"), rebuild(None, "var"));
     }
 }

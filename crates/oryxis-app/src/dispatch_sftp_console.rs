@@ -43,6 +43,13 @@ impl Oryxis {
         conn: oryxis_core::models::Connection,
         start_dir: Option<String>,
     ) -> iced::Task<Message> {
+        // Checked again here even though every caller filters already,
+        // because what is at stake is a flag that only the SSH dial path
+        // consumes: setting it for a host that will not take that path
+        // leaves it armed for whatever opens next.
+        if !Self::host_can_console(&conn) {
+            return iced::Task::none();
+        }
         // Consumed by `start_ssh_tab` when it builds the pane, and by
         // `begin_sftp_console` when the dial lands. One-shot, like every
         // other hint of this shape in the app.
@@ -74,11 +81,36 @@ impl Oryxis {
             _ => return None,
         };
         let conn = self.connections.iter().find(|c| c.id == conn_id)?.clone();
+        if !Self::host_can_console(&conn) {
+            return None;
+        }
         // The shell's own directory, when it reported one. This is the
         // trick SecureCRT's SFTP tab needs an escape sequence for; OSC 7
         // already told us.
         let dir = pane.cwd.clone().filter(|d| d.starts_with('/'));
         Some((conn, dir))
+    }
+
+    /// Whether a host can carry an SFTP console at all.
+    ///
+    /// Two exclusions, and both are about the dial landing somewhere
+    /// else than where the console waits:
+    ///
+    /// - **Not SSH.** `start_ssh_tab` forwards every other protocol to
+    ///   its own connect path, none of which reaches `SshConnected`, so
+    ///   the console would never open AND the one-shot purpose flag
+    ///   would never be consumed. The next ordinary SSH tab would then
+    ///   be born a console: a hint that outlived its request, which is
+    ///   the failure this app documents in three other places.
+    /// - **mosh.** A mosh host branches one line ABOVE the console in
+    ///   `SshConnected`, deliberately, because mosh closes the SSH
+    ///   session it is handed. So asking for a console on one would
+    ///   silently deliver a mosh shell instead. `transport.ssh()`
+    ///   already keeps the entry off an OPEN mosh tab; this is what
+    ///   keeps it off the host card, where there is no tab to ask.
+    pub(crate) fn host_can_console(conn: &oryxis_core::models::Connection) -> bool {
+        conn.protocol == oryxis_core::models::connection::ConnectionProtocol::Ssh
+            && conn.mosh.is_none()
     }
 
     /// What a pane's session is for. `Shell` for anything that never

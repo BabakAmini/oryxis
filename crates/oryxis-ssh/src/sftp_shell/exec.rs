@@ -571,6 +571,7 @@ async fn get(
     state: &ShellState,
     out: &mut impl ConsoleSink,
 ) -> Result<(), SshError> {
+    report_unsupported(&opts, "get", out);
     let sources = expand_remote(&remote, client, state).await?;
     // A named destination only makes sense for a single source; with
     // several it would mean overwriting the same file N times, so it
@@ -594,13 +595,6 @@ async fn get(
         // reading a counter nobody feeds, so the bar would sit at zero
         // for the whole transfer and jump to done at the end.
         let counter = Arc::new(AtomicU64::new(0));
-        // `-a` is accepted and does nothing here on purpose: the
-        // download path decides resume for itself (it can verify the
-        // tail it is resuming from, see `download_to_progress`), so the
-        // flag would be a second opinion about a decision that is
-        // already correct. Upload is the direction where it matters,
-        // because there the destination is not ours to truncate.
-        let _ = opts;
         transfer(
             &base,
             size,
@@ -622,6 +616,7 @@ async fn put(
     state: &ShellState,
     out: &mut impl ConsoleSink,
 ) -> Result<(), SshError> {
+    report_unsupported(&opts, "put", out);
     let sources = expand_local(&local, state).await?;
     let multiple = sources.len() > 1;
     for source in sources {
@@ -666,6 +661,31 @@ async fn put(
         .await?;
     }
     Ok(())
+}
+
+/// Say which accepted flags this build does not act on.
+///
+/// The alternative is what the first version did: take `-r` and quietly
+/// transfer nothing, so `get -r logs` failed with a stat error naming a
+/// file the user never mentioned. A flag that is parsed and ignored is
+/// worse than one that is rejected, because the user has no way to tell
+/// which happened.
+///
+/// `-a` is NOT listed for `get` and that is not an omission: the
+/// download path decides resume for itself and can verify the tail it
+/// resumes from, so the flag asks for something already being done.
+/// On `put` it is honoured, because there the destination belongs to
+/// someone else and resume has to be asked for.
+fn report_unsupported(opts: &XferOpts, cmd: &str, out: &mut impl ConsoleSink) {
+    if opts.recursive {
+        line(out, &format!("{cmd}: -r is not supported yet, skipping it"));
+    }
+    if opts.preserve {
+        line(out, &format!("{cmd}: -p is not supported yet, skipping it"));
+    }
+    if opts.fsync {
+        line(out, &format!("{cmd}: -f is not supported yet, skipping it"));
+    }
 }
 
 async fn is_remote_dir(client: &SftpClient, path: &str) -> bool {
