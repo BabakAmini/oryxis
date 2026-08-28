@@ -354,6 +354,10 @@ coming next, see the [Roadmap](../README.md#roadmap).
   the surface can detach into its own tab.
 - **Drag-and-drop uploads.** Drop files from any OS file manager onto the
   remote pane; drag rows between panes to upload or download.
+- **Drops into a container.** A host whose shell runs inside a container
+  can carry dropped files over ZMODEM (`rz`) instead of SFTP, per host,
+  so the upload lands in the container's own working directory rather
+  than on the host filesystem SFTP reaches.
 - **Multi-select.** Ctrl/Cmd-click and Shift-range; batch Delete /
   Download / Duplicate / Upload.
 - **Properties dialog.** Per-row chmod grid, size, mtime, owner.

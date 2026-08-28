@@ -1487,6 +1487,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP の開始フォルダー",
         "host_sftp_initial_path_desc" => "このホストの新しい SFTP セッションが開く場所",
         "host_sftp_initial_path_placeholder" => "ログインディレクトリ",
+        "host_zmodem_drops" => "ドロップアップロードを rz (ZMODEM) で行う",
+        "host_zmodem_drops_desc" => "ドラッグ＆ドロップのアップロードは SFTP ではなく rz コマンドとしてシェルに入力されます。このホストのシェルがコンテナ内で動作している場合に有効にしてください：SFTP はホストのファイルシステムに到達しますが、rz はコンテナ内の作業ディレクトリに書き込みます。",
         "sftp_edit_reopen_title" => "このファイルは既に開かれています",
         "sftp_edit_reopen_text" => "「{file}」のローカルコピーが既に編集中です。そのコピーを開き直しますか、それとも破棄してファイルを再ダウンロードしますか？",
         "sftp_edit_reopen_pending" => "ローカルコピーには、まだサーバーに送信されていない変更があります。",

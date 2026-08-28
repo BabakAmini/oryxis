@@ -1572,6 +1572,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP başlangıç klasörü",
         "host_sftp_initial_path_desc" => "Bu sunucunun yeni SFTP oturumunun açılacağı yer",
         "host_sftp_initial_path_placeholder" => "Oturum açma dizini",
+        "host_zmodem_drops" => "Bırakmaları rz (ZMODEM) ile yükle",
+        "host_zmodem_drops_desc" => "Sürükle-bırak yüklemeleri SFTP yerine kabuğa rz olarak yazılır. Bu sunucunun kabuğu bir konteynerde çalışıyorsa açın: SFTP ana makinenin dosya sistemine ulaşır, rz ise konteynerin çalışma dizinine yazar.",
         "sftp_edit_reopen_title" => "Bu dosya zaten açık",
         "sftp_edit_reopen_text" => "'{file}' dosyasının yerel bir kopyası zaten düzenleniyor. O kopyayı yeniden açmak mı, yoksa silip dosyayı yeniden indirmek mi istiyorsunuz?",
         "sftp_edit_reopen_pending" => "Yerel kopyada sunucuya henüz gönderilmemiş değişiklikler var.",

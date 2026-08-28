@@ -462,6 +462,10 @@ pub(crate) struct ConnectionForm {
     /// (empty = the login directory). Maps to
     /// `Connection.sftp_initial_path`.
     pub sftp_initial_path: String,
+    /// Drag-and-drop uploads to this host ride ZMODEM (`rz`) instead of
+    /// SFTP, for shells that run inside a container. Maps to
+    /// `Connection.zmodem_drops`.
+    pub zmodem_drops: bool,
 }
 
 /// One collapsible section of the host editor's two-tier form. The
@@ -1413,6 +1417,7 @@ impl Default for ConnectionForm {
             quirks: oryxis_core::models::terminal_quirks::TerminalQuirks::default(),
             rekey_limit_mb: String::new(),
             sftp_initial_path: String::new(),
+            zmodem_drops: false,
         }
     }
 }

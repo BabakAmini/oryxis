@@ -1487,6 +1487,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP 起始目录",
         "host_sftp_initial_path_desc" => "此主机新建 SFTP 会话时打开的目录",
         "host_sftp_initial_path_placeholder" => "登录目录",
+        "host_zmodem_drops" => "拖拽上传改用 rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "拖拽上传将以 rz 命令输入 shell，而不走 SFTP。当此主机的 shell 运行在容器内时开启：SFTP 只能到达宿主机文件系统，而 rz 会写入容器内的工作目录。",
         "sftp_edit_reopen_title" => "该文件已在编辑中",
         "sftp_edit_reopen_text" => "'{file}' 的本地副本已在编辑中。是重新打开该副本，还是丢弃它并重新下载文件？",
         "sftp_edit_reopen_pending" => "本地副本中有尚未上传到服务器的修改。",

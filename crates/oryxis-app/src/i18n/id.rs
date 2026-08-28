@@ -1572,6 +1572,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Folder awal SFTP",
         "host_sftp_initial_path_desc" => "Tempat sesi SFTP baru host ini dibuka",
         "host_sftp_initial_path_placeholder" => "Direktori login",
+        "host_zmodem_drops" => "Unggah seret-lepas lewat rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Unggahan seret-dan-lepas diketikkan ke shell sebagai rz alih-alih lewat SFTP. Aktifkan bila shell host ini berjalan di dalam kontainer: SFTP menjangkau sistem berkas host, sedangkan rz menulis ke direktori kerja kontainer.",
         "sftp_edit_reopen_title" => "Berkas ini sudah terbuka",
         "sftp_edit_reopen_text" => "Salinan lokal '{file}' sedang diedit. Buka kembali salinan itu, atau hapus dan unduh ulang berkasnya?",
         "sftp_edit_reopen_pending" => "Salinan lokal memiliki perubahan yang belum dikirim ke server.",

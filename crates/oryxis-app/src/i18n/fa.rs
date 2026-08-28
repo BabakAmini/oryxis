@@ -1557,6 +1557,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "پوشهٔ شروع SFTP",
         "host_sftp_initial_path_desc" => "جایی که نشست SFTP تازهٔ این میزبان باز می‌شود",
         "host_sftp_initial_path_placeholder" => "پوشهٔ ورود",
+        "host_zmodem_drops" => "بارگذاری کشیدن‌ورها با rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "بارگذاری‌های کشیدن و رها کردن به‌جای SFTP به صورت دستور rz در شل تایپ می‌شوند. وقتی شل این میزبان داخل یک کانتینر اجرا می‌شود روشن کنید: SFTP به سیستم فایل میزبان می‌رسد اما rz در دایرکتوری کاری کانتینر می‌نویسد.",
         "sftp_edit_reopen_title" => "این فایل از قبل باز است",
         "sftp_edit_reopen_text" => "یک نسخهٔ محلی از «{file}» در حال ویرایش است. همان نسخه باز شود یا حذف و فایل دوباره دانلود شود؟",
         "sftp_edit_reopen_pending" => "نسخهٔ محلی تغییراتی دارد که هنوز به سرور ارسال نشده است.",

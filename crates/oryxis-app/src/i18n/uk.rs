@@ -1572,6 +1572,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Початкова тека SFTP",
         "host_sftp_initial_path_desc" => "Де відкривається новий сеанс SFTP цього хоста",
         "host_sftp_initial_path_placeholder" => "Тека входу",
+        "host_zmodem_drops" => "Вивантажувати перетягування через rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Перетягнуті файли вводяться в оболонку як rz замість SFTP. Увімкніть, якщо оболонка цього хоста працює в контейнері: SFTP сягає файлової системи хоста, а rz пише в робочий каталог контейнера.",
         "sftp_edit_reopen_title" => "Цей файл уже відкрито",
         "sftp_edit_reopen_text" => "Локальна копія «{file}» уже редагується. Відкрити цю копію знову або видалити її та завантажити файл заново?",
         "sftp_edit_reopen_pending" => "У локальній копії є зміни, які ще не надіслані на сервер.",

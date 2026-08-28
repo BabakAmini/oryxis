@@ -1487,6 +1487,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Dossier de départ SFTP",
         "host_sftp_initial_path_desc" => "Où s'ouvre une nouvelle session SFTP de cet hôte",
         "host_sftp_initial_path_placeholder" => "Répertoire de connexion",
+        "host_zmodem_drops" => "Dépôts envoyés via rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Les dépôts par glisser-déposer sont saisis dans le shell comme rz au lieu de passer par SFTP. Activez si le shell de cet hôte tourne dans un conteneur : SFTP atteint le système de fichiers de l'hôte, rz écrit dans le répertoire de travail du conteneur.",
         "sftp_edit_reopen_title" => "Ce fichier est déjà ouvert",
         "sftp_edit_reopen_text" => "Une copie locale de « {file} » est déjà en cours de modification. Réouvrir cette copie, ou la supprimer et télécharger le fichier à nouveau ?",
         "sftp_edit_reopen_pending" => "La copie locale contient des modifications qui n'ont pas encore été envoyées au serveur.",

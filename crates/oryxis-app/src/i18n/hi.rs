@@ -1578,6 +1578,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP प्रारंभिक फ़ोल्डर",
         "host_sftp_initial_path_desc" => "इस होस्ट का नया SFTP सत्र कहाँ खुलता है",
         "host_sftp_initial_path_placeholder" => "लॉगिन डायरेक्टरी",
+        "host_zmodem_drops" => "ड्रॉप अपलोड rz (ZMODEM) से करें",
+        "host_zmodem_drops_desc" => "ड्रैग-एंड-ड्रॉप अपलोड SFTP के बजाय शेल में rz कमांड के रूप में भेजे जाते हैं। अगर इस होस्ट का शेल कंटेनर के अंदर चलता है तो इसे चालू करें: SFTP होस्ट की फ़ाइल प्रणाली तक पहुँचता है, जबकि rz कंटेनर की कार्य डिरेक्टरी में लिखता है।",
         "sftp_edit_reopen_title" => "यह फ़ाइल पहले से खुली है",
         "sftp_edit_reopen_text" => "'{file}' की एक स्थानीय प्रतिलिपि पहले से संपादित हो रही है। उसी प्रतिलिपि को फिर से खोलें, या उसे हटाकर फ़ाइल दोबारा डाउनलोड करें?",
         "sftp_edit_reopen_pending" => "स्थानीय प्रतिलिपि में ऐसे बदलाव हैं जो अभी सर्वर पर नहीं भेजे गए हैं।",

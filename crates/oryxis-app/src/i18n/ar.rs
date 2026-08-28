@@ -1577,6 +1577,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "مجلد بداية SFTP",
         "host_sftp_initial_path_desc" => "المجلد الذي تفتح فيه جلسة SFTP جديدة لهذا المضيف",
         "host_sftp_initial_path_placeholder" => "مجلد تسجيل الدخول",
+        "host_zmodem_drops" => "رفع الملفات المسحوبة عبر rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "تُكتب عمليات الرفع بالسحب والإفلات في الصدفة كأمر rz بدلاً من المرور عبر SFTP. فعّل هذا إذا كانت صدفة هذا المضيف تعمل داخل حاوية: يصل SFTP إلى نظام ملفات المضيف، بينما يكتب rz في مجلد العمل داخل الحاوية.",
         "sftp_edit_reopen_title" => "هذا الملف مفتوح بالفعل",
         "sftp_edit_reopen_text" => "توجد نسخة محلية من «{file}» قيد التحرير. هل تريد إعادة فتح تلك النسخة أم حذفها وتنزيل الملف من جديد؟",
         "sftp_edit_reopen_pending" => "تحتوي النسخة المحلية على تغييرات لم تُرسل إلى الخادم بعد.",

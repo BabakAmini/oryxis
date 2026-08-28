@@ -1474,6 +1474,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Cartella iniziale SFTP",
         "host_sftp_initial_path_desc" => "Dove si apre una nuova sessione SFTP di questo host",
         "host_sftp_initial_path_placeholder" => "Directory di accesso",
+        "host_zmodem_drops" => "Caricamenti drop via rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "I caricamenti drag-and-drop vengono digitati nella shell come rz invece di passare per SFTP. Attiva se la shell di questo host gira in un container: SFTP raggiunge il filesystem dell'host, rz scrive nella directory di lavoro del container.",
         "sftp_edit_reopen_title" => "Questo file è già aperto",
         "sftp_edit_reopen_text" => "Esiste già una copia locale di '{file}' in modifica. Riaprire quella copia, o eliminarla e scaricare di nuovo il file?",
         "sftp_edit_reopen_pending" => "La copia locale contiene modifiche non ancora inviate al server.",

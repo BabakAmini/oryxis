@@ -1578,6 +1578,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "תיקיית הפתיחה של SFTP",
         "host_sftp_initial_path_desc" => "היכן שנפתחת הפעלת SFTP חדשה של מחשב זה",
         "host_sftp_initial_path_placeholder" => "תיקיית ההתחברות",
+        "host_zmodem_drops" => "העלאת שחרורים דרך rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "העלאות גרירה ושחרור מוקלדות למסוף כ־rz במקום לעבור דרך SFTP. הפעל כאשר המסוף של מארח זה רץ בתוך מכולה: SFTP מגיע למערכת הקבצים של המארח, בעוד rz כותב לתיקיית העבודה של המכולה.",
         "sftp_edit_reopen_title" => "הקובץ הזה כבר פתוח",
         "sftp_edit_reopen_text" => "עותק מקומי של '{file}' נמצא כבר בעריכה. לפתוח את העותק הזה מחדש, או למחוק אותו ולהוריד את הקובץ שוב?",
         "sftp_edit_reopen_pending" => "בעותק המקומי יש שינויים שעדיין לא נשלחו לשרת.",

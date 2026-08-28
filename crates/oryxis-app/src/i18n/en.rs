@@ -1579,6 +1579,8 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "host_sftp_initial_path" => "SFTP start folder",
         "host_sftp_initial_path_desc" => "Where a new SFTP mount of this host opens",
         "host_sftp_initial_path_placeholder" => "Login directory",
+        "host_zmodem_drops" => "Upload drops via rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Drag-and-drop uploads are typed into the shell as rz instead of going over SFTP. Turn this on when this host's shell runs inside a container: SFTP reaches the host filesystem, while rz writes into the container's working directory.",
         "sftp_edit_reopen_title" => "This file is already open",
         "sftp_edit_reopen_text" => "A local copy of '{file}' is already being edited. Reopen that copy, or discard it and download the file again?",
         "sftp_edit_reopen_pending" => "The local copy holds a save that has not been sent to the server yet.",

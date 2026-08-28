@@ -1487,6 +1487,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP 起始資料夾",
         "host_sftp_initial_path_desc" => "此主機新的 SFTP 工作階段開啟的位置",
         "host_sftp_initial_path_placeholder" => "登入目錄",
+        "host_zmodem_drops" => "拖拽上傳改用 rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "拖拽上傳將以 rz 命令輸入 shell，而不走 SFTP。當此主機的 shell 執行於容器內時開啟：SFTP 只能到達宿主機檔案系統，而 rz 會寫入容器內的工作目錄。",
         "sftp_edit_reopen_title" => "這個檔案已經開啟",
         "sftp_edit_reopen_text" => "'{file}' 的本機副本已在編輯中。要重新開啟該副本，還是捨棄它並重新下載檔案？",
         "sftp_edit_reopen_pending" => "本機副本有尚未上傳到伺服器的變更。",

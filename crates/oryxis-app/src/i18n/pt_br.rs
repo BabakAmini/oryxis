@@ -1527,6 +1527,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Pasta inicial do SFTP",
         "host_sftp_initial_path_desc" => "Onde uma nova sessão SFTP deste host abre",
         "host_sftp_initial_path_placeholder" => "Diretório de login",
+        "host_zmodem_drops" => "Enviar soltados via rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Os envios por arrastar e soltar são digitados no shell como rz em vez de ir pelo SFTP. Ative quando o shell deste host roda dentro de um contêiner: o SFTP alcança o sistema de arquivos do host, enquanto o rz escreve no diretório de trabalho do contêiner.",
         "sftp_edit_reopen_title" => "Este arquivo já está aberto",
         "sftp_edit_reopen_text" => "Já existe uma cópia local de '{file}' em edição. Reabrir essa cópia ou descartá-la e baixar o arquivo de novo?",
         "sftp_edit_reopen_pending" => "A cópia local tem alterações que ainda não foram enviadas ao servidor.",

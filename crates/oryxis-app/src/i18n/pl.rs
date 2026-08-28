@@ -1582,6 +1582,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Folder startowy SFTP",
         "host_sftp_initial_path_desc" => "Gdzie otwiera się nowa sesja SFTP tego hosta",
         "host_sftp_initial_path_placeholder" => "Katalog logowania",
+        "host_zmodem_drops" => "Wysyłaj upuszczone pliki przez rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Przeciągnięte pliki są wpisywane do powłoki jako rz zamiast przez SFTP. Włącz, gdy powłoka tego hosta działa w kontenerze: SFTP sięga systemu plików hosta, a rz zapisuje w katalogu roboczym kontenera.",
         "sftp_edit_reopen_title" => "Ten plik jest już otwarty",
         "sftp_edit_reopen_text" => "Lokalna kopia pliku „{file}” jest już edytowana. Otworzyć ją ponownie, czy usunąć i pobrać plik od nowa?",
         "sftp_edit_reopen_pending" => "Lokalna kopia zawiera zmiany, które nie zostały jeszcze wysłane na serwer.",

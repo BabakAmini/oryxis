@@ -41,6 +41,9 @@ impl Oryxis {
             EditorMessage::EditorToggleX11Forwarding => {
                 self.editor_form.x11_forwarding = !self.editor_form.x11_forwarding;
             }
+            EditorMessage::EditorToggleZmodemDrops => {
+                self.editor_form.zmodem_drops = !self.editor_form.zmodem_drops;
+            }
             EditorMessage::EditorCycleSessionLogging => {
                 self.editor_form.session_logging = match self.editor_form.session_logging {
                     None => Some(true),

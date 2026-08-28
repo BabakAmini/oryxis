@@ -497,8 +497,10 @@ impl Oryxis {
 }
 
 /// The editor's on/off pill (same shape as the SSH toggles): the
-/// background carries the state, the label says which one it is.
-fn hp_toggle_button<'a>(on: bool, msg: Message) -> Element<'a, Message> {
+/// background carries the state, the label says which one it is, and
+/// hover / press swap it for the accent so the control answers the
+/// pointer like every other button in the app.
+pub(super) fn hp_toggle_button<'a>(on: bool, msg: Message) -> Element<'a, Message> {
     let bg = if on { OryxisColors::t().success } else { OryxisColors::t().bg_hover };
     let fg = crate::theme::contrast_text_for(bg);
     button(

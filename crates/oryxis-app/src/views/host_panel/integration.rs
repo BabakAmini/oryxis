@@ -95,6 +95,45 @@ impl Oryxis {
         .into()
     }
 
+    /// Per-host drop-transport flag (SSH > Integration): drag-and-drop
+    /// uploads ride ZMODEM (`rz` typed into the shell) instead of SFTP,
+    /// for hosts whose interactive shell runs inside a container. SFTP
+    /// always reaches the host filesystem as sshd sees it; the `rz` the
+    /// app types runs where the shell runs and lands in the container's
+    /// own working directory. Off keeps the standard drop routing.
+    ///
+    /// Shaped like the mosh block (`panel_option_row` + the note under
+    /// it) rather than the sibling one-liners: the note runs to several
+    /// lines, and nesting it INSIDE the row centers the icon and the
+    /// pill against the whole block, which leaves the icon beside the
+    /// middle of the text with no label next to it.
+    pub(super) fn hp_row_zmodem_drops(&self, is_ssh: bool) -> Element<'_, Message> {
+        if !is_ssh {
+            return empty();
+        }
+        let msg = Message::Editor(EditorMessage::EditorToggleZmodemDrops);
+        let row = self.panel_nav_slot(
+            crate::keynav::RowAction::activate(msg.clone()),
+            8.0,
+            panel_option_row(
+                iced_fonts::lucide::upload(),
+                t("host_zmodem_drops"),
+                super::basics::hp_toggle_button(self.editor_form.zmodem_drops, msg),
+            ),
+        );
+        container(
+            column![
+                row,
+                text(t("host_zmodem_drops_desc")).size(11).color(OryxisColors::t().text_muted),
+            ]
+            .width(Length::Fill),
+        )
+        // `panel_option_row` carries 4 of its own, so the row keeps the
+        // 8px the sibling toggles sit on.
+        .padding(Padding { top: 4.0, right: 0.0, bottom: 8.0, left: 0.0 })
+        .into()
+    }
+
     /// Per-host agentless monitoring opt-in (SSH > Integration, issue
     /// #83). Same shape as the MCP row: SSH-only, since the probe reads
     /// `/proc` over an exec channel.

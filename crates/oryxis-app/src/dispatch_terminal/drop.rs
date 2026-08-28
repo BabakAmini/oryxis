@@ -17,6 +17,12 @@
 //! | Telnet/Serial  | n/a                | ZMODEM      | toast, skipped |
 //! | local shell    | n/a                | paste path  | paste path     |
 //!
+//! A host's `zmodem_drops` flag forces the ZMODEM row for SSH, whatever
+//! the cwd story: the interactive shell runs inside a container there,
+//! where SFTP (host-bound by construction) cannot follow it, and where
+//! the host shell's OSC 133 busy signal froze at the handover, so the
+//! typed-`rz` guard reads the alternate screen instead of it.
+//!
 //! The OSC 7 gate is strict on purpose: the title-parse cwd fallback is
 //! a heuristic and often `~`-relative, and a guessed directory means
 //! uploading to the wrong place. ZMODEM's `rz` lands in the shell's real
@@ -169,11 +175,25 @@ impl Oryxis {
             && !pane.files.path.is_empty())
         .then(|| pane.files.path.clone());
 
+        // Per-host opt-out of the SFTP path: a host whose interactive
+        // shell runs INSIDE a container (the startup command enters one)
+        // sees its SFTP channel reach the host filesystem, not the
+        // container's. The user's say-so is the connection flag; with it
+        // set, drops fall through to the ZMODEM branch below, whose `rz`
+        // runs where the shell runs and lands in the container's own
+        // working directory. It outranks the sidebar directory too: that
+        // browser rides the same host-bound SFTP.
+        let zmodem_drops = pane
+            .saved_conn_id()
+            .and_then(|id| self.connections.iter().find(|c| c.id == id))
+            .is_some_and(|c| c.zmodem_drops);
+
         // SSH with a visible browser directory or an exact shell cwd:
         // SFTP, files and folders alike, on a subsystem channel of the
         // live handle. Out-of-band: nothing is typed, so this is safe
         // even with a full-screen program up.
-        if let Some(ssh) = session.ssh()
+        if !zmodem_drops
+            && let Some(ssh) = session.ssh()
             && let Some(dest) = sidebar_dir
                 .or_else(|| pane.cwd_from_osc7.then(|| pane.cwd.clone()).flatten())
         {
@@ -198,7 +218,24 @@ impl Oryxis {
         // be running, or the line lands inside vim/less/htop. NoIntegration
         // stays permissive: without OSC 133 there is no busy signal, and
         // refusing would break every host without shell integration.
-        if matches!(pane.prompt, PromptState::Busy) {
+        //
+        // A `zmodem_drops` host gets the alternate-screen test instead:
+        // the flag says the interactive shell runs inside a container,
+        // where the host shell's OSC 133 marks stop the moment the
+        // startup command enters it, leaving `Busy` frozen at the
+        // handover forever (the refusal fired from an idle container
+        // prompt). The alternate screen is still live there — vim /
+        // less / htop raise it wherever they run — so the full-screen
+        // protection stays without the stale false positive.
+        let busy = if zmodem_drops {
+            pane.terminal
+                .lock()
+                .map(|t| t.is_alt_screen())
+                .unwrap_or(false)
+        } else {
+            matches!(pane.prompt, PromptState::Busy)
+        };
+        if busy {
             self.set_toast(crate::i18n::t("terminal_drop_busy").to_string());
             return Task::none();
         }

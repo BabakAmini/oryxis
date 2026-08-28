@@ -48,6 +48,11 @@ pub enum EditorMessage {
     /// Directory a fresh SFTP mount of this host lands in, as typed.
     /// Empty == the login directory (the default).
     EditorSftpInitialPathChanged(String),
+    /// SSH > Integration: flip the per-host "drag-and-drop uploads ride
+    /// ZMODEM (`rz`) instead of SFTP" flag, for shells that run inside
+    /// a container (SFTP reaches the host filesystem, `rz` lands where
+    /// the shell runs).
+    EditorToggleZmodemDrops,
     /// Per-host auto-title (OSC 0/2) selection from the host editor pick:
     /// the localized "Default / Show / Hide" label.
     EditorAutoTitleChanged(String),

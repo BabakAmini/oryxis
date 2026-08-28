@@ -106,6 +106,10 @@ async fn run_plugin(
 
 #[cfg(test)]
 mod tests {
+    // Both tests are Unix-only, so the glob is too: on a Windows host
+    // nothing here references the parent and `-D warnings` refuses the
+    // unused import.
+    #[cfg(unix)]
     use super::*;
 
     /// The render path must clean its temp cast and surface the

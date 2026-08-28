@@ -334,6 +334,17 @@ pub struct Connection {
     /// host out of its own file browser.
     #[serde(default)]
     pub sftp_initial_path: Option<String>,
+    /// OS drag-and-drop onto this host's terminal uploads over ZMODEM
+    /// (`rz` typed into the shell) instead of SFTP. For hosts whose
+    /// interactive shell runs INSIDE a container (the startup command
+    /// enters one: docker exec, a containerised sshd's shell): SFTP
+    /// always reaches the host filesystem as sshd sees it, while the
+    /// `rz` the app types runs where the shell runs and writes into the
+    /// container's own working directory. Off (the default) keeps the
+    /// standard drop routing: SFTP when the shell's cwd is exactly
+    /// known, ZMODEM otherwise.
+    #[serde(default)]
+    pub zmodem_drops: bool,
 }
 
 impl Connection {
@@ -429,6 +440,7 @@ impl Connection {
             highlight_rules: None,
             rekey_limit_mb: None,
             sftp_initial_path: None,
+            zmodem_drops: false,
         }
     }
 }
@@ -1235,6 +1247,28 @@ mod tests {
             let json = serde_json::to_string(&conn).unwrap();
             let de: Connection = serde_json::from_str(&json).unwrap();
             assert_eq!(de.sftp_initial_path, v);
+        }
+    }
+
+    #[test]
+    fn zmodem_drops_legacy_payload_defaults_to_false() {
+        // Old peers and old vault rows carry no such field; a missing one
+        // must read as "standard drop routing", never an error.
+        let conn = Connection::new("legacy", "10.0.0.1");
+        let mut value = serde_json::to_value(&conn).unwrap();
+        value.as_object_mut().unwrap().remove("zmodem_drops");
+        let de: Connection = serde_json::from_value(value).unwrap();
+        assert!(!de.zmodem_drops);
+    }
+
+    #[test]
+    fn zmodem_drops_round_trip() {
+        let mut conn = Connection::new("h", "1.2.3.4");
+        for v in [false, true] {
+            conn.zmodem_drops = v;
+            let json = serde_json::to_string(&conn).unwrap();
+            let de: Connection = serde_json::from_str(&json).unwrap();
+            assert_eq!(de.zmodem_drops, v);
         }
     }
 

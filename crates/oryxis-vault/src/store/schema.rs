@@ -476,6 +476,11 @@ impl VaultStore {
         // = the login directory, the previous behaviour).
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN sftp_initial_path TEXT;");
 
+        // Drag-and-drop uploads to this host ride ZMODEM (`rz`) instead
+        // of SFTP, for shells that run inside a container (0 = standard
+        // drop routing).
+        let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN zmodem_drops INTEGER DEFAULT 0;");
+
         // Per-host X11 forwarding (OpenSSH `ForwardX11`), off by default.
         let _ = self.db.execute_batch("ALTER TABLE connections ADD COLUMN x11_forwarding INTEGER DEFAULT 0;");
 

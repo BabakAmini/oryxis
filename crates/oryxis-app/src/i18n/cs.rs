@@ -1578,6 +1578,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Výchozí složka SFTP",
         "host_sftp_initial_path_desc" => "Kde se otevře nové SFTP připojení k tomuto hostiteli",
         "host_sftp_initial_path_placeholder" => "Přihlašovací adresář",
+        "host_zmodem_drops" => "Nahrávat přetažené soubory přes rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Nahrávání přetažením se zapisuje do shellu jako rz místo přes SFTP. Zapněte, pokud shell tohoto hostitele běží v kontejneru: SFTP dosáhne na souborový systém hostitele, zatímco rz zapisuje do pracovního adresáře kontejneru.",
         "sftp_edit_reopen_title" => "Tento soubor je již otevřený",
         "sftp_edit_reopen_text" => "Místní kopie souboru „{file}“ se už upravuje. Otevřít tuto kopii znovu, nebo ji zahodit a soubor stáhnout znovu?",
         "sftp_edit_reopen_pending" => "Místní kopie obsahuje změny, které ještě nebyly odeslány na server.",

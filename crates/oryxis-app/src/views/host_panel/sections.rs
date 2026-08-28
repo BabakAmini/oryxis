@@ -240,6 +240,9 @@ impl Oryxis {
                 if !form.sftp_initial_path.trim().is_empty() {
                     tokens.push(t("host_sftp_initial_path").into());
                 }
+                if form.zmodem_drops {
+                    tokens.push(t("host_zmodem_drops").into());
+                }
             }
             HostEditorSection::Terminal => {
                 if let Some(theme) = &form.terminal_theme {

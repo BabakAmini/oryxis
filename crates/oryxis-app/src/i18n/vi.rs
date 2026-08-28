@@ -1572,6 +1572,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "Thư mục khởi đầu SFTP",
         "host_sftp_initial_path_desc" => "Nơi mở phiên SFTP mới của máy chủ này",
         "host_sftp_initial_path_placeholder" => "Thư mục đăng nhập",
+        "host_zmodem_drops" => "Tải lên tệp thả bằng rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Các tệp kéo-thả được gõ vào shell dưới dạng rz thay vì qua SFTP. Bật khi shell của máy chủ này chạy trong container: SFTP chạm tới hệ thống tệp của máy chủ, còn rz ghi vào thư mục làm việc của container.",
         "sftp_edit_reopen_title" => "Tệp này đang được mở",
         "sftp_edit_reopen_text" => "Đã có một bản sao cục bộ của '{file}' đang được sửa. Mở lại bản sao đó, hay xoá nó và tải tệp về lại?",
         "sftp_edit_reopen_pending" => "Bản sao cục bộ có thay đổi chưa được gửi lên máy chủ.",

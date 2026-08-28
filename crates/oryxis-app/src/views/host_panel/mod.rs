@@ -428,10 +428,11 @@ impl Oryxis {
                 let row_monitor = self.hp_row_monitor(true);
                 let row_monitor_disks = self.hp_row_monitor_disks(true);
                 let row_sftp_initial_path = self.hp_row_sftp_initial_path(true);
+                let row_zmodem_drops = self.hp_row_zmodem_drops(true);
                 let env_items = self.hp_env_items(true);
                 let startup_block = self.hp_startup_block(true);
                 let login_script_block = self.hp_login_script_block(true);
-                column![row_mcp, row_monitor, row_monitor_disks, row_sftp_initial_path]
+                column![row_mcp, row_monitor, row_monitor_disks, row_sftp_initial_path, row_zmodem_drops]
                     .push(Space::new().height(ROW_GAP))
                     .push(env_items)
                     .push(group_sep())

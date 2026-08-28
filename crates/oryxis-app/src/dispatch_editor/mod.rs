@@ -737,6 +737,13 @@ impl Oryxis {
             let p = self.editor_form.sftp_initial_path.trim();
             (!p.is_empty()).then(|| p.to_string())
         };
+        // SSH-only, like the other transport behaviour flags: `rz` rides
+        // the session's byte stream, which only an SSH shell carries, so
+        // a host switched to Telnet / serial / remote-desktop can't keep
+        // the flag set.
+        conn.zmodem_drops = self.editor_form.protocol
+            == oryxis_core::models::connection::ConnectionProtocol::Ssh
+            && self.editor_form.zmodem_drops;
         // C5: store quirks only when they differ from the xterm default,
         // so an untouched host keeps `quirks = None` (old-payload parity).
         conn.quirks = (self.editor_form.quirks
@@ -1021,6 +1028,7 @@ impl Oryxis {
                 .map(|n| n.to_string())
                 .unwrap_or_default(),
             sftp_initial_path: conn.sftp_initial_path.clone().unwrap_or_default(),
+            zmodem_drops: conn.zmodem_drops,
         }
     }
 
@@ -1141,6 +1149,7 @@ impl Oryxis {
                 | EditorMessage::EditorMonitorDiskChanged(..)
                 | EditorMessage::EditorToggleAgentForwarding
                 | EditorMessage::EditorToggleX11Forwarding
+                | EditorMessage::EditorToggleZmodemDrops
                 | EditorMessage::EditorCycleSessionLogging
                 | EditorMessage::EditorAddEnvVar
                 | EditorMessage::EditorRemoveEnvVar(..)

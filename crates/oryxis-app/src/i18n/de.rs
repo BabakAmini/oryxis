@@ -1474,6 +1474,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP-Startordner",
         "host_sftp_initial_path_desc" => "Wo eine neue SFTP-Sitzung dieses Hosts öffnet",
         "host_sftp_initial_path_placeholder" => "Anmeldeverzeichnis",
+        "host_zmodem_drops" => "Drop-Uploads über rz (ZMODEM)",
+        "host_zmodem_drops_desc" => "Drag-and-Drop-Uploads werden als rz in die Shell eingegeben statt über SFTP. Aktivieren, wenn die Shell dieses Hosts in einem Container läuft: SFTP erreicht das Host-Dateisystem, rz schreibt in das Arbeitsverzeichnis des Containers.",
         "sftp_edit_reopen_title" => "Diese Datei ist bereits geöffnet",
         "sftp_edit_reopen_text" => "Eine lokale Kopie von „{file}“ wird bereits bearbeitet. Diese Kopie erneut öffnen, oder verwerfen und die Datei neu herunterladen?",
         "sftp_edit_reopen_pending" => "Die lokale Kopie enthält Änderungen, die noch nicht an den Server gesendet wurden.",

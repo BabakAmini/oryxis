@@ -838,6 +838,32 @@ fn sftp_initial_path_roundtrips_and_blank_reads_as_none() {
     assert_eq!(vault.list_connections().unwrap()[0].sftp_initial_path, None);
 }
 
+// ── Connection.zmodem_drops ──
+
+#[test]
+fn zmodem_drops_roundtrips_and_defaults_to_off() {
+    // The per-host drop-transport flag is a plain additive column; an
+    // untouched host must read back as off (the standard drop routing).
+    let vault = unlocked_vault();
+    let mut conn = Connection::new("h", "host");
+    vault.save_connection(&conn, None).unwrap();
+    assert!(
+        !vault.list_connections().unwrap()[0].zmodem_drops,
+        "a host that never set the flag reads as off"
+    );
+
+    conn.zmodem_drops = true;
+    vault.save_connection(&conn, None).unwrap();
+    assert!(
+        vault.list_connections().unwrap()[0].zmodem_drops,
+        "the flag must survive a save/list round trip"
+    );
+
+    conn.zmodem_drops = false;
+    vault.save_connection(&conn, None).unwrap();
+    assert!(!vault.list_connections().unwrap()[0].zmodem_drops);
+}
+
 // ── Group.cloud_query ──
 
 // ── Login scripts ──

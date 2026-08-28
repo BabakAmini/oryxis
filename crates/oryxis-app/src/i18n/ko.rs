@@ -1572,6 +1572,8 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "host_sftp_initial_path" => "SFTP 시작 폴더",
         "host_sftp_initial_path_desc" => "이 호스트의 새 SFTP 세션이 열리는 위치",
         "host_sftp_initial_path_placeholder" => "로그인 디렉터리",
+        "host_zmodem_drops" => "드롭 업로드를 rz(ZMODEM)로 수행",
+        "host_zmodem_drops_desc" => "드래그 앤 드롭 업로드가 SFTP 대신 rz 명령으로 셸에 입력됩니다. 이 호스트의 셸이 컨테이너 안에서 실행될 때 켜세요: SFTP는 호스트 파일 시스템에 도달하고, rz는 컨테이너의 작업 디렉터리에 씁니다.",
         "sftp_edit_reopen_title" => "이 파일은 이미 열려 있습니다",
         "sftp_edit_reopen_text" => "'{file}'의 로컬 복사본이 이미 편집 중입니다. 그 복사본을 다시 열까요, 아니면 삭제하고 파일을 다시 다운로드할까요?",
         "sftp_edit_reopen_pending" => "로컬 복사본에 서버로 보내지 않은 변경 사항이 있습니다.",
