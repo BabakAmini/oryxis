@@ -169,6 +169,11 @@ fn main() -> iced::Result {
     let harness_active = harness_options.is_some();
     #[cfg(not(feature = "harness"))]
     let harness_active = false;
+    // Published for the parts of boot that must not reach the network
+    // under an emulated run (see `app::HARNESS_ACTIVE`). Set here, next
+    // to the $HOME redirect, because both answer the same question and
+    // a second place to ask it would eventually disagree.
+    let _ = app::HARNESS_ACTIVE.set(harness_active);
     // A binary built WITHOUT the harness feature must refuse `--harness-*`
     // instead of silently falling through to the windowed app: that
     // fallthrough boots against the caller's REAL $HOME (an agent driving

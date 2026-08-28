@@ -31,6 +31,26 @@ pub static PENDING_DEEP_LINK: OnceLock<String> = OnceLock::new();
 /// no running instance was there to forward it to.
 pub static PENDING_CONNECT_TARGET: OnceLock<String> = OnceLock::new();
 
+/// True when the process was started in one of the headless harness
+/// modes, read from argv in `main.rs` before iced boots. It is the
+/// RUNTIME signal, not the `harness` cargo feature: a binary built
+/// with that feature still runs the ordinary windowed app, which has a
+/// user to serve an update to.
+///
+/// Boot reads it to leave the release lookup alone, and the cost it
+/// avoids is not the request. The batch runner boots the app once per
+/// `.ice` file inside ONE process, so a lookup that starts answering
+/// with a rate limit turns its client timeout into a fixed tax on
+/// every remaining boot, charged while the harness waits for the boot
+/// task to settle. A test also has no business depending on a network
+/// it cannot control.
+pub static HARNESS_ACTIVE: OnceLock<bool> = OnceLock::new();
+
+/// Whether this process is running under the headless harness.
+pub fn harness_active() -> bool {
+    HARNESS_ACTIVE.get().copied().unwrap_or(false)
+}
+
 /// True when this process is currently the primary (owns the system
 /// tray icon). Stored as an AtomicBool rather than OnceLock so the
 /// child-promotion path can flip it at runtime when the previous

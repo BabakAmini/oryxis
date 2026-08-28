@@ -634,7 +634,15 @@ impl Oryxis {
         // already open (no master password), kick off the connect right
         // after boot. When the vault is locked, we defer until VaultUnlock
         // succeeds (handled in that branch).
-        let mut tasks = vec![task, Task::done(Message::Update(UpdateMessage::CheckForUpdate))];
+        let mut tasks = vec![task];
+        // The boot release lookup is for a person to act on, so an
+        // emulated run skips it (`app::HARNESS_ACTIVE`) rather than
+        // waiting on a network it does not control. The handler's own
+        // `auto_check_updates` gate stays the user-facing switch; this
+        // one is about who is watching.
+        if !crate::app::harness_active() {
+            tasks.push(Task::done(Message::Update(UpdateMessage::CheckForUpdate)));
+        }
         // A Windows nightly self-replace that fails after the app has
         // exited has no UI left to report to; the helper leaves a marker
         // in TEMP instead. Surface it here so a failed swap is never
