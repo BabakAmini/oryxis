@@ -1,6 +1,7 @@
 pub mod algorithms;
 pub mod engine;
 pub mod sftp;
+pub mod sftp_shell;
 pub mod x11;
 
 #[cfg(test)]

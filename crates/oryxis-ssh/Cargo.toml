@@ -17,6 +17,12 @@ base64 = { workspace = true }
 # Per-host terminal encoding: transcode PTY bytes <-> UTF-8 for non-UTF-8
 # charsets (Big5, Shift-JIS, CP437, ...). UTF-8 hosts skip it entirely.
 encoding_rs = "0.8"
+# The SFTP console's line editor and listing columns place the cursor by
+# DISPLAY width: a CJK filename advances two columns per character, and
+# counting characters drifts the alignment one column at a time. Already
+# in the lock as a transitive of the terminal stack, so this adds no
+# weight to the build.
+unicode-width = "0.2"
 # X11 forwarding: `dirs` locates `~/.Xauthority`, `getrandom` mints the
 # fake MIT-MAGIC-COOKIE-1 announced to the remote in place of the real one.
 dirs = "6"
