@@ -345,6 +345,11 @@ pub fn default_bindings() -> HotkeyMap {
     // Ctrl+Shift+E (Cmd+Shift+E on macOS): Shift lifts it out of the terminal
     // control-sequence gate, same rationale as OpenLocalShell. Configurable.
     put(&mut m, OpenSftp, primary_ctrl, true, false, primary_logo, Char('e'));
+    // Ctrl+Shift+S (Cmd+Shift+S on macOS): S for SFTP, one key away from
+    // the browser tab's E, and Shift lifts it out of the terminal's
+    // control-sequence gate the same way. Ctrl+S alone would be XOFF to
+    // the far side; with Shift it never reaches it.
+    put(&mut m, OpenSftpConsole, primary_ctrl, true, false, primary_logo, Char('s'));
     put(&mut m, SwitchToTabSlot, primary_ctrl, false, false, primary_logo, Digit1to9);
     put(&mut m, CycleTabs, false, false, true, false, ArrowLeftRight);
     put(&mut m, ToggleFullscreen, false, false, false, false, Named(keyboard::key::Named::F11));

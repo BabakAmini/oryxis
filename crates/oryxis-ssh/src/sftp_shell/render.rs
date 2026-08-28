@@ -23,6 +23,38 @@ use super::parser::LsOpts;
 /// column zero and the output walks off to the right.
 pub const CRLF: &str = "\r\n";
 
+/// OSC 133, the FinalTerm semantic-prompt marks, which the console emits
+/// around its own prompt and commands exactly as a shell with
+/// integration installed would.
+///
+/// It costs four short strings and buys the things that read a session's
+/// STRUCTURE rather than its text: the tab's activity indicator knows a
+/// command is running and whether it failed, and a recording carries the
+/// boundaries a per-command transcript needs. The console is in the rare
+/// position of being able to emit these perfectly, because unlike a
+/// shell it is not guessing where its own prompt ends.
+///
+/// `E` (the command line as parsed, OSC 633) is deliberately NOT emitted.
+/// It feeds the command HISTORY, which is per host and exists to be
+/// re-inserted into a shell, where `get access.log` is not a command.
+/// See `command_capture` for the matching gate on the reading side.
+pub mod marks {
+    /// `A`: a prompt is about to be drawn.
+    pub const PROMPT_START: &str = "\x1b]133;A\x1b\\";
+    /// `B`: the prompt is drawn and the command line starts here.
+    pub const PROMPT_END: &str = "\x1b]133;B\x1b\\";
+    /// `C`: the command is running and what follows is its output.
+    pub const OUTPUT_START: &str = "\x1b]133;C\x1b\\";
+
+    /// `D`: the command finished, with its exit status.
+    pub fn command_end(failed: bool) -> String {
+        // A console command either worked or reported why. There is no
+        // richer status to pass on, so the two values a reader acts on
+        // are the two it gets.
+        format!("\x1b]133;D;{}\x1b\\", i32::from(failed))
+    }
+}
+
 /// Format a size the way `ls -h` does: three significant digits and a
 /// unit suffix. Below 1K there is no suffix, matching `sftp(1)`.
 pub fn human_size(bytes: u64) -> String {
@@ -831,6 +863,63 @@ mod tests {
         assert!(body.contains("50%"), "no percentage: {body:?}");
         assert!(body.contains("1.0K/s"), "no rate: {body:?}");
         assert!(body.contains("ETA"), "no eta: {body:?}");
+    }
+
+    // --- OSC 133 ----------------------------------------------------
+
+    /// The marks are the FinalTerm sequences verbatim, terminated with
+    /// ST. A mark the emulator does not recognise is invisible: it
+    /// simply never fires, and nothing anywhere says why.
+    #[test]
+    fn the_marks_are_well_formed_osc_133() {
+        for (mark, kind) in [
+            (marks::PROMPT_START, 'A'),
+            (marks::PROMPT_END, 'B'),
+            (marks::OUTPUT_START, 'C'),
+        ] {
+            assert_eq!(mark, format!("\x1b]133;{kind}\x1b\\"));
+        }
+        assert_eq!(marks::command_end(false), "\x1b]133;D;0\x1b\\");
+        assert_eq!(marks::command_end(true), "\x1b]133;D;1\x1b\\");
+    }
+
+    /// Every mark is invisible: a sequence that printed would leave
+    /// debris on the line the user is typing.
+    #[test]
+    fn the_marks_print_nothing() {
+        for mark in [
+            marks::PROMPT_START,
+            marks::PROMPT_END,
+            marks::OUTPUT_START,
+            &marks::command_end(false),
+        ] {
+            assert!(mark.starts_with("\x1b]"), "not an OSC: {mark:?}");
+            assert!(mark.ends_with("\x1b\\"), "unterminated: {mark:?}");
+            // Nothing between the introducer and the terminator that a
+            // terminal would draw.
+            let body = &mark[2..mark.len() - 2];
+            assert!(
+                body.chars().all(|c| c.is_ascii_graphic() || c == ';'),
+                "unexpected payload: {body:?}"
+            );
+        }
+    }
+
+    /// `E` (the parsed command line) is deliberately absent: it feeds
+    /// the per-host command history, which exists to be re-inserted into
+    /// a shell, where `get access.log` is not a command. The reading
+    /// side declines console captures too; this is the other half.
+    #[test]
+    fn no_mark_carries_a_command_line() {
+        for mark in [
+            marks::PROMPT_START,
+            marks::PROMPT_END,
+            marks::OUTPUT_START,
+            &marks::command_end(true),
+        ] {
+            assert!(!mark.contains("633"), "633 is the command-line family");
+            assert!(!mark.contains(";E"), "E carries a command line");
+        }
     }
 
     #[test]

@@ -317,8 +317,22 @@ impl Oryxis {
             if !want_history && !want_smart && !want_session {
                 return;
             }
+            // The per-host history takes shell commands only. An SFTP
+            // console is a saved host with a prompt, so it satisfies
+            // every other condition here, but its vocabulary is
+            // `sftp(1)`'s and the history exists to be re-inserted into
+            // a SHELL, where `get access.log` is not a command.
+            //
+            // Gated on both capture paths, because there are two: this
+            // one reads the input, the other (`observe_output_marks`)
+            // reads the OSC 133 marks. Missing either lets the console
+            // in through the side the reviewer was not looking at.
             let host = match &pane.origin {
-                crate::state::PaneOrigin::Host(hid) => Some(*hid),
+                crate::state::PaneOrigin::Host(hid)
+                    if pane.purpose != crate::state::PanePurpose::SftpConsole =>
+                {
+                    Some(*hid)
+                }
                 _ => None,
             };
             let cmds = crate::command_capture::observe_input(pane, bytes);

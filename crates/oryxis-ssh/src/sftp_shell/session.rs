@@ -19,7 +19,7 @@ use super::PROMPT;
 use super::editor::{LineEditor, LineEvent};
 use super::exec::{self, Outcome, ShellState};
 use super::parser;
-use super::render::CRLF;
+use super::render::{self, CRLF};
 
 /// A live SFTP console.
 ///
@@ -214,7 +214,7 @@ impl Repl {
             &out,
             &format!("Connected to {label}.{CRLF}Type \"help\" for a list of commands.{CRLF}"),
         );
-        emit_bytes(&out, &editor.redraw_fresh());
+        emit_prompt(&out, &editor);
 
         loop {
             // ---- IDLE ---------------------------------------------------
@@ -224,6 +224,7 @@ impl Repl {
                     let (echo, events) = editor.feed(&chunk);
                     emit_bytes(&out, &echo);
                     let mut submitted = None;
+                    let mut reprompt = false;
                     for event in events {
                         match event {
                             LineEvent::Submitted(line) => submitted = Some(line),
@@ -231,15 +232,19 @@ impl Repl {
                                 emit_bytes(&out, b"\r\n");
                                 break;
                             }
-                            // Ctrl+C at the prompt: the editor already
-                            // painted the `^C` and the fresh prompt, so
-                            // there is nothing left to do.
-                            LineEvent::Interrupted => {}
+                            // Ctrl+C at the prompt: the editor painted
+                            // the `^C` and abandoned the line, and what
+                            // replaces it is a NEW prompt, so it goes
+                            // out marked like every other one.
+                            LineEvent::Interrupted => reprompt = true,
                             LineEvent::CompleteRequested(word) => {
                                 let bytes = complete(&word, &client, &state, &mut editor).await;
                                 emit_bytes(&out, &bytes);
                             }
                         }
+                    }
+                    if reprompt {
+                        emit_prompt(&out, &editor);
                     }
                     match submitted {
                         Some(line) => line,
@@ -261,12 +266,12 @@ impl Repl {
             let cmd = match parser::parse(&line) {
                 Ok(cmd) => cmd,
                 Err(parser::ParseError::Empty) => {
-                    emit_bytes(&out, &editor.redraw_fresh());
+                    emit_prompt(&out, &editor);
                     continue;
                 }
                 Err(e) => {
                     emit(&out, &format!("{e}{CRLF}"));
-                    emit_bytes(&out, &editor.redraw_fresh());
+                    emit_prompt(&out, &editor);
                     continue;
                 }
             };
@@ -279,6 +284,7 @@ impl Repl {
             // and repainting under it would tear a progress meter in half,
             // which is why `sftp(1)` also lets a resize land at the next
             // prompt.
+            emit_bytes(&out, render::marks::OUTPUT_START.as_bytes());
             let mut pending_cols: Option<u16> = None;
             let outcome = race_command(
                 exec::run(cmd, &client, &mut state, &mut out),
@@ -304,6 +310,8 @@ impl Repl {
                 Some(Outcome::Continue { failed }) => failed,
             };
 
+            emit_bytes(&out, render::marks::command_end(failed).as_bytes());
+
             // Is the link still there? The error cannot say: `SftpClient`
             // maps a missing file and a dead channel to the same
             // `SshError::Channel`, so classifying would mean reading the
@@ -322,7 +330,7 @@ impl Repl {
                 break;
             }
 
-            emit_bytes(&out, &editor.redraw_fresh());
+            emit_prompt(&out, &editor);
         }
 
         // The ordering contract, and the only place it can be honoured:
@@ -333,6 +341,20 @@ impl Repl {
         drop(out);
         drop(output_tx);
     }
+}
+
+/// Paint a fresh prompt, wrapped in the OSC 133 marks that say where the
+/// command line begins.
+///
+/// Only the FRESH prompt carries them. A redraw during editing repaints
+/// the same line and is not a new prompt; emitting the pair on every
+/// keystroke would tell a reader that a command started and ended
+/// between two characters.
+fn emit_prompt(out: &mpsc::UnboundedSender<Vec<u8>>, editor: &LineEditor) {
+    let mut bytes = render::marks::PROMPT_START.as_bytes().to_vec();
+    bytes.extend_from_slice(&editor.redraw_fresh());
+    bytes.extend_from_slice(render::marks::PROMPT_END.as_bytes());
+    emit_bytes(out, &bytes);
 }
 
 /// Run `future` to completion while STILL READING input, so a Ctrl+C

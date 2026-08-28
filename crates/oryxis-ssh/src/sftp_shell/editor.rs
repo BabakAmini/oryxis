@@ -202,13 +202,17 @@ impl LineEditor {
             // but a bare reprompt reads as if the key did nothing, so the
             // `^C` is echoed the way every shell does it.
             0x03 => {
+                // The `^C` is echoed the way every shell does it, because
+                // a bare reprompt reads as if the key did nothing. The
+                // PROMPT that follows is left to the caller: it is a new
+                // prompt, and only the caller can wrap one in the OSC 133
+                // marks that say so.
                 out.extend_from_slice(b"^C\r\n");
                 self.buf.clear();
                 self.cursor = 0;
                 self.hist_pos = None;
                 self.hist_stash = None;
                 events.push(LineEvent::Interrupted);
-                out.extend_from_slice(self.prompt.as_bytes());
             }
             // Ctrl+D: EOF on an empty line, forward-delete otherwise.
             // That asymmetry is the shell convention and it matters: a
@@ -749,9 +753,10 @@ mod tests {
         let (echo, evs) = ed.feed(b"\x03");
         assert_eq!(evs, vec![LineEvent::Interrupted]);
         assert_eq!(ed.buffer(), "");
-        let echo = String::from_utf8(echo).unwrap();
-        assert!(echo.starts_with("^C\r\n"), "got {echo:?}");
-        assert!(echo.ends_with("sftp> "), "reprompt missing: {echo:?}");
+        // The echo is the `^C` alone: the prompt that follows belongs to
+        // the caller, which is what lets it carry the OSC 133 marks that
+        // announce a new prompt.
+        assert_eq!(String::from_utf8(echo).unwrap(), "^C\r\n");
     }
 
     /// Ctrl+D quits only on an empty line. On a non-empty one it is a

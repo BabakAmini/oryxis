@@ -566,6 +566,36 @@ async fn console_survives_an_interrupt_during_a_transfer() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
+/// The OSC 133 marks reach the stream, in the order a reader needs them.
+///
+/// A mark that is emitted in the wrong place is invisible: nothing draws
+/// it and nothing errors, the consumer just never fires. So the order is
+/// asserted against the bytes rather than trusted.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_emits_semantic_prompt_marks() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    let banner = expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+    // The first prompt is already wrapped: A, the prompt, then B.
+    let a = banner.find("\x1b]133;A").expect("no prompt-start in banner");
+    let b = banner.find("\x1b]133;B").expect("no prompt-end in banner");
+    assert!(a < b, "prompt-end came before prompt-start");
+
+    console.write(b"pwd\r").expect("write");
+    let seen = expect_output(&mut out, "\x1b]133;D", Duration::from_secs(10)).await;
+    let c = seen.find("\x1b]133;C").expect("no output-start");
+    let d = seen.find("\x1b]133;D").expect("no command-end");
+    assert!(c < d, "command-end came before output-start");
+    // `pwd` cannot fail, so the status is zero.
+    assert!(seen.contains("\x1b]133;D;0"), "wrong status in:\n{seen:?}");
+
+    // A command that fails reports a non-zero status, which is what lets
+    // a tab show that something went wrong without reading the text.
+    console.write(b"cd /no/such/place\r").expect("write");
+    let seen = expect_output(&mut out, "\x1b]133;D;1", Duration::from_secs(10)).await;
+    assert!(seen.contains("\x1b]133;D;1"), "failure not reported in:\n{seen:?}");
+}
+
 /// `bye` ends the session, and the ordering contract means it reads as
 /// dead BEFORE its output stream ends.
 #[tokio::test]

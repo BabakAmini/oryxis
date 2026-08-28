@@ -749,7 +749,19 @@ impl Oryxis {
                                     cmds.iter().map(|c| (log_id, off, c.clone())),
                                 );
                             }
+                            // The per-host command HISTORY takes shell
+                            // commands only. An SFTP console emits the same
+                            // OSC 133 marks a shell with integration does,
+                            // deliberately, because the marks are what tell
+                            // the tab a command is running and give a
+                            // recording its per-command boundaries. But its
+                            // vocabulary is `sftp(1)`'s, and the history
+                            // exists to be re-inserted into a shell, where
+                            // `get access.log` is not a command. So the two
+                            // other consumers above keep the captures and
+                            // this one declines them.
                             if capture_enabled
+                                && pane.purpose != crate::state::PanePurpose::SftpConsole
                                 && let crate::state::PaneOrigin::Host(hid) = &pane.origin
                             {
                                 captured_cmds.extend(cmds.into_iter().map(|c| (*hid, c)));
