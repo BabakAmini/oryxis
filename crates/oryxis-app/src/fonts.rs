@@ -283,6 +283,13 @@ struct CjkAsset {
     /// Short language code used as the in-memory "already loaded" guard
     /// key and the cache file stem.
     code: &'static str,
+    /// The family this file is registered under, which is NOT the family
+    /// the file declares (issue #189). cosmic-text resolves a Han
+    /// codepoint the UI font can't draw by naming one family per locale,
+    /// and on Linux that name is `Noto Sans CJK <region>`, never
+    /// `Noto Sans <region>`. See `font_family` for why claiming it is
+    /// honest and why the rename is in memory only.
+    family: &'static str,
     asset: FontAsset,
 }
 
@@ -299,6 +306,7 @@ struct CjkAsset {
 static ASSETS: &[CjkAsset] = &[
     CjkAsset {
         code: "ko",
+        family: "Noto Sans CJK KR",
         asset: FontAsset {
             file: "NotoSansKR.ttf",
             url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanskr/NotoSansKR%5Bwght%5D.ttf",
@@ -308,6 +316,7 @@ static ASSETS: &[CjkAsset] = &[
     },
     CjkAsset {
         code: "zh",
+        family: "Noto Sans CJK SC",
         asset: FontAsset {
             file: "NotoSansSC.ttf",
             url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanssc/NotoSansSC%5Bwght%5D.ttf",
@@ -317,6 +326,7 @@ static ASSETS: &[CjkAsset] = &[
     },
     CjkAsset {
         code: "ja",
+        family: "Noto Sans CJK JP",
         asset: FontAsset {
             file: "NotoSansJP.ttf",
             url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosansjp/NotoSansJP%5Bwght%5D.ttf",
@@ -326,6 +336,7 @@ static ASSETS: &[CjkAsset] = &[
     },
     CjkAsset {
         code: "zh-TW",
+        family: "Noto Sans CJK TC",
         asset: FontAsset {
             file: "NotoSansTC.ttf",
             url: "https://raw.githubusercontent.com/google/fonts/c89741abbf4eeabce432c3ed2fd7dc28b022701e/ofl/notosanstc/NotoSansTC%5Bwght%5D.ttf",
@@ -856,14 +867,48 @@ async fn ensure_and_read(asset: &'static FontAsset) -> Result<Vec<u8>, String> {
 /// don't need a downloaded font. The resulting `CjkFontReady` message
 /// carries the bytes (or an error) back to the update loop, which calls
 /// `iced::font::load` on the main side.
+///
+/// The bytes handed on are the cached file's with its family rewritten
+/// (see `registered_bytes`), never the file on disk: the cache is
+/// validated by byte length against the pinned `len`, so a renamed file
+/// there would re-download on every boot.
 pub fn ensure_task(lang: Language) -> iced::Task<Message> {
     let Some(asset) = asset_for(lang) else {
         return iced::Task::none();
     };
     let code = asset.code.to_string();
-    iced::Task::perform(ensure_and_read(&asset.asset), move |res| {
-        Message::Settings(SettingsMessage::CjkFontReady(code.clone(), res))
-    })
+    iced::Task::perform(
+        async move { ensure_and_read(&asset.asset).await.map(|b| registered_bytes(b, asset)) },
+        move |res| Message::Settings(SettingsMessage::CjkFontReady(code.clone(), res)),
+    )
+}
+
+/// The bytes to register with the font system for a CJK asset.
+///
+/// On Linux, cosmic-text's per-script fallback names `Noto Sans CJK
+/// <region>` for Han and nothing else, so the file we download under its
+/// own `Noto Sans <region>` family is only ever reached by the sweep
+/// over every remaining face, which it loses (issue #189). Answering to
+/// the name that is actually asked for is what puts the font we shipped
+/// in front of whatever the machine happens to have installed.
+///
+/// macOS and Windows name their own system faces (PingFang, Microsoft
+/// YaHei), which are always present and render correctly, so the rename
+/// would be claiming a family we are not. They keep the file as it is.
+fn registered_bytes(bytes: Vec<u8>, asset: &'static CjkAsset) -> Vec<u8> {
+    #[cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))]
+    {
+        match crate::font_family::with_family(&bytes, asset.family) {
+            Some(renamed) => return renamed,
+            None => tracing::warn!(
+                target = "oryxis::fonts",
+                lang = %asset.code,
+                "could not rewrite the CJK font family; system CJK fallback stays in charge"
+            ),
+        }
+    }
+    let _ = asset;
+    bytes
 }
 
 /// A task that ensures one pack face is available (cache read or

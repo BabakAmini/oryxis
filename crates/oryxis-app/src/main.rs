@@ -71,6 +71,7 @@ mod dispatch_terminal;
 mod dispatch_update;
 mod dispatch_webdav_sync;
 mod dispatch_zmodem;
+mod font_family;
 mod fonts;
 #[cfg(feature = "harness")]
 mod harness;
