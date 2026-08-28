@@ -23,12 +23,16 @@
 //! part that needs a server.
 
 pub mod editor;
+pub mod exec;
 pub mod glob;
 pub mod parser;
 pub mod render;
+pub mod session;
 
 pub use editor::{LineEditor, LineEvent};
+pub use exec::{Outcome, ShellState};
 pub use parser::{Command, LsOpts, ParseError, XferOpts};
+pub use session::SftpShellSession;
 
 /// The prompt, matching `sftp(1)` so anything copied from a tutorial
 /// looks like what the tutorial shows.

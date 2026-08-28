@@ -158,14 +158,26 @@ impl LineEditor {
                 return;
             }
             EscState::Csi => {
-                // Parameter and intermediate bytes accumulate; the first
-                // byte in the final range terminates the sequence.
-                if byte.is_ascii_digit() || byte == b';' || byte == b'?' {
-                    self.esc_params.push(byte as char);
-                } else {
-                    self.esc = EscState::Ground;
-                    let params = std::mem::take(&mut self.esc_params);
-                    self.apply_csi(byte, &params, out);
+                // ECMA-48 shapes a CSI as parameter bytes (0x30-0x3F),
+                // then intermediate bytes (0x20-0x2F), then exactly one
+                // final byte (0x40-0x7E). Both non-final ranges have to
+                // be consumed here, not just the parameters: the
+                // emulator answers a DECRQM query with something like
+                // `\x1b[?2026;2$y`, and a decoder that stops at the `$`
+                // treats it as the final byte and then prints the `y`
+                // into the line the user is typing. Those replies reach
+                // this editor because the transport's write sender IS
+                // the console's input channel.
+                match byte {
+                    // 0x30-0x3F are the parameter bytes and 0x20-0x2F
+                    // the intermediates; contiguous, so one range covers
+                    // both, and everything outside it is the final byte.
+                    0x20..=0x3f => self.esc_params.push(byte as char),
+                    _ => {
+                        self.esc = EscState::Ground;
+                        let params = std::mem::take(&mut self.esc_params);
+                        self.apply_csi(byte, &params, out);
+                    }
                 }
                 return;
             }
@@ -803,7 +815,10 @@ mod tests {
         }
         assert_eq!(ed.history.len(), HISTORY_LIMIT);
         // The oldest entries were dropped, not the newest.
-        assert_eq!(ed.history.last().unwrap(), &format!("cmd{}", HISTORY_LIMIT + 9));
+        assert_eq!(
+            ed.history.last().unwrap(),
+            &format!("cmd{}", HISTORY_LIMIT + 9)
+        );
     }
 
     #[test]
@@ -858,6 +873,41 @@ mod tests {
         assert_eq!(ed.buffer(), "ok");
     }
 
+    /// The emulator answers in-band queries (DECRQM, cursor position)
+    /// down the same channel that carries the user's keystrokes, because
+    /// the transport's write sender IS this console's input. Those
+    /// replies carry intermediate bytes, and a decoder that treats `$`
+    /// as the final byte leaks the character after it into the line the
+    /// user is typing.
+    #[test]
+    fn a_decrqm_reply_does_not_leak_into_the_line() {
+        let mut ed = LineEditor::new("sftp> ", 80);
+        ed.feed(b"get ");
+        ed.feed(b"\x1b[?2026;2$y");
+        assert_eq!(ed.buffer(), "get ");
+        ed.feed(b"file");
+        assert_eq!(ed.buffer(), "get file");
+    }
+
+    #[test]
+    fn a_cursor_position_report_is_swallowed_whole() {
+        let mut ed = LineEditor::new("sftp> ", 80);
+        ed.feed(b"ls");
+        ed.feed(b"\x1b[24;80R");
+        assert_eq!(ed.buffer(), "ls");
+    }
+
+    /// A device-attributes reply carries a `>` parameter byte, which is
+    /// in the parameter range rather than the digit range the first
+    /// version of this decoder accepted.
+    #[test]
+    fn a_device_attributes_reply_is_swallowed_whole() {
+        let mut ed = LineEditor::new("sftp> ", 80);
+        ed.feed(b"pwd");
+        ed.feed(b"\x1b[>0;276;0c");
+        assert_eq!(ed.buffer(), "pwd");
+    }
+
     #[test]
     fn unhandled_control_bytes_are_dropped() {
         let mut ed = LineEditor::new("sftp> ", 80);
@@ -907,7 +957,11 @@ mod tests {
         ed.feed(b"aaaaaaaaaaaaaaaaaaaa");
         assert!(!String::from_utf8(ed.redraw()).unwrap().contains('A'));
         ed.set_cols(10);
-        assert!(String::from_utf8(ed.redraw()).unwrap().starts_with("\x1b[2A"));
+        assert!(
+            String::from_utf8(ed.redraw())
+                .unwrap()
+                .starts_with("\x1b[2A")
+        );
     }
 
     #[test]

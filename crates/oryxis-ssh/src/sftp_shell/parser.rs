@@ -142,7 +142,9 @@ impl std::fmt::Display for ParseError {
             ParseError::Empty => Ok(()),
             ParseError::UnknownCommand(c) => write!(f, "Invalid command: {c}"),
             ParseError::UnterminatedQuote => write!(f, "Unterminated quoted argument"),
-            ParseError::MissingOperand(c) => write!(f, "You must specify a path after the {c} command."),
+            ParseError::MissingOperand(c) => {
+                write!(f, "You must specify a path after the {c} command.")
+            }
             ParseError::TooManyOperands(c) => write!(f, "Too many arguments for {c}."),
             ParseError::UnknownFlag { command, flag } => {
                 write!(f, "{command}: unknown option -- {flag}")
@@ -483,7 +485,10 @@ mod tests {
     fn navigation_commands() {
         assert_eq!(ok("cd /var/log"), Command::Cd(Some("/var/log".into())));
         assert_eq!(ok("cd"), Command::Cd(None));
-        assert_eq!(ok("lcd ~/Downloads"), Command::Lcd(Some("~/Downloads".into())));
+        assert_eq!(
+            ok("lcd ~/Downloads"),
+            Command::Lcd(Some("~/Downloads".into()))
+        );
         assert_eq!(ok("pwd"), Command::Pwd);
         assert_eq!(ok("lpwd"), Command::Lpwd);
     }
@@ -552,10 +557,7 @@ mod tests {
             }
         );
         assert_eq!(parse("get"), Err(ParseError::MissingOperand("get")));
-        assert_eq!(
-            parse("get a b c"),
-            Err(ParseError::TooManyOperands("get"))
-        );
+        assert_eq!(parse("get a b c"), Err(ParseError::TooManyOperands("get")));
     }
 
     #[test]

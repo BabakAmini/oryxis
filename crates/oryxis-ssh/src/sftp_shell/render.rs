@@ -383,13 +383,19 @@ fn truncate_to(s: &str, width: usize) -> String {
 /// rest.
 pub fn help_text() -> String {
     const ROWS: &[(&str, &str)] = &[
-        ("cd [path]", "change the remote directory (no argument: home)"),
+        (
+            "cd [path]",
+            "change the remote directory (no argument: home)",
+        ),
         ("lcd [path]", "change the local directory"),
         ("pwd", "print the remote directory"),
         ("lpwd", "print the local directory"),
         ("ls [-1afhlnrSt] [path]", "list the remote directory"),
         ("lls [-1afhlnrSt] [path]", "list the local directory"),
-        ("get [-afpr] remote [local]", "download; remote may be a glob"),
+        (
+            "get [-afpr] remote [local]",
+            "download; remote may be a glob",
+        ),
         ("mget remote", "download matching files (get with a glob)"),
         ("reget remote [local]", "resume an interrupted download"),
         ("put [-afpr] local [remote]", "upload; local may be a glob"),
@@ -505,7 +511,10 @@ mod tests {
     #[test]
     fn a_known_epoch_renders_the_right_date() {
         // 2023-11-14 22:13:20 UTC
-        assert_eq!(format_mtime(Some(1_700_000_000), 1_700_000_000), "Nov 14 22:13");
+        assert_eq!(
+            format_mtime(Some(1_700_000_000), 1_700_000_000),
+            "Nov 14 22:13"
+        );
     }
 
     #[test]
@@ -519,7 +528,10 @@ mod tests {
 
     #[test]
     fn a_short_listing_hides_dotfiles_unless_asked() {
-        let entries = vec![entry(".hidden", false, 1, 0o644), entry("shown", false, 1, 0o644)];
+        let entries = vec![
+            entry(".hidden", false, 1, 0o644),
+            entry("shown", false, 1, 0o644),
+        ];
         let opts = LsOpts::default();
         let out = render_listing(&entries, &opts, 0, 80);
         assert!(!out.contains(".hidden"));
@@ -539,12 +551,24 @@ mod tests {
             entry("a", false, 30, 0o644),
             entry("c", false, 20, 0o644),
         ];
-        let by_name = render_listing(&entries, &LsOpts { one_per_line: true, ..Default::default() }, 0, 80);
+        let by_name = render_listing(
+            &entries,
+            &LsOpts {
+                one_per_line: true,
+                ..Default::default()
+            },
+            0,
+            80,
+        );
         assert_eq!(by_name, "a\r\nb\r\nc\r\n");
 
         let by_size = render_listing(
             &entries,
-            &LsOpts { one_per_line: true, by_size: true, ..Default::default() },
+            &LsOpts {
+                one_per_line: true,
+                by_size: true,
+                ..Default::default()
+            },
             0,
             80,
         );
@@ -552,7 +576,11 @@ mod tests {
 
         let reversed = render_listing(
             &entries,
-            &LsOpts { one_per_line: true, reverse: true, ..Default::default() },
+            &LsOpts {
+                one_per_line: true,
+                reverse: true,
+                ..Default::default()
+            },
             0,
             80,
         );
@@ -566,7 +594,11 @@ mod tests {
         let entries = vec![entry("z", false, 1, 0o644), entry("a", false, 1, 0o644)];
         let out = render_listing(
             &entries,
-            &LsOpts { one_per_line: true, unsorted: true, ..Default::default() },
+            &LsOpts {
+                one_per_line: true,
+                unsorted: true,
+                ..Default::default()
+            },
             0,
             80,
         );
@@ -576,7 +608,10 @@ mod tests {
     #[test]
     fn the_long_format_has_every_column() {
         let entries = vec![entry("access.log", false, 2847362, 0o644)];
-        let opts = LsOpts { long: true, ..Default::default() };
+        let opts = LsOpts {
+            long: true,
+            ..Default::default()
+        };
         let out = render_listing(&entries, &opts, 1_700_000_000, 80);
         assert!(out.starts_with("-rw-r--r-- 1000 1000 2847362 Nov 14 22:13 access.log"));
         assert!(out.ends_with(CRLF));
@@ -585,7 +620,11 @@ mod tests {
     #[test]
     fn the_long_format_honours_human_sizes() {
         let entries = vec![entry("big", false, 2 * 1024 * 1024, 0o644)];
-        let opts = LsOpts { long: true, human: true, ..Default::default() };
+        let opts = LsOpts {
+            long: true,
+            human: true,
+            ..Default::default()
+        };
         assert!(render_listing(&entries, &opts, 0, 80).contains("2.0M"));
     }
 
@@ -594,7 +633,10 @@ mod tests {
     #[test]
     fn long_columns_size_themselves_to_the_content() {
         let entries = vec![entry("a", false, 1, 0o644), entry("b", false, 22, 0o644)];
-        let opts = LsOpts { long: true, ..Default::default() };
+        let opts = LsOpts {
+            long: true,
+            ..Default::default()
+        };
         let out = render_listing(&entries, &opts, 0, 80);
         // Sizes right-align in a two-wide column: " 1" and "22".
         assert!(out.contains(" 1 "), "got {out:?}");
@@ -606,7 +648,10 @@ mod tests {
         let mut e = entry("f", false, 1, 0o644);
         e.uid = None;
         e.gid = None;
-        let opts = LsOpts { long: true, ..Default::default() };
+        let opts = LsOpts {
+            long: true,
+            ..Default::default()
+        };
         let out = render_listing(&[e], &opts, 0, 80);
         assert!(out.contains("? ?"), "got {out:?}");
     }
@@ -614,13 +659,18 @@ mod tests {
     #[test]
     fn an_empty_directory_renders_nothing() {
         assert_eq!(render_listing(&[], &LsOpts::default(), 0, 80), "");
-        let opts = LsOpts { long: true, ..Default::default() };
+        let opts = LsOpts {
+            long: true,
+            ..Default::default()
+        };
         assert_eq!(render_listing(&[], &opts, 0, 80), "");
     }
 
     #[test]
     fn short_listings_fill_columns() {
-        let entries: Vec<SftpEntry> = ('a'..='f').map(|c| entry(&c.to_string(), false, 1, 0o644)).collect();
+        let entries: Vec<SftpEntry> = ('a'..='f')
+            .map(|c| entry(&c.to_string(), false, 1, 0o644))
+            .collect();
         let out = render_listing(&entries, &LsOpts::default(), 0, 20);
         // 20 columns / (1 + 2) = 6 per row, so one row holds them all.
         assert_eq!(out.lines().count(), 1);
@@ -644,7 +694,10 @@ mod tests {
         let out = render_listing(&entries, &LsOpts::default(), 0, 80);
         // Widest is 4 columns, so the first name is followed by 2 spaces
         // of gap and the shorter one by 4 to reach the same stop.
-        assert!(out.starts_with("ab    文档") || out.starts_with("文档  ab"), "got {out:?}");
+        assert!(
+            out.starts_with("ab    文档") || out.starts_with("文档  ab"),
+            "got {out:?}"
+        );
     }
 
     #[test]
@@ -652,8 +705,14 @@ mod tests {
         let entries = vec![entry("a", false, 1, 0o644)];
         for opts in [
             LsOpts::default(),
-            LsOpts { long: true, ..Default::default() },
-            LsOpts { one_per_line: true, ..Default::default() },
+            LsOpts {
+                long: true,
+                ..Default::default()
+            },
+            LsOpts {
+                one_per_line: true,
+                ..Default::default()
+            },
         ] {
             let out = render_listing(&entries, &opts, 0, 80);
             assert!(out.ends_with(CRLF), "{opts:?} produced {out:?}");
@@ -718,8 +777,14 @@ mod tests {
     #[test]
     fn progress_never_exceeds_the_window() {
         for cols in [1u16, 5, 10, 20, 40, 80, 200] {
-            for (done, total) in [(0u64, Some(100u64)), (50, Some(100)), (100, Some(100)), (4096, None)] {
-                let line = progress_line("some_long_file_name.tar.gz", done, total, 1024.0, 1.0, cols);
+            for (done, total) in [
+                (0u64, Some(100u64)),
+                (50, Some(100)),
+                (100, Some(100)),
+                (4096, None),
+            ] {
+                let line =
+                    progress_line("some_long_file_name.tar.gz", done, total, 1024.0, 1.0, cols);
                 assert!(
                     body(&line).width() <= cols as usize,
                     "cols={cols} done={done} produced {} columns: {:?}",
@@ -738,12 +803,21 @@ mod tests {
     fn a_tight_window_sheds_fields_in_order() {
         let narrow = progress_line("some_long_file_name.tar.gz", 50, Some(100), 1024.0, 1.0, 20);
         assert!(body(&narrow).contains("50%"), "got {narrow:?}");
-        assert!(body(&narrow).contains('['), "a bar still fits at 20: {narrow:?}");
-        assert!(!body(&narrow).contains("ETA"), "eta should be gone: {narrow:?}");
+        assert!(
+            body(&narrow).contains('['),
+            "a bar still fits at 20: {narrow:?}"
+        );
+        assert!(
+            !body(&narrow).contains("ETA"),
+            "eta should be gone: {narrow:?}"
+        );
 
         let tiny = progress_line("some_long_file_name.tar.gz", 50, Some(100), 1024.0, 1.0, 12);
         assert!(body(&tiny).contains("50%"), "got {tiny:?}");
-        assert!(!body(&tiny).contains('['), "no room for a bar at 12: {tiny:?}");
+        assert!(
+            !body(&tiny).contains('['),
+            "no room for a bar at 12: {tiny:?}"
+        );
     }
 
     /// A roomy window gets the whole layout, so the degradation above is
@@ -762,7 +836,9 @@ mod tests {
     #[test]
     fn help_lists_every_command_and_ends_cleanly() {
         let help = help_text();
-        for cmd in ["cd", "lcd", "get", "put", "mget", "rm", "chmod", "progress", "bye"] {
+        for cmd in [
+            "cd", "lcd", "get", "put", "mget", "rm", "chmod", "progress", "bye",
+        ] {
             assert!(help.contains(cmd), "help is missing {cmd}");
         }
         assert!(help.ends_with(CRLF));
