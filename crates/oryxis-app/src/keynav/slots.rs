@@ -164,6 +164,14 @@ impl SidebarRow {
         self
     }
 
+    /// Attach the row's delete verb, so the Delete key reaches what
+    /// the row's context menu reaches (a list row whose remove action
+    /// only lives behind right-click is mouse-only without this).
+    pub(crate) fn with_delete(mut self, msg: Message) -> Self {
+        self.delete = Some(msg);
+        self
+    }
+
     /// Mark this row as the surface's current mouse selection, the
     /// arrow hover-entry's preferred landing spot.
     pub(crate) fn with_anchor(mut self, anchor: bool) -> Self {

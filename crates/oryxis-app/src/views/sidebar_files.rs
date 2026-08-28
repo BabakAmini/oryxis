@@ -585,8 +585,24 @@ impl Oryxis {
                 .on_right_press(Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesRowMenu(full.clone(), is_dir)));
         }
 
+        // The keyboard half of the right-click: Delete asks about the
+        // row (through the shared confirm dialog, same rule as the
+        // Snippets / History rows) and the Menu key opens the same
+        // context menu. The ".." row carries neither.
+        let mut row = crate::keynav::SidebarRow::list_button(key_activate).with_anchor(selected);
+        if let Some(full) = &full_path {
+            row = row
+                .with_delete(Message::SidebarFiles(SidebarFilesMessage::SidebarFilesDelete(
+                    full.clone(),
+                    is_dir,
+                )))
+                .with_menu(Message::SidebarFiles(SidebarFilesMessage::ShowSidebarFilesRowMenu(
+                    full.clone(),
+                    is_dir,
+                )));
+        }
         self.sidebar_nav_slot(
-            crate::keynav::SidebarRow::list_button(key_activate).with_anchor(selected),
+            row,
             TerminalSidebarTab::Files,
             6.0,
             area.into(),
