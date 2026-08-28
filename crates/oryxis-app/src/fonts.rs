@@ -895,21 +895,17 @@ pub fn ensure_task(lang: Language) -> iced::Task<Message> {
 /// macOS and Windows name their own system faces (PingFang, Microsoft
 /// YaHei), which are always present and render correctly, so the rename
 /// would be claiming a family we are not. They keep the file as it is.
-fn registered_bytes(bytes: Vec<u8>, asset: &'static CjkAsset) -> Vec<u8> {
-    if !CLAIMS_FALLBACK_FAMILY {
-        return bytes;
+fn registered_bytes(mut bytes: Vec<u8>, asset: &'static CjkAsset) -> Vec<u8> {
+    if CLAIMS_FALLBACK_FAMILY
+        && !crate::font_family::set_family(&mut bytes, asset.family)
+    {
+        tracing::warn!(
+            target = "oryxis::fonts",
+            lang = %asset.code,
+            "could not rewrite the CJK font family; system CJK fallback stays in charge"
+        );
     }
-    match crate::font_family::with_family(&bytes, asset.family) {
-        Some(renamed) => renamed,
-        None => {
-            tracing::warn!(
-                target = "oryxis::fonts",
-                lang = %asset.code,
-                "could not rewrite the CJK font family; system CJK fallback stays in charge"
-            );
-            bytes
-        }
-    }
+    bytes
 }
 
 /// Whether this platform's per-script fallback names a family only we
