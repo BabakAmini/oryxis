@@ -45,7 +45,7 @@ native**.
 | License | AGPL-3.0, open source | Proprietary | MIT | MIT |
 | Credential storage | Local encrypted vault | Vendor cloud account | None | Local config files |
 | Device sync | P2P, E2E encrypted, optionally self-hosted relay | Vendor cloud (subscription) | None | Via Tabby Web |
-| SFTP GUI | Dual-pane, built in | Paid plan | CLI only | Basic panel |
+| SFTP | Dual-pane GUI **and** an interactive console | Paid plan | CLI only | Basic panel |
 | Price | Free | Free tier + subscription | Free | Free |
 
 ## Install
@@ -128,7 +128,10 @@ matching installer. Windows binaries are Authenticode-signed (see
   per-host command history.
 - **Files everywhere.** Dual-pane SFTP with drag-and-drop, edit-in-place
   and server-to-server copy; every SSH tab also carries a Files sidebar
-  that follows your shell's working directory.
+  that follows your shell's working directory. Prefer typing? An
+  interactive SFTP console speaks `sftp(1)`'s commands (`get`, `put`,
+  `mget`, `lcd`, globs, Tab completion, inline progress) in a tab of its
+  own, opened from any host.
 - **Session recording.** Encrypted at rest; exports to asciinema `.cast`
   (theme embedded) or plain transcript, output-only by design.
 - **Cloud accounts.** AWS, Google Cloud, Azure and Kubernetes discovery
