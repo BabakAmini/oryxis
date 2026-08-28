@@ -182,6 +182,29 @@ impl Oryxis {
                 let _ = sender
                     .send(Message::Ssh(SshMessage::SshConnected(pane_id, transport)))
                     .await;
+
+                // The dial opened a SHELL channel on the way here, with a
+                // PTY and a login banner and a prompt, and its byte
+                // stream is pointed at this very pane. Nobody is going to
+                // read it: the pane renders the console now. Left running
+                // it would interleave a login banner and a shell prompt
+                // into the console's output, so it is let go.
+                //
+                // Closing the SESSION does not close the CONNECTION: the
+                // transport is reference-counted and the console's SFTP
+                // channel rides it, so what dies here is one channel that
+                // had no reader. The `Arc<SshSession>` the console holds
+                // is what keeps that transport alive.
+                //
+                // Done AFTER the transport was published, not before,
+                // because the dying shell stream ends with a
+                // `SshDisconnected` for this pane. The handler discards
+                // one whose pane already has a live transport, and this
+                // ordering is what guarantees it finds one. Same shape as
+                // the mosh handover, which closes its SSH for a different
+                // reason and relies on the same rule.
+                ssh.close();
+
                 while let Some(data) = rx.recv().await {
                     if sender
                         .send(Message::Terminal(TerminalMessage::PtyOutput(pane_id, data)))

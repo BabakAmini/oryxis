@@ -40,11 +40,16 @@ pub struct SftpShellSession {
     /// Set by the REPL task on its way out, BEFORE it drops the output
     /// sender. See [`SftpShellSession::is_alive`].
     repl_done: Arc<AtomicBool>,
-    /// The SSH session the console's channel rides. Held for two
-    /// reasons: it keeps the link alive for as long as the console
-    /// needs it, and it is what `is_alive` consults, since the SFTP
-    /// client cannot report the health of the channel underneath it.
-    ssh: Arc<SshSession>,
+    /// The SSH session whose CONNECTION the console's channel rides.
+    ///
+    /// Held to keep that connection alive, and for nothing else. The
+    /// session's own shell channel is closed by the caller right after
+    /// the console starts (nobody reads it, and its output would
+    /// interleave a login banner into the console), so this reads as
+    /// dead almost immediately and must NOT be consulted for health.
+    /// What keeps the link up is the reference-counted transport inside
+    /// it, which the SFTP channel shares.
+    _ssh: Arc<SshSession>,
 }
 
 impl SftpShellSession {
@@ -69,7 +74,6 @@ impl SftpShellSession {
 
         let task = tokio::spawn(
             Repl {
-                ssh: Arc::clone(&ssh),
                 client,
                 state: ShellState::new(remote_home, local_cwd, cols),
                 input_rx,
@@ -88,7 +92,7 @@ impl SftpShellSession {
                 task,
                 closed: AtomicBool::new(false),
                 repl_done,
-                ssh,
+                _ssh: ssh,
             },
             output_rx,
         )
@@ -129,17 +133,19 @@ impl SftpShellSession {
     /// no await in between, which makes "dead before silent" true by
     /// construction rather than by scheduling luck.
     ///
-    /// The fourth signal is the SSH session underneath. A console is not
-    /// independently alive: its channel rides that link, and the SFTP
-    /// client cannot report on it (every failure it can raise is
-    /// `SshError::Channel`, a missing file and a dead link alike). So
-    /// the question is passed through to the thing that can answer.
+    /// The link underneath is deliberately NOT one of the signals, even
+    /// though the console cannot outlive it. The `SshSession` this holds
+    /// has had its shell channel closed on purpose, so it answers "dead"
+    /// while the CONNECTION it rides is perfectly fine, and asking it
+    /// would report every console as dead a moment after it opened. A
+    /// link that really goes away is noticed where it can be noticed at
+    /// all: by the REPL, whose next command fails and whose health probe
+    /// then confirms it and ends the loop, which sets `repl_done`.
     pub fn is_alive(&self) -> bool {
         !self.closed.load(Ordering::SeqCst)
             && !self.repl_done.load(Ordering::SeqCst)
             && !self.task.is_finished()
             && !self.input_tx.is_closed()
-            && self.ssh.is_alive()
     }
 
     /// Tear the console down. Idempotent.
@@ -179,7 +185,6 @@ impl Drop for SftpShellSession {
 /// leave Ctrl+C unread until the transfer finished, which is precisely
 /// when nobody needs it any more.
 struct Repl {
-    ssh: Arc<SshSession>,
     client: SftpClient,
     state: ShellState,
     input_rx: mpsc::UnboundedReceiver<Vec<u8>>,
@@ -192,7 +197,6 @@ struct Repl {
 impl Repl {
     async fn run(self) {
         let Repl {
-            ssh,
             client,
             mut state,
             mut input_rx,
@@ -276,56 +280,44 @@ impl Repl {
             // which is why `sftp(1)` also lets a resize land at the next
             // prompt.
             let mut pending_cols: Option<u16> = None;
-            let outcome = {
-                let future = exec::run(cmd, &client, &mut state, &mut out);
-                tokio::pin!(future);
-                loop {
-                    tokio::select! {
-                        // Biased so a command that has finished is seen as
-                        // finished rather than losing a race to a keystroke.
-                        biased;
-                        done = &mut future => break Some(done),
-                        chunk = input_rx.recv() => {
-                            let Some(chunk) = chunk else { break None };
-                            if chunk.contains(&0x03) {
-                                // Dropping the future cancels the transfer at
-                                // its next await. The partial file it leaves
-                                // is the caller's to sweep; `SftpClient` has
-                                // `discard_download_scratch` for exactly this
-                                // and the resume machinery is what makes
-                                // keeping it worthwhile.
-                                break None;
-                            }
-                            // Everything else typed during a command is
-                            // discarded, not buffered. See the doc above.
-                        }
-                        Some((cols, _rows)) = resize_rx.recv() => {
-                            pending_cols = Some(cols.max(1));
-                        }
-                    }
-                }
-            };
+            let outcome = race_command(
+                exec::run(cmd, &client, &mut state, &mut out),
+                &mut input_rx,
+                &mut resize_rx,
+                &mut pending_cols,
+            )
+            .await;
             if let Some(cols) = pending_cols {
                 state.cols = cols;
                 editor.set_cols(cols);
             }
 
-            match outcome {
+            let failed = match outcome {
                 Some(Outcome::Quit) => break,
                 // Cancelled, or the input channel closed mid-command.
+                // Worth a health check too: an interrupt and a link that
+                // died under the transfer look identical from here.
                 None => {
                     emit(&out, &format!("{CRLF}Interrupted.{CRLF}"));
+                    true
                 }
-                Some(Outcome::Continue) => {}
-            }
+                Some(Outcome::Continue { failed }) => failed,
+            };
 
-            // The health question is asked here, once per command, rather
-            // than inferred from the error: every failure `SftpClient` can
-            // raise is `SshError::Channel`, so a missing file and a dead
-            // link are the same value. A REPL that kept prompting over a
-            // dead channel would be a tab reading "connected" that answers
-            // nothing.
-            if !ssh.is_alive() {
+            // Is the link still there? The error cannot say: `SftpClient`
+            // maps a missing file and a dead channel to the same
+            // `SshError::Channel`, so classifying would mean reading the
+            // message, which breaks the first time a server words a
+            // status differently. And the `SshSession` cannot say either,
+            // because its shell channel was closed on purpose when the
+            // console opened.
+            //
+            // So the console ASKS, with the cheapest question the
+            // protocol has, and only when it has reason to: a command
+            // that failed. On the happy path this costs nothing, and a
+            // REPL that kept prompting over a dead channel would be a tab
+            // reading "connected" that answers nothing.
+            if failed && client.canonicalize(".").await.is_err() {
                 emit(&out, &format!("Connection closed.{CRLF}"));
                 break;
             }
@@ -340,6 +332,59 @@ impl Repl {
         repl_done.store(true, Ordering::SeqCst);
         drop(out);
         drop(output_tx);
+    }
+}
+
+/// Run `future` to completion while STILL READING input, so a Ctrl+C
+/// arriving mid-command is seen while there is something to cancel.
+///
+/// Returns `None` when the command was interrupted (or the input channel
+/// closed under it): dropping the future is the cancellation, and it
+/// takes effect at the future's next await point.
+///
+/// Extracted from the loop so the property it exists for can be tested
+/// against a future that never finishes. A version that awaited the
+/// command and read input afterwards passes every test involving a real
+/// transfer on a fast link, because the transfer wins the race before
+/// the keystroke is even sent; it fails only for the user, on the slow
+/// transfer they actually wanted to stop.
+async fn race_command<F, T>(
+    future: F,
+    input_rx: &mut mpsc::UnboundedReceiver<Vec<u8>>,
+    resize_rx: &mut mpsc::UnboundedReceiver<(u16, u16)>,
+    pending_cols: &mut Option<u16>,
+) -> Option<T>
+where
+    F: std::future::Future<Output = T>,
+{
+    tokio::pin!(future);
+    loop {
+        tokio::select! {
+            // Biased so a command that has finished is seen as finished
+            // rather than losing a race to a keystroke that arrived in
+            // the same wakeup.
+            biased;
+            done = &mut future => break Some(done),
+            chunk = input_rx.recv() => {
+                let Some(chunk) = chunk else { break None };
+                if chunk.contains(&0x03) {
+                    // Dropping the future cancels the transfer at its
+                    // next await. The partial file it leaves is the
+                    // caller's to sweep; `SftpClient` has
+                    // `discard_download_scratch` for exactly this, and
+                    // the resume machinery is what makes keeping it
+                    // worthwhile.
+                    break None;
+                }
+                // Everything else typed during a command is discarded,
+                // not buffered: keystrokes collected here would arrive
+                // as a phantom line, already typed, the moment the
+                // prompt came back.
+            }
+            Some((cols, _rows)) = resize_rx.recv() => {
+                *pending_cols = Some(cols.max(1));
+            }
+        }
     }
 }
 
@@ -480,6 +525,159 @@ mod tests {
             common_prefix(["文档a", "文档b"].into_iter()),
             Some("文档".to_string())
         );
+    }
+
+    /// The property the console lives or dies by, tested against a
+    /// command that never finishes so the result cannot depend on who
+    /// wins a race. A loop that awaited the command and read input
+    /// afterwards would hang here forever.
+    #[tokio::test]
+    async fn a_running_command_can_be_interrupted() {
+        let (input_tx, mut input_rx) = mpsc::unbounded_channel();
+        let (_resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        input_tx.send(vec![0x03]).unwrap();
+        let outcome: Option<()> = race_command(
+            std::future::pending::<()>(),
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(outcome, None, "a never-ending command was not cancelled");
+    }
+
+    /// Ctrl+C anywhere in a chunk counts, because a terminal is free to
+    /// deliver it batched with whatever else was typed.
+    #[tokio::test]
+    async fn an_interrupt_is_seen_inside_a_larger_chunk() {
+        let (input_tx, mut input_rx) = mpsc::unbounded_channel();
+        let (_resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        input_tx.send(b"abc\x03def".to_vec()).unwrap();
+        let outcome: Option<()> = race_command(
+            std::future::pending::<()>(),
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(outcome, None);
+    }
+
+    /// Ordinary typing during a command does NOT cancel it, and does not
+    /// accumulate either: it is dropped, so nothing appears as a phantom
+    /// line when the prompt returns.
+    #[tokio::test]
+    async fn typing_during_a_command_neither_cancels_nor_buffers() {
+        let (input_tx, mut input_rx) = mpsc::unbounded_channel();
+        let (_resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        input_tx.send(b"ls -l\r".to_vec()).unwrap();
+        input_tx.send(b"pwd\r".to_vec()).unwrap();
+        let outcome = race_command(
+            async {
+                // Long enough that the two chunks above are consumed by
+                // the racer before it resolves.
+                tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+                42
+            },
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(outcome, Some(42), "typing cancelled a running command");
+        // Nothing was left queued for the next prompt to swallow.
+        assert!(input_rx.try_recv().is_err());
+    }
+
+    /// A command that finishes wins over a keystroke delivered in the
+    /// same wakeup: `biased` puts the future first, so a `bye` typed
+    /// right as a transfer ends is not read as an interrupt of it.
+    #[tokio::test]
+    async fn a_finished_command_beats_a_simultaneous_keystroke() {
+        let (input_tx, mut input_rx) = mpsc::unbounded_channel();
+        let (_resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        input_tx.send(vec![0x03]).unwrap();
+        let outcome = race_command(
+            std::future::ready(7),
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(outcome, Some(7));
+    }
+
+    /// A resize mid-command is remembered rather than applied, and does
+    /// not end the command.
+    #[tokio::test]
+    async fn a_resize_during_a_command_is_remembered() {
+        let (_input_tx, mut input_rx) = mpsc::unbounded_channel();
+        let (resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        resize_tx.send((120, 40)).unwrap();
+        let outcome = race_command(
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+                1
+            },
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(outcome, Some(1));
+        assert_eq!(cols, Some(120));
+    }
+
+    /// A zero width would divide by zero in the editor's geometry, so it
+    /// is clamped on the way in rather than at every use.
+    #[tokio::test]
+    async fn a_zero_width_resize_is_clamped() {
+        let (_input_tx, mut input_rx) = mpsc::unbounded_channel();
+        let (resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        resize_tx.send((0, 40)).unwrap();
+        let _: Option<i32> = race_command(
+            async {
+                tokio::time::sleep(std::time::Duration::from_millis(60)).await;
+                1
+            },
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(cols, Some(1));
+    }
+
+    /// The input channel closing under a command (the pane went away)
+    /// ends it, rather than leaving the loop waiting on a sender that
+    /// will never send again.
+    #[tokio::test]
+    async fn a_closed_input_channel_ends_a_running_command() {
+        let (input_tx, mut input_rx) = mpsc::unbounded_channel::<Vec<u8>>();
+        let (_resize_tx, mut resize_rx) = mpsc::unbounded_channel();
+        let mut cols = None;
+
+        drop(input_tx);
+        let outcome: Option<()> = race_command(
+            std::future::pending::<()>(),
+            &mut input_rx,
+            &mut resize_rx,
+            &mut cols,
+        )
+        .await;
+        assert_eq!(outcome, None);
     }
 
     #[test]

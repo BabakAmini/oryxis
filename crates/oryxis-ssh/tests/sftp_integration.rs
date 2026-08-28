@@ -307,3 +307,286 @@ async fn futures_or_join(
     }
     out
 }
+
+// ---------------------------------------------------------------------
+// The interactive SFTP console (issue #188).
+//
+// The console's pure halves (line editing, parsing, globbing, rendering)
+// are unit-tested without a server; what needs one is the loop that
+// drives them: that a command's output actually reaches the pane's byte
+// stream, that an error is reported without ending the session, and
+// above all that a running command can be INTERRUPTED. That last one is
+// the property a console lives or dies by and the one no unit test can
+// establish, because it is about two futures racing.
+// ---------------------------------------------------------------------
+
+use oryxis_ssh::sftp_shell::SftpShellSession;
+use tokio::sync::mpsc::UnboundedReceiver;
+
+/// Drain whatever the console has emitted so far, giving it a moment to
+/// produce it. Returns the text with the escape sequences left in: the
+/// assertions look for content, and stripping would hide a bug where the
+/// content only appears inside a sequence.
+async fn drain(rx: &mut UnboundedReceiver<Vec<u8>>, patience: Duration) -> String {
+    let deadline = tokio::time::Instant::now() + patience;
+    let mut buf = Vec::new();
+    while tokio::time::Instant::now() < deadline {
+        match tokio::time::timeout(Duration::from_millis(120), rx.recv()).await {
+            Ok(Some(chunk)) => buf.extend_from_slice(&chunk),
+            Ok(None) => break,
+            Err(_) => {
+                // A quiet stretch after something arrived means the
+                // console has said its piece.
+                if !buf.is_empty() {
+                    break;
+                }
+            }
+        }
+    }
+    String::from_utf8_lossy(&buf).into_owned()
+}
+
+/// Wait for `needle` to show up in the console's output.
+async fn expect_output(
+    rx: &mut UnboundedReceiver<Vec<u8>>,
+    needle: &str,
+    patience: Duration,
+) -> String {
+    let deadline = tokio::time::Instant::now() + patience;
+    let mut seen = String::new();
+    while tokio::time::Instant::now() < deadline {
+        seen.push_str(&drain(rx, Duration::from_millis(400)).await);
+        if seen.contains(needle) {
+            return seen;
+        }
+    }
+    panic!("never saw {needle:?} in console output; got:\n{seen}");
+}
+
+/// Open a console on a fresh container.
+async fn start_console() -> (
+    SftpShellSession,
+    UnboundedReceiver<Vec<u8>>,
+    Arc<oryxis_ssh::SshSession>,
+    testcontainers::ContainerAsync<GenericImage>,
+) {
+    let (conn, password, container) = start_sshd().await;
+    let engine = engine();
+    let (session, _rx) = engine
+        .connect(&conn, Some(&password), None, 80, 24)
+        .await
+        .expect("connect");
+    let session = Arc::new(session);
+    let client = session.open_sftp().await.expect("open sftp");
+    let home = client.canonicalize(".").await.expect("home");
+    let (console, out) = SftpShellSession::spawn(
+        Arc::clone(&session),
+        client,
+        home,
+        std::env::temp_dir(),
+        80,
+        "test".to_string(),
+    );
+    (console, out, session, container)
+}
+
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_greets_and_prompts() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    let seen = expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+    assert!(seen.contains("Connected to test"), "no banner in:\n{seen}");
+    assert!(console.is_alive());
+}
+
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_lists_and_navigates() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+
+    console.write(b"pwd\r").expect("write");
+    let seen = expect_output(&mut out, "Remote working directory", Duration::from_secs(10)).await;
+    assert!(seen.contains("/config"), "unexpected home in:\n{seen}");
+
+    console.write(b"cd /etc\r").expect("write");
+    console.write(b"pwd\r").expect("write");
+    let seen = expect_output(&mut out, "/etc", Duration::from_secs(10)).await;
+    assert!(seen.contains("/etc"), "cd did not take in:\n{seen}");
+
+    // `ls <file>` lists the file itself, the way `ls` and `sftp(1)` do.
+    // The first version of this treated any operand as a directory and
+    // answered "no such file" about a file that was plainly there.
+    console.write(b"ls -l passwd\r").expect("write");
+    let seen = expect_output(&mut out, "passwd", Duration::from_secs(10)).await;
+    // The long format's mode column, which is what proves the listing
+    // went through the renderer rather than through some raw dump.
+    assert!(seen.contains("-rw-"), "no long listing in:\n{seen}");
+    assert!(!seen.contains("No such file"), "listed a file as a dir:\n{seen}");
+
+    // And a directory operand still lists its contents.
+    console.write(b"ls -1 /etc/ssh\r").expect("write");
+    let seen = expect_output(&mut out, "ssh", Duration::from_secs(10)).await;
+    assert!(!seen.contains("No such file"), "directory listing broke:\n{seen}");
+}
+
+/// An error is REPORTED and the console carries on. This is the whole
+/// difference between a console and a script, and it is the behaviour
+/// that the "ask the session, not the error" design exists to protect:
+/// `SftpClient` reports a missing file with the same error variant a
+/// dead link produces.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_survives_a_failing_command() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+
+    console.write(b"cd /no/such/place\r").expect("write");
+    expect_output(&mut out, "sftp", Duration::from_secs(10)).await;
+    assert!(console.is_alive(), "a missing directory closed the console");
+
+    // Still usable afterwards.
+    console.write(b"pwd\r").expect("write");
+    let seen = expect_output(&mut out, "Remote working directory", Duration::from_secs(10)).await;
+    assert!(seen.contains("/config"), "cd to nowhere moved us:\n{seen}");
+}
+
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_round_trips_a_file() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+
+    let dir = std::env::temp_dir().join(format!("oryxis-console-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    let source = dir.join("upload.txt");
+    std::fs::write(&source, b"console round trip").expect("write source");
+
+    console
+        .write(format!("lcd {}\r", dir.display()).as_bytes())
+        .expect("write");
+    console.write(b"put upload.txt\r").expect("write");
+    expect_output(&mut out, "upload.txt", Duration::from_secs(20)).await;
+
+    std::fs::remove_file(&source).expect("remove source");
+    console.write(b"get upload.txt\r").expect("write");
+    expect_output(&mut out, "upload.txt", Duration::from_secs(20)).await;
+
+    // Give the download a moment to land before looking for it.
+    for _ in 0..40 {
+        if source.exists() {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(250)).await;
+    }
+    assert_eq!(
+        std::fs::read(&source).expect("downloaded file"),
+        b"console round trip"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `mget` over a glob, which is the operand shape issue #188 asked for
+/// by name.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_expands_a_glob() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+
+    let dir = std::env::temp_dir().join(format!("oryxis-glob-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    for name in ["a.log", "b.log", "c.txt"] {
+        std::fs::write(dir.join(name), name.as_bytes()).expect("write");
+    }
+    console
+        .write(format!("lcd {}\r", dir.display()).as_bytes())
+        .expect("write");
+    console.write(b"mput *.log\r").expect("write");
+    expect_output(&mut out, "b.log", Duration::from_secs(20)).await;
+
+    // The remote now holds exactly the two `.log` files the glob picked,
+    // and not the `.txt` it did not.
+    console.write(b"ls *.log\r").expect("write");
+    let seen = expect_output(&mut out, "a.log", Duration::from_secs(10)).await;
+    assert!(seen.contains("b.log"), "second match missing:\n{seen}");
+    assert!(!seen.contains("c.txt"), "glob over-matched:\n{seen}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// An unmatched pattern is reported rather than silently succeeding,
+/// because an empty success looks exactly like a directory with nothing
+/// in it and sends the user looking for files that were never fetched.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_reports_a_glob_that_matched_nothing() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+    console.write(b"mget *.nonesuch\r").expect("write");
+    let seen = expect_output(&mut out, "no matches found", Duration::from_secs(10)).await;
+    assert!(seen.contains("nonesuch"), "pattern not named in:\n{seen}");
+    assert!(console.is_alive());
+}
+
+/// A Ctrl+C during a transfer reaches the console and leaves it usable.
+///
+/// The CANCELLATION itself is proved deterministically in the unit test
+/// `a_running_command_can_be_interrupted`, against a command that never
+/// finishes. It cannot be proved here: this link runs at a few hundred
+/// megabytes a second, so any file small enough to write quickly
+/// transfers faster than a keystroke can be aimed at it, and a test that
+/// asserted "interrupted" would fail on a fast machine and pass on a
+/// slow one. What this one adds is the part the unit test cannot reach:
+/// that a real interrupt, landing at whatever point it lands, leaves a
+/// console that still answers.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_survives_an_interrupt_during_a_transfer() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+
+    let dir = std::env::temp_dir().join(format!("oryxis-cancel-{}", uuid::Uuid::new_v4()));
+    std::fs::create_dir_all(&dir).expect("scratch dir");
+    std::fs::write(dir.join("big.bin"), vec![7u8; 64 * 1024 * 1024]).expect("write big");
+
+    console
+        .write(format!("lcd {}\r", dir.display()).as_bytes())
+        .expect("write");
+    console.write(b"put big.bin\r").expect("write");
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    console.write(&[0x03]).expect("write ctrl-c");
+    drain(&mut out, Duration::from_secs(15)).await;
+
+    assert!(console.is_alive(), "the interrupt killed the console");
+    // Still takes commands, which is what makes it a cancellation rather
+    // than a crash, and what proves the health probe did not mistake the
+    // interrupt for a dead link.
+    console.write(b"pwd\r").expect("write");
+    expect_output(&mut out, "Remote working directory", Duration::from_secs(15)).await;
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+/// `bye` ends the session, and the ordering contract means it reads as
+/// dead BEFORE its output stream ends.
+#[tokio::test]
+#[ignore = "requires Docker, run with --ignored"]
+async fn console_quits_on_bye_and_reads_dead_before_silent() {
+    let (console, mut out, _ssh, _container) = start_console().await;
+    expect_output(&mut out, "sftp>", Duration::from_secs(10)).await;
+    console.write(b"bye\r").expect("write");
+
+    // Drain to the end of the stream. When it closes, the session must
+    // ALREADY report itself dead: the app reads the end of this stream
+    // as the pane's death notice and consults `is_alive` before acting
+    // on it, so a session still claiming to be alive here would have its
+    // own notice discarded.
+    let closed = tokio::time::timeout(Duration::from_secs(10), async {
+        while out.recv().await.is_some() {}
+    })
+    .await;
+    assert!(closed.is_ok(), "output stream never ended after bye");
+    assert!(
+        !console.is_alive(),
+        "stream ended while the console still read as alive"
+    );
+}

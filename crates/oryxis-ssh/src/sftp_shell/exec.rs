@@ -93,8 +93,11 @@ impl ShellState {
 /// loop; this enum only reports what the USER asked for.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Outcome {
-    /// Print a prompt and read another line.
-    Continue,
+    /// Print a prompt and read another line. `failed` is whether the
+    /// command reported an error, which is the REPL's cue to spend one
+    /// cheap round trip asking whether the link is still there. It is
+    /// NOT a classification of the error: see the note above.
+    Continue { failed: bool },
     /// The user asked to leave (`bye` / `quit` / `exit`).
     Quit,
 }
@@ -191,13 +194,16 @@ pub async fn run(
         Command::Chmod { mode, paths } => chmod(mode, paths, client, state, out).await,
     };
 
-    if let Err(e) = result {
-        // Errors are PRINTED, not returned: a console reports what went
-        // wrong and carries on, which is the whole difference between it
-        // and a script.
-        line(out, &e.to_string());
+    match result {
+        Ok(()) => Outcome::Continue { failed: false },
+        Err(e) => {
+            // Errors are PRINTED, not returned: a console reports what
+            // went wrong and carries on, which is the whole difference
+            // between it and a script.
+            line(out, &e.to_string());
+            Outcome::Continue { failed: true }
+        }
     }
-    Outcome::Continue
 }
 
 impl ShellState {
@@ -333,6 +339,34 @@ async fn ls(
     out: &mut impl ConsoleSink,
 ) -> Result<(), SshError> {
     let (dir, pattern) = state.split_listing_target(opts.path.as_deref());
+    // `ls <file>` lists THE FILE, the way `ls` and `sftp(1)` both do.
+    // Without this the path goes to `read_dir`, which answers "no such
+    // file" about a file that is plainly there, and the error names the
+    // wrong problem. Only for an operand with no wildcard: a pattern is
+    // always a filter on a directory.
+    if pattern.is_none()
+        && let Ok(stat) = client.stat(&dir).await
+        && stat.permissions.is_some_and(|m| m & 0o040000 == 0)
+    {
+        let entry = SftpEntry {
+            name: dir.rsplit('/').next().unwrap_or(&dir).to_string(),
+            is_dir: false,
+            is_symlink: false,
+            size: stat.size,
+            mtime: stat.mtime,
+            permissions: stat.permissions,
+            uid: stat.uid,
+            gid: stat.gid,
+        };
+        // `all` is forced on: the user named this file, so hiding it for
+        // starting with a dot would answer nothing at all.
+        let opts = LsOpts {
+            all: true,
+            ..opts
+        };
+        out.write(render::render_listing(&[entry], &opts, now_secs(), state.cols).as_bytes());
+        return Ok(());
+    }
     let mut entries = client.list_dir(&dir).await?;
     if let Some(pat) = pattern {
         entries.retain(|e| glob::matches(&pat, &e.name));
