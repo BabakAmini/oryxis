@@ -896,20 +896,29 @@ pub fn ensure_task(lang: Language) -> iced::Task<Message> {
 /// YaHei), which are always present and render correctly, so the rename
 /// would be claiming a family we are not. They keep the file as it is.
 fn registered_bytes(bytes: Vec<u8>, asset: &'static CjkAsset) -> Vec<u8> {
-    #[cfg(all(unix, not(any(target_os = "android", target_os = "macos"))))]
-    {
-        match crate::font_family::with_family(&bytes, asset.family) {
-            Some(renamed) => return renamed,
-            None => tracing::warn!(
+    if !CLAIMS_FALLBACK_FAMILY {
+        return bytes;
+    }
+    match crate::font_family::with_family(&bytes, asset.family) {
+        Some(renamed) => renamed,
+        None => {
+            tracing::warn!(
                 target = "oryxis::fonts",
                 lang = %asset.code,
                 "could not rewrite the CJK font family; system CJK fallback stays in charge"
-            ),
+            );
+            bytes
         }
     }
-    let _ = asset;
-    bytes
 }
+
+/// Whether this platform's per-script fallback names a family only we
+/// can supply. A `cfg!` rather than a `cfg`, so the rewrite and its
+/// tests keep compiling on every target: the sfnt surgery has nothing
+/// platform-specific in it, and hiding it behind a `cfg` would leave the
+/// macOS and Windows CI jobs building a file they never check.
+const CLAIMS_FALLBACK_FAMILY: bool =
+    cfg!(all(unix, not(any(target_os = "android", target_os = "macos"))));
 
 /// A task that ensures one pack face is available (cache read or
 /// download) and reports back as `PackFontReady`, which registers the
