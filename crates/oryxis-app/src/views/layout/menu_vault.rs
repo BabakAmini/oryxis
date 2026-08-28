@@ -268,6 +268,20 @@ impl Oryxis {
             };
             items = items.push(self.menu_item(glyph, label, Message::Tabs(TabsMessage::ToggleTabFilesMode(idx)), OryxisColors::t().text_secondary));
         }
+        // The console, offered whenever this tab names a host it could
+        // open one on. Deliberately NOT gated on `has_session`: the
+        // console dials for itself through the ordinary connect path
+        // (with the reuse pool lending a live link when there is one),
+        // so a tab whose session dropped can still open one, which is
+        // exactly when someone reaches for it.
+        if self.sftp_enabled && self.tab_console_target(idx).is_some() {
+            items = items.push(self.menu_item(
+                iced_fonts::lucide::square_terminal(),
+                crate::i18n::t("open_sftp_console"),
+                Message::Sftp(SftpMessage::OpenSftpConsoleForTab(idx)),
+                OryxisColors::t().text_secondary,
+            ));
+        }
         if has_session && self.sftp_enabled {
             // Promote the tab's SFTP session to a standalone tab
             // (the server-to-server dual-remote surface).

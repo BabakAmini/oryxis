@@ -228,6 +228,14 @@ impl Oryxis {
                         crate::state::PaneOrigin::QuickHost(id)
                     }
                 };
+                // An SFTP console dials exactly like a shell and only
+                // parts ways in `SshConnected`, so the intent has to
+                // ride the PANE from here (issue #188). Taken rather
+                // than read: a flag that outlived its request would turn
+                // the next ordinary tab into a console.
+                if std::mem::take(&mut self.pending_console_purpose) {
+                    new_tab.active_mut().purpose = crate::state::PanePurpose::SftpConsole;
+                }
                 // Auto-open the terminal sidebar, decided once at tab
                 // birth: per-host override wins, the global setting is
                 // the default (quick hosts have no override). Toggling

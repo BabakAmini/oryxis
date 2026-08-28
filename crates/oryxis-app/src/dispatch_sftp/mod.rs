@@ -236,6 +236,8 @@ impl Oryxis {
             | SftpMessage::SftpRemountPane(..)
             | SftpMessage::SftpPickerSearch(..)
             | SftpMessage::OpenSftpForConnection(..)
+            | SftpMessage::OpenSftpConsoleForHost(..)
+            | SftpMessage::OpenSftpConsoleForTab(..)
             | SftpMessage::SftpCancelRemoteLoad(..)
             | SftpMessage::SftpRetryRemote(..)) => self
                 .handle_sftp_hosts(m)

@@ -467,6 +467,31 @@ impl Oryxis {
                     Task::none()
                 }
             }
+            // With a live SSH tab in front, the console opens on THAT
+            // host, at the directory its shell had reached: pressing
+            // this while looking at a session means "this one". With
+            // anything else in front there is no such host, so it falls
+            // back to the picker the browser tab uses.
+            OpenSftpConsole => {
+                if !self.sftp_enabled {
+                    return Task::none();
+                }
+                match self
+                    .active_tab
+                    .and_then(|idx| self.tab_console_target(idx))
+                {
+                    Some((conn, dir)) => self.open_sftp_console(conn, dir),
+                    // No session in front to open a console ON, so the
+                    // answer is "pick a host": the dashboard is where
+                    // the cards live, and every card's menu offers the
+                    // console. Doing nothing here would leave a palette
+                    // row that is silently inert, which reads as broken
+                    // the first time it is tried.
+                    None => Task::done(Message::Navigation(NavigationMessage::ChangeView(
+                        View::Dashboard,
+                    ))),
+                }
+            }
             SwitchToTabSlot => match family {
                 FamilyMatch::Digit(d) => {
                     Task::done(Message::Tabs(TabsMessage::ActivateStripSlot(d as usize - 1)))

@@ -83,6 +83,27 @@ impl Oryxis {
                     let ssh = std::sync::Arc::clone(ssh);
                     return self.begin_mosh_handover(pane_id, ssh, options);
                 }
+                // An SFTP console is an SSH host right up to here too,
+                // and for the same reason it branches HERE rather than
+                // at the dial sites: it wants the host key prompt, the
+                // password prompt, the proxy consent and the expanded
+                // jump chain exactly as they are, and a second dialler
+                // of its own would be the second half of the connect
+                // experience this convention exists to prevent.
+                //
+                // It sits after the mosh check on purpose. mosh CLOSES
+                // the SSH session it was handed, so a host configured
+                // for both would have its console opened on a link that
+                // is about to be let go. Ordered this way the mosh
+                // handover wins and the console is simply not offered on
+                // that pane, which `transport.ssh()` returning None for
+                // a Mosh transport already enforces at the menu.
+                if let Some(ssh) = session.ssh()
+                    && self.pane_purpose(pane_id) == crate::state::PanePurpose::SftpConsole
+                {
+                    let ssh = std::sync::Arc::clone(ssh);
+                    return self.begin_sftp_console(pane_id, ssh);
+                }
                 // Terminfo fallback (issue #88): by the time the PTY is up
                 // the progress card is gone, so the timeline log alone is
                 // easy to miss; a toast tells the user why TERM differs

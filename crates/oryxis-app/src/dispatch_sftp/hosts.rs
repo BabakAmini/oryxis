@@ -596,6 +596,25 @@ impl Oryxis {
                 self.open_new_sftp_tab();
                 return self.handle_sftp_hosts(SftpMessage::SftpRemountPane(SftpPaneSide::Right, idx));
             }
+            SftpMessage::OpenSftpConsoleForHost(id) => {
+                // Same dismissals as its browser twin above: the menu
+                // this came from must not linger over the console.
+                self.card_context_menu = None;
+                self.overlay = None;
+                let Some(conn) = self.connections.iter().find(|c| c.id == id).cloned() else {
+                    return Ok(Task::none());
+                };
+                // From a card there is no shell whose directory to
+                // inherit, so the console opens at the session's home.
+                return Ok(self.open_sftp_console(conn, None));
+            }
+            SftpMessage::OpenSftpConsoleForTab(idx) => {
+                self.overlay = None;
+                let Some((conn, dir)) = self.tab_console_target(idx) else {
+                    return Ok(Task::none());
+                };
+                return Ok(self.open_sftp_console(conn, dir));
+            }
             m => return Err(m),
         }
         Ok(Task::none())

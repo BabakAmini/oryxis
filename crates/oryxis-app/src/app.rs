@@ -536,6 +536,17 @@ pub struct Oryxis {
     /// `sftp_open_at_path`, and one-shot for the same reason: a hint that
     /// outlived its request would open Files on some unrelated reconnect.
     pub(crate) pending_files_mode: Option<Uuid>,
+    /// Where a console about to open should start, when the surface that
+    /// asked for it knew (a console opened beside a live tab inherits
+    /// that tab's OSC 7 working directory). One-shot for the same reason
+    /// as its two siblings above: a hint that outlived its request would
+    /// land a later console somewhere nobody asked for.
+    pub(crate) pending_console_dir: Option<String>,
+    /// Set by `open_sftp_console` and consumed by `start_ssh_tab` when it
+    /// builds the pane, which is the only moment a pane's purpose can be
+    /// decided before its dial carries it. Paired with
+    /// `pending_console_dir`.
+    pub(crate) pending_console_purpose: bool,
     /// Click counter behind the deferred slow-click rename: every row
     /// click, right-click and navigation bumps it, and a fire whose
     /// armed generation no longer matches gives up (see

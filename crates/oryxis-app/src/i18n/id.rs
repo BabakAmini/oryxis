@@ -1696,6 +1696,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "Ukuran",
         // SFTP columns + message log
         "open_sftp_tab" => "Buka Tab SFTP",
+        "open_sftp_console" => "Buka konsol SFTP",
+        "hotkey_open_sftp_console" => "Buka konsol SFTP",
+        "sftp_console_opening" => "Membuka konsol SFTP...",
+        "sftp_console_error_open" => "Tidak dapat membuka konsol SFTP: {reason}",
         "columns" => "Kolom",
         "col_type" => "Tipe",
         "col_permissions" => "Izin",

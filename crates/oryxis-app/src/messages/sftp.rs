@@ -123,6 +123,18 @@ pub enum SftpMessage {
     /// (host-card context menu). Reuses a live SSH session if one is open,
     /// otherwise connects.
     OpenSftpForConnection(usize),
+    /// Open an interactive SFTP console on a saved host (issue #188),
+    /// from the host card's menu.
+    ///
+    /// Carries the host's ID rather than its index, unlike its neighbour
+    /// above: the card menu is anchored to the host, and an index would
+    /// be resolved against a list that a re-sort under the open menu can
+    /// have changed.
+    OpenSftpConsoleForHost(uuid::Uuid),
+    /// Open an interactive SFTP console for the terminal tab at this
+    /// index, on the host that tab is connected to and at the directory
+    /// its shell had reached.
+    OpenSftpConsoleForTab(usize),
     SftpStartEditPath(crate::state::SftpPaneSide),
     SftpEditPath(crate::state::SftpPaneSide, String),
     /// Toggle this pane's path-history dropdown (issue #85).

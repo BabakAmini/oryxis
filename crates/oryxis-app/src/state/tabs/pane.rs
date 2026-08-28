@@ -28,6 +28,31 @@ pub(crate) enum PaneOrigin {
     Ephemeral,
 }
 
+/// What a pane's session is FOR, which is not the same question as what
+/// it connects to (`PaneOrigin`) or how (`TerminalTransport`).
+///
+/// It exists because the SFTP console (issue #188) dials through the
+/// ordinary SSH path: it needs the host key prompt, the password prompt,
+/// the proxy consent and the expanded jump chain, and the repo's answer
+/// to "reuse the whole connect experience" is the one mosh already
+/// established, which is to branch inside the `SshConnected` handler
+/// rather than grow a second dialler.
+///
+/// So the dial has to carry the intent, and carrying it on the PANE is
+/// what makes reconnect correct for free: `spawn_ssh_for_pane_conn`
+/// rebuilds a pane's session in place, and without this a console whose
+/// link dropped would come back as a SHELL, changing what the tab is
+/// without anybody asking.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum PanePurpose {
+    /// An interactive session with whatever is on the far side.
+    #[default]
+    Shell,
+    /// An SFTP console. The dial ends with `open_sftp()` and the
+    /// transport becomes `TerminalTransport::SftpShell`.
+    SftpConsole,
+}
+
 /// Where a pane's remote shell stands in the OSC 133 prompt cycle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PromptState {
@@ -90,6 +115,20 @@ pub(crate) enum TerminalTransport {
     /// exactly when the other half proved its worth. What needs SSH
     /// asks for its own; see `mosh_files_open_in_new_tab`.
     Mosh(Arc<oryxis_mosh::MoshSession>),
+    /// An interactive SFTP console (issue #188): the pane's far side is
+    /// not a shell but a REPL of ours, speaking `sftp(1)`'s command set
+    /// over a channel on a live SSH session.
+    ///
+    /// `ssh()` answers `None` even though there IS an SSH session
+    /// underneath, and that is the point rather than an oversight. What
+    /// that accessor gates is the feature set a SHELL pane offers (an
+    /// SFTP mount beside it, OS detection, the AI exec channel), and
+    /// none of those mean anything pointed at a console: a mount beside
+    /// a mount, a probe that would have to type into a prompt that does
+    /// not run commands. The console holds its own `Arc<SshSession>`
+    /// for the one thing it needs it for, which is knowing whether the
+    /// link is still there.
+    SftpShell(Arc<oryxis_ssh::sftp_shell::SftpShellSession>),
 }
 
 impl TerminalTransport {
@@ -99,7 +138,8 @@ impl TerminalTransport {
             TerminalTransport::Ssh(s) => Some(s),
             TerminalTransport::Telnet(_)
             | TerminalTransport::Serial(_)
-            | TerminalTransport::Mosh(_) => None,
+            | TerminalTransport::Mosh(_)
+            | TerminalTransport::SftpShell(_) => None,
         }
     }
 
@@ -114,7 +154,8 @@ impl TerminalTransport {
             TerminalTransport::Mosh(s) => Some(s),
             TerminalTransport::Ssh(_)
             | TerminalTransport::Telnet(_)
-            | TerminalTransport::Serial(_) => None,
+            | TerminalTransport::Serial(_)
+            | TerminalTransport::SftpShell(_) => None,
         }
     }
 
@@ -138,6 +179,7 @@ impl TerminalTransport {
             TerminalTransport::Telnet(s) => s.write(data).map_err(|e| e.to_string()),
             TerminalTransport::Serial(s) => s.write(data).map_err(|e| e.to_string()),
             TerminalTransport::Mosh(s) => s.write(data).map_err(|e| e.to_string()),
+            TerminalTransport::SftpShell(s) => s.write(data).map_err(|e| e.to_string()),
         }
     }
 
@@ -146,6 +188,10 @@ impl TerminalTransport {
             TerminalTransport::Ssh(s) => s.resize(cols, rows),
             TerminalTransport::Telnet(s) => s.resize(cols, rows),
             TerminalTransport::Mosh(s) => s.resize(cols, rows),
+            // The console redraws its own prompt and re-columnizes its
+            // own listings, so it wants the width even though nothing
+            // remote is listening for it.
+            TerminalTransport::SftpShell(s) => s.resize(cols, rows),
             // A serial line has no window size; resize is a no-op.
             TerminalTransport::Serial(_) => {}
         }
@@ -159,6 +205,7 @@ impl TerminalTransport {
             TerminalTransport::Ssh(s) => Some(s.resize_sender()),
             TerminalTransport::Telnet(s) => Some(s.resize_sender()),
             TerminalTransport::Mosh(s) => Some(s.resize_sender()),
+            TerminalTransport::SftpShell(s) => Some(s.resize_sender()),
             TerminalTransport::Serial(_) => None,
         }
     }
@@ -171,6 +218,7 @@ impl TerminalTransport {
             TerminalTransport::Telnet(s) => s.write_sender(),
             TerminalTransport::Serial(s) => s.write_sender(),
             TerminalTransport::Mosh(s) => s.write_sender(),
+            TerminalTransport::SftpShell(s) => s.write_sender(),
         }
     }
 
@@ -204,6 +252,7 @@ impl TerminalTransport {
             TerminalTransport::Telnet(s) => s.is_alive(),
             TerminalTransport::Serial(s) => s.is_alive(),
             TerminalTransport::Mosh(s) => s.is_alive(),
+            TerminalTransport::SftpShell(s) => s.is_alive(),
         }
     }
 
@@ -214,6 +263,7 @@ impl TerminalTransport {
             TerminalTransport::Telnet(s) => s.close(),
             TerminalTransport::Serial(s) => s.close(),
             TerminalTransport::Mosh(s) => s.close(),
+            TerminalTransport::SftpShell(s) => s.close(),
         }
     }
 }
@@ -467,6 +517,10 @@ pub(crate) struct Pane {
     pub terminal: Arc<Mutex<TerminalState>>,
     /// Remote transport handle (SSH or Telnet; None for local shell).
     pub session: Option<TerminalTransport>,
+    /// What this pane's session is for. Set before the dial and read by
+    /// `wire_connected_pane`, which is what makes a console survive a
+    /// reconnect as a console. See [`PanePurpose`].
+    pub purpose: PanePurpose,
     /// True while an in-place reconnect dial for this pane is in
     /// flight, making a repeat `ReconnectTab` a no-op (a held chord or
     /// an auto-reconnect tick racing a manual click must not stack a
@@ -712,6 +766,7 @@ impl Pane {
             label,
             terminal,
             session: None,
+            purpose: PanePurpose::default(),
             connecting: false,
             session_log_id: None,
             session_log_buf: Vec::new(),

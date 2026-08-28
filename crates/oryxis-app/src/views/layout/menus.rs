@@ -120,7 +120,12 @@ impl Oryxis {
             .total;
         }
         let items: f32 = match &overlay.content {
-            OverlayContent::TabActions(_) => 12.0,
+            // A flat count, unlike the host menus below, because this
+            // one's conditional entries have always been budgeted for
+            // rather than counted. The console row (issue #188) fits in
+            // the slack that leaves; when the next entry does not, this
+            // wants the `*_menu_rows` treatment its neighbours got.
+            OverlayContent::TabActions(_) => 13.0,
             OverlayContent::HostTagFilter | OverlayContent::HistoryTagFilter => {
                 (self.distinct_host_tags().len() + 1) as f32
             }

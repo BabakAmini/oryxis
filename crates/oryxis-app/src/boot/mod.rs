@@ -323,6 +323,8 @@ impl Oryxis {
                 keynav: crate::keynav::KeyNavState::default(),
                 sftp_open_at_path: None,
                 pending_files_mode: None,
+                pending_console_dir: None,
+                pending_console_purpose: false,
                 sftp_click_gen: 0,
                 sftp_edit_reopen: None,
                 command_history: Vec::new(),

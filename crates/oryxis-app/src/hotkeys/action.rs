@@ -27,6 +27,15 @@ pub enum HotkeyAction {
     FocusViewSearch,
     /// Open a new SFTP browser tab.
     OpenSftp,
+    /// Open an interactive SFTP console (issue #188): a terminal tab
+    /// running an `sftp(1)`-style prompt instead of a shell.
+    ///
+    /// Global rather than `terminal_only`. With a live SSH tab in front
+    /// it opens a console on that host; anywhere else it opens the host
+    /// picker, which is what `OpenSftp` already does. Gating it on the
+    /// terminal view would leave its palette row visible and inert
+    /// exactly where the host cards are.
+    OpenSftpConsole,
     // Tab strip
     SwitchToTabSlot,   // family: Ctrl + digit 1..9
     CycleTabs,         // family: Alt + ArrowLeft/Right
@@ -154,6 +163,7 @@ impl HotkeyAction {
             OpenSettings,
             FocusViewSearch,
             OpenSftp,
+            OpenSftpConsole,
             SwitchToTabSlot,
             CycleTabs,
             ToggleFullscreen,
@@ -202,6 +212,7 @@ impl HotkeyAction {
             OpenSettings => "open_settings",
             FocusViewSearch => "focus_view_search",
             OpenSftp => "open_sftp",
+            OpenSftpConsole => "open_sftp_console",
             SwitchToTabSlot => "switch_to_tab_slot",
             CycleTabs => "cycle_tabs",
             ToggleFullscreen => "toggle_fullscreen",
@@ -253,6 +264,7 @@ impl HotkeyAction {
             OpenSettings => "hotkey_open_settings",
             FocusViewSearch => "hotkey_focus_view_search",
             OpenSftp => "hotkey_open_sftp",
+            OpenSftpConsole => "hotkey_open_sftp_console",
             SwitchToTabSlot => "hotkey_switch_to_tab_slot",
             CycleTabs => "hotkey_cycle_tabs",
             ToggleFullscreen => "hotkey_toggle_fullscreen",

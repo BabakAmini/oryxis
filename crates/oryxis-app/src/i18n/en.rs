@@ -1703,6 +1703,10 @@ pub(super) fn lookup(key: &str) -> &'static str {
         "col_size" => "Size",
         // SFTP columns + message log
         "open_sftp_tab" => "Open SFTP Tab",
+        "open_sftp_console" => "Open SFTP Console",
+        "hotkey_open_sftp_console" => "Open SFTP Console",
+        "sftp_console_opening" => "Opening SFTP console...",
+        "sftp_console_error_open" => "Could not open the SFTP console: {reason}",
         "columns" => "Columns",
         "col_type" => "Type",
         "col_permissions" => "Permissions",

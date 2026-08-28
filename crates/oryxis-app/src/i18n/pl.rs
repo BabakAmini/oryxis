@@ -1706,6 +1706,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "Rozmiar",
         // SFTP columns + message log
         "open_sftp_tab" => "Otwórz kartę SFTP",
+        "open_sftp_console" => "Otwórz konsolę SFTP",
+        "hotkey_open_sftp_console" => "Otwórz konsolę SFTP",
+        "sftp_console_opening" => "Otwieranie konsoli SFTP...",
+        "sftp_console_error_open" => "Nie można otworzyć konsoli SFTP: {reason}",
         "columns" => "Kolumny",
         "col_type" => "Typ",
         "col_permissions" => "Uprawnienia",

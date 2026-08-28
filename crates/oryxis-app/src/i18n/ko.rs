@@ -1696,6 +1696,10 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "크기",
         // SFTP columns + message log
         "open_sftp_tab" => "SFTP 탭 열기",
+        "open_sftp_console" => "SFTP 콘솔 열기",
+        "hotkey_open_sftp_console" => "SFTP 콘솔 열기",
+        "sftp_console_opening" => "SFTP 콘솔을 여는 중...",
+        "sftp_console_error_open" => "SFTP 콘솔을 열 수 없습니다: {reason}",
         "columns" => "열",
         "col_type" => "종류",
         "col_permissions" => "권한",
