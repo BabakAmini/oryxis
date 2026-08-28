@@ -1702,7 +1702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "גודל",
         // SFTP columns + message log
         "open_sftp_tab" => "פתיחת כרטיסיית SFTP",
-        "open_sftp_console" => "פתח מסוף SFTP",
+        "open_sftp_console" => "מסוף SFTP",
         "hotkey_open_sftp_console" => "פתח מסוף SFTP",
         "sftp_console_opening" => "פותח מסוף SFTP...",
         "sftp_console_error_open" => "לא ניתן לפתוח את מסוף ה-SFTP: {reason}",

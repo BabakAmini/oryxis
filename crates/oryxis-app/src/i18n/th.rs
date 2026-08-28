@@ -1703,7 +1703,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "ขนาด",
         // SFTP columns + message log
         "open_sftp_tab" => "เปิดแท็บ SFTP",
-        "open_sftp_console" => "เปิดคอนโซล SFTP",
+        "open_sftp_console" => "คอนโซล SFTP",
         "hotkey_open_sftp_console" => "เปิดคอนโซล SFTP",
         "sftp_console_opening" => "กำลังเปิดคอนโซล SFTP...",
         "sftp_console_error_open" => "ไม่สามารถเปิดคอนโซล SFTP: {reason}",

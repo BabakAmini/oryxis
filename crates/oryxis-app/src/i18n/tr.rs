@@ -1696,7 +1696,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "Boyut",
         // SFTP columns + message log
         "open_sftp_tab" => "SFTP Sekmesi Aç",
-        "open_sftp_console" => "SFTP konsolunu aç",
+        "open_sftp_console" => "SFTP konsolu",
         "hotkey_open_sftp_console" => "SFTP konsolunu aç",
         "sftp_console_opening" => "SFTP konsolu açılıyor...",
         "sftp_console_error_open" => "SFTP konsolu açılamadı: {reason}",

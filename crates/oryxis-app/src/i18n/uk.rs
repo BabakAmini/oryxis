@@ -1696,7 +1696,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "Розмір",
         // SFTP columns + message log
         "open_sftp_tab" => "Відкрити вкладку SFTP",
-        "open_sftp_console" => "Відкрити консоль SFTP",
+        "open_sftp_console" => "Консоль SFTP",
         "hotkey_open_sftp_console" => "Відкрити консоль SFTP",
         "sftp_console_opening" => "Відкриття консолі SFTP...",
         "sftp_console_error_open" => "Не вдалося відкрити консоль SFTP: {reason}",

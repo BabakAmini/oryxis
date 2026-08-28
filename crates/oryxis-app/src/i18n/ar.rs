@@ -1705,7 +1705,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "الحجم",
         // SFTP columns + message log
         "open_sftp_tab" => "فتح علامة تبويب SFTP",
-        "open_sftp_console" => "فتح وحدة تحكم SFTP",
+        "open_sftp_console" => "طرفية SFTP",
         "hotkey_open_sftp_console" => "فتح وحدة تحكم SFTP",
         "sftp_console_opening" => "جارٍ فتح وحدة تحكم SFTP...",
         "sftp_console_error_open" => "تعذر فتح وحدة تحكم SFTP: {reason}",

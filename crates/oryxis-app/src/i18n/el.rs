@@ -1702,7 +1702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "Μέγεθος",
         // SFTP columns + message log
         "open_sftp_tab" => "Άνοιγμα καρτέλας SFTP",
-        "open_sftp_console" => "Άνοιγμα κονσόλας SFTP",
+        "open_sftp_console" => "Κονσόλα SFTP",
         "hotkey_open_sftp_console" => "Άνοιγμα κονσόλας SFTP",
         "sftp_console_opening" => "Άνοιγμα κονσόλας SFTP...",
         "sftp_console_error_open" => "Δεν ήταν δυνατό το άνοιγμα της κονσόλας SFTP: {reason}",

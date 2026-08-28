@@ -1615,7 +1615,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "大小",
         // SFTP columns + message log
         "open_sftp_tab" => "打开 SFTP 标签页",
-        "open_sftp_console" => "打开 SFTP 控制台",
+        "open_sftp_console" => "SFTP 控制台",
         "hotkey_open_sftp_console" => "打开 SFTP 控制台",
         "sftp_console_opening" => "正在打开 SFTP 控制台...",
         "sftp_console_error_open" => "无法打开 SFTP 控制台：{reason}",

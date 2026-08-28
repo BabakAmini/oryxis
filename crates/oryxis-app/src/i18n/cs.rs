@@ -1702,7 +1702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "Velikost",
         // SFTP columns + message log
         "open_sftp_tab" => "Otevřít SFTP kartu",
-        "open_sftp_console" => "Otevřít konzoli SFTP",
+        "open_sftp_console" => "Konzole SFTP",
         "hotkey_open_sftp_console" => "Otevřít konzoli SFTP",
         "sftp_console_opening" => "Otevírání konzole SFTP...",
         "sftp_console_error_open" => "Konzoli SFTP se nepodařilo otevřít: {reason}",

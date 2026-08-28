@@ -192,6 +192,26 @@ impl Oryxis {
                     .canonicalize(".")
                     .await
                     .unwrap_or_else(|_| "/".to_string());
+                // Wipe what SSH left on the pane. The dial opened a
+                // shell of its own on the way in, so by now the pane is
+                // carrying a login banner ("Last login: ...") and a
+                // prompt that belong to a session the user never asked
+                // to see and that is about to be closed. Left there they
+                // would sit above the console's own banner for the rest
+                // of its life.
+                //
+                // Word for word the reason the mosh handover clears at
+                // the same point, and placed the same way: after the
+                // round trip that opened the subsystem, by which time
+                // the shell has finished saying its piece, and before
+                // the console prints anything of its own.
+                let _ = sender
+                    .send(Message::Terminal(TerminalMessage::PtyOutput(
+                        pane_id,
+                        b"\x1b[H\x1b[2J\x1b[3J\x1b[m".to_vec(),
+                    )))
+                    .await;
+
                 let (session, mut rx) = SftpShellSession::spawn(
                     Arc::clone(&ssh),
                     client,

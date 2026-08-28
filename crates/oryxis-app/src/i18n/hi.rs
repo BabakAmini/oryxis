@@ -1702,7 +1702,7 @@ pub(super) fn lookup(key: &str) -> Option<&'static str> {
         "col_size" => "आकार",
         // SFTP columns + message log
         "open_sftp_tab" => "SFTP टैब खोलें",
-        "open_sftp_console" => "SFTP कंसोल खोलें",
+        "open_sftp_console" => "SFTP कंसोल",
         "hotkey_open_sftp_console" => "SFTP कंसोल खोलें",
         "sftp_console_opening" => "SFTP कंसोल खोला जा रहा है...",
         "sftp_console_error_open" => "SFTP कंसोल नहीं खोला जा सका: {reason}",
