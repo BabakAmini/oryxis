@@ -8,7 +8,7 @@ use iced::widget::button::Status as BtnStatus;
 use iced::widget::{button, column, container, scrollable, text, text_input, MouseArea, Space};
 use iced::{Background, Border, Color, Element, Length, Padding};
 
-use crate::app::{SettingsMessage, CloudMessage, Message, Oryxis, CARD_WIDTH};
+use crate::app::{SettingsMessage, CloudMessage, Message, Oryxis, TabsMessage, CARD_WIDTH};
 use crate::i18n::t;
 use crate::theme::OryxisColors;
 use crate::widgets::{
@@ -145,7 +145,12 @@ impl Oryxis {
                     Space::new().height(24),
                     crate::widgets::cta_button(
                         t("cloud_no_provider_btn").to_string(),
-                        Message::Settings(SettingsMessage::ChangeSettingsSection(
+                        // The route, not the bare section: this button is
+                        // pressed from the Cloud panel, and
+                        // `ChangeSettingsSection` assumes Settings is
+                        // already on screen, so it would select the
+                        // section behind a view nobody switched to.
+                        Message::Tabs(TabsMessage::OpenSettingsSection(
                             crate::state::SettingsSection::Plugins,
                         )),
                     ),
