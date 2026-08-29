@@ -270,14 +270,13 @@ fn table_checksum(data: &[u8], offset: usize, len: usize) -> u32 {
 fn sum_u32(data: &[u8], offset: usize, len: usize) -> u32 {
     let end = offset.saturating_add(len).min(data.len());
     let bytes = data.get(offset.min(end)..end).unwrap_or_default();
-    let mut chunks = bytes.chunks_exact(4);
+    let (words, rest) = bytes.as_chunks::<4>();
     let mut sum = 0u32;
-    for word in &mut chunks {
-        sum = sum.wrapping_add(u32::from_be_bytes([word[0], word[1], word[2], word[3]]));
+    for word in words {
+        sum = sum.wrapping_add(u32::from_be_bytes(*word));
     }
     // The last table in a font is padded to a word boundary for the
     // checksum even when its length is not a multiple of four.
-    let rest = chunks.remainder();
     if !rest.is_empty() {
         let mut word = [0u8; 4];
         word[..rest.len()].copy_from_slice(rest);
