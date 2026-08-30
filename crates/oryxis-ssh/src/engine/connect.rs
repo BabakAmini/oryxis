@@ -48,8 +48,14 @@ impl SshEngine {
             if !connection.jump_chain.is_empty() {
                 self.connect_via_jump_hosts(connection, resolver, &addr).await
             } else if let Some(proxy) = &connection.proxy {
-                self.connect_via_proxy(proxy, target_host, target_port, self.address_family)
-                    .await
+                self.connect_via_proxy(
+                    proxy,
+                    target_host,
+                    target_port,
+                    connection.username.as_deref(),
+                    self.address_family,
+                )
+                .await
             } else {
                 let config = self.make_config();
                 let handler = self.make_handler(target_host, target_port);
@@ -346,11 +352,16 @@ impl SshEngine {
     /// the PROXY (the only dial this machine makes on this path); it is
     /// the target connection's preference, or the bastion's when the
     /// proxied hop is a jump chain's first host.
+    ///
+    /// `target_user` is the login name this dial will authenticate as,
+    /// carried only so a `ProxyType::Command` line can resolve `%r`. The
+    /// SOCKS and HTTP branches never look at it.
     pub(crate) async fn connect_via_proxy(
         &self,
         proxy: &ProxyConfig,
         target_host: &str,
         target_port: u16,
+        target_user: Option<&str>,
         family: AddressFamily,
     ) -> Result<client::Handle<ClientHandler>, SshError> {
         let proxy_addr = oryxis_core::net::host_port(&proxy.host, proxy.port);
@@ -436,7 +447,9 @@ impl SshEngine {
                     .map_err(|e| SshError::Proxy(format!("SSH over HTTP CONNECT: {}", e)))
             }
             ProxyType::Command(cmd) => {
-                let stream = self.proxy_command(cmd, target_host, target_port).await?;
+                let stream = self
+                    .proxy_command(cmd, target_host, target_port, target_user)
+                    .await?;
 
                 let config = self.make_config();
                 client::connect_stream(config, stream, self.make_handler(target_host, target_port))
@@ -520,11 +533,18 @@ impl SshEngine {
     /// and a group default lands on every host in the group that has no
     /// proxy of its own. So the spawn asks first, and an engine with
     /// nobody to ask refuses.
+    ///
+    /// The line is asked about, and fingerprinted, exactly as stored:
+    /// `%h` / `%p` / `%r` are resolved by
+    /// `proxy_spawn::expand_proxy_tokens` only once consent is in
+    /// hand, so one approval covers every host that shares the proxy and
+    /// the values filling those slots are the ones checked there.
     pub(crate) async fn proxy_command(
         &self,
         cmd: &str,
         target_host: &str,
         target_port: u16,
+        target_user: Option<&str>,
     ) -> Result<impl AsyncRead + AsyncWrite + Unpin + Send + 'static, SshError> {
         // The line itself never reaches the log: it is user-authored and
         // can embed credentials, which is why the connect progress card
@@ -553,14 +573,28 @@ impl SshEngine {
             return Err(SshError::ProxyCommandNotApproved);
         }
 
-        let mut child = TokioCommand::new("sh")
-            .arg("-c")
-            .arg(cmd)
-            .stdin(std::process::Stdio::piped())
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .spawn()
+        let line = super::proxy_spawn::expand_proxy_tokens(
+            cmd,
+            &super::proxy_spawn::ProxyTokens {
+                host: target_host,
+                port: target_port,
+                user: target_user,
+            },
+        )?;
+
+        let mut child = super::proxy_spawn::spawn_proxy_process(&line)
             .map_err(|e| SshError::Proxy(format!("ProxyCommand spawn: {}", e)))?;
+
+        // The proxy's own complaints are the only account of why a dial
+        // through it failed; without them a bad profile or an expired
+        // token reads as an unexplained EOF in the version exchange.
+        if let Some(stderr) = child.stderr.take() {
+            tokio::spawn(super::proxy_spawn::log_proxy_stderr(
+                stderr,
+                target_host.to_string(),
+                target_port,
+            ));
+        }
 
         let stdin = child
             .stdin
@@ -611,6 +645,7 @@ impl SshEngine {
                 first_proxy,
                 &first_jump.hostname,
                 first_jump.port,
+                first_jump.username.as_deref(),
                 first_jump.address_family,
             )
             .await
