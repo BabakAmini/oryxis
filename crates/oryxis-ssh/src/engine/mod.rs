@@ -39,6 +39,7 @@ pub use transport::SshTransport;
 pub use terminfo::TermFallback;
 pub(crate) use terminfo::*;
 pub(crate) use handler::*;
+pub(crate) use proxy_spawn::ProxyTokens;
 use agent::*;
 use kbi::*;
 
@@ -719,16 +720,20 @@ mod tests {
     /// approval channel gets a refusal, never a spawn.
     #[tokio::test]
     async fn a_command_proxy_needs_an_approval_channel() {
-        // The command is one that would be visible if it ever ran; the
-        // assertion is that neither branch below reaches a shell.
+        // Harmless if it ever does run, because the last branch below
+        // approves it and then it really does: the first two are the
+        // ones asserting nothing reaches a shell.
         const CMD: &str = "echo should-never-run";
+        let dial = ProxyTokens {
+            host: "host.example",
+            port: 22,
+            user: "root",
+            name: "host.example",
+        };
 
         let no_channel = SshEngine::new();
         assert!(matches!(
-            no_channel
-                .proxy_command(CMD, "host.example", 22, None)
-                .await
-                .err(),
+            no_channel.proxy_command(CMD, &dial).await.err(),
             Some(SshError::ProxyCommandNotApproved),
         ));
 
@@ -737,10 +742,7 @@ mod tests {
         let refusing = SshEngine::new()
             .with_proxy_command_ask(trusted_only_proxy_command_ask(Default::default()));
         assert!(matches!(
-            refusing
-                .proxy_command(CMD, "host.example", 22, None)
-                .await
-                .err(),
+            refusing.proxy_command(CMD, &dial).await.err(),
             Some(SshError::ProxyCommandNotApproved),
         ));
 
@@ -758,12 +760,7 @@ mod tests {
                 .into_iter()
                 .collect(),
         ));
-        assert!(
-            approved
-                .proxy_command(CMD, "host.example", 22, None)
-                .await
-                .is_ok()
-        );
+        assert!(approved.proxy_command(CMD, &dial).await.is_ok());
     }
 
     #[test]

@@ -713,7 +713,7 @@ pub enum ProxyType {
 /// which is what stops a trusted line from being quietly rewritten into
 /// another one.
 ///
-/// `%h` / `%p` / `%r` are resolved after the gate, not before, so one
+/// `%h` / `%n` / `%p` / `%r` are resolved after the gate, not before, so one
 /// approval covers every host that shares the proxy rather than
 /// re-prompting per target. That splits the identity of what runs in
 /// two: the line is pinned here, and the values allowed into its token
