@@ -29,9 +29,10 @@ pub struct SshConfigHost {
     /// is recorded, multi-hop chains aren't supported on import yet
     /// because they'd require resolving multiple aliases at link time.
     pub proxy_jump: Option<String>,
-    /// Verbatim `ProxyCommand` line, placeholders like `%h` and `%p`
-    /// are kept as-is so the user's shell expands them at connect time
-    /// (matching the engine's `ProxyType::Command` semantics).
+    /// Verbatim `ProxyCommand` line. `%h` / `%p` / `%r` are kept as
+    /// written: no shell expands those, OpenSSH resolves them itself and
+    /// so does the engine, at spawn time and against the host being
+    /// dialed (see `ProxyType::Command` and `proxy_spawn`).
     pub proxy_command: Option<String>,
     /// `ForwardAgent` directive, only `yes` flips it on; missing /
     /// `no` / anything else stays off, matching OpenSSH's default.
