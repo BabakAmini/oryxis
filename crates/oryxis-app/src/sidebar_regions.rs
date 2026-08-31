@@ -53,6 +53,7 @@ impl Oryxis {
             TerminalSidebarTab::Files => self.sftp_enabled,
             TerminalSidebarTab::Monitor => self.prefs.host_monitoring,
             TerminalSidebarTab::Tmux => self.prefs.tmux_manager,
+            TerminalSidebarTab::Docker => self.prefs.docker_manager,
             TerminalSidebarTab::Snippets
             | TerminalSidebarTab::History
             | TerminalSidebarTab::HostConfig
@@ -74,7 +75,7 @@ impl Oryxis {
                 TerminalSidebarTab::Files => {
                     self.active_pane_has_ssh() || self.active_pane_is_local()
                 }
-                TerminalSidebarTab::Monitor | TerminalSidebarTab::Tmux => {
+                TerminalSidebarTab::Monitor | TerminalSidebarTab::Tmux | TerminalSidebarTab::Docker => {
                     self.active_pane_has_ssh()
                 }
                 _ => true,

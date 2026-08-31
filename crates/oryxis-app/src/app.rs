@@ -68,7 +68,7 @@ use crate::theme::OryxisColors;
 
 // `Message` lives in its own module; re-export so call sites that
 // import `crate::app::Message` keep working.
-pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, MonitorMessage, TmuxMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
+pub use crate::messages::{Message, SettingsMessage, TabsMessage, EditorMessage, KeysMessage, SidebarFilesMessage, MonitorMessage, TmuxMessage, DockerMessage, TerminalMessage, SshMessage, CloudMessage, HistoryMessage, McpMessage, NavigationMessage, CommandHistoryMessage, UpdateMessage, ProxyIdentityMessage, PluginMessage, AgentMessage, ZmodemMessage, KnownHostMessage, RemoteDesktopMessage, TrayMessage, SessionGroupMessage, PortForwardMessage, VaultMessage, SnippetMessage, AiMessage, OnboardingMessage, PlayerMessage, ShareMessage, SftpMessage, SyncMessage};
 
 // Layout constants
 pub(crate) const DEFAULT_TERM_COLS: u32 = 120;
@@ -1016,6 +1016,8 @@ pub struct Oryxis {
     /// PANE, keyed that way because the pane owns the SSH session the
     /// listing was read over. RAM only, never persisted or synced.
     pub(crate) tmux: crate::tmux::TmuxState,
+    /// Docker manager state: containers, images, compose projects per pane.
+    pub(crate) docker: crate::docker::DockerState,
     /// Live SSH connections a second tab can ride (F2). `Weak` only:
     /// the sessions own the transports, so the pool never keeps a
     /// connection alive and a dead entry is pruned on next lookup.

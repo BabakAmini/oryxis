@@ -36,6 +36,11 @@ pub enum TerminalSidebarTab {
     /// session (issue #116). SSH-only, and behind its own feature
     /// toggle like Monitor.
     Tmux,
+    /// Docker container/image/compose manager for the focused pane's
+    /// host: list and manage containers, images, and docker-compose
+    /// projects detected in the shell's working directory. SSH-only,
+    /// behind its own feature toggle like Monitor / Tmux.
+    Docker,
     /// Per-host appearance/behavior settings for the focused pane's
     /// connection, edited live with the terminal visible alongside.
     HostConfig,
@@ -125,7 +130,7 @@ impl SidebarPlacement {
 impl TerminalSidebarTab {
     /// Every tab, in strip order. Backs the "Default sidebar tab"
     /// picker (issue #85).
-    pub const ALL: [TerminalSidebarTab; 8] = [
+    pub const ALL: [TerminalSidebarTab; 9] = [
         TerminalSidebarTab::HostsTree,
         TerminalSidebarTab::Chat,
         TerminalSidebarTab::Snippets,
@@ -133,6 +138,7 @@ impl TerminalSidebarTab {
         TerminalSidebarTab::Files,
         TerminalSidebarTab::Monitor,
         TerminalSidebarTab::Tmux,
+        TerminalSidebarTab::Docker,
         TerminalSidebarTab::HostConfig,
     ];
 
@@ -145,6 +151,7 @@ impl TerminalSidebarTab {
             TerminalSidebarTab::Files => "files",
             TerminalSidebarTab::Monitor => "monitor",
             TerminalSidebarTab::Tmux => "tmux",
+            TerminalSidebarTab::Docker => "docker",
             TerminalSidebarTab::HostConfig => "hostconfig",
             TerminalSidebarTab::HostsTree => "hosts",
         }
@@ -166,6 +173,7 @@ impl TerminalSidebarTab {
             TerminalSidebarTab::Files => "tab_tip_files",
             TerminalSidebarTab::Monitor => "tab_tip_monitor",
             TerminalSidebarTab::Tmux => "tab_tip_tmux",
+            TerminalSidebarTab::Docker => "tab_tip_docker",
             TerminalSidebarTab::HostConfig => "tab_tip_host_config",
             TerminalSidebarTab::HostsTree => "tab_tip_hosts",
         }

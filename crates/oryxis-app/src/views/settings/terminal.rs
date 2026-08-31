@@ -69,6 +69,7 @@ impl Oryxis {
                 STab::Files => self.sftp_enabled,
                 STab::Monitor => self.prefs.host_monitoring,
                 STab::Tmux => self.prefs.tmux_manager,
+                STab::Docker => self.prefs.docker_manager,
                 _ => true,
             })
             .collect();

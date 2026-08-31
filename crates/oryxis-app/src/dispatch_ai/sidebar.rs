@@ -44,10 +44,12 @@ impl Oryxis {
                         self.sidebar_region_tab(side),
                         Some(crate::state::TerminalSidebarTab::Files)
                             | Some(crate::state::TerminalSidebarTab::Tmux)
+                            | Some(crate::state::TerminalSidebarTab::Docker)
                     ) {
                         return iced::Task::batch([
                             self.sidebar_files_sync(),
                             self.tmux_sync(),
+                            self.docker_sync(),
                         ]);
                     }
                 }
@@ -124,6 +126,9 @@ impl Oryxis {
                     // returning to the tab reuses what is already there,
                     // and a refresh is the user's own action.
                     return self.tmux_sync();
+                }
+                if tab == crate::state::TerminalSidebarTab::Docker {
+                    return self.docker_sync();
                 }
             }
             AiMessage::SidebarSnippetSearchChanged(v) => {

@@ -294,6 +294,7 @@ pub enum SettingsMessage {
     /// Features & Plugins: master toggle for the tmux session manager
     /// (issue #116). Gates the sidebar tab and everything it owns.
     SettingToggleTmuxManager,
+    SettingToggleDockerManager,
     /// Flip the host dashboard between the responsive card grid and a
     /// single-column list.
     CycleHostViewMode,

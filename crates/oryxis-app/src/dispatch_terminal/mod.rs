@@ -364,6 +364,7 @@ impl Oryxis {
                 // question, because another pane owns its own listing.
                 if let Some(pane_id) = closed_pane {
                     self.tmux_reset_pane(&pane_id);
+                    self.docker_reset_pane(&pane_id);
                 }
                 // Same rule as CloseTab: drop the monitor series only
                 // when the closed pane was the machine's last live one

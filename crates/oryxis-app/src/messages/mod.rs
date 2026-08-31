@@ -31,6 +31,8 @@ mod monitor;
 pub use monitor::MonitorMessage;
 mod tmux;
 pub use tmux::TmuxMessage;
+mod docker;
+pub use docker::DockerMessage;
 mod sidebar_files;
 pub use sidebar_files::SidebarFilesMessage;
 mod terminal;
@@ -157,6 +159,8 @@ pub enum Message {
     // listing (or an attach) on the wrong shell.
     // Tmux (handle_tmux)
     Tmux(TmuxMessage),
+    // Docker (handle_docker)
+    Docker(DockerMessage),
     /// Open an arbitrary URL in the user's default browser.
     /// Used by clickable links in the About panel.
     OpenUrl(String),

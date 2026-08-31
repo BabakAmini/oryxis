@@ -205,6 +205,7 @@ impl Oryxis {
                 // reconnect re-keys the pane and drops the old
                 // listing). No-op with the tab hidden.
                 let tmux_sync = self.tmux_sync();
+                let docker_sync = self.docker_sync();
                 if let Some((conn_id, sess)) = detect_for {
                     return Task::batch([
                         files_sync,
@@ -213,6 +214,7 @@ impl Oryxis {
                         login_script_task,
                         pf_kick,
                         tmux_sync,
+                        docker_sync,
                         Task::perform(
                             async move { (conn_id, sess.detect_os().await) },
                             |(id, os)| Message::Ssh(SshMessage::OsDetected(id, os)),
@@ -226,6 +228,7 @@ impl Oryxis {
                     login_script_task,
                     pf_kick,
                     tmux_sync,
+                    docker_sync,
                 ]);
             }
             SshMessage::OsDetected(conn_id, os) => {
@@ -316,9 +319,9 @@ impl Oryxis {
                     // died, and offering attaches over a dead session
                     // would be a list of buttons that cannot work.
                     self.tmux_reset_pane(&pane_id);
+                    self.docker_reset_pane(&pane_id);
                     // Clear the disconnected pane's session + end its log.
                     let log_id = self.tabs[tab_idx].pane_by_id_mut(pane_id).and_then(|p| {
-                        // Close (not just drop) the dead session: SFTP
                         // mounts hold their own Arc clones, so dropping
                         // the pane's alone would leak the writer/quality
                         // tasks and keep `is_alive()` true on a session

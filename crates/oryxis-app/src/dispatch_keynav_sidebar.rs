@@ -700,6 +700,10 @@ impl Oryxis {
                 self.keynav.sidebar_selected = Some((target, 1));
                 Task::batch([self.sidebar_nav_scroll(target, 1), self.tmux_sync()])
             }
+            TerminalSidebarTab::Docker => {
+                self.keynav.sidebar_selected = Some((target, 1));
+                Task::batch([self.sidebar_nav_scroll(target, 1), self.docker_sync()])
+            }
             TerminalSidebarTab::Snippets | TerminalSidebarTab::HostConfig => {
                 // Land on the first row of the tab BODY. Index 0 is the
                 // header's Close button (the strip records first, on

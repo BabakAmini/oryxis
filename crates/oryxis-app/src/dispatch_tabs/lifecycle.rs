@@ -128,6 +128,7 @@ impl Oryxis {
             self.tabs[idx].pane_grid.panes.values().map(|p| p.id).collect();
         for pane_id in closing_panes {
             self.tmux_reset_pane(&pane_id);
+            self.docker_reset_pane(&pane_id);
         }
         // Closing a pinned tab drops it from the persisted set.
         let was_pinned = self.tabs[idx].pinned;
@@ -357,6 +358,7 @@ impl Oryxis {
             // leaked in the map. Drop it like every other teardown
             // does; `SshConnected` re-lists a visible tab.
             self.tmux_reset_pane(&pane_id);
+            self.docker_reset_pane(&pane_id);
             // Toast "Reconnecting..." so the user sees feedback the
             // moment the attempt starts (a silent auto-reconnect can fire
             // up to 30s after the disconnect was first detected). Focus is

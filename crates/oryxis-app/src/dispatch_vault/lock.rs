@@ -221,6 +221,7 @@ impl Oryxis {
                     // a host is telemetry too, and a locked screen owes
                     // the fleet nothing.
                     self.tmux_reset_all();
+                    self.docker_reset_all();
                     self.sftp.overwrite_prompt = None;
                     self.sftp.properties = None;
                     // A pending keyboard-interactive prompt belongs to an
@@ -431,6 +432,7 @@ impl Oryxis {
                         }
                         self.monitor_reset_all();
                         self.tmux_reset_all();
+                        self.docker_reset_all();
                         self.sftp.overwrite_prompt = None;
                         self.sftp.properties = None;
                         // Cancel a pending keyboard-interactive / host-key

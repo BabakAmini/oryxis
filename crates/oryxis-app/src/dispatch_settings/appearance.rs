@@ -131,6 +131,16 @@ impl Oryxis {
                     self.hover.tmux_row = None;
                 }
             }
+            SettingsMessage::SettingToggleDockerManager => {
+                self.prefs.docker_manager = !self.prefs.docker_manager;
+                self.persist_setting(
+                    "docker_manager_enabled",
+                    if self.prefs.docker_manager { "true" } else { "false" },
+                );
+                if !self.prefs.docker_manager {
+                    self.docker_reset_all();
+                }
+            }
             SettingsMessage::SettingToggleMonitorAllHosts => {
                 self.prefs.monitor_all_hosts = !self.prefs.monitor_all_hosts;
                 self.persist_setting(

@@ -865,6 +865,9 @@ impl Oryxis {
             if let Ok(Some(v)) = vault.get_setting("tmux_manager_enabled") {
                 self.prefs.tmux_manager = v == "true";
             }
+            if let Ok(Some(v)) = vault.get_setting("docker_manager_enabled") {
+                self.prefs.docker_manager = v == "true";
+            }
             if let Ok(Some(v)) = vault.get_setting("ssh_connection_reuse") {
                 self.prefs.ssh_connection_reuse = v == "true";
             }

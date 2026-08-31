@@ -383,6 +383,7 @@ impl Oryxis {
             Message::SidebarFiles(m) => self.handle_sidebar_files(m),
             Message::Monitor(m) => self.handle_monitor(m),
             Message::Tmux(m) => self.handle_tmux(m),
+            Message::Docker(m) => self.handle_docker(m),
             Message::History(m) => self.handle_history(m),
             Message::Settings(m) => {
                 // Two settings-domain arms edit the OPEN host editor's

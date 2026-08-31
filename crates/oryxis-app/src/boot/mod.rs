@@ -467,6 +467,7 @@ impl Oryxis {
                 theme_ui: crate::state::ThemeEditorUi::default(),
                 monitor: Default::default(),
                 tmux: Default::default(),
+                docker: Default::default(),
                 ssh_transport_pool: Default::default(),
                 pending_reuse_keys: Default::default(),
                 monitor_dash: Default::default(),

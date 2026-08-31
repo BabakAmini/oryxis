@@ -219,6 +219,12 @@ impl Oryxis {
                 self.prefs.tmux_manager,
                 Message::Settings(SettingsMessage::SettingToggleTmuxManager),
             ),
+            (
+                t("feature_docker"),
+                t("feature_docker_desc"),
+                self.prefs.docker_manager,
+                Message::Settings(SettingsMessage::SettingToggleDockerManager),
+            ),
         ];
         // The agent only exists where a listener can be bound.
         if crate::agent_server::listener_socket_display().is_some() {

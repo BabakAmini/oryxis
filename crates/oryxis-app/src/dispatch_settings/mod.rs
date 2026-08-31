@@ -224,6 +224,7 @@ impl Oryxis {
             | SettingsMessage::SettingToggleHostMonitoring
             | SettingsMessage::SettingToggleMonitorAllHosts
             | SettingsMessage::SettingToggleTmuxManager
+            | SettingsMessage::SettingToggleDockerManager
             | SettingsMessage::SettingToggleConnectionReuse
             | SettingsMessage::SettingToggleMonitorStatusBar
             | SettingsMessage::SettingMonitorIntervalChanged(..)

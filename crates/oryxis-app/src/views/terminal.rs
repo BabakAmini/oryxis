@@ -1021,6 +1021,7 @@ impl Oryxis {
             STab::Files => self.files_tab_content(tab),
             STab::Monitor => self.monitor_tab_content(),
             STab::Tmux => self.tmux_tab_content(tab),
+            STab::Docker => self.docker_tab_content(tab),
             STab::HostConfig => self.host_config_tab_content(tab),
             STab::HostsTree => self.hosts_tree_tab_content(),
         };
@@ -1344,6 +1345,7 @@ fn sidebar_tab_icon<'a>(tab: crate::state::TerminalSidebarTab) -> iced::widget::
         STab::Files => iced_fonts::lucide::folder(),
         STab::Monitor => iced_fonts::lucide::activity(),
         STab::Tmux => iced_fonts::lucide::layout_grid(),
+        STab::Docker => iced_fonts::lucide::container(),
         STab::HostConfig => iced_fonts::lucide::cog(),
         STab::HostsTree => iced_fonts::lucide::folder_tree(),
     }

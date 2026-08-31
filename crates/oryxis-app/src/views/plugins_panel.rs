@@ -114,6 +114,19 @@ impl Oryxis {
                     ),
                 ),
                 Space::new().height(12),
+                // Docker manager: same rule as tmux.
+                self.settings_nav_slot_labeled(
+                    crate::i18n::t("feature_docker"),
+                    crate::keynav::RowAction::activate(Message::Settings(SettingsMessage::SettingToggleDockerManager)),
+                    8.0,
+                    toggle_row_desc(
+                        crate::i18n::t("feature_docker"),
+                        crate::i18n::t("feature_docker_desc"),
+                        self.prefs.docker_manager,
+                        Message::Settings(SettingsMessage::SettingToggleDockerManager),
+                    ),
+                ),
+                Space::new().height(12),
                 // Features holds only the enable toggle; the confirm +
                 // socket rows live in the Settings sidebar's SSH Agent
                 // section, which appears while the agent is enabled.
