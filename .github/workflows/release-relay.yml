@@ -172,14 +172,4 @@ jobs:
           make_latest: false
           files: dist/*
 
-  # Sync the published assets + API snapshots to the download mirror
-  # (dl.oryxis.app / dl-cn.oryxis.app), the Auto fallback for networks
-  # where GitHub is blocked (mainland China). Layout contract lives in
-  # publish-mirror.yml and net_mirror.rs.
-  mirror:
-    name: Publish to download mirror
-    needs: [binary]
-    uses: ./.github/workflows/publish-mirror.yml
-    with:
-      tag: ${{ github.ref_name }}
-    secrets: inherit
+
